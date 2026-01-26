@@ -8,6 +8,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    ```bash
    npm install
+   npx expo install firebase
    ```
 
 2. Start the app
@@ -15,6 +16,10 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    ```bash
    npx expo start
    ```
+
+   TO RUN
+
+Expo start --web
 
 In the output, you'll find options to open the app in a
 
