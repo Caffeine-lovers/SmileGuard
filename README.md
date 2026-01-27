@@ -20,8 +20,8 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    TO RUN
 
 ```
-Expo start --web
-Expo start --android
+npx expo start --web
+npx expo start --android
 ```
 
 In the output, you'll find options to open the app in a
