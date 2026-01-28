@@ -426,6 +426,18 @@ const styles = StyleSheet.create({
     alignSelf: "center", // centers content on wide screens
     textAlign: "center",
   },
+  stepContent: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#e5e7eb",
+    paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
+    marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
+    flex: 1,
+    width: Platform.OS === "web" ? "100%" : "auto",
+    maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
+    alignSelf: "center", // centers content on wide screens
+    paddingHorizontal: width < 768 ? 16 : 32, // side padding for breathing room
+  },
   stepContentweb: {
     borderTopWidth: 1,
     borderBottomWidth: 1,
