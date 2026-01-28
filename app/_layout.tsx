@@ -111,172 +111,180 @@ export default function App() {
         <Modal visible={showEnrollment} animationType="slide">
           <SafeAreaView style={styles.modalFull}>
             {/* PROGRESS BAR */}
-            <View style={styles.progressHeader}>
-              <View style={styles.progressBar}>
-                <View style={[styles.dot, step >= 1 && styles.activeDot]}>
-                  <Text style={styles.dotText}>1</Text>
-                </View>
-                <View style={[styles.line, step >= 2 && styles.activeLine]} />
-                <View style={[styles.dot, step >= 2 && styles.activeDot]}>
-                  <Text style={styles.dotText}>2</Text>
-                </View>
-                <View style={[styles.line, step >= 3 && styles.activeLine]} />
-                <View style={[styles.dot, step >= 3 && styles.activeDot]}>
-                  <Text style={styles.dotText}>3</Text>
-                </View>
-              </View>
-              <View style={styles.labelRow}>
-                <Text style={styles.stepLabel}>Booking</Text>
-                <Text style={styles.stepLabel}>Sign Up</Text>
-                <Text style={styles.stepLabel}>Finished</Text>
-              </View>
-            </View>
-
-            <View style={styles.stepContent}>
-              {step === 1 && (
-                <View>
-                  <Text style={styles.h2}>Book Appointment</Text>
-                  <View style={{ marginBottom: 16 }}>
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        marginBottom: 12,
-                      }}
-                    >
-                      Select Service
-                    </Text>
-                    {[
-                      "Cleaning",
-                      "Tooth Extraction",
-                      "Root Canal",
-                      "Whitening",
-                    ].map((service) => (
-                      <TouchableOpacity
-                        key={service}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          marginBottom: 10,
-                        }}
-                        onPress={() => setFormData({ ...formData, service })}
-                      >
-                        <View
-                          style={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: 4,
-                            borderWidth: 2,
-                            borderColor: "#0b7fab",
-                            backgroundColor:
-                              formData.service === service ? "#0b7fab" : "#fff",
-                            marginRight: 12,
-                          }}
-                        />
-                        <Text style={{ fontSize: 16 }}>{service}</Text>
-                      </TouchableOpacity>
-                    ))}
+            <View style={styles.bordercard}>
+              <View style={styles.progressHeader}>
+                <View style={styles.progressBar}>
+                  <View style={[styles.dot, step >= 1 && styles.activeDot]}>
+                    <Text style={styles.dotText}>1</Text>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.primaryBtn]}
-                    onPress={handleNext}
-                  >
-                    <Text style={styles.btnText}>Continue</Text>
-                  </TouchableOpacity>
+                  <View style={[styles.line, step >= 2 && styles.activeLine]} />
+                  <View style={[styles.dot, step >= 2 && styles.activeDot]}>
+                    <Text style={styles.dotText}>2</Text>
+                  </View>
+                  <View style={[styles.line, step >= 3 && styles.activeLine]} />
+                  <View style={[styles.dot, step >= 3 && styles.activeDot]}>
+                    <Text style={styles.dotText}>3</Text>
+                  </View>
                 </View>
-              )}
+                <View style={styles.labelRow}>
+                  <Text style={styles.stepLabel}>Booking</Text>
+                  <Text style={styles.stepLabel}>Sign Up</Text>
+                  <Text style={styles.stepLabel}>Finished</Text>
+                </View>
+              </View>
 
-              {step === 2 && (
-                <View>
-                  <Text style={styles.h2}>Create Account</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Full Name"
-                    onChangeText={(t) => setFormData({ ...formData, name: t })}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    onChangeText={(t) => setFormData({ ...formData, email: t })}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    secureTextEntry
-                    textContentType="password"
-                    onChangeText={(t) =>
-                      setFormData({ ...formData, password: t })
-                    }
-                  />
-                  <TouchableOpacity
-                    style={[styles.btn, styles.primaryBtn]}
-                    onPress={() => {
-                      try {
-                        if (!formData.name || formData.name.trim() === "") {
-                          throw new Error("Full Name is required");
-                        }
-                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                        if (
-                          !formData.email ||
-                          !emailRegex.test(formData.email)
-                        ) {
-                          throw new Error("Valid email is required");
-                        }
-                        if (
-                          !formData.password ||
-                          formData.password.length < 6
-                        ) {
-                          throw new Error(
-                            "Password must be at least 6 characters",
+              <View style={styles.stepContent}>
+                {step === 1 && (
+                  <View>
+                    <Text style={styles.h2}>Book Appointment</Text>
+                    <View style={{ marginBottom: 16 }}>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "600",
+                          marginBottom: 12,
+                        }}
+                      >
+                        Select Service
+                      </Text>
+                      {[
+                        "Cleaning",
+                        "Tooth Extraction",
+                        "Root Canal",
+                        "Whitening",
+                      ].map((service) => (
+                        <TouchableOpacity
+                          key={service}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginBottom: 10,
+                          }}
+                          onPress={() => setFormData({ ...formData, service })}
+                        >
+                          <View
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 4,
+                              borderWidth: 2,
+                              borderColor: "#0b7fab",
+                              backgroundColor:
+                                formData.service === service
+                                  ? "#0b7fab"
+                                  : "#fff",
+                              marginRight: 12,
+                            }}
+                          />
+                          <Text style={{ fontSize: 16 }}>{service}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn]}
+                      onPress={handleNext}
+                    >
+                      <Text style={styles.btnText}>Continue</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {step === 2 && (
+                  <View>
+                    <Text style={styles.h2}>Create Account</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Full Name"
+                      onChangeText={(t) =>
+                        setFormData({ ...formData, name: t })
+                      }
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email"
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      onChangeText={(t) =>
+                        setFormData({ ...formData, email: t })
+                      }
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Password"
+                      secureTextEntry
+                      textContentType="password"
+                      onChangeText={(t) =>
+                        setFormData({ ...formData, password: t })
+                      }
+                    />
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn]}
+                      onPress={() => {
+                        try {
+                          if (!formData.name || formData.name.trim() === "") {
+                            throw new Error("Full Name is required");
+                          }
+                          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                          if (
+                            !formData.email ||
+                            !emailRegex.test(formData.email)
+                          ) {
+                            throw new Error("Valid email is required");
+                          }
+                          if (
+                            !formData.password ||
+                            formData.password.length < 6
+                          ) {
+                            throw new Error(
+                              "Password must be at least 6 characters",
+                            );
+                          }
+                          handleFinalize();
+                        } catch (error) {
+                          alert(
+                            error instanceof Error
+                              ? error.message
+                              : "Validation error",
                           );
                         }
-                        handleFinalize();
-                      } catch (error) {
-                        alert(
-                          error instanceof Error
-                            ? error.message
-                            : "Validation error",
-                        );
-                      }
-                    }}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.btnText}>Complete</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
+                      }}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.btnText}>Complete</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
 
-              {step === 3 && (
-                <View style={{ alignItems: "center" }}>
-                  <Text style={{ fontSize: 50, marginBottom: 20 }}>✨</Text>
-                  <Text style={styles.h2}>Success!</Text>
-                  <Text style={styles.p}>
-                    Your booking for {formData.service} is confirmed. Welcome to
-                    the family.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.btn, styles.primaryBtn]}
-                    onPress={enterDashboard}
-                  >
-                    <Text style={styles.btnText}>Go to Dashboard</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                {step === 3 && (
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={{ fontSize: 50, marginBottom: 20 }}>✨</Text>
+                    <Text style={styles.h2}>Success!</Text>
+                    <Text style={styles.p}>
+                      Your booking for {formData.service} is confirmed. Welcome
+                      to the family.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn]}
+                      onPress={enterDashboard}
+                    >
+                      <Text style={styles.btnText}>Go to Dashboard</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowEnrollment(false)}
+              >
+                <Text style={{ color: "#ef4444", fontWeight: "bold" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setShowEnrollment(false)}
-            >
-              <Text style={{ color: "#ef4444", fontWeight: "bold" }}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
           </SafeAreaView>
         </Modal>
       </SafeAreaView>
@@ -360,7 +368,30 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   btnLabel: { fontWeight: "600", color: "#333" },
   // Modal Progress Styles
-  modalFull: { flex: 1, padding: 30 },
+  modalFull: {
+    flex: 1,
+    padding: 30,
+    justifyContent: "space-between",
+  },
+  bordercard: {
+    flex: 1,
+    justifyContent: "space-between",
+    alignSelf: "center", // centers content on wide screens
+    paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
+    marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
+    width: Platform.OS === "web" ? "100%" : "auto",
+    maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
+    padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  //TAKE NOTE TO USE 'web' TO STYLE FOR WEB VERSIONS
+  bordercardweb: {
+    borderColor: "#dddddd",
+    borderWidth: 5,
+    borderRadius: "20%",
+  },
   progressHeader: { marginBottom: 50 },
   progressBar: {
     flexDirection: "row",
@@ -377,7 +408,8 @@ const styles = StyleSheet.create({
   },
   activeDot: { backgroundColor: "#0b7fab" },
   dotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  line: { width: 140, height: 2, backgroundColor: "#e5e7eb" },
+  line: { width: 100, height: 2, backgroundColor: "#e5e7eb" },
+  lineweb: { width: 140, height: 2, backgroundColor: "#e5e7eb" },
   activeLine: { backgroundColor: "#0b7fab" },
   labelRow: {
     flexDirection: "row",
@@ -394,7 +426,7 @@ const styles = StyleSheet.create({
     alignSelf: "center", // centers content on wide screens
     textAlign: "center",
   },
-  stepContent: {
+  stepContentweb: {
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: "#e5e7eb",
