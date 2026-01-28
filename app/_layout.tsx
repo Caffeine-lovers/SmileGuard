@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Modal,
   Platform,
   ScrollView,
@@ -12,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import PatientDashboard from "./_patientDashboard";
-
+const { width } = Dimensions.get("window");
 export default function App() {
   const [showEnrollment, setShowEnrollment] = useState(false);
   const [step, setStep] = useState(1); // 1: Booking, 2: Sign up, 3: Success
@@ -29,6 +30,10 @@ export default function App() {
   const handleNext = () => setStep((s) => s + 1);
 
   const handleFinalize = async () => {
+    if (!formData.name || !formData.email || !formData.password) {
+      alert("Please fill in all fields");
+      return;
+    }
     setLoading(true);
     // Simulate API/Firebase call
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -123,7 +128,7 @@ export default function App() {
               <View style={styles.labelRow}>
                 <Text style={styles.stepLabel}>Booking</Text>
                 <Text style={styles.stepLabel}>Sign Up</Text>
-                <Text style={styles.stepLabel}>Success</Text>
+                <Text style={styles.stepLabel}>Finished</Text>
               </View>
             </View>
 
@@ -131,13 +136,47 @@ export default function App() {
               {step === 1 && (
                 <View>
                   <Text style={styles.h2}>Book Appointment</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Service (e.g. Tooth Extraction)"
-                    onChangeText={(t) =>
-                      setFormData({ ...formData, service: t })
-                    }
-                  />
+                  <View style={{ marginBottom: 16 }}>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        marginBottom: 12,
+                      }}
+                    >
+                      Select Service
+                    </Text>
+                    {[
+                      "Cleaning",
+                      "Tooth Extraction",
+                      "Root Canal",
+                      "Whitening",
+                    ].map((service) => (
+                      <TouchableOpacity
+                        key={service}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 10,
+                        }}
+                        onPress={() => setFormData({ ...formData, service })}
+                      >
+                        <View
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 4,
+                            borderWidth: 2,
+                            borderColor: "#0b7fab",
+                            backgroundColor:
+                              formData.service === service ? "#0b7fab" : "#fff",
+                            marginRight: 12,
+                          }}
+                        />
+                        <Text style={{ fontSize: 16 }}>{service}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                   <TouchableOpacity
                     style={[styles.btn, styles.primaryBtn]}
                     onPress={handleNext}
@@ -159,24 +198,54 @@ export default function App() {
                     style={styles.input}
                     placeholder="Email"
                     autoCapitalize="none"
+                    keyboardType="email-address"
                     onChangeText={(t) => setFormData({ ...formData, email: t })}
                   />
                   <TextInput
                     style={styles.input}
                     placeholder="Password"
                     secureTextEntry
+                    textContentType="password"
                     onChangeText={(t) =>
                       setFormData({ ...formData, password: t })
                     }
                   />
                   <TouchableOpacity
                     style={[styles.btn, styles.primaryBtn]}
-                    onPress={handleFinalize}
+                    onPress={() => {
+                      try {
+                        if (!formData.name || formData.name.trim() === "") {
+                          throw new Error("Full Name is required");
+                        }
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (
+                          !formData.email ||
+                          !emailRegex.test(formData.email)
+                        ) {
+                          throw new Error("Valid email is required");
+                        }
+                        if (
+                          !formData.password ||
+                          formData.password.length < 6
+                        ) {
+                          throw new Error(
+                            "Password must be at least 6 characters",
+                          );
+                        }
+                        handleFinalize();
+                      } catch (error) {
+                        alert(
+                          error instanceof Error
+                            ? error.message
+                            : "Validation error",
+                        );
+                      }
+                    }}
                   >
                     {loading ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.btnText}>Complete Enrollment</Text>
+                      <Text style={styles.btnText}>Complete</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -308,16 +377,40 @@ const styles = StyleSheet.create({
   },
   activeDot: { backgroundColor: "#0b7fab" },
   dotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  line: { width: 50, height: 2, backgroundColor: "#e5e7eb" },
+  line: { width: 140, height: 2, backgroundColor: "#e5e7eb" },
   activeLine: { backgroundColor: "#0b7fab" },
   labelRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10,
-    paddingHorizontal: 20,
+    width: Platform.OS === "web" ? "100%" : "auto",
+    maxWidth: Platform.OS === "web" ? 500 : "100%", // cap width on desktop
+    alignSelf: "center", // centers content on wide screens
   },
-  stepLabel: { fontSize: 11, fontWeight: "bold", color: "#9ca3af" },
-  stepContent: { flex: 1, justifyContent: "center" },
+  stepLabel: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#9ca3af",
+    flex: 1,
+    alignSelf: "center", // centers content on wide screens
+    textAlign: "center",
+  },
+  stepContent: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#e5e7eb",
+    paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
+    marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
+    flex: 1,
+    width: Platform.OS === "web" ? "100%" : "auto",
+    maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
+    alignSelf: "center", // centers content on wide screens
+    paddingHorizontal: width < 768 ? 16 : 32, // side padding for breathing room
+  },
+  centerContent: {
+    alignItems: "center",
+    padding: 0.5,
+    justifyContent: "center",
+  },
   input: {
     backgroundColor: "#f3f4f6",
     padding: 16,
