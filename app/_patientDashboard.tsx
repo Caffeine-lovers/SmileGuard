@@ -1,12 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+const { width } = Dimensions.get("window");
 
 interface DashboardProps {
   user: { name: string };
@@ -14,6 +17,9 @@ interface DashboardProps {
 }
 
 export default function PatientDashboard({ user, onLogout }: DashboardProps) {
+  // State for Objective 2: Explainable AI Overlay
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
+
   const appointments = [
     { id: "1", service: "Checkup", date: "Oct 25, 2025", status: "Pending" },
     { id: "2", service: "Cleaning", date: "Aug 12, 2024", status: "Completed" },
@@ -21,6 +27,7 @@ export default function PatientDashboard({ user, onLogout }: DashboardProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header remain unchanged */}
       <View style={styles.header}>
         <View>
           <Text style={styles.welcome}>Welcome Back,</Text>
@@ -32,11 +39,64 @@ export default function PatientDashboard({ user, onLogout }: DashboardProps) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Upcoming Appointment Card */}
         <View style={styles.highlightCard}>
           <Text style={styles.cardLabel}>Upcoming Appointment</Text>
           <Text style={styles.cardMain}>Tomorrow at 10:00 AM</Text>
           <Text style={styles.cardSub}>General Dental Checkup</Text>
         </View>
+
+        {/* --- OBJECTIVE 2: EDGE-BASED DIAGNOSTIC AID SECTION --- */}
+        <Text style={styles.sectionTitle}>Edge-AI Diagnostics</Text>
+        <View style={styles.diagnosticCard}>
+          <Text style={styles.aptService}>Intra-oral Scan: Q3 Molar</Text>
+          <Text style={styles.aptDate}>Processed locally via Edge-Node</Text>
+
+          <View style={styles.imageContainer}>
+            {/* Base Image (Simulated Raw X-ray) */}
+            <View
+              style={[styles.imagePlaceholder, { backgroundColor: "#333" }]}
+            >
+              <Text style={{ color: "#fff", fontSize: 10 }}>
+                RAW RADIOGRAPH
+              </Text>
+            </View>
+
+            {/* Explainable Overlay (Triggered by showAiAnalysis) */}
+            {showAiAnalysis && (
+              <View style={styles.overlayLayer}>
+                {/* This represents the Python CM Luminosity output */}
+                <View style={styles.anomalyHighlight} />
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.aiToggle, showAiAnalysis && styles.aiToggleActive]}
+            onPress={() => setShowAiAnalysis(!showAiAnalysis)}
+          >
+            <Text style={styles.aiToggleText}>
+              {showAiAnalysis
+                ? "Disable AI Insights"
+                : "Run Luminosity Analysis"}
+            </Text>
+          </TouchableOpacity>
+
+          {showAiAnalysis && (
+            <View style={styles.explanationBox}>
+              <Text style={styles.explanationTitle}>
+                🔍 Explainable AI Report:
+              </Text>
+              <Text style={styles.explanationBody}>
+                Anomalies detected in lower-left region. Luminosity levels
+                dropped by
+                <Text style={{ fontWeight: "bold" }}> 32% </Text>
+                relative to healthy enamel (Rule-based detection).
+              </Text>
+            </View>
+          )}
+        </View>
+        {/* ----------------------------------------------------- */}
 
         <Text style={styles.sectionTitle}>Your Activity</Text>
         {appointments.map((item) => (
@@ -90,6 +150,83 @@ const styles = StyleSheet.create({
   cardMain: { color: "#fff", fontSize: 20, fontWeight: "bold" },
   cardSub: { color: "#fff", fontSize: 14, marginTop: 5 },
   sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
+
+  // NEW DIAGNOSTIC STYLES
+  diagnosticCard: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 25,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  imageContainer: {
+    width: "100%",
+    height: 180,
+    backgroundColor: "#000",
+    borderRadius: 8,
+    marginVertical: 12,
+    overflow: "hidden",
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imagePlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  overlayLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(99, 102, 241, 0.2)", // Light blue tint
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  anomalyHighlight: {
+    width: 60,
+    height: 40,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "#ef4444",
+    backgroundColor: "rgba(239, 68, 68, 0.3)", // Red heat-map indicator
+    position: "absolute",
+    top: 50,
+    left: 40,
+  },
+  aiToggle: {
+    backgroundColor: "#6366f1",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  aiToggleActive: {
+    backgroundColor: "#4338ca",
+  },
+  aiToggleText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  explanationBox: {
+    marginTop: 15,
+    padding: 12,
+    backgroundColor: "#f5f3ff",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#6366f1",
+  },
+  explanationTitle: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#4338ca",
+    marginBottom: 4,
+  },
+  explanationBody: {
+    fontSize: 12,
+    color: "#4b5563",
+    lineHeight: 18,
+  },
+
   aptRow: {
     backgroundColor: "#fff",
     padding: 16,
