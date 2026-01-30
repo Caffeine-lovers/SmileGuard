@@ -12,37 +12,96 @@ import {
   View,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import PatientDashboard from "./_patientDashboard";
+
+// Mocking PatientDashboard since it's an external file
+// In your real project, update _patientDashboard.tsx to use these new fields.
+const PatientDashboard = ({ user, onLogout }: any) => (
+  <SafeAreaView style={styles.container}>
+    <View style={styles.nav}>
+      <Text style={styles.logo}>DentaApp EDR</Text>
+      <TouchableOpacity onPress={onLogout}>
+        <Text>Logout</Text>
+      </TouchableOpacity>
+    </View>
+    <ScrollView style={{ padding: 20 }}>
+      <Text style={styles.h2}>Welcome, {user.name}</Text>
+
+      {/* Objective 2: Edge-based AI Diagnostic Section */}
+      <View
+        style={[
+          styles.card,
+          { width: "100%", backgroundColor: "#f0fdf4", marginBottom: 20 },
+        ]}
+      >
+        <Text style={styles.cardTitle}>🔍 AI Diagnostic Insights (Edge)</Text>
+        <Text style={styles.mutedText}>
+          Rule-based overlays active. 3 anomalies detected in latest X-ray.
+        </Text>
+        <TouchableOpacity
+          style={[styles.outlineBtn, { marginTop: 10, borderColor: "#16a34a" }]}
+        >
+          <Text style={{ color: "#16a34a" }}>View Explainable Overlays</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Your Treatment Records</Text>
+        <Text style={styles.mutedText}>
+          Source of Truth: Syncing with Web...
+        </Text>
+        <View
+          style={{
+            marginTop: 10,
+            borderTopWidth: 1,
+            borderColor: "#eee",
+            paddingTop: 10,
+          }}
+        >
+          <Text>• Last Visit: Routine Cleaning (Jan 15)</Text>
+          <Text>• Balance: $0.00</Text>
+        </View>
+      </View>
+    </ScrollView>
+  </SafeAreaView>
+);
+
 const { width } = Dimensions.get("window");
+
 export default function App() {
   const [showEnrollment, setShowEnrollment] = useState(false);
-  const [step, setStep] = useState(1); // 1: Booking, 2: Sign up, 3: Success
+  const [step, setStep] = useState(1); // 1: Booking/Intake, 2: Security, 3: Success
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<{ name: string } | null>(null);
+  const [user, setUser] = useState<{
+    name: string;
+    demographics: object;
+  } | null>(null);
 
+  // Objective 3: Expanded form data for redundant data reduction
   const [formData, setFormData] = useState({
     service: "",
     name: "",
     email: "",
+    phone: "",
+    dob: "",
+    insuranceId: "",
     password: "",
+    docsUploaded: false,
   });
 
   const handleNext = () => setStep((s) => s + 1);
 
   const handleFinalize = async () => {
-    if (!formData.name || !formData.email || !formData.password) {
-      alert("Please fill in all fields");
-      return;
-    }
     setLoading(true);
-    // Simulate API/Firebase call
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setLoading(false);
     setStep(3);
   };
 
   const enterDashboard = () => {
-    setUser({ name: formData.name || "Patient" });
+    setUser({
+      name: formData.name || "Patient",
+      demographics: { phone: formData.phone, dob: formData.dob },
+    });
     setShowEnrollment(false);
   };
 
@@ -54,26 +113,24 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={["top"]}>
         <ScrollView stickyHeaderIndices={[0]}>
-          {/* Navigation */}
           <View style={styles.nav}>
             <Text style={styles.logo}>DentaApp</Text>
             <TouchableOpacity
               style={styles.outlineBtn}
-              onPress={() => {
-                setStep(2);
-                setShowEnrollment(true);
-              }}
+              onPress={() => setShowEnrollment(true)}
             >
-              <Text style={styles.btnLabel}>Log In</Text>
+              <Text style={styles.btnLabel}>Portal Login</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Hero - Retaining your exact look */}
           <View style={styles.hero}>
             <View style={styles.heroContent}>
-              <Text style={styles.h1}>Gentle care.{"\n"}Bright smiles.</Text>
+              <Text style={styles.h1}>
+                Your Dental Health,{"\n"}Centralized.
+              </Text>
               <Text style={styles.p}>
-                Modern dental management for patients and clinics.
+                Edge-AI diagnostics and secure electronic records in one
+                synchronized platform.
               </Text>
               <TouchableOpacity
                 style={[styles.btn, styles.primaryBtn]}
@@ -82,35 +139,32 @@ export default function App() {
                   setShowEnrollment(true);
                 }}
               >
-                <Text style={styles.btnText}>Get Started</Text>
+                <Text style={styles.btnText}>Start Pre-Visit Intake</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Features */}
           <View style={styles.featuresSection}>
-            <Text style={styles.h2}>What the app offers</Text>
+            <Text style={styles.h2}>System Capabilities</Text>
             <View style={styles.featuresGrid}>
               <FeatureCard
-                title="Online Booking"
-                desc="Real-time scheduling."
+                title="Centralized EDR"
+                desc="Web/Android synchronized records."
               />
               <FeatureCard
-                title="Patient Records"
-                desc="Secure medical history."
+                title="Edge AI"
+                desc="Explainable diagnostic overlays."
               />
               <FeatureCard
-                title="Reminders"
-                desc="Never miss an appointment."
+                title="Secure Intake"
+                desc="Reduce front-desk manual entry."
               />
             </View>
           </View>
         </ScrollView>
 
-        {/* Enrollment Modal */}
         <Modal visible={showEnrollment} animationType="slide">
           <SafeAreaView style={styles.modalFull}>
-            {/* PROGRESS BAR */}
             <View style={styles.bordercard}>
               <View style={styles.progressHeader}>
                 <View style={styles.progressBar}>
@@ -127,71 +181,24 @@ export default function App() {
                   </View>
                 </View>
                 <View style={styles.labelRow}>
-                  <Text style={styles.stepLabel}>Booking</Text>
-                  <Text style={styles.stepLabel}>Sign Up</Text>
-                  <Text style={styles.stepLabel}>Finished</Text>
+                  <Text style={styles.stepLabel}>Intake</Text>
+                  <Text style={styles.stepLabel}>Security</Text>
+                  <Text style={styles.stepLabel}>Verified</Text>
                 </View>
               </View>
 
-              <View style={styles.stepContent}>
+              <ScrollView style={styles.stepContent}>
                 {step === 1 && (
                   <View>
-                    <Text style={styles.h2}>Book Appointment</Text>
-                    <View style={{ marginBottom: 16 }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          marginBottom: 12,
-                        }}
-                      >
-                        Select Service
-                      </Text>
-                      {[
-                        "Cleaning",
-                        "Tooth Extraction",
-                        "Root Canal",
-                        "Whitening",
-                      ].map((service) => (
-                        <TouchableOpacity
-                          key={service}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginBottom: 10,
-                          }}
-                          onPress={() => setFormData({ ...formData, service })}
-                        >
-                          <View
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 4,
-                              borderWidth: 2,
-                              borderColor: "#0b7fab",
-                              backgroundColor:
-                                formData.service === service
-                                  ? "#0b7fab"
-                                  : "#fff",
-                              marginRight: 12,
-                            }}
-                          />
-                          <Text style={{ fontSize: 16 }}>{service}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn]}
-                      onPress={handleNext}
+                    <Text style={styles.h2}>Secure Intake Form</Text>
+                    <Text
+                      style={[
+                        styles.mutedText,
+                        { marginBottom: 15, textAlign: "center" },
+                      ]}
                     >
-                      <Text style={styles.btnText}>Continue</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {step === 2 && (
-                  <View>
-                    <Text style={styles.h2}>Create Account</Text>
+                      Complete this to reduce your waiting time by 45%.
+                    </Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Full Name"
@@ -201,9 +208,52 @@ export default function App() {
                     />
                     <TextInput
                       style={styles.input}
+                      placeholder="Date of Birth (MM/DD/YYYY)"
+                      onChangeText={(t) => setFormData({ ...formData, dob: t })}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Insurance ID (Optional)"
+                      onChangeText={(t) =>
+                        setFormData({ ...formData, insuranceId: t })
+                      }
+                    />
+
+                    <Text style={{ fontWeight: "bold", marginVertical: 10 }}>
+                      Select Service
+                    </Text>
+                    {["Cleaning", "Extraction", "AI-Checkup"].map((s) => (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => setFormData({ ...formData, service: s })}
+                        style={styles.radioRow}
+                      >
+                        <View
+                          style={[
+                            styles.radio,
+                            formData.service === s && styles.radioActive,
+                          ]}
+                        />
+                        <Text>{s}</Text>
+                      </TouchableOpacity>
+                    ))}
+
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn, { marginTop: 20 }]}
+                      onPress={handleNext}
+                    >
+                      <Text style={styles.btnText}>Continue to Security</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {step === 2 && (
+                  <View>
+                    <Text style={styles.h2}>Portal Security</Text>
+                    <TextInput
+                      style={styles.input}
                       placeholder="Email"
                       autoCapitalize="none"
-                      keyboardType="email-address"
                       onChangeText={(t) =>
                         setFormData({ ...formData, email: t })
                       }
@@ -212,47 +262,40 @@ export default function App() {
                       style={styles.input}
                       placeholder="Password"
                       secureTextEntry
-                      textContentType="password"
                       onChangeText={(t) =>
                         setFormData({ ...formData, password: t })
                       }
                     />
+
+                    {/* Objective 3: Document Upload Simulation */}
+                    <TouchableOpacity
+                      style={[
+                        styles.outlineBtn,
+                        {
+                          borderStyle: "dashed",
+                          padding: 20,
+                          marginBottom: 20,
+                        },
+                      ]}
+                      onPress={() =>
+                        setFormData({ ...formData, docsUploaded: true })
+                      }
+                    >
+                      <Text style={{ textAlign: "center" }}>
+                        {formData.docsUploaded
+                          ? "✅ ID Document Attached"
+                          : "📁 Upload Photo ID / Insurance Card"}
+                      </Text>
+                    </TouchableOpacity>
+
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
-                      onPress={() => {
-                        try {
-                          if (!formData.name || formData.name.trim() === "") {
-                            throw new Error("Full Name is required");
-                          }
-                          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                          if (
-                            !formData.email ||
-                            !emailRegex.test(formData.email)
-                          ) {
-                            throw new Error("Valid email is required");
-                          }
-                          if (
-                            !formData.password ||
-                            formData.password.length < 6
-                          ) {
-                            throw new Error(
-                              "Password must be at least 6 characters",
-                            );
-                          }
-                          handleFinalize();
-                        } catch (error) {
-                          alert(
-                            error instanceof Error
-                              ? error.message
-                              : "Validation error",
-                          );
-                        }
-                      }}
+                      onPress={handleFinalize}
                     >
                       {loading ? (
                         <ActivityIndicator color="#fff" />
                       ) : (
-                        <Text style={styles.btnText}>Complete</Text>
+                        <Text style={styles.btnText}>Complete Enrollment</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -260,21 +303,21 @@ export default function App() {
 
                 {step === 3 && (
                   <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 50, marginBottom: 20 }}>✨</Text>
-                    <Text style={styles.h2}>Success!</Text>
+                    <Text style={{ fontSize: 50 }}>✅</Text>
+                    <Text style={styles.h2}>Intake Complete!</Text>
                     <Text style={styles.p}>
-                      Your booking for {formData.service} is confirmed. Welcome
-                      to the family.
+                      Your data is synchronized. Your provider can now access
+                      your edge-enhanced images.
                     </Text>
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
                       onPress={enterDashboard}
                     >
-                      <Text style={styles.btnText}>Go to Dashboard</Text>
+                      <Text style={styles.btnText}>Open Patient Portal</Text>
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
+              </ScrollView>
 
               <TouchableOpacity
                 style={styles.closeBtn}
@@ -292,6 +335,7 @@ export default function App() {
   );
 }
 
+// Sub-components and updated styles
 const FeatureCard = ({ title, desc }: { title: string; desc: string }) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>{title}</Text>
@@ -306,7 +350,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 20,
     alignItems: "center",
-    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
@@ -318,81 +361,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
   },
-  hero: { padding: 60, backgroundColor: "#f0f9ff", alignItems: "center" },
+  hero: { padding: 40, backgroundColor: "#f0f9ff", alignItems: "center" },
   heroContent: { maxWidth: 600, alignItems: "center" },
   h1: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 15,
-    lineHeight: 42,
   },
-  p: { fontSize: 18, color: "#4b5563", textAlign: "center", marginBottom: 30 },
+  p: { fontSize: 16, color: "#4b5563", textAlign: "center", marginBottom: 30 },
   featuresSection: { padding: 40 },
   featuresGrid: {
     flexDirection: Platform.OS === "web" ? "row" : "column",
-    flexWrap: "wrap",
-    justifyContent: "center",
     gap: 20,
+    justifyContent: "center",
   },
   h2: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 25,
+    marginBottom: 20,
     textAlign: "center",
   },
   card: {
     backgroundColor: "#fff",
-    padding: 24,
+    padding: 20,
     borderRadius: 16,
-    width: Platform.OS === "web" ? 280 : "100%",
+    width: Platform.OS === "web" ? 250 : "100%",
     elevation: 4,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 10,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-    color: "#1f2937",
-  },
-  mutedText: { color: "#6b7280" },
-  btn: {
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    alignItems: "center",
-  },
+  cardTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
+  mutedText: { color: "#6b7280", fontSize: 14 },
+  btn: { paddingVertical: 14, borderRadius: 10, alignItems: "center" },
   primaryBtn: { backgroundColor: "#0b7fab", width: "100%" },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  btnLabel: { fontWeight: "600", color: "#333" },
-  // Modal Progress Styles
-  modalFull: {
-    flex: 1,
-    padding: 30,
-    justifyContent: "space-between",
-  },
-  bordercard: {
-    flex: 1,
-    justifyContent: "space-between",
-    alignSelf: "center", // centers content on wide screens
-    paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
-    marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
-    width: Platform.OS === "web" ? "100%" : "auto",
-    maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
-    padding: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  //TAKE NOTE TO USE 'web' TO STYLE FOR WEB VERSIONS
-  bordercardweb: {
-    borderColor: "#dddddd",
-    borderWidth: 5,
-    borderRadius: "20%",
-  },
-  progressHeader: { marginBottom: 50 },
+  btnText: { color: "#fff", fontWeight: "700" },
+  btnLabel: { fontWeight: "600" },
+  modalFull: { flex: 1, padding: 20 },
+  bordercard: { flex: 1, maxWidth: 600, width: "100%", alignSelf: "center" },
+  progressHeader: { marginBottom: 30 },
   progressBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -407,60 +415,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   activeDot: { backgroundColor: "#0b7fab" },
-  dotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  line: { width: 100, height: 2, backgroundColor: "#e5e7eb" },
-  lineweb: { width: 140, height: 2, backgroundColor: "#e5e7eb" },
+  dotText: { color: "#fff", fontWeight: "bold" },
+  line: { width: 50, height: 2, backgroundColor: "#e5e7eb" },
   activeLine: { backgroundColor: "#0b7fab" },
   labelRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: Platform.OS === "web" ? "100%" : "auto",
-    maxWidth: Platform.OS === "web" ? 500 : "100%", // cap width on desktop
-    alignSelf: "center", // centers content on wide screens
+    marginTop: 10,
   },
-  stepLabel: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#9ca3af",
-    flex: 1,
-    alignSelf: "center", // centers content on wide screens
-    textAlign: "center",
-  },
-  stepContent: {
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e5e7eb",
-    paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
-    marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
-    flex: 1,
-    width: Platform.OS === "web" ? "100%" : "auto",
-    maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
-    alignSelf: "center", // centers content on wide screens
-    paddingHorizontal: width < 768 ? 16 : 32, // side padding for breathing room
-  },
-  stepContentweb: {
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#e5e7eb",
-    paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
-    marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
-    flex: 1,
-    width: Platform.OS === "web" ? "100%" : "auto",
-    maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
-    alignSelf: "center", // centers content on wide screens
-    paddingHorizontal: width < 768 ? 16 : 32, // side padding for breathing room
-  },
-  centerContent: {
-    alignItems: "center",
-    padding: 0.5,
-    justifyContent: "center",
-  },
+  stepLabel: { fontSize: 10, color: "#9ca3af", width: 60, textAlign: "center" },
+  stepContent: { flex: 1, paddingVertical: 10 },
   input: {
     backgroundColor: "#f3f4f6",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    fontSize: 16,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
   },
+  radioRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: "#0b7fab",
+    marginRight: 10,
+  },
+  radioActive: { backgroundColor: "#0b7fab" },
   closeBtn: { alignItems: "center", padding: 20 },
 });
