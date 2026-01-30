@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -30,8 +30,7 @@ export default function PatientDashboard({ user, onLogout }: DashboardProps) {
       {/* Header remain unchanged */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.welcome}>Welcome Back,</Text>
-          <Text style={styles.userName}>{user.name}</Text>
+          <Text style={styles.welcome}>Welcome Back, {user.name}</Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
           <Text style={styles.logoutText}>Log Out</Text>
