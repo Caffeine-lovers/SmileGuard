@@ -182,7 +182,7 @@ export default function App() {
                     </Text>
 
                     <TouchableOpacity
-                      style={[styles.btn, styles.choiceBtn]}
+                      style={[styles.btn, styles.choiceBtn, styles.modalbtn, { marginBottom: 30, width: "80%" }]}
                       onPress={() => handleChoice("login")}
                     >
                       <Text style={styles.choiceBtnText}>
@@ -191,10 +191,10 @@ export default function App() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.btn, styles.outlineChoiceBtn]}
+                      style={[styles.btn, styles.outlineChoiceBtn, { width: "80%" }]}
                       onPress={() => handleChoice("register")}
                     >
-                      <Text style={styles.outlineChoiceText}>
+                      <Text style={[styles.outlineChoiceText]}>
                         New to SmileGuard? (Register)
                       </Text>
                     </TouchableOpacity>
@@ -288,7 +288,7 @@ export default function App() {
                     <Text style={styles.h2}>All Set!</Text>
                     <Text style={styles.p}>Your {role} portal is ready.</Text>
                     <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn]}
+                      style={[ styles.btn, styles.primaryBtn]}
                       onPress={enterDashboard}
                     >
                       <Text style={styles.btnText}>Enter Dashboard</Text>
@@ -379,6 +379,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
+  modalbtn: { marginTop: 90 },
   primaryBtn: { backgroundColor: "#0b7fab", width: "100%" },
   choiceBtn: { backgroundColor: "#0b7fab", width: "100%", marginBottom: 12 },
   choiceBtnText: { color: "#fff", fontWeight: "700" },
@@ -387,7 +388,18 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontWeight: "700" },
   modalFull: { flex: 1, padding: 30 },
   bordercard: { flex: 1, maxWidth: 500, alignSelf: "center", width: "100%" },
-  stepContent: { flex: 1, marginTop: 40 },
+  stepContent: {
+    justifyContent: "center",
+    flex: 1,
+    marginTop: 40,
+    borderColor: "#2bf1ff7d",
+    borderWidth: 1,
+    borderRadius: 45,
+    shadowColor: "#2bf1ff7d",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    padding: 16,
+  },
   input: {
     backgroundColor: "#f3f4f6",
     padding: 16,
