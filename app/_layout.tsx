@@ -301,7 +301,7 @@ export default function App() {
                 style={styles.closeBtn}
                 onPress={() => setShowEnrollment(false)}
               >
-                <Text style={{ color: "#ef4444", fontWeight: "bold" }}>
+                <Text style={{ color: "#ef4444", fontWeight: "bold" , borderColor: "#ef4444", borderWidth: 1, padding: 10, borderRadius: 30, shadowColor: "#ef4444", shadowOpacity: 0.3, shadowRadius: 10,  }}>
                   Exit Portal
                 </Text>
               </TouchableOpacity>
