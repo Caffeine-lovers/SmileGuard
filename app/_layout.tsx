@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Modal,
   Platform,
   ScrollView,
@@ -14,18 +13,40 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import PatientDashboard from "./_patientDashboard";
 
-const { width } = Dimensions.get("window");
+// Simple placeholder for Doctor Dashboard
+const DoctorDashboard = ({ user, onLogout }: any) => (
+  <View style={styles.container}>
+    <SafeAreaView
+      style={{
+        padding: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        flex: 1,
+      }}
+    >
+      <Text style={styles.h2}>Provider Portal: Dr. {user.name}</Text>
+      <TouchableOpacity
+        style={[styles.btn, styles.primaryBtn, { width: 200 }]}
+        onPress={onLogout}
+      >
+        <Text style={styles.btnText}>Sign Out</Text>
+      </TouchableOpacity>
+    </SafeAreaView>
+  </View>
+);
 
 export default function App() {
   const [showEnrollment, setShowEnrollment] = useState(false);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // Start at 0 for Portal Selection
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState<"patient" | "doctor">("patient");
+  const [mode, setMode] = useState<"register" | "login">("register");
 
-  // Centralized State: This is your "Source of Truth"
-  const [user, setUser] = useState<{ name: string; email: string } | null>(
-    null,
-  );
-
+  const [user, setUser] = useState<{
+    name: string;
+    email: string;
+    role: string;
+  } | null>(null);
   const [formData, setFormData] = useState({
     service: "",
     name: "",
@@ -33,66 +54,92 @@ export default function App() {
     password: "",
   });
 
+  // Opens the modal and sets the role context
+  const openPortal = (selectedRole: "patient" | "doctor") => {
+    setRole(selectedRole);
+    setStep(0); // Show Login/Register choice
+    setShowEnrollment(true);
+  };
+
+  // Logic to handle choosing Login vs Register inside the portal
+  const handleChoice = (selectedMode: "register" | "login") => {
+    setMode(selectedMode);
+    if (selectedMode === "login" || role === "doctor") {
+      setStep(2); // Go to credentials
+    } else {
+      setStep(1); // Go to Service Intake (Patients only)
+    }
+  };
+
   const handleNext = () => setStep((s) => s + 1);
 
   const handleFinalize = async () => {
-    if (!formData.name || !formData.email || !formData.password) {
-      alert("Please complete the secure intake fields.");
+    if (!formData.email || !formData.password) {
+      alert("Please complete the required fields.");
       return;
     }
     setLoading(true);
-    // Simulate Edge-Node Database Sync (Objective 1)
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setLoading(false);
-    setStep(3);
+
+    if (mode === "register") {
+      setStep(3); // Success Screen
+    } else {
+      enterDashboard();
+    }
   };
 
   const enterDashboard = () => {
-    // Transitioning from Intake to Centralized EDR
     setUser({
-      name: formData.name || "Patient",
+      name: formData.name || (role === "doctor" ? "Provider" : "Patient"),
       email: formData.email,
+      role: role,
     });
     setShowEnrollment(false);
+    setFormData({ service: "", name: "", email: "", password: "" });
   };
 
-  // Conditional Rendering: Switch between Landing and Dashboard
   if (user) {
-    return <PatientDashboard user={user} onLogout={() => setUser(null)} />;
+    return user.role === "doctor" ? (
+      <DoctorDashboard user={user} onLogout={() => setUser(null)} />
+    ) : (
+      <PatientDashboard user={user} onLogout={() => setUser(null)} />
+    );
   }
 
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={["top"]}>
         <ScrollView stickyHeaderIndices={[0]}>
-          {/* Navigation */}
+          {/* Refined Navigation */}
           <View style={styles.nav}>
-            <Text style={styles.logo}>DentaApp</Text>
-            <TouchableOpacity
-              style={styles.outlineBtn}
-              onPress={() => {
-                setStep(2); // Jump to Sign In
-                setShowEnrollment(true);
-              }}
-            >
-              <Text style={styles.btnLabel}>Portal Login</Text>
-            </TouchableOpacity>
+            <Text style={styles.logo}>SmileGuard</Text>
+            <View style={styles.navLinks}>
+              <TouchableOpacity
+                style={styles.portalBtn}
+                onPress={() => openPortal("patient")}
+              >
+                <Text style={styles.portalBtnText}>Patient Portal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.portalBtn, styles.doctorPortalBtn]}
+                onPress={() => openPortal("doctor")}
+              >
+                <Text style={styles.portalBtnText}>Doctor Portal</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Hero Section */}
           <View style={styles.hero}>
             <View style={styles.heroContent}>
-              <Text style={styles.h1}>Edge-AI Dental{"\n"}Management.</Text>
+              <Text style={styles.h1}>Smile-Guard Dental{"\n"}Portal.</Text>
               <Text style={styles.p}>
-                A synchronized platform reducing manual entry by 45% with
-                rule-driven diagnostic aids.
+                Secure, synchronized care for patients and providers.
               </Text>
               <TouchableOpacity
                 style={[styles.btn, styles.primaryBtn]}
-                onPress={() => {
-                  setStep(1);
-                  setShowEnrollment(true);
-                }}
+                onPress={() => openPortal("patient")}
               >
                 <Text style={styles.btnText}>Start Secure Intake</Text>
               </TouchableOpacity>
@@ -119,45 +166,61 @@ export default function App() {
           </View>
         </ScrollView>
 
-        {/* Multi-Step Intake Modal (Objective 3) */}
+        {/* Multi-Step Intake Modal */}
         <Modal visible={showEnrollment} animationType="slide">
           <SafeAreaView style={styles.modalFull}>
             <View style={styles.bordercard}>
-              <View style={styles.progressHeader}>
-                <View style={styles.progressBar}>
-                  <View style={[styles.dot, step >= 1 && styles.activeDot]}>
-                    <Text style={styles.dotText}>1</Text>
-                  </View>
-                  <View style={[styles.line, step >= 2 && styles.activeLine]} />
-                  <View style={[styles.dot, step >= 2 && styles.activeDot]}>
-                    <Text style={styles.dotText}>2</Text>
-                  </View>
-                  <View style={[styles.line, step >= 3 && styles.activeLine]} />
-                  <View style={[styles.dot, step >= 3 && styles.activeDot]}>
-                    <Text style={styles.dotText}>3</Text>
-                  </View>
-                </View>
-              </View>
-
               <View style={styles.stepContent}>
+                {/* Step 0: Portal Entry Choice */}
+                {step === 0 && (
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={styles.h2}>
+                      {role === "doctor" ? "Doctor" : "Patient"} Access
+                    </Text>
+                    <Text style={[styles.p, { marginBottom: 40 }]}>
+                      Please select an option to continue to your dashboard.
+                    </Text>
+
+                    <TouchableOpacity
+                      style={[styles.btn, styles.choiceBtn]}
+                      onPress={() => handleChoice("login")}
+                    >
+                      <Text style={styles.choiceBtnText}>
+                        I have an account (Login)
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.btn, styles.outlineChoiceBtn]}
+                      onPress={() => handleChoice("register")}
+                    >
+                      <Text style={styles.outlineChoiceText}>
+                        New to SmileGuard? (Register)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Step 1: Service Intake (Patient Register Only) */}
                 {step === 1 && (
                   <View>
                     <Text style={styles.h2}>Service Intake</Text>
                     {["Cleaning", "AI-Diagnostic Scan", "Root Canal"].map(
-                      (service) => (
+                      (s) => (
                         <TouchableOpacity
-                          key={service}
+                          key={s}
                           style={styles.radioRow}
-                          onPress={() => setFormData({ ...formData, service })}
+                          onPress={() =>
+                            setFormData({ ...formData, service: s })
+                          }
                         >
                           <View
                             style={[
                               styles.radio,
-                              formData.service === service &&
-                                styles.radioActive,
+                              formData.service === s && styles.radioActive,
                             ]}
                           />
-                          <Text>{service}</Text>
+                          <Text>{s}</Text>
                         </TouchableOpacity>
                       ),
                     )}
@@ -165,31 +228,37 @@ export default function App() {
                       style={[styles.btn, styles.primaryBtn]}
                       onPress={handleNext}
                     >
-                      <Text style={styles.btnText}>Next: Patient Details</Text>
+                      <Text style={styles.btnText}>Next: Details</Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
+                {/* Step 2: Credentials */}
                 {step === 2 && (
                   <View>
-                    <Text style={styles.h2}>Secure Demographics</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Full Name"
-                      onChangeText={(t) =>
-                        setFormData({ ...formData, name: t })
-                      }
-                    />
+                    <Text style={styles.h2}>
+                      {mode === "login" ? "Welcome Back" : "Create Account"}
+                    </Text>
+                    {mode === "register" && (
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Full Name"
+                        onChangeText={(t) =>
+                          setFormData({ ...formData, name: t })
+                        }
+                      />
+                    )}
                     <TextInput
                       style={styles.input}
                       placeholder="Email"
+                      autoCapitalize="none"
                       onChangeText={(t) =>
                         setFormData({ ...formData, email: t })
                       }
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="Secure Password"
+                      placeholder="Password"
                       secureTextEntry
                       onChangeText={(t) =>
                         setFormData({ ...formData, password: t })
@@ -202,25 +271,27 @@ export default function App() {
                       {loading ? (
                         <ActivityIndicator color="#fff" />
                       ) : (
-                        <Text style={styles.btnText}>Verify & Save</Text>
+                        <Text style={styles.btnText}>
+                          {mode === "login"
+                            ? "Enter Portal"
+                            : "Complete Registration"}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   </View>
                 )}
 
+                {/* Step 3: Success */}
                 {step === 3 && (
                   <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}>🦷</Text>
-                    <Text style={styles.h2}>Record Created!</Text>
-                    <Text style={styles.p}>
-                      Your intake is complete. Your EDR is now synced across all
-                      clinic terminals.
-                    </Text>
+                    <Text style={{ fontSize: 40, marginBottom: 10 }}>🎉</Text>
+                    <Text style={styles.h2}>All Set!</Text>
+                    <Text style={styles.p}>Your {role} portal is ready.</Text>
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
                       onPress={enterDashboard}
                     >
-                      <Text style={styles.btnText}>Enter Portal</Text>
+                      <Text style={styles.btnText}>Enter Dashboard</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -231,7 +302,7 @@ export default function App() {
                 onPress={() => setShowEnrollment(false)}
               >
                 <Text style={{ color: "#ef4444", fontWeight: "bold" }}>
-                  Cancel
+                  Exit Portal
                 </Text>
               </TouchableOpacity>
             </View>
@@ -258,16 +329,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
-    backgroundColor: "#fff",
   },
+  navLinks: { flexDirection: "row", gap: 12 },
   logo: { fontSize: 22, fontWeight: "800", color: "#0b7fab" },
-  outlineBtn: {
-    borderWidth: 1,
-    borderColor: "#333",
+  portalBtn: {
+    backgroundColor: "#0b7fab",
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
   },
+  doctorPortalBtn: { backgroundColor: "#1e293b" },
+  portalBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   hero: { padding: 60, backgroundColor: "#f0f9ff", alignItems: "center" },
   heroContent: { maxWidth: 600, alignItems: "center" },
   h1: {
@@ -286,7 +358,7 @@ const styles = StyleSheet.create({
   h2: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 25,
+    marginBottom: 15,
     textAlign: "center",
   },
   card: {
@@ -308,29 +380,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtn: { backgroundColor: "#0b7fab", width: "100%" },
+  choiceBtn: { backgroundColor: "#0b7fab", width: "100%", marginBottom: 12 },
+  choiceBtnText: { color: "#fff", fontWeight: "700" },
+  outlineChoiceBtn: { borderWidth: 2, borderColor: "#0b7fab", width: "100%" },
+  outlineChoiceText: { color: "#0b7fab", fontWeight: "700" },
   btnText: { color: "#fff", fontWeight: "700" },
-  btnLabel: { fontWeight: "600" },
   modalFull: { flex: 1, padding: 30 },
   bordercard: { flex: 1, maxWidth: 500, alignSelf: "center", width: "100%" },
-  progressHeader: { marginBottom: 30 },
-  progressBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dot: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#e5e7eb",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  activeDot: { backgroundColor: "#0b7fab" },
-  dotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  line: { width: 60, height: 2, backgroundColor: "#e5e7eb" },
-  activeLine: { backgroundColor: "#0b7fab" },
-  stepContent: { flex: 1, marginTop: 20 },
+  stepContent: { flex: 1, marginTop: 40 },
   input: {
     backgroundColor: "#f3f4f6",
     padding: 16,
