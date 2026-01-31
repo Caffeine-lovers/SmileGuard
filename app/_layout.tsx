@@ -16,6 +16,7 @@ import PatientDashboard from "./_patientDashboard";
 const { width } = Dimensions.get("window");
 export default function App() {
   const [showEnrollment, setShowEnrollment] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [step, setStep] = useState(1); // 1: Booking, 2: Sign up, 3: Success
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<{ name: string } | null>(null);
@@ -23,6 +24,11 @@ export default function App() {
   const [formData, setFormData] = useState({
     service: "",
     name: "",
+    email: "",
+    password: "",
+  });
+
+  const [loginData, setLoginData] = useState({
     email: "",
     password: "",
   });
@@ -41,6 +47,20 @@ export default function App() {
     setStep(3);
   };
 
+  const handleLogin = async () => {
+    if (!loginData.email || !loginData.password) {
+      alert("Please fill in all fields");
+      return;
+    }
+    setLoading(true);
+    // Simulate API/Firebase call
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setLoading(false);
+    // For demo purposes, just log them in
+    setUser({ name: "Patient" });
+    setShowLogin(false);
+  };
+
   const enterDashboard = () => {
     setUser({ name: formData.name || "Patient" });
     setShowEnrollment(false);
@@ -57,15 +77,23 @@ export default function App() {
           {/* Navigation */}
           <View style={styles.nav}>
             <Text style={styles.logo}>DentaApp</Text>
-            <TouchableOpacity
-              style={styles.outlineBtn}
-              onPress={() => {
-                setStep(2);
-                setShowEnrollment(true);
-              }}
-            >
-              <Text style={styles.btnLabel}>Log In</Text>
-            </TouchableOpacity>
+            <View style={styles.navButtons}>
+              <TouchableOpacity
+                style={styles.outlineBtn}
+                onPress={() => setShowLogin(true)}
+              >
+                <Text style={styles.btnLabel}>Log In</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.outlineBtn, styles.signUpBtn]}
+                onPress={() => {
+                  setStep(1);
+                  setShowEnrollment(true);
+                }}
+              >
+                <Text style={[styles.btnLabel, styles.signUpBtnText]}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Hero - Retaining your exact look */}
@@ -107,29 +135,101 @@ export default function App() {
           </View>
         </ScrollView>
 
-        {/* Enrollment Modal */}
+        {/* Login Modal */}
+        <Modal visible={showLogin} animationType="slide">
+          <SafeAreaView style={styles.modalFull}>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+              <View style={styles.loginContent}>
+                <Text style={styles.h2}>Welcome Back</Text>
+                <Text style={styles.p}>Log in to your account</Text>
+                
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  value={loginData.email}
+                  onChangeText={(t) =>
+                    setLoginData({ ...loginData, email: t })
+                  }
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  secureTextEntry
+                  textContentType="password"
+                  value={loginData.password}
+                  onChangeText={(t) =>
+                    setLoginData({ ...loginData, password: t })
+                  }
+                />
+                
+                <TouchableOpacity
+                  style={[styles.btn, styles.primaryBtn]}
+                  onPress={handleLogin}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnText}>Log In</Text>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.signUpPrompt}>
+                  <Text style={styles.mutedText}>Don't have an account? </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowLogin(false);
+                      setStep(1);
+                      setShowEnrollment(true);
+                    }}
+                  >
+                    <Text style={styles.linkText}>Sign Up</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowLogin(false)}
+              >
+                <Text style={{ color: "#ef4444", fontWeight: "bold" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Sign Up/Enrollment Modal */}
         <Modal visible={showEnrollment} animationType="slide">
           <SafeAreaView style={styles.modalFull}>
-            {/* PROGRESS BAR */}
-            <View style={styles.bordercard}>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+              {/* PROGRESS BAR */}
               <View style={styles.progressHeader}>
                 <View style={styles.progressBar}>
-                  <View style={[styles.dot, step >= 1 && styles.activeDot]}>
-                    <Text style={styles.dotText}>1</Text>
+                  <View style={styles.stepWrapper}>
+                    <View style={[styles.dot, step >= 1 && styles.activeDot]}>
+                      <Text style={styles.dotText}>1</Text>
+                    </View>
+                    <Text style={styles.stepLabel}>Booking</Text>
                   </View>
                   <View style={[styles.line, step >= 2 && styles.activeLine]} />
-                  <View style={[styles.dot, step >= 2 && styles.activeDot]}>
-                    <Text style={styles.dotText}>2</Text>
+                  <View style={styles.stepWrapper}>
+                    <View style={[styles.dot, step >= 2 && styles.activeDot]}>
+                      <Text style={styles.dotText}>2</Text>
+                    </View>
+                    <Text style={styles.stepLabel}>Sign Up</Text>
                   </View>
                   <View style={[styles.line, step >= 3 && styles.activeLine]} />
-                  <View style={[styles.dot, step >= 3 && styles.activeDot]}>
-                    <Text style={styles.dotText}>3</Text>
+                  <View style={styles.stepWrapper}>
+                    <View style={[styles.dot, step >= 3 && styles.activeDot]}>
+                      <Text style={styles.dotText}>3</Text>
+                    </View>
+                    <Text style={styles.stepLabel}>Finished</Text>
                   </View>
-                </View>
-                <View style={styles.labelRow}>
-                  <Text style={styles.stepLabel}>Booking</Text>
-                  <Text style={styles.stepLabel}>Sign Up</Text>
-                  <Text style={styles.stepLabel}>Finished</Text>
                 </View>
               </View>
 
@@ -255,6 +355,18 @@ export default function App() {
                         <Text style={styles.btnText}>Complete</Text>
                       )}
                     </TouchableOpacity>
+
+                    <View style={styles.signUpPrompt}>
+                      <Text style={styles.mutedText}>Already have an account? </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setShowEnrollment(false);
+                          setShowLogin(true);
+                        }}
+                      >
+                        <Text style={styles.linkText}>Log In</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
@@ -275,7 +387,9 @@ export default function App() {
                   </View>
                 )}
               </View>
+            </ScrollView>
 
+            <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={() => setShowEnrollment(false)}
@@ -310,6 +424,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
+  navButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
   logo: { fontSize: 22, fontWeight: "800", color: "#0b7fab" },
   outlineBtn: {
     borderWidth: 1,
@@ -317,6 +435,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
+  },
+  signUpBtn: {
+    backgroundColor: "#0b7fab",
+    borderColor: "#0b7fab",
+  },
+  signUpBtnText: {
+    color: "#fff",
   },
   hero: { padding: 60, backgroundColor: "#f0f9ff", alignItems: "center" },
   heroContent: { maxWidth: 600, alignItems: "center" },
@@ -367,11 +492,21 @@ const styles = StyleSheet.create({
   primaryBtn: { backgroundColor: "#0b7fab", width: "100%" },
   btnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   btnLabel: { fontWeight: "600", color: "#333" },
+  
   // Modal Progress Styles
   modalFull: {
     flex: 1,
+    backgroundColor: "#fff",
+  },
+  scrollContent: {
+    flexGrow: 1,
     padding: 30,
-    justifyContent: "space-between",
+  },
+  modalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+    backgroundColor: "#fff",
+    paddingBottom: 10,
   },
   bordercard: {
     flex: 1,
@@ -398,6 +533,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  stepWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 80,
+  },
   dot: {
     width: 30,
     height: 30,
@@ -405,6 +545,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e7eb",
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 8,
   },
   activeDot: { backgroundColor: "#0b7fab" },
   dotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
@@ -415,15 +556,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     width: Platform.OS === "web" ? "100%" : "auto",
-    maxWidth: Platform.OS === "web" ? 500 : "100%", // cap width on desktop
-    alignSelf: "center", // centers content on wide screens
+    maxWidth: Platform.OS === "web" ? 500 : "100%",
+    alignSelf: "center",
   },
   stepLabel: {
     fontSize: 11,
     fontWeight: "bold",
     color: "#9ca3af",
-    flex: 1,
-    alignSelf: "center", // centers content on wide screens
     textAlign: "center",
   },
   stepContent: {
@@ -431,8 +570,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "#e5e7eb",
     paddingTop: width < 768 ? 20 : 40, // smaller padding on mobile
+    paddingBottom: width < 768 ? 20 : 40,
     marginTop: width < 768 ? 40 : 80, // reduce margin on small screens
-    flex: 1,
+    marginBottom: 20,
     width: Platform.OS === "web" ? "100%" : "auto",
     maxWidth: Platform.OS === "web" ? 800 : "100%", // cap width on desktop
     alignSelf: "center", // centers content on wide screens
@@ -462,5 +602,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontSize: 16,
   },
-  closeBtn: { alignItems: "center", padding: 20 },
+  closeBtn: { alignItems: "center", padding: 15 },
+  loginContent: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: width < 768 ? 16 : 32,
+    paddingVertical: 40,
+    maxWidth: 500,
+    alignSelf: "center",
+    width: "100%",
+  },
+  signUpPrompt: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  linkText: {
+    color: "#0b7fab",
+    fontWeight: "600",
+  },
 });
