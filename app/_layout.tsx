@@ -125,10 +125,13 @@ const Footer = () => (
 
       <View style={styles.footerSection}>
         <Text style={styles.footerTitle}>Hours</Text>
-        <Text style={styles.footerText}>Mon–Fri: 8:00 AM – 6:00 PM</Text>
+        <Text style={styles.footerText}>🕗Mon: 10:00 AM – 4:00 PM</Text>
+        <Text style={styles.footerText}>❌ Tue: Closed </Text>
+        <Text style={styles.footerText}>🕗 Wed–Fri: 10:00 AM – 3:00 PM</Text>
+        <Text style={styles.footerText}>🕗 Sat: 10:00 AM – 3:00 PM</Text>
+        <Text style={styles.footerText}>❌ Sun: Closed</Text>
       </View>
     </View>
-
     <View style={styles.footerBottom}>
       <Text style={styles.footerLegal}>© 2026 SmileGuard Dental</Text>
       <Text style={styles.footerLegal}>Privacy Policy | Terms of Service</Text>
@@ -469,6 +472,10 @@ footerRow: {
   flexDirection: "row",
   justifyContent: "space-between",
   flexWrap: "wrap",
+  borderWidth: 1,
+  borderRadius: 12,
+  padding: 20,
+  marginBottom: 20,
 },
 footerSection: {
   width: "30%",
@@ -480,9 +487,11 @@ footerTitle: {
   marginBottom: 8,
 },
 footerText: {
-  fontSize: 14,
+  fontSize: 12,
   color: "#4b5563",
+  fontWeight: "500",
   marginBottom: 4,
+  padding: 4,
 },
 footerLink: {
   fontSize: 14,
@@ -500,6 +509,4 @@ footerLegal: {
   fontSize: 12,
   color: "#6b7280",
 },
-
-
 });
