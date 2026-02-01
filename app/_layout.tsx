@@ -106,6 +106,37 @@ export default function App() {
       <PatientDashboard user={user} onLogout={() => setUser(null)} />
     );
   }
+const Footer = () => (
+  <View style={styles.footer}>
+    <View style={styles.footerRow}>
+      <View style={styles.footerSection}>
+        <Text style={styles.footerTitle}>Contact</Text>
+        <Text style={styles.footerText}>📍 123 Dental St., Malabon</Text>
+        <Text style={styles.footerText}>📞 (02) 1234-5678</Text>
+        <Text style={styles.footerText}>📧 info@smileguard.ph</Text>
+      </View>
+
+      <View style={styles.footerSection}>
+        <Text style={styles.footerTitle}>Quick Links</Text>
+        <Text style={styles.footerLink}>Book Appointment</Text>
+        <Text style={styles.footerLink}>Services</Text>
+        <Text style={styles.footerLink}>Insurance Accepted</Text>
+      </View>
+
+      <View style={styles.footerSection}>
+        <Text style={styles.footerTitle}>Hours</Text>
+        <Text style={styles.footerText}>Mon–Fri: 8:00 AM – 6:00 PM</Text>
+      </View>
+    </View>
+
+    <View style={styles.footerBottom}>
+      <Text style={styles.footerLegal}>© 2026 SmileGuard Dental</Text>
+      <Text style={styles.footerLegal}>Privacy Policy | Terms of Service</Text>
+    </View>
+  </View>
+);
+
+
 
   return (
     <SafeAreaProvider>
@@ -164,6 +195,8 @@ export default function App() {
               />
             </View>
           </View>
+          
+          <Footer />
         </ScrollView>
 
         {/* Multi-Step Intake Modal */}
@@ -301,8 +334,8 @@ export default function App() {
                 style={styles.closeBtn}
                 onPress={() => setShowEnrollment(false)}
               >
-                <Text style={{ color: "#ef4444", fontWeight: "bold" , borderColor: "#ef4444", borderWidth: 1, padding: 10, borderRadius: 30, shadowColor: "#ef4444", shadowOpacity: 0.3, shadowRadius: 10,  }}>
-                  Exit Portal
+                <Text style={{ fontSize: 15, color: "#ef4444", fontWeight: "bold" , borderColor: "#ef4444", borderWidth: 1,paddingHorizontal: 20,paddingVertical: 10, borderRadius: 30, shadowColor: "#ef4444", shadowOpacity: 0.3, shadowRadius: 10,  }}>
+                  Exit
                 </Text>
               </TouchableOpacity>
             </View>
@@ -379,7 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-  modalbtn: { marginTop: 90 },
+  modalbtn: { marginTop: 50 },
   primaryBtn: { backgroundColor: "#0b7fab", width: "100%" },
   choiceBtn: { backgroundColor: "#0b7fab", width: "100%", marginBottom: 12 },
   choiceBtnText: { color: "#fff", fontWeight: "700" },
@@ -425,4 +458,48 @@ const styles = StyleSheet.create({
   },
   radioActive: { backgroundColor: "#0b7fab" },
   closeBtn: { alignItems: "center", padding: 20 },
+footer: {
+  backgroundColor: "#f9fafb",
+  padding: 20,
+  borderTopWidth: 1,
+  borderTopColor: "#e5e7eb",
+},
+footerRow: {
+  borderColor: "#0055ff",
+  flexDirection: "row",
+  justifyContent: "space-between",
+  flexWrap: "wrap",
+},
+footerSection: {
+  width: "30%",
+  marginBottom: 20,
+},
+footerTitle: {
+  fontWeight: "bold",
+  fontSize: 16,
+  marginBottom: 8,
+},
+footerText: {
+  fontSize: 14,
+  color: "#4b5563",
+  marginBottom: 4,
+},
+footerLink: {
+  fontSize: 14,
+  color: "#0b7fab",
+  textDecorationLine: "underline",
+  marginBottom: 4,
+},
+footerBottom: {
+  borderTopWidth: 1,
+  borderTopColor: "#e5e7eb",
+  paddingTop: 10,
+  alignItems: "center",
+},
+footerLegal: {
+  fontSize: 12,
+  color: "#6b7280",
+},
+
+
 });
