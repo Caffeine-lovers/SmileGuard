@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import PatientDashboard from "./_patientDashboard";
+import { Smartphone, Camera, Brain, CircuitBoard, Activity, CheckCircle, ArrowDown} from 'lucide-react-native';
 
 // Simple placeholder for Doctor Dashboard
 const DoctorDashboard = ({ user, onLogout }: any) => (
@@ -148,12 +149,12 @@ const Footer = () => (
           {/* Refined Navigation */}
           <View style={styles.nav}>
             <Text style={styles.logo}>SmileGuard</Text>
-            <View style={styles.navLinks}>
+            <View style={[styles.navLinks]}>
               <TouchableOpacity
-                style={styles.portalBtn}
+                style={[styles.portalBtn]}
                 onPress={() => openPortal("patient")}
               >
-                <Text style={styles.portalBtnText}>Patient Portal</Text>
+                <Text style={[styles.portalBtnText]}>Patient Portal</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.portalBtn, styles.doctorPortalBtn]}
@@ -167,9 +168,9 @@ const Footer = () => (
           {/* Hero Section */}
           <View style={styles.hero}>
             <View style={styles.heroContent}>
-              <Text style={styles.h1}>Smile-Guard Dental{"\n"}Portal.</Text>
+              <Text style={styles.h1}>Smile-Guard Dental Portal:</Text>
               <Text style={styles.p}>
-                Secure, synchronized care for patients and providers.
+                Secure, AI-Enhanced Patient Intake & Provider Dashboard
               </Text>
               <TouchableOpacity
                 style={[styles.btn, styles.primaryBtn]}
@@ -182,21 +183,77 @@ const Footer = () => (
 
           {/* Features Grid */}
           <View style={styles.featuresSection}>
-            <Text style={styles.h2}>System Architecture</Text>
-            <View style={styles.featuresGrid}>
-              <FeatureCard
-                title="Synchronized EDR"
-                desc="Web & Android parity."
-              />
-              <FeatureCard
-                title="Explainable AI"
-                desc="Rule-based luminosity aids."
-              />
-              <FeatureCard
-                title="Secure Intake"
-                desc="50% pre-visit completion rate."
-              />
+            <ScrollView contentContainerStyle={styles.container}>
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>How It Works</Text>
+        <Text style={styles.subtitle}>
+          We’ve simplified dental monitoring into three secure steps.
+        </Text>
+      </View>
+
+      {/* Steps Container */}
+      <View style={styles.stepsContainer}>
+        
+        {/* Connecting Line (Vertical for Mobile) */}
+        <View style={styles.connectingLine} />
+
+        {/* --- STEP 1: CAPTURE --- */}
+        <View style={styles.stepCard}>
+          <View style={styles.iconContainer}>
+            <Smartphone size={40} color="#94a3b8" />
+            <View style={styles.badge}>
+              <Camera size={16} color="white" />
             </View>
+          </View>
+          <Text style={styles.stepTitle}>1. Capture & Upload</Text>
+          <Text style={styles.stepDesc}>
+            Use your phone to take guided photos. Encrypted for your privacy.
+          </Text>
+        </View>
+
+        {/* Arrow Connector */}
+        <View style={styles.arrowContainer}>
+          <ArrowDown size={32} color="#22d3ee" />
+        </View>
+
+        {/* --- STEP 2: AI ANALYSIS --- */}
+        <View style={styles.stepCard}>
+          <View style={styles.iconContainer}>
+            <Brain size={40} color="#0891b2" />
+            {/* Simple overlay for the circuit look */}
+            <View style={{ position: 'absolute', bottom: -5, right: -5, opacity: 0.5 }}>
+               <CircuitBoard size={24} color="#22d3ee" />
+            </View>
+          </View>
+          <Text style={styles.stepTitle}>2. AI-Driven Analysis</Text>
+          <Text style={styles.stepDesc}>
+            Our Python AI scans for inflammation and tissue health instantly.
+          </Text>
+        </View>
+
+        {/* Arrow Connector */}
+        <View style={styles.arrowContainer}>
+           <ArrowDown size={32} color="#22d3ee" />
+        </View>
+
+        {/* --- STEP 3: TRACK PROGRESS --- */}
+        <View style={styles.stepCard}>
+          <View style={styles.iconContainer}>
+            <Activity size={40} color="#334155" />
+            <View style={[styles.badge, { backgroundColor: '#22c55e' }]}>
+              <CheckCircle size={16} color="white" />
+            </View>
+          </View>
+          <Text style={styles.stepTitle}>3. Track Progress</Text>
+          <Text style={styles.stepDesc}>
+            View your recovery timeline and know exactly when to see a doctor.
+          </Text>
+        </View>
+
+      </View>
+    </ScrollView>
           </View>
           
           <Footer />
@@ -378,6 +435,10 @@ const styles = StyleSheet.create({
   portalBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   hero: { padding: 60, backgroundColor: "#f0f9ff", alignItems: "center" },
   heroContent: { maxWidth: 600, alignItems: "center" },
+  header: {
+    marginBottom: 40,
+    alignItems: 'center',
+  },
   h1: {
     fontSize: 36,
     fontWeight: "bold",
@@ -397,6 +458,88 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 15,
     textAlign: "center",
+  },
+ 
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#0f172a', // slate-900
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#64748b', // slate-500
+    textAlign: 'center',
+  },
+  stepsContainer: {
+    width: '100%',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  connectingLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: '#cffafe', // cyan-100
+    zIndex: -1, // Puts the line behind the cards
+  },
+  stepCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    // Shadow for Android
+    elevation: 3,
+    marginBottom: 0,
+    zIndex: 1,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#f0f9ff', // light cyan bg for icon
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: '#0891b2', // cyan-600
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  stepTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  stepDesc: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  arrowContainer: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+    backgroundColor: '#ecfeff', // Matches bg to hide line crossing through arrow
+    paddingVertical: 10,
   },
   card: {
     backgroundColor: "#fff",
