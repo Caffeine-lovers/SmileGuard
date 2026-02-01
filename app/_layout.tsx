@@ -390,6 +390,7 @@ const styles = StyleSheet.create({
     flexDirection: Platform.OS === "web" ? "row" : "column",
     gap: 20,
     justifyContent: "center",
+    flexWrap: "wrap",
   },
   h2: {
     fontSize: 24,
@@ -468,7 +469,7 @@ footer: {
   borderTopColor: "#e5e7eb",
 },
 footerRow: {
-  borderColor: "#0055ff",
+  borderColor: "#2bf1ff7d",
   flexDirection: "row",
   justifyContent: "space-between",
   flexWrap: "wrap",
