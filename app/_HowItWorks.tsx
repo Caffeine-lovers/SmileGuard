@@ -78,11 +78,12 @@ const HowItWorks: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     paddingVertical: 40,
-    backgroundColor: '#fff', // Changed to white to blend with main page
+    backgroundColor: '#f8fafc', // Changed to white to blend with main page
     alignItems: 'center',
     width: '100%',
   },
   header: {
+    paddingVertical: 20,
     marginBottom: 40,
     alignItems: 'center',
   },

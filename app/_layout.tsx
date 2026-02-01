@@ -316,18 +316,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderBottomWidth: 3,
     borderBottomColor: "#fafafa",
-    backgroundColor: "#fff", // Ensure nav has background when sticky
+    backgroundColor: "#fff",
   },
   navLinks: { flexDirection: "row", gap: 12, flexWrap: "wrap" },
-  logo: { fontSize: 22, fontWeight: "800", color: "#0b7fab" },
+  logo: { fontSize: 28, fontWeight: "800", color: "#0b7fab" },
   portalBtn: {
     backgroundColor: "#0b7fab",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 8,
   },
   doctorPortalBtn: { backgroundColor: "#1e293b" },
-  portalBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  portalBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   hero: { padding: 60, backgroundColor: "#f0f9ff", alignItems: "center" },
   heroContent: { maxWidth: 600, alignItems: "center" },
   h1: {
