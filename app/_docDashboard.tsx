@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-export default function DocDashboard() {
+export default function DoctorDashboard() {
   return (
     <SafeAreaProvider>
         <SafeAreaView style={{flex: 1}}>
@@ -43,6 +43,7 @@ export default function DocDashboard() {
                                 Quick Actions
                             </Text>
 
+                        {/* Today's Appointments Section */}
                         <View style={{flexDirection: "row"}}>
                             <View style={[styles.InviPanel, {
                                 flexDirection: "column",
@@ -61,12 +62,14 @@ export default function DocDashboard() {
                                             source={require("../assets/images/user.png")}
                                             style={styles.Icon}
                                         />
-                                        <View style={{flex: 1}}>
+                                        <View style={{flex: 1, justifyContent: "center"}}>
                                             <Text>Mart Emman</Text>
-                                            <Text>Therapy</Text>
+                                            <Text>Whitening</Text>
                                         </View>
 
-                                        <Text>10:00</Text>
+                                        <Text style={{alignContent: "center", marginRight: 3}}>
+                                            10:00
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
 
@@ -83,12 +86,14 @@ export default function DocDashboard() {
                                             source={require("../assets/images/user.png")}
                                             style={styles.Icon}
                                         />
-                                        <View style={{flex: 1}}>
+                                        <View style={{flex: 1, justifyContent: "center"}}>
                                             <Text>Jendri Jacin</Text>
-                                            <Text>Therapy</Text>
+                                            <Text>Aligners</Text>
                                         </View>
 
-                                        <Text>13:00</Text>
+                                        <Text style={{alignContent: "center", marginRight: 3}}>
+                                            13:00
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
 
@@ -105,12 +110,14 @@ export default function DocDashboard() {
                                             source={require("../assets/images/user.png")}
                                             style={styles.Icon}
                                         />
-                                        <View style={{flex: 1}}>
+                                        <View style={{flex: 1, justifyContent: "center"}}>
                                             <Text>Kyler Per</Text>
-                                            <Text>Therapy</Text>
+                                            <Text>Root Canals</Text>
                                         </View>
 
-                                        <Text>15:00</Text>
+                                        <Text style={{alignContent: "center", marginRight: 3}}>
+                                            15:00
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
 
@@ -127,17 +134,19 @@ export default function DocDashboard() {
                                             source={require("../assets/images/user.png")}
                                             style={styles.Icon}
                                         />
-                                        <View style={{flex: 1}}>
+                                        <View style={{flex: 1, justifyContent: "center"}}>
                                             <Text>Marie Yan</Text>
-                                            <Text>Therapy</Text>
+                                            <Text>Extractions</Text>
                                         </View>
 
-                                        <Text>18:00</Text>
+                                        <Text style={{alignContent: "center", marginRight: 3}}>
+                                            18:00
+                                        </Text>
                                     </TouchableOpacity>
                                 </View>
-
                             </View>
 
+                            {/* Next Patient Details Section */}
                             <View style={[styles.InviPanel, {
                                 marginLeft: 20
                             }]}>
@@ -160,17 +169,17 @@ export default function DocDashboard() {
                         <View style={{flexDirection: "row"}}>
                             <View style={[styles.InviPanel, {
                                 flexDirection: "column",
-                                marginTop: 20,
+                                marginTop: 15,
+                                marginBottom: 30,
                             }]}>
                                 <Text>Appointment Requests:</Text>
                                 <View style={[styles.InsidePanel, {
                                     flexDirection: "row",
                                 }]}>
-                                    <TouchableOpacity 
+                                    <View 
                                         style={[styles.ProfileBtn, {
                                             flexDirection: "row",
                                         }]}
-                                        onPress={() => window.alert("You pressed the button!")}
                                     >
                                         <Image 
                                             source={require("../assets/images/user.png")}
@@ -178,22 +187,28 @@ export default function DocDashboard() {
                                         />
                                         <View style={{flex: 1}}>
                                             <Text>Mart Emman</Text>
-                                            <Text>wasd</Text>
+                                            <Text>Cleaning</Text>
+                                            <Text>2 February • 10:00</Text>
                                         </View>
 
-                                        <Text>Yes</Text>
-                                        <Text>No</Text>
-                                    </TouchableOpacity>
+                                        <Image 
+                                            source={require("../assets/images/yes.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                        <Image 
+                                            source={require("../assets/images/no.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                    </View>
                                 </View>
 
                                 <View style={[styles.InsidePanel, {
                                     flexDirection: "row",
                                 }]}>
-                                    <TouchableOpacity 
+                                    <View
                                         style={[styles.ProfileBtn, {
                                             flexDirection: "row",
                                         }]}
-                                        onPress={() => window.alert("You pressed the button!")}
                                     >
                                         <Image 
                                             source={require("../assets/images/user.png")}
@@ -201,22 +216,28 @@ export default function DocDashboard() {
                                         />
                                         <View style={{flex: 1}}>
                                             <Text>Jendri Jacin</Text>
-                                            <Text>wasd</Text>
+                                            <Text>Fllings</Text>
+                                            <Text>4 February • 11:00</Text>
                                         </View>
 
-                                        <Text>Yes</Text>
-                                        <Text>No</Text>
-                                    </TouchableOpacity>
+                                        <Image 
+                                            source={require("../assets/images/yes.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                        <Image 
+                                            source={require("../assets/images/no.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                    </View>
                                 </View>
 
                                  <View style={[styles.InsidePanel, {
                                     flexDirection: "row",
                                 }]}>
-                                    <TouchableOpacity 
+                                    <View
                                         style={[styles.ProfileBtn, {
                                             flexDirection: "row",
                                         }]}
-                                        onPress={() => window.alert("You pressed the button!")}
                                     >
                                         <Image 
                                             source={require("../assets/images/user.png")}
@@ -224,22 +245,28 @@ export default function DocDashboard() {
                                         />
                                         <View style={{flex: 1}}>
                                             <Text>Kyler Per</Text>
-                                            <Text>wasd</Text>
+                                            <Text>Veneers</Text>
+                                            <Text>6 February • 9:00</Text>
                                         </View>
 
-                                        <Text>Yes</Text>
-                                        <Text>No</Text>
-                                    </TouchableOpacity>
+                                        <Image 
+                                            source={require("../assets/images/yes.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                        <Image 
+                                            source={require("../assets/images/no.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                    </View>
                                 </View>
 
                                  <View style={[styles.InsidePanel, {
                                     flexDirection: "row",
                                 }]}>
-                                    <TouchableOpacity 
+                                    <View
                                         style={[styles.ProfileBtn, {
                                             flexDirection: "row",
                                         }]}
-                                        onPress={() => window.alert("You pressed the button!")}
                                     >
                                         <Image 
                                             source={require("../assets/images/user.png")}
@@ -247,12 +274,19 @@ export default function DocDashboard() {
                                         />
                                         <View style={{flex: 1}}>
                                             <Text>Marie Yan</Text>
-                                            <Text>wasd</Text>
+                                            <Text>Whitening</Text>
+                                            <Text>8 February • 13:00</Text>
                                         </View>
 
-                                        <Text>Yes</Text>
-                                        <Text>No</Text>
-                                    </TouchableOpacity>
+                                        <Image 
+                                            source={require("../assets/images/yes.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                        <Image 
+                                            source={require("../assets/images/no.png")}
+                                            style={styles.YesNoBtn}
+                                        />
+                                    </View>
                                 </View>
                             </View>
                         </View>
@@ -318,18 +352,25 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   ProfileBtn: {
-    width: 250,
+    width: 300,
     padding: 3,
     backgroundColor: "#A594F9",
   },
   Icon: {
-    width: 30,
-    height: 30,
+    width: 40,
+    height: 40,
     alignSelf: "center",
     resizeMode: "contain",
     marginRight: 5,
     marginLeft: 5,
     marginTop: 2,
     marginBottom: 2,
+  },
+  YesNoBtn: {
+    resizeMode: "contain",
+    width: 20,
+    height: 20,
+    alignSelf: "center",
+    marginRight: 3,
   }
 });
