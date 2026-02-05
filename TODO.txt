@@ -1,0 +1,2 @@
+add npm install @react-navigation/drawer
+----- for the dashboard
