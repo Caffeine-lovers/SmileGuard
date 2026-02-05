@@ -1,309 +1,178 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Image, 
+  Alert 
+} from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-export default function DoctorDashboard() {
+// Define User Interface
+export interface User {
+  name: string;
+  role: string;
+  specialty?: string;
+}
+
+export default function DoctorDashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
+  
+  const handlePress = (name: string) => {
+    Alert.alert("Patient Details", `You pressed on ${name}'s profile.`);
+  };
+
   return (
     <SafeAreaProvider>
-        <SafeAreaView style={{flex: 1}}>
-            <ScrollView>
-                <View style={styles.Container}>
-                    <Text style={[styles.Header, {marginBottom: 5}]}>Welcome to Smile Guard</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f7fb" }}>
+        {/* Header Bar */}
+        <View style={styles.topBar}>
+           <Text style={styles.topBarText}>SmileGuard MD</Text>
+           <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
+              <Text style={{color: "white", fontWeight:"bold"}}>Logout</Text>
+           </TouchableOpacity>
+        </View>
 
-                    <View style={styles.FirstPanel}>
-                        <View style={[styles.Panel, {marginRight: 10}]}>
-                            <Text style={styles.Text}>
-                                Patients{"\n"}
-                                67
-                            </Text>
-                        </View>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.Container}>
+            <Text style={[styles.Header, { marginBottom: 20 }]}>
+              Welcome, {user.name}
+            </Text>
 
-                        <View style={[styles.Panel, {marginRight: 10}]}>
-                            <Text style={styles.Text}>
-                                Appointments{"\n"}
-                                21
-                            </Text>
-                        </View>
+            {/* Stats Panel */}
+            <View style={styles.FirstPanel}>
+              <View style={[styles.Panel, styles.shadow]}>
+                <Text style={styles.statNumber}>67</Text>
+                <Text style={styles.statLabel}>Patients</Text>
+              </View>
 
-                        <View style={styles.Panel}>
-                            <Text style={styles.Text}>
-                                Treatments{"\n"}
-                                911
-                            </Text>
-                        </View>
-                    </View>
+              <View style={[styles.Panel, styles.shadow]}>
+                <Text style={styles.statNumber}>21</Text>
+                <Text style={styles.statLabel}>Appointments</Text>
+              </View>
 
-                    <View>
-                        <Text style={[styles.Header, {
-                            marginTop: 20, 
-                            marginBottom: 5,
-                            flexDirection: "row",
-                            }]}>
-                                Quick Actions
-                            </Text>
+              <View style={[styles.Panel, styles.shadow]}>
+                <Text style={styles.statNumber}>911</Text>
+                <Text style={styles.statLabel}>Treatments</Text>
+              </View>
+            </View>
 
-                        {/* Today's Appointments Section */}
-                        <View style={{flexDirection: "row"}}>
-                            <View style={[styles.InviPanel, {
-                                flexDirection: "column",
-                            }]}>
-                                <Text>Today Appointments:</Text>
-                                 <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <TouchableOpacity 
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                        onPress={() => window.alert("You pressed the button!")}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1, justifyContent: "center"}}>
-                                            <Text>Mart Emman</Text>
-                                            <Text>Whitening</Text>
-                                        </View>
+            {/* Quick Actions Header */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.Header}>Quick Actions</Text>
+            </View>
 
-                                        <Text style={{alignContent: "center", marginRight: 3}}>
-                                            10:00
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
+            {/* Dashboard Columns */}
+            <View style={styles.dashboardColumns}>
+              
+              {/* Left Column: Appointments */}
+              <View style={styles.column}>
+                <Text style={styles.subHeader}>Today Appointments:</Text>
+                
+                {/* Appointment Card 1 */}
+                <TouchableOpacity 
+                  style={styles.card} 
+                  onPress={() => handlePress("Mart Emman")}
+                >
+                   {/* Replace source with your actual image path or a URI */}
+                  <Image source={{uri: "https://via.placeholder.com/40"}} style={styles.Icon} />
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>Mart Emman</Text>
+                    <Text style={styles.cardSubtitle}>Whitening</Text>
+                  </View>
+                  <Text style={styles.timeText}>10:00</Text>
+                </TouchableOpacity>
 
-                                 <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <TouchableOpacity 
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                        onPress={() => window.alert("You pressed the button!")}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1, justifyContent: "center"}}>
-                                            <Text>Jendri Jacin</Text>
-                                            <Text>Aligners</Text>
-                                        </View>
+                {/* Appointment Card 2 */}
+                <TouchableOpacity 
+                  style={styles.card} 
+                  onPress={() => handlePress("Jendri Jacin")}
+                >
+                  <Image source={{uri: "https://via.placeholder.com/40"}} style={styles.Icon} />
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>Jendri Jacin</Text>
+                    <Text style={styles.cardSubtitle}>Aligners</Text>
+                  </View>
+                  <Text style={styles.timeText}>13:00</Text>
+                </TouchableOpacity>
 
-                                        <Text style={{alignContent: "center", marginRight: 3}}>
-                                            13:00
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
+                 {/* Appointment Card 3 */}
+                 <TouchableOpacity 
+                  style={styles.card} 
+                  onPress={() => handlePress("Kyler Per")}
+                >
+                  <Image source={{uri: "https://via.placeholder.com/40"}} style={styles.Icon} />
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>Kyler Per</Text>
+                    <Text style={styles.cardSubtitle}>Root Canals</Text>
+                  </View>
+                  <Text style={styles.timeText}>15:00</Text>
+                </TouchableOpacity>
+              </View>
 
-                                 <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <TouchableOpacity 
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                        onPress={() => window.alert("You pressed the button!")}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1, justifyContent: "center"}}>
-                                            <Text>Kyler Per</Text>
-                                            <Text>Root Canals</Text>
-                                        </View>
-
-                                        <Text style={{alignContent: "center", marginRight: 3}}>
-                                            15:00
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                 <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <TouchableOpacity 
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                        onPress={() => window.alert("You pressed the button!")}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1, justifyContent: "center"}}>
-                                            <Text>Marie Yan</Text>
-                                            <Text>Extractions</Text>
-                                        </View>
-
-                                        <Text style={{alignContent: "center", marginRight: 3}}>
-                                            18:00
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Next Patient Details Section */}
-                            <View style={[styles.InviPanel, {
-                                marginLeft: 20
-                            }]}>
-                                <Text>Next Patients Details:</Text>
-                                <View style={[styles.InsidePanel, {
-                                    width: 250,
-                                    height: "87%",
-                                    justifyContent: "center",
-                                    alignItems: "center"
-                                }]}>
-                                    <Text style={{textAlign: "center"}}>
-                                        Patient Name: Mart Emman{"\n"}
-                                        .some details.
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Appointment Requests Section */}
-                        <View style={{flexDirection: "row"}}>
-                            <View style={[styles.InviPanel, {
-                                flexDirection: "column",
-                                marginTop: 15,
-                                marginBottom: 30,
-                            }]}>
-                                <Text>Appointment Requests:</Text>
-                                <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <View 
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1}}>
-                                            <Text>Mart Emman</Text>
-                                            <Text>Cleaning</Text>
-                                            <Text>2 February • 10:00</Text>
-                                        </View>
-
-                                        <Image 
-                                            source={require("../assets/images/yes.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                        <Image 
-                                            source={require("../assets/images/no.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                    </View>
-                                </View>
-
-                                <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <View
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1}}>
-                                            <Text>Jendri Jacin</Text>
-                                            <Text>Fllings</Text>
-                                            <Text>4 February • 11:00</Text>
-                                        </View>
-
-                                        <Image 
-                                            source={require("../assets/images/yes.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                        <Image 
-                                            source={require("../assets/images/no.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                    </View>
-                                </View>
-
-                                 <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <View
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1}}>
-                                            <Text>Kyler Per</Text>
-                                            <Text>Veneers</Text>
-                                            <Text>6 February • 9:00</Text>
-                                        </View>
-
-                                        <Image 
-                                            source={require("../assets/images/yes.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                        <Image 
-                                            source={require("../assets/images/no.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                    </View>
-                                </View>
-
-                                 <View style={[styles.InsidePanel, {
-                                    flexDirection: "row",
-                                }]}>
-                                    <View
-                                        style={[styles.ProfileBtn, {
-                                            flexDirection: "row",
-                                        }]}
-                                    >
-                                        <Image 
-                                            source={require("../assets/images/user.png")}
-                                            style={styles.Icon}
-                                        />
-                                        <View style={{flex: 1}}>
-                                            <Text>Marie Yan</Text>
-                                            <Text>Whitening</Text>
-                                            <Text>8 February • 13:00</Text>
-                                        </View>
-
-                                        <Image 
-                                            source={require("../assets/images/yes.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                        <Image 
-                                            source={require("../assets/images/no.png")}
-                                            style={styles.YesNoBtn}
-                                        />
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-                    </View>
+              {/* Right Column: Details / Requests */}
+              <View style={styles.column}>
+                <Text style={styles.subHeader}>Next Patient Details:</Text>
+                <View style={[styles.detailsCard, styles.shadow]}>
+                  <Text style={{ textAlign: "center", color: "#555" }}>
+                    <Text style={{fontWeight: "bold"}}>Patient Name:</Text> Mart Emman{"\n\n"}
+                    <Text style={{fontWeight: "bold"}}>Notes:</Text> Patient requests extra numbing gel. History of sensitivity.
+                  </Text>
                 </View>
-            </ScrollView>
-        </SafeAreaView>
+
+                <Text style={[styles.subHeader, {marginTop: 20}]}>Requests:</Text>
+                <View style={styles.card}>
+                   <Image source={{uri: "https://via.placeholder.com/40"}} style={styles.Icon} />
+                   <View style={styles.cardText}>
+                     <Text style={styles.cardTitle}>Marie Yan</Text>
+                     <Text style={styles.cardSubtitle}>Request: Cleaning</Text>
+                   </View>
+                   {/* Action Buttons */}
+                   <View style={{flexDirection:'row', gap: 5}}>
+                      <View style={[styles.actionBtn, {backgroundColor: '#4ade80'}]} />
+                      <View style={[styles.actionBtn, {backgroundColor: '#f87171'}]} />
+                   </View>
+                </View>
+              </View>
+
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    height: 60,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee"
+  },
+  topBarText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0b7fab"
+  },
+  logoutBtn: {
+    backgroundColor: "#ef4444",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
   Container: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f7fb",
+    padding: 20,
   },
   Header: {
     fontSize: 24,
@@ -311,66 +180,116 @@ const styles = StyleSheet.create({
     color: "#0b7fab",
     textAlign: "center",
   },
-  Text: {
-    fontSize: 18,
-    textAlign: "center",
+  subHeader: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 10,
   },
+  sectionHeader: {
+    width: "100%",
+    marginTop: 30,
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    paddingBottom: 10,
+  },
+  
+  // Stats Panel
   FirstPanel: {
     flexDirection: "row",
-    flex: 1,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderEndWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: "#000000",
-    borderRadius: 10,
-    padding: 20,
-    elevation: 5,             // shadow on Android
-    shadowColor: "#000",      // shadow on iOS
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    justifyContent: "space-between",
+    width: "100%",
+    gap: 10,
+    flexWrap: "wrap", 
   },
   Panel: {
     backgroundColor: "#ffffff",
-    width: 200,
-    height: 200,
+    flex: 1,
+    minWidth: 100, // Responsive width
+    paddingVertical: 20,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  InviPanel: {
-    backgroundColor: "#ffffff", // Invisible panel for layout purposes
-    /*width: 200,
-    height: 200,*/
-    padding: 10,
-    borderRadius: 10,
+  statNumber: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#0b7fab",
   },
-  InsidePanel: {
-    backgroundColor: "#7878781f",
-    marginTop: 5,
-    borderRadius: 10,
+  statLabel: {
+    fontSize: 14,
+    color: "#666",
   },
-  ProfileBtn: {
-    width: 300,
-    padding: 3,
-    backgroundColor: "#A594F9",
+
+  // Dashboard Columns
+  dashboardColumns: {
+    flexDirection: "row",
+    width: "100%",
+    flexWrap: "wrap", // Allows stacking on small screens
+    gap: 20,
+  },
+  column: {
+    flex: 1,
+    minWidth: 300, // If screen is small, this column takes full width
+  },
+
+  // Cards
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  detailsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    minHeight: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardText: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  cardTitle: {
+    fontWeight: "bold",
+    fontSize: 14,
+    color: "#333",
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: "#777",
+  },
+  timeText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#0b7fab",
   },
   Icon: {
     width: 40,
     height: 40,
-    alignSelf: "center",
-    resizeMode: "contain",
-    marginRight: 5,
-    marginLeft: 5,
-    marginTop: 2,
-    marginBottom: 2,
+    borderRadius: 20,
+    backgroundColor: "#eee",
   },
-  YesNoBtn: {
-    resizeMode: "contain",
-    width: 20,
-    height: 20,
-    alignSelf: "center",
-    marginRight: 3,
+  actionBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  shadow: {
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+    elevation: 5,
   }
 });

@@ -2,55 +2,60 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 // Custom Components
-import HowItWorks from "./_HowItWorks";
-import Footer from "./_Footer";
-import PatientDashboard from "./_patientDashboard";
+import HowItWorks from "./_HowItWorks"; // Ensure this exists or comment out
+import Footer from "./_Footer"; // Ensure this exists or comment out
+import PatientDashboard from "./_patientDashboard"; // Placeholder needed if not created
+import DoctorDashboard from "./_docDashboard";
 
-// Simple placeholder for Doctor Dashboard
-const DoctorDashboard = ({ user, onLogout }: any) => (
-  <View style={styles.container}>
-    <SafeAreaView
-      style={{
-        padding: 20,
-        alignItems: "center",
-        justifyContent: "center",
-        flex: 1,
-      }}
-    >
-      <Text style={styles.h2}>Provider Portal: Dr. {user.name}</Text>
-      <TouchableOpacity
-        style={[styles.btn, styles.primaryBtn, { width: 200 }]}
-        onPress={onLogout}
-      >
-        <Text style={styles.btnText}>Sign Out</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
-  </View>
-);
+// --- MOCK DATABASE INITIALIZATION ---
+// In a real app, this data comes from your backend (Firebase/MongoDB)
+const INITIAL_USERS = [
+  {
+    name: "Dr. Smith",
+    email: "doctor@test.com",
+    password: "password123",
+    role: "doctor",
+    service: "General",
+  },
+  {
+    name: "John Doe",
+    email: "patient@test.com",
+    password: "password123",
+    role: "patient",
+    service: "Cleaning",
+  },
+];
 
 export default function App() {
+  // --- STATE MANAGEMENT ---
+  const [users, setUsers] = useState(INITIAL_USERS); // Simulates DB
   const [showEnrollment, setShowEnrollment] = useState(false);
-  const [step, setStep] = useState(0); // Start at 0 for Portal Selection
+  const [step, setStep] = useState(0); 
   const [loading, setLoading] = useState(false);
+  
+  // Context State
   const [role, setRole] = useState<"patient" | "doctor">("patient");
   const [mode, setMode] = useState<"register" | "login">("register");
 
-  const [user, setUser] = useState<{
+  // Logged In User
+  const [currentUser, setCurrentUser] = useState<{
     name: string;
     email: string;
     role: string;
   } | null>(null);
+
+  // Form Inputs
   const [formData, setFormData] = useState({
     service: "",
     name: "",
@@ -58,20 +63,23 @@ export default function App() {
     password: "",
   });
 
-  // Opens the modal and sets the role context
+  // --- ACTIONS ---
+
   const openPortal = (selectedRole: "patient" | "doctor") => {
     setRole(selectedRole);
-    setStep(0); // Show Login/Register choice
+    setStep(0);
     setShowEnrollment(true);
+    setFormData({ service: "", name: "", email: "", password: "" }); // Reset form
   };
 
-  // Logic to handle choosing Login vs Register inside the portal
   const handleChoice = (selectedMode: "register" | "login") => {
     setMode(selectedMode);
+    // Patients registering need to select a service first (Step 1)
+    // Doctors or Logins go straight to Credentials (Step 2)
     if (selectedMode === "login" || role === "doctor") {
-      setStep(2); // Go to credentials
+      setStep(2);
     } else {
-      setStep(1); // Go to Service Intake (Patients only)
+      setStep(1);
     }
   };
 
@@ -79,35 +87,100 @@ export default function App() {
 
   const handleFinalize = async () => {
     if (!formData.email || !formData.password) {
-      alert("Please complete the required fields.");
+      Alert.alert("Missing Info", "Please complete all required fields.");
       return;
     }
+
+    if (mode === "register" && !formData.name) {
+      Alert.alert("Missing Info", "Please enter your full name.");
+      return;
+    }
+
     setLoading(true);
+    // Simulate Network Request
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setLoading(false);
 
-    if (mode === "register") {
-      setStep(3); // Success Screen
-    } else {
-      enterDashboard();
+    try {
+      if (mode === "login") {
+        performLogin();
+      } else {
+        performRegister();
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
     }
   };
 
-  const enterDashboard = () => {
-    setUser({
-      name: formData.name || (role === "doctor" ? "Provider" : "Patient"),
+  // --- AUTH LOGIC ---
+
+  const performLogin = () => {
+    // 1. Find user
+    const foundUser = users.find(
+      (u) =>
+        u.email.toLowerCase() === formData.email.toLowerCase() &&
+        u.password === formData.password
+    );
+
+    // 2. Validate
+    if (!foundUser) {
+      throw new Error("Invalid email or password.");
+    }
+    if (foundUser.role !== role) {
+      throw new Error(`This account is not registered as a ${role}.`);
+    }
+
+    // 3. Success
+    setCurrentUser({
+      name: foundUser.name,
+      email: foundUser.email,
+      role: foundUser.role,
+    });
+    setShowEnrollment(false);
+  };
+
+  const performRegister = () => {
+    // 1. Check if email exists
+    const exists = users.find(
+      (u) => u.email.toLowerCase() === formData.email.toLowerCase()
+    );
+    if (exists) {
+      throw new Error("Email already registered. Please login.");
+    }
+
+    // 2. Create User Object
+    const newUser = {
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      role: role,
+      service: formData.service || "General",
+    };
+
+    // 3. Save to "DB"
+    setUsers([...users, newUser]);
+
+    // 4. Move to Success Screen
+    setStep(3);
+  };
+
+  const enterDashboardAfterSuccess = () => {
+    setCurrentUser({
+      name: formData.name,
       email: formData.email,
       role: role,
     });
     setShowEnrollment(false);
-    setFormData({ service: "", name: "", email: "", password: "" });
   };
 
-  if (user) {
-    return user.role === "doctor" ? (
-      <DoctorDashboard user={user} onLogout={() => setUser(null)} />
+  // --- RENDER ---
+
+  if (currentUser) {
+    return currentUser.role === "doctor" ? (
+      <DoctorDashboard user={currentUser} onLogout={() => setCurrentUser(null)} />
     ) : (
-      <PatientDashboard user={user} onLogout={() => setUser(null)} />
+      // Placeholder if you haven't created PatientDashboard yet
+      <PatientDashboard user={currentUser} onLogout={() => setCurrentUser(null)} />
     );
   }
 
@@ -116,15 +189,15 @@ export default function App() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <ScrollView stickyHeaderIndices={[0]}>
           
-          {/* Refined Navigation */}
+          {/* Navigation */}
           <View style={styles.nav}>
             <Text style={styles.logo}>SmileGuard</Text>
-            <View style={[styles.navLinks]}>
+            <View style={styles.navLinks}>
               <TouchableOpacity
-                style={[styles.portalBtn]}
+                style={styles.portalBtn}
                 onPress={() => openPortal("patient")}
               >
-                <Text style={[styles.portalBtnText]}>Patient Portal</Text>
+                <Text style={styles.portalBtnText}>Patient Portal</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.portalBtn, styles.doctorPortalBtn]}
@@ -151,19 +224,18 @@ export default function App() {
             </View>
           </View>
 
-          {/* Features / How It Works Component */}
-          <HowItWorks />
-
-          {/* Footer Component */}
-          <Footer />
+          {/* Placeholders for your other components */}
+          {HowItWorks ? <HowItWorks /> : <View style={{padding:20}}><Text>How It Works Section</Text></View>}
+          {Footer ? <Footer /> : <View style={{padding:20}}><Text>Footer Section</Text></View>}
 
         </ScrollView>
 
-        {/* Multi-Step Intake Modal */}
+        {/* --- AUTH MODAL --- */}
         <Modal visible={showEnrollment} animationType="slide">
           <SafeAreaView style={styles.modalFull}>
             <View style={styles.bordercard}>
               <View style={styles.stepContent}>
+                
                 {/* Step 0: Portal Entry Choice */}
                 {step === 0 && (
                   <View style={{ alignItems: "center" }}>
@@ -187,7 +259,7 @@ export default function App() {
                       style={[styles.btn, styles.outlineChoiceBtn, { width: "80%" }]}
                       onPress={() => handleChoice("register")}
                     >
-                      <Text style={[styles.outlineChoiceText]}>
+                      <Text style={styles.outlineChoiceText}>
                         New to SmileGuard? (Register)
                       </Text>
                     </TouchableOpacity>
@@ -215,7 +287,7 @@ export default function App() {
                           />
                           <Text>{s}</Text>
                         </TouchableOpacity>
-                      ),
+                      )
                     )}
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
@@ -232,19 +304,25 @@ export default function App() {
                     <Text style={styles.h2}>
                       {mode === "login" ? "Welcome Back" : "Create Account"}
                     </Text>
+                    
+                    {/* Name field is only for registration */}
                     {mode === "register" && (
                       <TextInput
                         style={styles.input}
                         placeholder="Full Name"
+                        value={formData.name}
                         onChangeText={(t) =>
                           setFormData({ ...formData, name: t })
                         }
                       />
                     )}
+                    
                     <TextInput
                       style={styles.input}
                       placeholder="Email"
                       autoCapitalize="none"
+                      keyboardType="email-address"
+                      value={formData.email}
                       onChangeText={(t) =>
                         setFormData({ ...formData, email: t })
                       }
@@ -253,6 +331,7 @@ export default function App() {
                       style={styles.input}
                       placeholder="Password"
                       secureTextEntry
+                      value={formData.password}
                       onChangeText={(t) =>
                         setFormData({ ...formData, password: t })
                       }
@@ -260,6 +339,7 @@ export default function App() {
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
                       onPress={handleFinalize}
+                      disabled={loading}
                     >
                       {loading ? (
                         <ActivityIndicator color="#fff" />
@@ -274,15 +354,15 @@ export default function App() {
                   </View>
                 )}
 
-                {/* Step 3: Success */}
+                {/* Step 3: Success (Only for Register) */}
                 {step === 3 && (
                   <View style={{ alignItems: "center" }}>
                     <Text style={{ fontSize: 40, marginBottom: 10 }}>🎉</Text>
                     <Text style={styles.h2}>All Set!</Text>
                     <Text style={styles.p}>Your {role} portal is ready.</Text>
                     <TouchableOpacity
-                      style={[ styles.btn, styles.primaryBtn]}
-                      onPress={enterDashboard}
+                      style={[styles.btn, styles.primaryBtn]}
+                      onPress={enterDashboardAfterSuccess}
                     >
                       <Text style={styles.btnText}>Enter Dashboard</Text>
                     </TouchableOpacity>
@@ -294,7 +374,7 @@ export default function App() {
                 style={styles.closeBtn}
                 onPress={() => setShowEnrollment(false)}
               >
-                <Text style={{ fontSize: 15, color: "#ef4444", fontWeight: "bold" , borderColor: "#ef4444", borderWidth: 1,paddingHorizontal: 20,paddingVertical: 10, borderRadius: 30, shadowColor: "#ef4444", shadowOpacity: 0.3, shadowRadius: 10,  }}>
+                 <Text style={{ fontSize: 15, color: "#ef4444", fontWeight: "bold" , borderColor: "#ef4444", borderWidth: 1,paddingHorizontal: 20,paddingVertical: 10, borderRadius: 30 }}>
                   Exit
                 </Text>
               </TouchableOpacity>
@@ -311,7 +391,7 @@ const styles = StyleSheet.create({
   nav: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",  
+    justifyContent: "space-between",
     padding: 20,
     alignItems: "center",
     borderBottomWidth: 3,
@@ -330,19 +410,9 @@ const styles = StyleSheet.create({
   portalBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   hero: { padding: 60, backgroundColor: "#f0f9ff", alignItems: "center" },
   heroContent: { maxWidth: 600, alignItems: "center" },
-  h1: {
-    fontSize: 36,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 15,
-  },
+  h1: { fontSize: 36, fontWeight: "bold", textAlign: "center", marginBottom: 15 },
   p: { fontSize: 18, color: "#4b5563", textAlign: "center", marginBottom: 30 },
-  h2: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 15,
-    textAlign: "center",
-  },
+  h2: { fontSize: 24, fontWeight: "bold", marginBottom: 15, textAlign: "center" },
   btn: {
     paddingVertical: 14,
     paddingHorizontal: 28,
@@ -365,9 +435,6 @@ const styles = StyleSheet.create({
     borderColor: "#2bf1ff7d",
     borderWidth: 1,
     borderRadius: 45,
-    shadowColor: "#2bf1ff7d",
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
     padding: 16,
   },
   input: {
