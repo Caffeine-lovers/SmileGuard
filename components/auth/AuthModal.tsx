@@ -12,13 +12,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FormData } from "../../types";
 
-interface AuthModalProps {
+
+export interface AuthModalProps {
   visible: boolean;
-  role: "patient" | "doctor";
+  role: "patient" | "doctor"; // Change from string to this
   onClose: () => void;
-  onSuccess: (userData: { name: string; email: string; role: string }) => void;
-  onLogin: (email: string, password: string, role: string) => Promise<any>;
-  onRegister: (formData: FormData, role: string) => Promise<any>;
+  onSuccess: (user: any) => void;
+  onLogin: (email: string, password: string, role: "patient" | "doctor") => Promise<void>;
+  onRegister: (formData: any, role: "patient" | "doctor") => Promise<any>;
 }
 
 export default function AuthModal({

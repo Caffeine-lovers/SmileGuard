@@ -1,18 +1,18 @@
 import React, { useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-
+import "expo-router/entry";
 // Components
-import Navigation from "./components/landing/Navigation";
-import Hero from "./components/landing/Hero";
-import HowItWorks from "./components/landing/HowItWorks";
-import Footer from "./components/landing/Footer";
-import AuthModal from "./components/auth/AuthModal";
-import PatientDashboard from "./components/dashboard/PatientDashboard";
-import DoctorDashboard from "./components/dashboard/DoctorDashboard";
+import Navigation from "../components/landing/Navigation";
+import Hero from "../components/landing/Hero";
+import HowItWorks from "../components/landing/HowItWorks";
+import Footer from "../components/landing/Footer";
+import AuthModal from "../components/auth/AuthModal";
+import PatientDashboard from "../components/dashboard/PatientDashboard";
+import DoctorDashboard from "../components/dashboard/DoctorDashboard";
 
 // Hooks & Types
-import { useAuth } from "./hooks/useAuth";
+import { useAuth } from "../hooks/useAuth";
 
 export default function App() {
   const { currentUser, setCurrentUser, login, register, logout } = useAuth();
