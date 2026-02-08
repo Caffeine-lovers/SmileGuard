@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import "expo-router/entry";
+
 // Components
 import Navigation from "../components/landing/Navigation";
 import Hero from "../components/landing/Hero";
@@ -11,10 +11,10 @@ import AuthModal from "../components/auth/AuthModal";
 import PatientDashboard from "../components/dashboard/PatientDashboard";
 import DoctorDashboard from "../components/dashboard/DoctorDashboard";
 
-// Hooks & Types
+// Hooks
 import { useAuth } from "../hooks/useAuth";
 
-export default function App() {
+export default function LandingPage() {
   const { currentUser, setCurrentUser, login, register, logout } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<"patient" | "doctor">("patient");
@@ -29,23 +29,34 @@ export default function App() {
     setShowAuthModal(false);
   };
 
-  // If user is logged in, show their dashboard
+  // --- VIEW LOGIC ---
+  
+  // If logged in, show the Dashboard instead of the Landing Page
   if (currentUser) {
-    return currentUser.role === "doctor" ? (
-      <DoctorDashboard user={currentUser} onLogout={logout} />
-    ) : (
-      <PatientDashboard user={currentUser} onLogout={logout} />
+    return (
+      <SafeAreaProvider>
+        {currentUser.role === "doctor" ? (
+          <DoctorDashboard user={currentUser} onLogout={logout} />
+        ) : (
+          <PatientDashboard user={currentUser} onLogout={logout} />
+        )}
+      </SafeAreaProvider>
     );
   }
 
-  // Landing page
+  // Otherwise, show the actual Landing Page
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <ScrollView stickyHeaderIndices={[0]}>
+        <ScrollView stickyHeaderIndices={[0]} showsVerticalScrollIndicator={false}>
           <Navigation onOpenPortal={openPortal} />
-          <Hero onOpenPortal={openPortal} />
-          <HowItWorks />
+          <Hero onOpenPortal={() => openPortal("patient")} />
+          
+          <View style={styles.content}>
+            <HowItWorks />
+            {/* You can add more sections here like Testimonials or Pricing */}
+          </View>
+          
           <Footer />
         </ScrollView>
 
@@ -67,4 +78,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
+  content: {
+    paddingBottom: 40,
+  }
 });
