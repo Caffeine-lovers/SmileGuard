@@ -8,26 +8,25 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CurrentUser, Appointment } from "../../types";
 
-const { width } = Dimensions.get("window");
-
-interface DashboardProps {
-  user: { name: string };
+interface PatientDashboardProps {
+  user: CurrentUser;
   onLogout: () => void;
 }
 
-export default function PatientDashboard({ user, onLogout }: DashboardProps) {
+export default function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
   // State for Objective 2: Explainable AI Overlay
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
 
-  const appointments = [
+  const appointments: Appointment[] = [
     { id: "1", service: "Checkup", date: "Oct 25, 2025", status: "Pending" },
     { id: "2", service: "Cleaning", date: "Aug 12, 2024", status: "Completed" },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header remain unchanged */}
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.welcome}>Welcome Back, {user.name}</Text>
@@ -150,7 +149,7 @@ const styles = StyleSheet.create({
   cardSub: { color: "#fff", fontSize: 14, marginTop: 5 },
   sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
 
-  // NEW DIAGNOSTIC STYLES
+  // DIAGNOSTIC STYLES
   diagnosticCard: {
     backgroundColor: "#fff",
     padding: 16,
@@ -177,7 +176,7 @@ const styles = StyleSheet.create({
   },
   overlayLayer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(99, 102, 241, 0.2)", // Light blue tint
+    backgroundColor: "rgba(99, 102, 241, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -187,7 +186,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     borderWidth: 2,
     borderColor: "#ef4444",
-    backgroundColor: "rgba(239, 68, 68, 0.3)", // Red heat-map indicator
+    backgroundColor: "rgba(239, 68, 68, 0.3)",
     position: "absolute",
     top: 50,
     left: 40,
