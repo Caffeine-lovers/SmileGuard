@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 // Components
-import Navigation from "../components/landing/Navigation";
+import Navigation from "../components/landing/Nav-Bar";
 import Hero from "../components/landing/Hero";
 import HowItWorks from "../components/landing/HowItWorks";
 import Footer from "../components/landing/Footer";
