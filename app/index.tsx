@@ -25,6 +25,8 @@ export default function LandingPage() {
     setShowAuthModal(true);
   };
 
+// Handle successful login or registration by setting the current user and closing the modal
+
   const handleAuthSuccess = (userData: CurrentUser) => {
     setCurrentUser(userData);
     setShowAuthModal(false);
@@ -33,6 +35,7 @@ export default function LandingPage() {
   // --- VIEW LOGIC ---
   
   // If logged in, show the Dashboard instead of the Landing Page
+  // This is a simple conditional render. In production, likely use React Navigation or a similar library for proper routing.
   if (currentUser) {
     return (
       <SafeAreaProvider>
