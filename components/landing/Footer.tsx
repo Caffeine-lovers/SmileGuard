@@ -21,11 +21,11 @@ const Footer: React.FC = () => {
 
         <View style={styles.footerSection}>
           <Text style={styles.footerTitle}>Hours</Text>
-          <Text style={styles.footerText}>🕗Mon: 10:00 AM – 4:00 PM</Text>
-          <Text style={styles.footerText}>❌ Tue: Closed </Text>
+          <Text style={styles.footerText}>🕗 Mon: 10:00 AM – 4:00 PM</Text>
+          <Text style={styles.footerText}>⌚ Tue: Closed</Text>
           <Text style={styles.footerText}>🕗 Wed–Fri: 10:00 AM – 3:00 PM</Text>
           <Text style={styles.footerText}>🕗 Sat: 10:00 AM – 3:00 PM</Text>
-          <Text style={styles.footerText}>❌ Sun: Closed</Text>
+          <Text style={styles.footerText}>⌚ Sun: Closed</Text>
         </View>
       </View>
       <View style={styles.footerBottom}>
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   footerSection: {
     width: "30%",
     marginBottom: 20,
-    minWidth: 100, // Ensure text doesn't squish on small screens
+    minWidth: 100,
   },
   footerTitle: {
     fontWeight: "bold",

@@ -108,7 +108,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: '#cffafe',
     zIndex: -1,
   },
   stepCard: {
@@ -164,7 +163,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2,
-    backgroundColor: '#fff', // White to mask the line behind it
     paddingVertical: 10,
   },
 });
