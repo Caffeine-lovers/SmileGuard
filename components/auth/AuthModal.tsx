@@ -73,7 +73,7 @@ export default function AuthModal({
 
   const handleFinalize = async () => {
     if (!formData.email || !formData.password) {
-      Alert.prompt("Missing Info", "Please complete all required fields.");
+      Alert.alert("Missing Info", "Please complete all required fields.");
       return;
     }
 
