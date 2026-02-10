@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Alert from '@blazejkustra/react-native-alert';
 import { FormData, CurrentUser } from "../../types";
 
 
@@ -73,7 +73,7 @@ export default function AuthModal({
 
   const handleFinalize = async () => {
     if (!formData.email || !formData.password) {
-      Alert.alert("Missing Info", "Please complete all required fields.");
+      Alert.prompt("Missing Info", "Please complete all required fields.");
       return;
     }
 
