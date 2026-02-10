@@ -12,7 +12,7 @@ export interface User {
 export interface CurrentUser {
   name: string;
   email: string;
-  role: string;
+  role: "patient" | "doctor";
 }
 
 export interface FormData {
@@ -29,11 +29,3 @@ export interface Appointment {
   status: "Pending" | "Completed";
 }
 
-export interface AuthModalProps {
-  visible: boolean;
-  role: "patient" | "doctor";
-  onClose: () => void;
-  onSuccess: (user: CurrentUser) => void;
-  onLogin: (email: string, password: string, role: string) => Promise<void>;
-  onRegister: (userData: FormData, role: string) => Promise<void>;
-}

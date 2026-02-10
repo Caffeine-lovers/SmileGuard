@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Alert } from "react-native";
 import { User, CurrentUser, FormData } from "../types";
 
 // Mock database - in production, this would be Firebase/MongoDB
@@ -28,7 +27,7 @@ export function useAuth() {
     email: string,
     password: string,
     role: "patient" | "doctor"
-  ): Promise<void> => {
+  ): Promise<CurrentUser> => {
     // Simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
@@ -52,7 +51,7 @@ export function useAuth() {
       name: foundUser.name,
       email: foundUser.email,
       role: foundUser.role,
-    } as any; // This will be caught by the caller
+    };
   };
 
   const register = async (

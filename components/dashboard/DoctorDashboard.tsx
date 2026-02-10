@@ -25,9 +25,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   // Mock data - in production, fetch from API
   const appointments = [
-    { name: "Mart Emman", service: "Whitening", time: "10:00" },
-    { name: "Jendri Jacin", service: "Aligners", time: "13:00" },
-    { name: "Kyler Per", service: "Root Canals", time: "15:00" },
+    { id: "apt-1", name: "Mart Emman", service: "Whitening", time: "10:00" },
+    { id: "apt-2", name: "Jendri Jacin", service: "Aligners", time: "13:00" },
+    { id: "apt-3", name: "Kyler Per", service: "Root Canals", time: "15:00" },
   ];
 
   return (
@@ -65,9 +65,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               <View style={styles.column}>
                 <Text style={styles.subHeader}>Today Appointments:</Text>
 
-                {appointments.map((apt, index) => (
+                {appointments.map((apt) => (
                   <AppointmentCard
-                    key={index}
+                    key={apt.id}
                     name={apt.name}
                     service={apt.service}
                     time={apt.time}
@@ -100,12 +100,22 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
                   {/* Action Buttons */}
                   <View style={{ flexDirection: "row", gap: 5 }}>
-                    <View
+                    <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: "#4ade80" }]}
-                    />
-                    <View
+                      onPress={() => Alert.alert("Accepted", "Request from Marie Yan accepted.")}
+                      accessibilityLabel="Accept request from Marie Yan"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.actionBtnText}>✓</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: "#f87171" }]}
-                    />
+                      onPress={() => Alert.alert("Declined", "Request from Marie Yan declined.")}
+                      accessibilityLabel="Decline request from Marie Yan"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.actionBtnText}>✗</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -234,6 +244,13 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
   },
   shadow: {
     shadowColor: "#000",

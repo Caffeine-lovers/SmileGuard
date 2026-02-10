@@ -13,12 +13,16 @@ export default function Navigation({ onOpenPortal }: NavigationProps) {
         <TouchableOpacity
           style={styles.portalBtn}
           onPress={() => onOpenPortal("patient")}
+          accessibilityLabel="Open patient portal"
+          accessibilityRole="button"
         >
           <Text style={styles.portalBtnText}>Patient Portal</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.portalBtn, styles.doctorPortalBtn]}
           onPress={() => onOpenPortal("doctor")}
+          accessibilityLabel="Open doctor portal"
+          accessibilityRole="button"
         >
           <Text style={styles.portalBtnText}>Doctor Portal</Text>
         </TouchableOpacity>

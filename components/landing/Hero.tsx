@@ -16,6 +16,8 @@ export default function Hero({ onOpenPortal }: HeroProps) {
         <TouchableOpacity
           style={[styles.btn, styles.primaryBtn]}
           onPress={() => onOpenPortal("patient")}
+          accessibilityLabel="Start secure patient intake"
+          accessibilityRole="button"
         >
           <Text style={styles.btnText}>Start Secure Intake</Text>
         </TouchableOpacity>

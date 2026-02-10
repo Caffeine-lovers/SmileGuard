@@ -10,16 +10,16 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FormData } from "../../types";
+import { FormData, CurrentUser } from "../../types";
 
 
 export interface AuthModalProps {
   visible: boolean;
-  role: "patient" | "doctor"; // Change from string to this
+  role: "patient" | "doctor";
   onClose: () => void;
-  onSuccess: (user: any) => void;
-  onLogin: (email: string, password: string, role: "patient" | "doctor") => Promise<void>;
-  onRegister: (formData: any, role: "patient" | "doctor") => Promise<any>;
+  onSuccess: (user: CurrentUser) => void;
+  onLogin: (email: string, password: string, role: "patient" | "doctor") => Promise<CurrentUser>;
+  onRegister: (formData: FormData, role: "patient" | "doctor") => Promise<CurrentUser>;
 }
 
 export default function AuthModal({
@@ -49,6 +49,9 @@ export default function AuthModal({
     }
   }, [visible]);
 
+  const isValidEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const handleChoice = (selectedMode: "register" | "login") => {
     setMode(selectedMode);
     // Patients registering need to select a service first (Step 1)
@@ -60,11 +63,27 @@ export default function AuthModal({
     }
   };
 
-  const handleNext = () => setStep((s) => s + 1);
+  const handleNext = () => {
+    if (step === 1 && !formData.service) {
+      Alert.alert("Service Required", "Please select a dental service before continuing.");
+      return;
+    }
+    setStep((s) => s + 1);
+  };
 
   const handleFinalize = async () => {
     if (!formData.email || !formData.password) {
       Alert.alert("Missing Info", "Please complete all required fields.");
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      Alert.alert("Weak Password", "Password must be at least 6 characters.");
       return;
     }
 
@@ -245,21 +264,13 @@ export default function AuthModal({
             )}
           </View>
 
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-            <Text
-              style={{
-                fontSize: 15,
-                color: "#ef4444",
-                fontWeight: "bold",
-                borderColor: "#ef4444",
-                borderWidth: 1,
-                paddingHorizontal: 20,
-                paddingVertical: 10,
-                borderRadius: 30,
-              }}
-            >
-              Exit
-            </Text>
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={onClose}
+            accessibilityLabel="Close authentication modal"
+            accessibilityRole="button"
+          >
+            <Text style={styles.closeBtnText}>Exit</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -363,5 +374,16 @@ const styles = StyleSheet.create({
   closeBtn: {
     alignItems: "center",
     padding: 20,
+  },
+  closeBtnText: {
+    fontSize: 15,
+    color: "#ef4444",
+    fontWeight: "bold",
+    borderColor: "#ef4444",
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 30,
+    overflow: "hidden",
   },
 });

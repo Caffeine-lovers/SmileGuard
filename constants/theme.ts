@@ -5,7 +5,7 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+const tintColorLight = '#0b7fab';
 const tintColorDark = '#fff';
 
 export const Colors = {
@@ -25,6 +25,50 @@ export const Colors = {
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
   },
+};
+
+/**
+ * App-wide semantic color palette.
+ * Use these instead of hardcoded hex values in components.
+ */
+export const AppColors = {
+  // Brand
+  primary: '#0b7fab',
+  primaryDark: '#065f83',
+  secondary: '#1e293b',
+
+  // Semantic
+  danger: '#ef4444',
+  dangerLight: '#f87171',
+  success: '#4ade80',
+  successBg: '#dcfce7',
+  warningBg: '#fef9c3',
+
+  // AI / Diagnostic
+  ai: '#6366f1',
+  aiDark: '#4338ca',
+  aiBg: '#f5f3ff',
+  aiAccent: '#22d3ee',
+
+  // Text
+  textPrimary: '#0f172a',
+  textSecondary: '#4b5563',
+  textMuted: '#6b7280',
+  textLight: '#64748b',
+
+  // Backgrounds
+  background: '#ffffff',
+  backgroundAlt: '#f9fafb',
+  backgroundLight: '#f0f9ff',
+  backgroundScreen: '#f8fafc',
+
+  // Borders
+  border: '#e5e7eb',
+  borderLight: '#f3f4f6',
+  borderAccent: '#2bf1ff7d',
+
+  // Input
+  inputBg: '#f3f4f6',
 };
 
 export const Fonts = Platform.select({

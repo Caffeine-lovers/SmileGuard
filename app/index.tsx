@@ -13,6 +13,7 @@ import DoctorDashboard from "../components/dashboard/DoctorDashboard";
 
 // Hooks
 import { useAuth } from "../hooks/useAuth";
+import { CurrentUser } from "../types";
 
 export default function LandingPage() {
   const { currentUser, setCurrentUser, login, register, logout } = useAuth();
@@ -24,7 +25,7 @@ export default function LandingPage() {
     setShowAuthModal(true);
   };
 
-  const handleAuthSuccess = (userData: { name: string; email: string; role: string }) => {
+  const handleAuthSuccess = (userData: CurrentUser) => {
     setCurrentUser(userData);
     setShowAuthModal(false);
   };

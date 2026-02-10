@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  Dimensions,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,8 +20,8 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
 
   const appointments: Appointment[] = [
-    { id: "1", service: "Checkup", date: "Oct 25, 2025", status: "Pending" },
-    { id: "2", service: "Cleaning", date: "Aug 12, 2024", status: "Completed" },
+    { id: "1", service: "Checkup", date: "Mar 15, 2026", status: "Pending" },
+    { id: "2", service: "Cleaning", date: "Jan 20, 2026", status: "Completed" },
   ];
 
   return (
@@ -40,7 +40,7 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
         {/* Upcoming Appointment Card */}
         <View style={styles.highlightCard}>
           <Text style={styles.cardLabel}>Upcoming Appointment</Text>
-          <Text style={styles.cardMain}>Tomorrow at 10:00 AM</Text>
+          <Text style={styles.cardMain}>Mar 15, 2026 at 10:00 AM</Text>
           <Text style={styles.cardSub}>General Dental Checkup</Text>
         </View>
 
@@ -117,7 +117,12 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
         ))}
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => Alert.alert("Book Appointment", "Appointment booking coming soon!")}
+        accessibilityLabel="Book a new appointment"
+        accessibilityRole="button"
+      >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
     </SafeAreaView>
