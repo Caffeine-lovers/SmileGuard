@@ -98,9 +98,18 @@ export function useAuth() {
     role: "patient" | "doctor"
   ): Promise<CurrentUser> => {
     // Create the auth account in Supabase
+    // Pass name, role, and service as metadata — the database trigger
+    // will automatically create the profile row from this data
     const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
+      options: {
+        data: {
+          name: formData.name,
+          role: role,
+          service: formData.service || "General",
+        },
+      },
     });
 
     if (error) {
@@ -109,19 +118,6 @@ export function useAuth() {
 
     if (!data.user) {
       throw new Error("Registration failed. Please try again.");
-    }
-
-    // Create a profile row with role and name
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: data.user.id,
-      name: formData.name,
-      email: formData.email,
-      role: role,
-      service: formData.service || "General",
-    });
-
-    if (profileError) {
-      throw new Error("Account created but profile setup failed: " + profileError.message);
     }
 
     return {
