@@ -1,56 +1,95 @@
-import { useState } from "react";
-import { User, CurrentUser, FormData } from "../types";
-
-// Mock database - in production, this would be Firebase/MongoDB
-const INITIAL_USERS: User[] = [
-  {
-    name: "Dr. Smith",
-    email: "doctor@test.com",
-    password: "password123",
-    role: "doctor",
-    service: "General",
-  },
-  {
-    name: "John Doe",
-    email: "patient@test.com",
-    password: "password123",
-    role: "patient",
-    service: "Cleaning",
-  },
-];
+import { useState, useEffect } from "react";
+import { CurrentUser, FormData } from "../types";
+import { supabase } from "../lib/supabase";
 
 export function useAuth() {
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Listen for auth state changes (auto-restores session on app restart)
+  useEffect(() => {
+    // Check for existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Subscribe to future auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setCurrentUser(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch the user's profile from the profiles table
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("name, email, role")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+
+      setCurrentUser({
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      });
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (
     email: string,
     password: string,
     role: "patient" | "doctor"
   ): Promise<CurrentUser> => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Sign in with Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    // Find user
-    const foundUser = users.find(
-      (u) =>
-        u.email.toLowerCase() === email.toLowerCase() &&
-        u.password === password
-    );
-
-    // Validate
-    if (!foundUser) {
-      throw new Error("Invalid email or password.");
+    if (error) {
+      throw new Error(error.message);
     }
-    if (foundUser.role !== role) {
+
+    // Fetch the user's profile to verify their role
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("name, email, role")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError) {
+      throw new Error("Profile not found. Please contact support.");
+    }
+
+    if (profile.role !== role) {
+      // Sign them out since role doesn't match
+      await supabase.auth.signOut();
       throw new Error(`This account is not registered as a ${role}.`);
     }
 
-    // Success
     return {
-      name: foundUser.name,
-      email: foundUser.email,
-      role: foundUser.role,
+      name: profile.name,
+      email: profile.email,
+      role: profile.role,
     };
   };
 
@@ -58,44 +97,49 @@ export function useAuth() {
     formData: FormData,
     role: "patient" | "doctor"
   ): Promise<CurrentUser> => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Check if email exists
-    const exists = users.find(
-      (u) => u.email.toLowerCase() === formData.email.toLowerCase()
-    );
-    if (exists) {
-      throw new Error("Email already registered. Please login.");
-    }
-
-    // Create new user
-    const newUser: User = {
-      name: formData.name,
+    // Create the auth account in Supabase
+    const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data.user) {
+      throw new Error("Registration failed. Please try again.");
+    }
+
+    // Create a profile row with role and name
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: data.user.id,
+      name: formData.name,
+      email: formData.email,
       role: role,
       service: formData.service || "General",
-    };
+    });
 
-    // Save to "database"
-    setUsers([...users, newUser]);
+    if (profileError) {
+      throw new Error("Account created but profile setup failed: " + profileError.message);
+    }
 
-    // Return user data
     return {
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
+      name: formData.name,
+      email: formData.email,
+      role: role,
     };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
   };
 
   return {
     currentUser,
     setCurrentUser,
+    loading,
     login,
     register,
     logout,
