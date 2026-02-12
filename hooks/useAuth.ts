@@ -98,8 +98,8 @@ export function useAuth() {
     role: "patient" | "doctor"
   ): Promise<CurrentUser> => {
     // Create the auth account in Supabase
-    // Pass name, role, and service as metadata — the database trigger
-    // will automatically create the profile row from this data
+    // Pass name, role, service, and medical intake as metadata — the database
+    // trigger will automatically create the profile row from this data
     const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
@@ -108,6 +108,8 @@ export function useAuth() {
           name: formData.name,
           role: role,
           service: formData.service || "General",
+          // Medical intake (patient only — will be empty obj for doctors)
+          medical_intake: formData.medicalIntake ?? {},
         },
       },
     });
