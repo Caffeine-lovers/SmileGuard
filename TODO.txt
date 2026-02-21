@@ -190,3 +190,54 @@ add npm install @react-navigation/drawer
         -[]Treatment Summary/Details //Displays procedure notes, findings, and treatment outcomes. 
 
 kuan
+
+
+===== 🔐 SECURITY REVIEW FIXES (Code Review — 2026-02-21) =====
+
+📌 CRITICAL — Fix before any production/public deployment
+
+- [] [lib/supabase.ts:8-9] Move Supabase URL + anon key out of source code into
+     environment variables. Use expo-constants + app.json "extra" field sourced
+     from a .env file. Currently the credentials are hardcoded and committed to git.
+     HOW:
+       1. Create .env → SUPABASE_URL=... and SUPABASE_ANON_KEY=...
+       2. In app.json add: "extra": { "supabaseUrl": process.env.SUPABASE_URL, ... }
+       3. In lib/supabase.ts use: Constants.expoConfig?.extra?.supabaseUrl
+
+- [] [components/auth/AuthModal.tsx:244] Replace hardcoded VALID_DOCTOR_CODES array
+     with a Supabase Edge Function call. The codes are embedded in the JS bundle and
+     can be extracted by anyone with a decompiler. The doctor_access_codes DB table
+     already exists — wire it up via an Edge Function.
+     HOW:
+       const { data } = await supabase.functions.invoke("verify-doctor-code", {
+         body: { code: formData.doctorAccessCode },
+       });
+       if (!data?.valid) { /* reject */ }
+
+📌 WARNING — Fix before launch
+
+- [] [hooks/useAuth.ts:12] Add .catch(() => setLoading(false)) to the getSession()
+     call. A network error or storage corruption currently leaves loading=true forever,
+     freezing the app on a blank screen with no feedback.
+
+- [] [hooks/useAuth.ts:50] Replace silent console.error in fetchProfile catch block
+     with user-facing error handling (e.g., show an alert or set an error state).
+
+- [] [components/auth/AuthModal.tsx:199] Persist login lockout state (lockoutUntil,
+     loginAttempts) to AsyncStorage keyed by email. Currently stored in React state —
+     closing/reopening the modal resets it to zero, bypassing the brute-force protection.
+     Alternatively, enable Supabase's built-in Auth rate limiting in the dashboard.
+
+- [] [supabase/setup.sql:319-323] Fix RLS self-referencing subquery in the profiles
+     UPDATE policy WITH CHECK clause. The subquery queries public.profiles while RLS
+     is active on that table, risking recursion. Replace with a SECURITY DEFINER
+     helper function or read role from auth.jwt() -> 'user_metadata' ->> 'role'.
+
+📌 SUGGESTION
+
+- [] [.gitignore:39] Update .gitignore to also ignore plain .env files.
+     Currently only .env*.local is ignored — a standard .env would be committed.
+     Add:
+       .env
+       .env.*
+       !.env.example
