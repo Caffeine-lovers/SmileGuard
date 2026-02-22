@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 export function useAuth() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Listen for auth state changes (auto-restores session on app restart)
   useEffect(() => {
@@ -15,6 +16,9 @@ export function useAuth() {
       } else {
         setLoading(false);
       }
+    }).catch(() => {
+      // Handle network error or storage corruption - prevent app freeze
+      setLoading(false);
     });
 
     // Subscribe to future auth changes
@@ -48,6 +52,9 @@ export function useAuth() {
         role: data.role,
       });
     } catch (err) {
+      // User-facing error handling instead of silent console.error
+      const errorMessage = err instanceof Error ? err.message : "Failed to load profile. Please try again.";
+      setError(errorMessage);
       console.error("Error fetching profile:", err);
     } finally {
       setLoading(false);
@@ -59,6 +66,9 @@ export function useAuth() {
     password: string,
     role: "patient" | "doctor"
   ): Promise<CurrentUser> => {
+    // Clear any previous errors
+    setError(null);
+    
     // Sign in with Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -132,12 +142,15 @@ export function useAuth() {
   const logout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
+    setError(null);
   };
 
   return {
     currentUser,
     setCurrentUser,
     loading,
+    error,
+    setError,
     login,
     register,
     logout,

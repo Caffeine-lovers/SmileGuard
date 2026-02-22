@@ -19,6 +19,7 @@ import {
   PasswordCheck,
   EMPTY_MEDICAL_INTAKE,
 } from "../../types";
+import { supabase } from "../../lib/supabase";
 
 // ── Security constants ────────────────────────────────────────────
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -237,17 +238,50 @@ export default function AuthModal({
         );
         return;
       }
-      // In production this should be verified server-side via a
-      // Supabase Edge Function so the code never lives in the client.
-      // For now we do a simple client check as a placeholder.
-      // TODO: Replace with server-side verification endpoint
-      const VALID_DOCTOR_CODES = ["SMILE-DOC-2026", "SMILEGUARD-STAFF"];
-      if (!VALID_DOCTOR_CODES.includes(formData.doctorAccessCode.toUpperCase())) {
-        Alert.alert(
-          "Invalid Access Code",
-          "The clinic access code you entered is not valid. Please contact your administrator."
+      
+      // Verify the code server-side via Edge Function
+      // This prevents codes from being exposed in the client bundle
+      try {
+        const { data, error } = await supabase.functions.invoke(
+          "verify-doctor-code",
+          {
+            body: { code: formData.doctorAccessCode },
+          }
         );
-        return;
+
+        if (error) {
+          Alert.alert(
+            "Verification Error",
+            "Unable to verify access code. Please try again."
+          );
+          return;
+        }
+
+        if (!data?.valid) {
+          Alert.alert(
+            "Invalid Access Code",
+            "The clinic access code you entered is not valid. Please contact your administrator."
+          );
+          return;
+        }
+      } catch (err) {
+        // Fallback: if Edge Function is not deployed, use database query
+        // This is a temporary fallback until the function is deployed
+        console.warn("Edge Function not available, falling back to direct query");
+        
+        const { data: codeData, error: codeError } = await supabase
+          .from("doctor_access_codes")
+          .select("id")
+          .eq("code", formData.doctorAccessCode.toUpperCase())
+          .single();
+
+        if (codeError || !codeData) {
+          Alert.alert(
+            "Invalid Access Code",
+            "The clinic access code you entered is not valid. Please contact your administrator."
+          );
+          return;
+        }
       }
     }
 

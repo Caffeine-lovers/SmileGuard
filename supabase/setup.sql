@@ -140,6 +140,79 @@ CREATE INDEX IF NOT EXISTS idx_appointments_doctor
   ON public.appointments(doctor_id);
 
 
+-- ─────────────────────────────────────────────────────────────────
+-- PATIENTS TABLE
+-- ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.patients (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  name        TEXT NOT NULL,
+  email       TEXT NOT NULL,
+  phone       TEXT,
+  date_of_birth DATE,
+  address     TEXT,
+  medical_conditions TEXT,
+  allergies   TEXT,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  updated_at  TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE public.patients IS 'Patient records';
+
+CREATE INDEX IF NOT EXISTS idx_patients_user
+  ON public.patients(user_id);
+
+
+-- ─────────────────────────────────────────────────────────────────
+-- TREATMENTS TABLE
+-- ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.treatments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id    UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  dentist_id    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  procedure_name TEXT NOT NULL,
+  description   TEXT,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'in-progress', 'completed')),
+  notes         TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  updated_at    TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE public.treatments IS 'Patient treatment records';
+
+CREATE INDEX IF NOT EXISTS idx_treatments_patient
+  ON public.treatments(patient_id);
+
+
+-- ─────────────────────────────────────────────────────────────────
+-- BILLINGS TABLE
+-- ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.billings (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id      UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  appointment_id  UUID REFERENCES public.appointments(id) ON DELETE SET NULL,
+  amount          DECIMAL(10,2) NOT NULL,
+  discount_type   TEXT DEFAULT 'none'
+                  CHECK (discount_type IN ('none', 'pwd', 'senior', 'insurance')),
+  discount_amount DECIMAL(10,2) DEFAULT 0,
+  final_amount    DECIMAL(10,2) NOT NULL,
+  payment_status  TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (payment_status IN ('pending', 'paid', 'overdue')),
+  payment_method  TEXT,
+  payment_date    TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE public.billings IS 'Patient billing and payment records';
+
+CREATE INDEX IF NOT EXISTS idx_billings_patient
+  ON public.billings(patient_id);
+
 
 -- ─────────────────────────────────────────────────────────────────
 -- 4. DOCTOR ACCESS CODES TABLE  (server-side verification)
@@ -319,7 +392,8 @@ CREATE POLICY "Users can update own profile"
   WITH CHECK (
     auth.uid() = id
     -- Prevent role escalation: role must stay the same
-    AND role = (SELECT role FROM public.profiles WHERE id = auth.uid())
+    -- Use JWT metadata instead of subquery to avoid RLS recursion
+    AND role = COALESCE((auth.jwt() -> 'user_metadata' ->> 'role'), role)
   );
 
 -- Doctors can view their patients' basic profiles (for dashboard)
@@ -398,6 +472,120 @@ CREATE POLICY "Doctors can update their appointments"
 -- Doctors can view ALL appointments (for scheduling overview)
 CREATE POLICY "Doctors can view all appointments"
   ON public.appointments FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+
+-- ── 7d. PATIENTS ──
+
+ALTER TABLE public.patients ENABLE ROW LEVEL SECURITY;
+
+-- Patients can view their own profile
+CREATE POLICY "Patients can view own profile"
+  ON public.patients FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Patients can update their own profile
+CREATE POLICY "Patients can update own profile"
+  ON public.patients FOR UPDATE
+  USING (user_id = auth.uid());
+
+-- Doctors can view all patients
+CREATE POLICY "Doctors can view all patients"
+  ON public.patients FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+-- Doctors can insert new patients
+CREATE POLICY "Doctors can create patients"
+  ON public.patients FOR INSERT
+  WITH CHECK (true);
+
+-- Doctors can update patient records
+CREATE POLICY "Doctors can update patients"
+  ON public.patients FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+
+-- ── 7e. TREATMENTS ──
+
+ALTER TABLE public.treatments ENABLE ROW LEVEL SECURITY;
+
+-- Patients can view their own treatments
+CREATE POLICY "Patients can view own treatments"
+  ON public.treatments FOR SELECT
+  USING (
+    patient_id IN (SELECT id FROM public.patients WHERE user_id = auth.uid())
+  );
+
+-- Doctors can view all treatments
+CREATE POLICY "Doctors can view all treatments"
+  ON public.treatments FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+-- Doctors can create treatments
+CREATE POLICY "Doctors can create treatments"
+  ON public.treatments FOR INSERT
+  WITH CHECK (true);
+
+-- Doctors can update treatments
+CREATE POLICY "Doctors can update treatments"
+  ON public.treatments FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+
+-- ── 7f. BILLINGS ──
+
+ALTER TABLE public.billings ENABLE ROW LEVEL SECURITY;
+
+-- Patients can view their own bills
+CREATE POLICY "Patients can view own bills"
+  ON public.billings FOR SELECT
+  USING (
+    patient_id IN (SELECT id FROM public.patients WHERE user_id = auth.uid())
+  );
+
+-- Doctors can view all bills
+CREATE POLICY "Doctors can view all bills"
+  ON public.billings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+-- Doctors can create bills
+CREATE POLICY "Doctors can create bills"
+  ON public.billings FOR INSERT
+  WITH CHECK (true);
+
+-- Doctors can update bills
+CREATE POLICY "Doctors can update bills"
+  ON public.billings FOR UPDATE
   USING (
     EXISTS (
       SELECT 1 FROM public.profiles

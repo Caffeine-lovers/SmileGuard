@@ -47,6 +47,8 @@
     },
     "extra": {
       "router": {},
+      "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
         "projectId": "3b66945e-dce1-449e-8993-94cf8a6e86ea"
       }
