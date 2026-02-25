@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.ts";
 
 // Types for sync operations
 export interface PendingTransaction {
@@ -141,6 +141,12 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
               .update(transaction.data)
               .eq("id", transaction.data.id);
             error = updateError;
+          } else if (transaction.operation === "DELETE") {
+            const { error: deleteError } = await supabase
+              .from("patients")
+              .delete()
+              .eq("id", transaction.data.id);
+            error = deleteError;
           }
           break;
 
@@ -156,6 +162,12 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
               .update(transaction.data)
               .eq("id", transaction.data.id);
             error = updateError;
+          } else if (transaction.operation === "DELETE") {
+            const { error: deleteError } = await supabase
+              .from("treatments")
+              .delete()
+              .eq("id", transaction.data.id);
+            error = deleteError;
           }
           break;
 
@@ -246,3 +258,4 @@ export const hasPendingTransactions = async (): Promise<boolean> => {
   const count = await getPendingCount();
   return count > 0;
 };
+

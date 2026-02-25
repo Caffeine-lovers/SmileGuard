@@ -1,5 +1,5 @@
-import { supabase } from "./supabase";
-import { saveTransactionLocally, isOnline, syncPendingTransactions } from "./syncService";
+import { supabase } from "./supabase.ts";
+import { saveTransactionLocally, isOnline, syncPendingTransactions } from "./syncService.ts";
 
 // Type definitions for database operations
 export interface Appointment {
@@ -145,9 +145,30 @@ export const updateAppointmentStatus = async (
   id: string,
   status: Appointment["status"]
 ): Promise<{ success: boolean; error?: string }> => {
-  const result = await saveAppointment({} as Omit<Appointment, "id">, id);
-  // Note: This is a simplified version - in production you'd update the status field
-  return { success: result.success, error: result.error };
+  // First get the existing appointment to preserve other fields
+  const { data: existing, error: fetchError } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !existing) {
+    return { success: false, error: fetchError?.message || "Appointment not found" };
+  }
+
+  // Update only the status field
+  const result = await supabase
+    .from("appointments")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (result.error) {
+    return { success: false, error: result.error.message };
+  }
+
+  return { success: true };
 };
 
 // Patients

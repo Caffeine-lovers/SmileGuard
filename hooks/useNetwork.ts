@@ -145,7 +145,7 @@ export function useNetwork() {
       "change",
       async (nextAppState: AppStateStatus) => {
         if (
-          appState.current.match(/inactive|background/) &&
+          (appState.current === 'inactive' || appState.current === 'background') &&
           nextAppState === "active"
         ) {
           // App came to foreground - check network and sync
@@ -156,7 +156,7 @@ export function useNetwork() {
           }
         } else if (
           appState.current === "active" &&
-          nextAppState.match(/inactive|background/)
+          (nextAppState === 'inactive' || nextAppState === 'background')
         ) {
           // App going to background
           console.log("App going to background");

@@ -1,15 +1,15 @@
 // Supabase Edge Function for verifying doctor access codes
 // Deploy with: supabase functions deploy verify-doctor-code
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.33.0"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -17,15 +17,27 @@ serve(async (req) => {
 
   try {
     // Create Supabase client with the service role (bypasses RLS)
-    // Note: In production, use SUPABASE_SERVICE_ROLE_KEY env variable
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({
+          valid: false,
+          error: "Server configuration error",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get the code from request body
     const { code } = await req.json();
-    
+
     if (!code) {
       return new Response(
         JSON.stringify({ valid: false, error: "Code is required" }),
@@ -36,11 +48,12 @@ serve(async (req) => {
       );
     }
 
-    // Query the database for valid codes
+    // Query the database for valid, active codes
     const { data, error } = await supabase
       .from("doctor_access_codes")
       .select("id, code, label")
       .eq("code", code.toUpperCase())
+      .eq("is_active", true)
       .single();
 
     if (error || !data) {
@@ -55,19 +68,21 @@ serve(async (req) => {
 
     // Code is valid
     return new Response(
-      JSON.stringify({ 
-        valid: true, 
+      JSON.stringify({
+        valid: true,
         codeId: data.id,
-        label: data.label 
+        label: data.label,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       }
     );
-  } catch (error) {
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "An unexpected error occurred";
     return new Response(
-      JSON.stringify({ valid: false, error: error.message }),
+      JSON.stringify({ valid: false, error: message }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,

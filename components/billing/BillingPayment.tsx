@@ -11,7 +11,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { calculateDiscount, Billing, saveBilling } from "../../lib/database";
+import { calculateDiscount, Billing, saveBilling } from "../../lib/database.ts";
 
 interface BillingPaymentProps {
   patientId: string;
@@ -42,7 +42,7 @@ export default function BillingPayment({
   onCancel,
 }: BillingPaymentProps) {
   const [selectedService, setSelectedService] = useState<string>("Check-up");
-  const [amount, setAmount] = useState<number>(baseAmount || SERVICE_PRICES["Check-up"]);
+  const [amount, setAmount] = useState<number>(baseAmount ?? SERVICE_PRICES["Check-up"]);
   const [discountType, setDiscountType] = useState<Billing["discount_type"]>("none");
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
@@ -127,7 +127,7 @@ export default function BillingPayment({
     try {
       const billingData = {
         patient_id: patientId,
-        appointment_id: appointmentId || "",
+        appointment_id: appointmentId ?? undefined,
         amount: amount,
         discount_type: discountType,
         discount_amount: discountAmount,

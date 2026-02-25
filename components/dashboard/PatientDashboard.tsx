@@ -9,9 +9,10 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CurrentUser, Appointment } from "../../types";
-import BookAppointment from "../appointments/BookAppointment";
-import BillingPayment from "../billing/BillingPayment";
+import { CurrentUser, Appointment as DbAppointment } from "../../types";
+import { Appointment } from "../../lib/database.ts";
+import BookAppointment from "../appointments/BookAppointment.tsx";
+import BillingPayment from "../billing/BillingPayment.tsx";
 
 interface PatientDashboardProps {
   user: CurrentUser;
@@ -26,7 +27,7 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
 
-  const appointments: Appointment[] = [
+  const appointments: DbAppointment[] = [
     { id: "1", service: "Checkup", date: "Mar 15, 2026", status: "Pending" },
     { id: "2", service: "Cleaning", date: "Jan 20, 2026", status: "Completed" },
   ];
@@ -155,6 +156,7 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
       <Modal visible={showBookingModal} animationType="slide">
         <BookAppointment
           patientId={user.email}
+          dentistId={undefined}
           onSuccess={() => setShowBookingModal(false)}
           onCancel={() => setShowBookingModal(false)}
         />
@@ -164,7 +166,7 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
       <Modal visible={showBillingModal} animationType="slide">
         <BillingPayment
           patientId={user.email}
-          baseAmount={0}
+          baseAmount={300}
           onSuccess={() => setShowBillingModal(false)}
           onCancel={() => setShowBillingModal(false)}
         />

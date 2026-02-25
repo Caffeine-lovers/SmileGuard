@@ -1,16 +1,6 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Modal,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { getAppointments, saveAppointment, Appointment } from "../../lib/database";
+import React, { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView } from "react-native";
+import { saveAppointment, Appointment } from "../../lib/database.ts";
 
 // Available services
 const SERVICES = [
@@ -48,7 +38,7 @@ export default function BookAppointment({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  // const [showDatePicker, setShowDatePicker] = useState(false); // Unused
   const [isBooking, setIsBooking] = useState(false);
   
   // Generate next 30 days
@@ -75,7 +65,7 @@ export default function BookAppointment({
   };
 
   // Check if slot is available (mock - in production check against existing appointments)
-  const isSlotAvailable = async (date: string, time: string): Promise<boolean> => {
+  const isSlotAvailable = (date: string, time: string): boolean => {
     // In production, query the database for existing appointments
     // For now, return true (all slots available)
     return true;
@@ -109,7 +99,7 @@ export default function BookAppointment({
 
       const appointmentData = {
         patient_id: patientId,
-        dentist_id: dentistId || "",
+        dentist_id: dentistId ?? "",
         service: selectedService.name,
         appointment_date: selectedDate,
         appointment_time: selectedTime,
@@ -133,7 +123,7 @@ export default function BookAppointment({
       } else {
         Alert.alert("Booking Failed", result.error || "Please try again.");
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "An unexpected error occurred.");
     } finally {
       setIsBooking(false);

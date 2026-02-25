@@ -1,8 +1,8 @@
 -- ╔══════════════════════════════════════════════════════════════════╗
--- ║           SMILEGUARD — SUPABASE DATABASE SETUP                ║
--- ║                                                                ║
--- ║  Run this ONCE in Supabase → SQL Editor → New Query            ║
--- ║  https://supabase.com/dashboard → your project → SQL Editor    ║
+-- ║           SMILEGUARD — SUPABASE DATABASE SETUP                   ║
+-- ║                                                                  ║
+-- ║  Run this ONCE in Supabase → SQL Editor → New Query              ║
+-- ║  https://supabase.com/dashboard → your project → SQL Editor      ║
 -- ╚══════════════════════════════════════════════════════════════════╝
 --
 -- HOW TO USE:
@@ -29,7 +29,7 @@
 -- This is the main user table. Every user (patient or doctor) gets
 -- a row here when they sign up.
 --
--- Your app reads this in useAuth.ts:
+-- The app reads this in useAuth.ts:
 --   supabase.from("profiles").select("name, email, role").eq("id", userId)
 --
 -- The `id` column is a foreign key to `auth.users.id` — Supabase
@@ -110,7 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_medical_intake_patient
 -- 3. APPOINTMENTS TABLE
 -- ─────────────────────────────────────────────────────────────────
 -- Stores booking records between patients and doctors.
--- Your app has an Appointment type:
+-- The app has an Appointment type:
 --   { id, service, date, status: "Pending" | "Completed" }
 
 CREATE TABLE IF NOT EXISTS public.appointments (
@@ -218,7 +218,7 @@ CREATE INDEX IF NOT EXISTS idx_billings_patient
 -- 4. DOCTOR ACCESS CODES TABLE  (server-side verification)
 -- ─────────────────────────────────────────────────────────────────
 -- Instead of hardcoding valid codes in the client JS bundle (where
--- anyone can read them), store them here. Your app can later call
+-- anyone can read them), store them here. The app can later call
 -- a Supabase Edge Function to verify the code server-side.
 --
 -- For now, we pre-seed two codes that match what's in AuthModal.tsx
@@ -233,7 +233,7 @@ CREATE TABLE IF NOT EXISTS public.doctor_access_codes (
 
 COMMENT ON TABLE public.doctor_access_codes IS 'Valid clinic access codes for doctor registration';
 
--- Seed the initial codes (same ones in your AuthModal.tsx)
+-- Seed the initial codes (same ones in The AuthModal.tsx)
 INSERT INTO public.doctor_access_codes (code, label) VALUES
   ('SMILE-DOC-2026',    'Default doctor code 2026'),
   ('SMILEGUARD-STAFF',  'General staff access')
@@ -251,7 +251,7 @@ ON CONFLICT (code) DO NOTHING;  -- safe to re-run
 -- The metadata you pass in signUp({ options: { data: { ... } } })
 -- ends up in: NEW.raw_user_meta_data  (a JSONB column)
 --
--- Your useAuth.ts passes:
+-- The useAuth.ts passes:
 --   name, role, service, medical_intake
 
 -- First, create the function
@@ -361,7 +361,7 @@ CREATE TRIGGER appointments_updated_at
 -- 7. ROW LEVEL SECURITY (RLS)
 -- ─────────────────────────────────────────────────────────────────
 -- This is THE most important part for security. Without RLS,
--- anyone with your anon key can read/write EVERYTHING.
+-- anyone with The anon key can read/write EVERYTHING.
 --
 -- HOW IT WORKS:
 --   • Enable RLS on a table → all access is DENIED by default
@@ -648,7 +648,7 @@ GRANT SELECT, INSERT, UPDATE     ON public.appointments      TO authenticated;
 --   1. Go to Authentication → Settings and make sure:
 --      • "Enable email confirmations" is OFF for development
 --        (otherwise users need to click an email link before login)
---      • Minimum password length is set to 8 (matches your app)
+--      • Minimum password length is set to 8 (matches The app)
 --
 --   2. Test it! Run your app and register a patient.
 --      Then check Table Editor — you should see rows in both
