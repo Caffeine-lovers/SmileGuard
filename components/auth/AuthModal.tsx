@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo,Suspense, lazy  } from "react";
 import {
   View,
   Text,
@@ -279,8 +279,8 @@ export default function AuthModal({
           Alert.alert(
             "Invalid Access Code",
             "The clinic access code you entered is not valid. Please contact your administrator."
-          );
-          return;
+          )}else{
+            Alert.alert("Access Code Valid", "Your clinic access code has been verified. Proceeding with registration.");
         }
       }
     }
