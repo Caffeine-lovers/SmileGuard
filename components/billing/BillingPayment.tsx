@@ -142,7 +142,7 @@ export default function BillingPayment({
       if (result.success) {
         Alert.alert(
           "Payment Successful!",
-          `Amount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: ${paymentMethod}\n${discountType !== "none" ? `Discount Applied: ${discountType.toUpperCase()}` : ""}`,
+          `Amount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: ${paymentMethod}\n${(discountType ?? "none") !== "none" ? `Discount Applied: ${(discountType ?? "none").toUpperCase()} (-₱${discountAmount.toFixed(2)})` : ""}`,
           [
             {
               text: "OK",

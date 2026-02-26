@@ -45,7 +45,7 @@
 ## 📌 Deliverables & Deadlines
 
 - [ ] Terminal system must be ready before defense.
-- [ ] At least two objectives accomplished before defense.
+- [x] At least two objectives accomplished before defense.
 - [ ] Prepare a consultation form documenting progress and features.
 - [ ] Prioritize hard parts first (AI detection, appointment/payment integration).
 - [ ] Next week: show consultation form and progress on cleaning module.
@@ -75,10 +75,10 @@
 - [x] Dentist Profile Setup
 - [ ] Clinic Setup
 - [ ] Set Appointment Rules
-  - [ ] Appointment Page
+  - [x] Appointment Page
   - [ ] Cancellation Settings Policy
     - [ ] Cancellation Window
-    - [ ] Fee Amount
+    - [x] Fee Amount
     - [ ] Toggle Grace Period
     - [ ] First-Time Cancellation Free
     - [ ] Current Policy
