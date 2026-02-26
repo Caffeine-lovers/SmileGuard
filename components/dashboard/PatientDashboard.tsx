@@ -6,9 +6,13 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CurrentUser, Appointment } from "../../types";
+import { CurrentUser, Appointment as DbAppointment } from "../../types";
+import { Appointment } from "../../lib/database.ts";
+import BookAppointment from "../appointments/BookAppointment.tsx";
+import BillingPayment from "../billing/BillingPayment.tsx";
 
 interface PatientDashboardProps {
   user: CurrentUser;
@@ -18,8 +22,12 @@ interface PatientDashboardProps {
 export default function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
   // State for Objective 2: Explainable AI Overlay
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
+  
+  // Modal states
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showBillingModal, setShowBillingModal] = useState(false);
 
-  const appointments: Appointment[] = [
+  const appointments: DbAppointment[] = [
     { id: "1", service: "Checkup", date: "Mar 15, 2026", status: "Pending" },
     { id: "2", service: "Cleaning", date: "Jan 20, 2026", status: "Completed" },
   ];
@@ -117,14 +125,52 @@ export default function PatientDashboard({ user, onLogout }: PatientDashboardPro
         ))}
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => Alert.alert("Book Appointment", "Appointment booking coming soon!")}
-        accessibilityLabel="Book a new appointment"
-        accessibilityRole="button"
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {/* Quick Action Buttons */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.quickActionBtn}
+          onPress={() => setShowBookingModal(true)}
+        >
+          <Text style={styles.quickActionIcon}>📅</Text>
+          <Text style={styles.quickActionText}>Book</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.quickActionBtn}
+          onPress={() => setShowBillingModal(true)}
+        >
+          <Text style={styles.quickActionIcon}>💳</Text>
+          <Text style={styles.quickActionText}>Pay</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.quickActionBtn}
+          onPress={() => Alert.alert("Medical Records", "View your treatment history")}
+        >
+          <Text style={styles.quickActionIcon}>📋</Text>
+          <Text style={styles.quickActionText}>Records</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Booking Modal */}
+      <Modal visible={showBookingModal} animationType="slide">
+        <BookAppointment
+          patientId={user.email}
+          dentistId={undefined}
+          onSuccess={() => setShowBookingModal(false)}
+          onCancel={() => setShowBookingModal(false)}
+        />
+      </Modal>
+
+      {/* Billing Modal */}
+      <Modal visible={showBillingModal} animationType="slide">
+        <BillingPayment
+          patientId={user.email}
+          baseAmount={300}
+          onSuccess={() => setShowBillingModal(false)}
+          onCancel={() => setShowBillingModal(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -260,4 +306,31 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   fabText: { color: "#fff", fontSize: 30 },
+  
+  // Quick Actions
+  quickActions: {
+    position: "absolute",
+    bottom: 30,
+    right: 30,
+    flexDirection: "row",
+    gap: 10,
+  },
+  quickActionBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#0b7fab",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+  },
+  quickActionIcon: {
+    fontSize: 20,
+  },
+  quickActionText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
+    marginTop: 2,
+  },
 });

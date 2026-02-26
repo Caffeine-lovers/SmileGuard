@@ -1,8 +1,8 @@
 -- ╔══════════════════════════════════════════════════════════════════╗
--- ║           SMILEGUARD — SUPABASE DATABASE SETUP                ║
--- ║                                                                ║
--- ║  Run this ONCE in Supabase → SQL Editor → New Query            ║
--- ║  https://supabase.com/dashboard → your project → SQL Editor    ║
+-- ║           SMILEGUARD — SUPABASE DATABASE SETUP                   ║
+-- ║                                                                  ║
+-- ║  Run this ONCE in Supabase → SQL Editor → New Query              ║
+-- ║  https://supabase.com/dashboard → your project → SQL Editor      ║
 -- ╚══════════════════════════════════════════════════════════════════╝
 --
 -- HOW TO USE:
@@ -29,7 +29,7 @@
 -- This is the main user table. Every user (patient or doctor) gets
 -- a row here when they sign up.
 --
--- Your app reads this in useAuth.ts:
+-- The app reads this in useAuth.ts:
 --   supabase.from("profiles").select("name, email, role").eq("id", userId)
 --
 -- The `id` column is a foreign key to `auth.users.id` — Supabase
@@ -110,7 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_medical_intake_patient
 -- 3. APPOINTMENTS TABLE
 -- ─────────────────────────────────────────────────────────────────
 -- Stores booking records between patients and doctors.
--- Your app has an Appointment type:
+-- The app has an Appointment type:
 --   { id, service, date, status: "Pending" | "Completed" }
 
 CREATE TABLE IF NOT EXISTS public.appointments (
@@ -140,12 +140,85 @@ CREATE INDEX IF NOT EXISTS idx_appointments_doctor
   ON public.appointments(doctor_id);
 
 
+-- ─────────────────────────────────────────────────────────────────
+-- PATIENTS TABLE
+-- ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.patients (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  name        TEXT NOT NULL,
+  email       TEXT NOT NULL,
+  phone       TEXT,
+  date_of_birth DATE,
+  address     TEXT,
+  medical_conditions TEXT,
+  allergies   TEXT,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  updated_at  TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE public.patients IS 'Patient records';
+
+CREATE INDEX IF NOT EXISTS idx_patients_user
+  ON public.patients(user_id);
+
+
+-- ─────────────────────────────────────────────────────────────────
+-- TREATMENTS TABLE
+-- ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.treatments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id    UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  dentist_id    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  procedure_name TEXT NOT NULL,
+  description   TEXT,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'in-progress', 'completed')),
+  notes         TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  updated_at    TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE public.treatments IS 'Patient treatment records';
+
+CREATE INDEX IF NOT EXISTS idx_treatments_patient
+  ON public.treatments(patient_id);
+
+
+-- ─────────────────────────────────────────────────────────────────
+-- BILLINGS TABLE
+-- ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.billings (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id      UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+  appointment_id  UUID REFERENCES public.appointments(id) ON DELETE SET NULL,
+  amount          DECIMAL(10,2) NOT NULL,
+  discount_type   TEXT DEFAULT 'none'
+                  CHECK (discount_type IN ('none', 'pwd', 'senior', 'insurance')),
+  discount_amount DECIMAL(10,2) DEFAULT 0,
+  final_amount    DECIMAL(10,2) NOT NULL,
+  payment_status  TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (payment_status IN ('pending', 'paid', 'overdue')),
+  payment_method  TEXT,
+  payment_date    TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE public.billings IS 'Patient billing and payment records';
+
+CREATE INDEX IF NOT EXISTS idx_billings_patient
+  ON public.billings(patient_id);
+
 
 -- ─────────────────────────────────────────────────────────────────
 -- 4. DOCTOR ACCESS CODES TABLE  (server-side verification)
 -- ─────────────────────────────────────────────────────────────────
 -- Instead of hardcoding valid codes in the client JS bundle (where
--- anyone can read them), store them here. Your app can later call
+-- anyone can read them), store them here. The app can later call
 -- a Supabase Edge Function to verify the code server-side.
 --
 -- For now, we pre-seed two codes that match what's in AuthModal.tsx
@@ -160,7 +233,7 @@ CREATE TABLE IF NOT EXISTS public.doctor_access_codes (
 
 COMMENT ON TABLE public.doctor_access_codes IS 'Valid clinic access codes for doctor registration';
 
--- Seed the initial codes (same ones in your AuthModal.tsx)
+-- Seed the initial codes (same ones in The AuthModal.tsx)
 INSERT INTO public.doctor_access_codes (code, label) VALUES
   ('SMILE-DOC-2026',    'Default doctor code 2026'),
   ('SMILEGUARD-STAFF',  'General staff access')
@@ -178,7 +251,7 @@ ON CONFLICT (code) DO NOTHING;  -- safe to re-run
 -- The metadata you pass in signUp({ options: { data: { ... } } })
 -- ends up in: NEW.raw_user_meta_data  (a JSONB column)
 --
--- Your useAuth.ts passes:
+-- The useAuth.ts passes:
 --   name, role, service, medical_intake
 
 -- First, create the function
@@ -288,7 +361,7 @@ CREATE TRIGGER appointments_updated_at
 -- 7. ROW LEVEL SECURITY (RLS)
 -- ─────────────────────────────────────────────────────────────────
 -- This is THE most important part for security. Without RLS,
--- anyone with your anon key can read/write EVERYTHING.
+-- anyone with The anon key can read/write EVERYTHING.
 --
 -- HOW IT WORKS:
 --   • Enable RLS on a table → all access is DENIED by default
@@ -319,7 +392,8 @@ CREATE POLICY "Users can update own profile"
   WITH CHECK (
     auth.uid() = id
     -- Prevent role escalation: role must stay the same
-    AND role = (SELECT role FROM public.profiles WHERE id = auth.uid())
+    -- Use JWT metadata instead of subquery to avoid RLS recursion
+    AND role = COALESCE((auth.jwt() -> 'user_metadata' ->> 'role'), role)
   );
 
 -- Doctors can view their patients' basic profiles (for dashboard)
@@ -406,6 +480,120 @@ CREATE POLICY "Doctors can view all appointments"
   );
 
 
+-- ── 7d. PATIENTS ──
+
+ALTER TABLE public.patients ENABLE ROW LEVEL SECURITY;
+
+-- Patients can view their own profile
+CREATE POLICY "Patients can view own profile"
+  ON public.patients FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Patients can update their own profile
+CREATE POLICY "Patients can update own profile"
+  ON public.patients FOR UPDATE
+  USING (user_id = auth.uid());
+
+-- Doctors can view all patients
+CREATE POLICY "Doctors can view all patients"
+  ON public.patients FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+-- Doctors can insert new patients
+CREATE POLICY "Doctors can create patients"
+  ON public.patients FOR INSERT
+  WITH CHECK (true);
+
+-- Doctors can update patient records
+CREATE POLICY "Doctors can update patients"
+  ON public.patients FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+
+-- ── 7e. TREATMENTS ──
+
+ALTER TABLE public.treatments ENABLE ROW LEVEL SECURITY;
+
+-- Patients can view their own treatments
+CREATE POLICY "Patients can view own treatments"
+  ON public.treatments FOR SELECT
+  USING (
+    patient_id IN (SELECT id FROM public.patients WHERE user_id = auth.uid())
+  );
+
+-- Doctors can view all treatments
+CREATE POLICY "Doctors can view all treatments"
+  ON public.treatments FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+-- Doctors can create treatments
+CREATE POLICY "Doctors can create treatments"
+  ON public.treatments FOR INSERT
+  WITH CHECK (true);
+
+-- Doctors can update treatments
+CREATE POLICY "Doctors can update treatments"
+  ON public.treatments FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+
+-- ── 7f. BILLINGS ──
+
+ALTER TABLE public.billings ENABLE ROW LEVEL SECURITY;
+
+-- Patients can view their own bills
+CREATE POLICY "Patients can view own bills"
+  ON public.billings FOR SELECT
+  USING (
+    patient_id IN (SELECT id FROM public.patients WHERE user_id = auth.uid())
+  );
+
+-- Doctors can view all bills
+CREATE POLICY "Doctors can view all bills"
+  ON public.billings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+-- Doctors can create bills
+CREATE POLICY "Doctors can create bills"
+  ON public.billings FOR INSERT
+  WITH CHECK (true);
+
+-- Doctors can update bills
+CREATE POLICY "Doctors can update bills"
+  ON public.billings FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'doctor'
+    )
+  );
+
+
 -- ── 7d. DOCTOR ACCESS CODES ──
 
 ALTER TABLE public.doctor_access_codes ENABLE ROW LEVEL SECURITY;
@@ -460,7 +648,7 @@ GRANT SELECT, INSERT, UPDATE     ON public.appointments      TO authenticated;
 --   1. Go to Authentication → Settings and make sure:
 --      • "Enable email confirmations" is OFF for development
 --        (otherwise users need to click an email link before login)
---      • Minimum password length is set to 8 (matches your app)
+--      • Minimum password length is set to 8 (matches The app)
 --
 --   2. Test it! Run your app and register a patient.
 --      Then check Table Editor — you should see rows in both

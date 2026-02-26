@@ -9,7 +9,7 @@
 
 ## 📌 Priority
 
-- [ ] **TRAIN MODEL**
+- [x] **TRAIN MODEL**
 
 ---
 
@@ -60,9 +60,9 @@
 - [x] How It Works Section → `HowItWorks` *(Splash Screen)*
 - [x] Main App Layout → `_layout`
 - [x] SmileGuard Patient Dashboard → `PatientDashboard`
-- [ ] Welcome Page
-  - [ ] Sign In
-  - [ ] Sign Up
+- [x] Welcome Page
+  - [x] Sign In
+  - [x] Sign Up
   - [ ] Verification Page
 - [ ] On-Boarding Wizard (Training Module)
 
@@ -72,7 +72,7 @@
 
 ### 🦷 For Dentist
 
-- [ ] Dentist Profile Setup
+- [x] Dentist Profile Setup
 - [ ] Clinic Setup
 - [ ] Set Appointment Rules
   - [ ] Appointment Page
@@ -99,8 +99,8 @@
   - [ ] Edit Slot
   - [ ] Delete Slot
   - [ ] Daily or Weekly Schedule
-- [ ] Clinic Homepage Dashboard
-  - [ ] Patients Module
+- [x] Clinic Homepage Dashboard
+  - [x] Patients Module
     - [ ] Add New Patient
   - [ ] Filter
     - [ ] Name A-Z, Z-A
@@ -140,10 +140,10 @@
   - [ ] Calendar View
   - [ ] Search Patient
   - [ ] Update Appointment Status
-- [ ] Image Analyzer Page
-  - [ ] Action Buttons
+- [x] Image Analyzer Page
+  - [x] Action Buttons
     - [ ] Upload Image
-    - [ ] Analyze Now
+    - [x] Analyze Now
     - [ ] View History
   - [ ] Recent Image Analyses
   - [ ] Detection Trends
@@ -173,8 +173,8 @@
 
 ### 😊 For Patient
 
-- [ ] Sign In as Patient
-- [ ] Sign Up Page
+- [x] Sign In as Patient
+- [x] Sign Up Page
 - [ ] Verification Page
 - [ ] Enter Referral Code *(patients input the assigned referral code to connect with the clinic)*
   - [ ] Display clinic overview
