@@ -29,7 +29,7 @@ export default function LandingPage() {
 
   const handleAuthSuccess = (userData: CurrentUser) => {
     setCurrentUser(userData);
-    setShowAuthModal(false);
+    setShowAuthModal(true);
   };
 
   // --- VIEW LOGIC ---

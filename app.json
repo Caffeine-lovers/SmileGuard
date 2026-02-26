@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "DentalGuard",
-    "slug": "DentalGuard",
+    "name": "SMILEGUARD",
+    "slug": "SMILEGUARD",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "dentalguard",
+    "scheme": "smileguard",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.smileguard.dentalguard",
+      "package": "com.smileguard.smileguard",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
