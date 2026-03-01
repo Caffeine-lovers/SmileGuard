@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView } from "react-native";
-import { saveAppointment, Appointment } from "../../lib/database.ts";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView, Modal } from "react-native";
+import { saveAppointment, Appointment } from "../../lib/database";
+import { getBookedSlots, bookSlot, checkDayFull, cancelAppointment } from "../../lib/appointmentService";
 
 // Available services
 const SERVICES = [
@@ -38,8 +39,11 @@ export default function BookAppointment({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-  // const [showDatePicker, setShowDatePicker] = useState(false); // Unused
+  const [showTimeModal, setShowTimeModal] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [fullyBookedDates, setFullyBookedDates] = useState<Set<string>>(new Set());
   
   // Generate next 30 days
   const availableDates = Array.from({ length: 30 }, (_, i) => {
@@ -64,11 +68,32 @@ export default function BookAppointment({
     });
   };
 
-  // Check if slot is available (mock - in production check against existing appointments)
-  const isSlotAvailable = (date: string, time: string): boolean => {
-    // In production, query the database for existing appointments
-    // For now, return true (all slots available)
-    return true;
+  // Check if slot is available
+  const isSlotAvailable = (time: string): boolean => {
+    return !bookedSlots.includes(time);
+  };
+
+  // Fetch booked slots for selected date
+  const handleDateSelect = async (date: string) => {
+    setSelectedDate(date);
+    setSelectedTime(""); // Reset time when date changes
+    setLoadingSlots(true);
+    
+    try {
+      const slots = await getBookedSlots(date);
+      setBookedSlots(slots);
+      
+      // Check if this date is fully booked
+      const dayFull = await checkDayFull(date);
+      if (dayFull) {
+        setFullyBookedDates(prev => new Set([...prev, date]));
+      }
+    } catch (error) {
+      console.error("Error fetching booked slots:", error);
+      setBookedSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
   };
 
   // Handle booking
@@ -90,7 +115,7 @@ export default function BookAppointment({
 
     try {
       // Check availability
-      const available = await isSlotAvailable(selectedDate, selectedTime);
+      const available = isSlotAvailable(selectedTime);
       if (!available) {
         Alert.alert("Not Available", "This time slot is already booked. Please choose another.");
         setIsBooking(false);
@@ -170,16 +195,22 @@ export default function BookAppointment({
         </View>
 
         {/* Date Selection */}
-        <Text style={styles.sectionTitle}>Select Date</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
-          {availableDates.map((date) => (
+        <Text style={[styles.sectionTitle, !selectedService && styles.disabledText]}>
+          Select Date {!selectedService && '(Choose a service first)'}
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.dateScroll, !selectedService && styles.disabledSection]}>
+          {availableDates.map((date) => {
+            const isDateFullyBooked = fullyBookedDates.has(date);
+            return (
             <TouchableOpacity
               key={date}
+              disabled={!selectedService || isDateFullyBooked}
               style={[
                 styles.dateCard,
                 selectedDate === date && styles.dateCardSelected,
+                (!selectedService || isDateFullyBooked) && styles.dateCardDisabled,
               ]}
-              onPress={() => setSelectedDate(date)}
+              onPress={() => selectedService && !isDateFullyBooked && handleDateSelect(date)}
             >
               <Text
                 style={[
@@ -197,33 +228,82 @@ export default function BookAppointment({
               >
                 {new Date(date).getDate()}
               </Text>
+              {isDateFullyBooked && (
+                <Text style={styles.fullText}>Full</Text>
+              )}
             </TouchableOpacity>
-          ))}
+            );
+          })}
         </ScrollView>
 
         {/* Time Selection */}
-        <Text style={styles.sectionTitle}>Select Time</Text>
-        <View style={styles.timeGrid}>
-          {TIME_SLOTS.map((time) => (
-            <TouchableOpacity
-              key={time}
-              style={[
-                styles.timeSlot,
-                selectedTime === time && styles.timeSlotSelected,
-              ]}
-              onPress={() => setSelectedTime(time)}
-            >
-              <Text
-                style={[
-                  styles.timeText,
-                  selectedTime === time && styles.timeTextSelected,
-                ]}
+        <Text style={[styles.sectionTitle, !selectedDate && styles.disabledText]}>
+          Select Time {!selectedDate && '(Choose a date first)'}
+        </Text>
+        <TouchableOpacity
+          disabled={!selectedDate}
+          style={[styles.timeDropdown, !selectedDate && styles.disabledSection]}
+          onPress={() => selectedDate && setShowTimeModal(true)}
+        >
+          <Text style={[styles.timeDropdownText, !selectedTime && styles.placeholderText]}>
+            {selectedTime || "Select a time slot..."}
+          </Text>
+          <Text style={styles.dropdownArrow}>▼</Text>
+        </TouchableOpacity>
+
+        {/* Time Modal */}
+        <Modal
+          visible={showTimeModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowTimeModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Time</Text>
+              {loadingSlots ? (
+                <Text style={styles.loadingText}>Loading available slots...</Text>
+              ) : (
+                <ScrollView style={styles.timeModalList}>
+                  {TIME_SLOTS.map((time) => {
+                    const isBooked = !isSlotAvailable(time);
+                    return (
+                      <TouchableOpacity
+                        key={time}
+                        disabled={isBooked}
+                        style={[
+                          styles.timeModalItem,
+                          selectedTime === time && styles.timeModalItemSelected,
+                          isBooked && styles.timeModalItemDisabled,
+                        ]}
+                        onPress={() => {
+                          setSelectedTime(time);
+                          setShowTimeModal(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.timeModalItemText,
+                            selectedTime === time && styles.timeModalItemTextSelected,
+                            isBooked && styles.timeModalItemTextDisabled,
+                          ]}
+                        >
+                          {time} {isBooked ? "(Booked)" : ""}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowTimeModal(false)}
               >
-                {time}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Text style={styles.modalCloseButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* Notes */}
         <Text style={styles.sectionTitle}>Additional Notes (Optional)</Text>
@@ -382,30 +462,109 @@ const styles = StyleSheet.create({
   dateTextSelected: {
     color: "#4CAF50",
   },
-  timeGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  dateCardDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#f5f5f5",
   },
-  timeSlot: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  fullText: {
+    fontSize: 10,
+    color: "#999",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  timeDropdown: {
     backgroundColor: "#fff",
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: "#e0e0e0",
+    padding: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  timeSlotSelected: {
-    borderColor: "#4CAF50",
-    backgroundColor: "#e8f5e9",
-  },
-  timeText: {
+  timeDropdownText: {
     fontSize: 14,
     color: "#1a1a2e",
   },
-  timeTextSelected: {
+  placeholderText: {
+    color: "#999",
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: "#666",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+    maxHeight: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1a1a2e",
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  timeModalList: {
+    maxHeight: "70%",
+  },
+  timeModalItem: {
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  timeModalItemSelected: {
+    backgroundColor: "#e8f5e9",
+  },
+  timeModalItemText: {
+    fontSize: 16,
+    color: "#1a1a2e",
+  },
+  timeModalItemTextSelected: {
     color: "#4CAF50",
     fontWeight: "600",
+  },
+  timeModalItemDisabled: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.6,
+  },
+  timeModalItemTextDisabled: {
+    color: "#999",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    paddingVertical: 20,
+  },
+  modalCloseButton: {
+    marginTop: 10,
+    marginHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#e0e0e0",
+    alignItems: "center",
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "600",
+  },
+  disabledSection: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    color: "#999",
   },
   notesInput: {
     backgroundColor: "#fff",

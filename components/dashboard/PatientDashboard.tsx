@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CurrentUser, Appointment as DbAppointment } from "../../types";
-import { Appointment } from "../../lib/database.ts";
-import BookAppointment from "../appointments/BookAppointment.tsx";
-import BillingPayment from "../billing/BillingPayment.tsx";
+import { Appointment } from "../../lib/database";
+import BookAppointment from "../appointments/BookAppointment";
+import BillingPayment from "../billing/BillingPayment";
 
 interface PatientDashboardProps {
   user: CurrentUser;

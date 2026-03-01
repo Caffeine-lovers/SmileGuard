@@ -11,7 +11,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { calculateDiscount, Billing, saveBilling } from "../../lib/database.ts";
+import { calculateDiscount, Billing, saveBilling } from "../../lib/database";
 
 interface BillingPaymentProps {
   patientId: string;
@@ -189,20 +189,6 @@ export default function BillingPayment({
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Custom Amount */}
-        <Text style={styles.label}>Or Enter Custom Amount</Text>
-        <TextInput
-          style={styles.input}
-          value={amount.toString()}
-          onChangeText={(text) => {
-            const num = parseFloat(text) || 0;
-            setAmount(num);
-            applyDiscount(num, discountType);
-          }}
-          keyboardType="numeric"
-          placeholder="Enter amount"
-        />
 
         {/* Discount Selection */}
         <Text style={styles.label}>Discount Type</Text>
