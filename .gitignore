@@ -10,7 +10,6 @@ web-build/
 expo-env.d.ts
 
 # Native
-CHANGES-GUIDE.md
 .supabase/
 .venv/
 .idea/
@@ -51,3 +50,4 @@ app-example
 /ios
 /android
 eas.json
+/CHANGES-GUIDE.md
