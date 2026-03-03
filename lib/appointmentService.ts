@@ -2,8 +2,12 @@
 
 import { supabase } from './supabase';
 
-const TOTAL_SLOTS_PER_DAY = 8  // adjust to your actual number of slots
+// Default total slots per day; can be overridden at app startup to match the UI's slot configuration.
+export let TOTAL_SLOTS_PER_DAY = 8  // adjust to your actual number of slots
 
+export function setTotalSlotsPerDay(total: number): void {
+  TOTAL_SLOTS_PER_DAY = total
+}
 // ─────────────────────────────────────────
 // 1. GET BOOKED SLOTS
 // ─────────────────────────────────────────
