@@ -190,20 +190,6 @@ export default function BillingPayment({
           ))}
         </View>
 
-        {/* Custom Amount */}
-        <Text style={styles.label}>Or Enter Custom Amount</Text>
-        <TextInput
-          style={styles.input}
-          value={amount.toString()}
-          onChangeText={(text) => {
-            const num = parseFloat(text) || 0;
-            setAmount(num);
-            applyDiscount(num, discountType);
-          }}
-          keyboardType="numeric"
-          placeholder="Enter amount"
-        />
-
         {/* Discount Selection */}
         <Text style={styles.label}>Discount Type</Text>
         <TouchableOpacity

@@ -9,9 +9,9 @@ import {
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import AppointmentCard from "./AppointmentCard";
-import StatCard from "./StatCard";
-import { CurrentUser } from "../../types";
+import AppointmentCard from "./AppointmentCard.tsx";
+import StatCard from "./StatCard.tsx";
+import { CurrentUser } from "../../types/index.ts";
 
 interface DoctorDashboardProps {
   user: CurrentUser;

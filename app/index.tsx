@@ -3,17 +3,17 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 // Components
-import Navigation from "../components/landing/Nav-Bar";
-import Hero from "../components/landing/Hero";
-import HowItWorks from "../components/landing/HowItWorks";
-import Footer from "../components/landing/Footer";
-import AuthModal from "../components/auth/AuthModal";
-import PatientDashboard from "../components/dashboard/PatientDashboard";
-import DoctorDashboard from "../components/dashboard/DoctorDashboard";
+import Navigation from "../components/landing/Nav-Bar.tsx";
+import Hero from "../components/landing/Hero.tsx";
+import HowItWorks from "../components/landing/HowItWorks.tsx";
+import Footer from "../components/landing/Footer.tsx";
+import AuthModal from "../components/auth/AuthModal.tsx";
+import PatientDashboard from "../components/dashboard/PatientDashboard.tsx";
+import DoctorDashboard from "../components/dashboard/DoctorDashboard.tsx";
 
 // Hooks
-import { useAuth } from "../hooks/useAuth";
-import { CurrentUser } from "../types";
+import { useAuth } from "../hooks/useAuth.ts";
+import { CurrentUser } from "../types/index.ts";
 
 export default function LandingPage() {
   const { currentUser, setCurrentUser, login, register, logout } = useAuth();

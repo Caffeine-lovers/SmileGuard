@@ -18,8 +18,8 @@ import {
   MedicalIntake,
   PasswordCheck,
   EMPTY_MEDICAL_INTAKE,
-} from "../../types";
-import { supabase } from "../../lib/supabase";
+} from "../../types/index.ts";
+import { supabase } from "../../lib/supabase.ts";
 
 // ── Security constants ────────────────────────────────────────────
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -135,7 +135,7 @@ export default function AuthModal({
 
   // Shorthand to update medical intake fields
   const setIntake = (patch: Partial<MedicalIntake>) =>
-    setFormData((f) => ({
+    setFormData((f: FormData) => ({
       ...f,
       medicalIntake: { ...f.medicalIntake, ...patch },
     }));
@@ -143,7 +143,7 @@ export default function AuthModal({
   // Shorthand to update top-level fields (with sanitisation)
   const setField = (key: keyof FormData, value: string) => {
     // Don't sanitise the password – it may legitimately contain special chars
-    setFormData((f) => ({
+    setFormData((f: FormData) => ({
       ...f,
       [key]: key === "password" ? value : sanitize(value),
     }));

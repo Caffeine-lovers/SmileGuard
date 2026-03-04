@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { CurrentUser, FormData } from "../types";
-import { supabase } from "../lib/supabase";
+import { CurrentUser, FormData } from "../types/index.ts";
+import { supabase } from "../lib/supabase.ts";
+import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
 export function useAuth() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -10,7 +11,7 @@ export function useAuth() {
   // Listen for auth state changes (auto-restores session on app restart)
   useEffect(() => {
     // Check for existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       if (session?.user) {
         fetchProfile(session.user.id);
       } else {
@@ -23,7 +24,7 @@ export function useAuth() {
 
     // Subscribe to future auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_event: AuthChangeEvent, session: Session | null) => {
         if (session?.user) {
           await fetchProfile(session.user.id);
         } else {

@@ -9,7 +9,7 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CurrentUser, Appointment as DbAppointment } from "../../types";
+import { CurrentUser, Appointment as DbAppointment } from "../../types/index.ts";
 import { Appointment } from "../../lib/database.ts";
 import BookAppointment from "../appointments/BookAppointment.tsx";
 import BillingPayment from "../billing/BillingPayment.tsx";
