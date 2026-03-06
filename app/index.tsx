@@ -16,7 +16,7 @@ import { useAuth } from "../hooks/useAuth.ts";
 import { CurrentUser } from "../types/index.ts";
 
 export default function LandingPage() {
-  const { currentUser, setCurrentUser, login, register, logout } = useAuth();
+  const { currentUser, setCurrentUser, logout } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authRole, setAuthRole] = useState<"patient" | "doctor">("patient");
 
@@ -69,8 +69,6 @@ export default function LandingPage() {
           role={authRole}
           onClose={() => setShowAuthModal(false)}
           onSuccess={handleAuthSuccess}
-          onLogin={login}
-          onRegister={register}
         />
       </SafeAreaView>
     </SafeAreaProvider>

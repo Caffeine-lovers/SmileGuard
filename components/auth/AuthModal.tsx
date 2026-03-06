@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useAuth } from "../../hooks/useAuth.ts"
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,6 +22,7 @@ import {
   EMPTY_MEDICAL_INTAKE,
 } from "../../types/index.ts";
 import { supabase } from "../../lib/supabase.ts";
+import { Key } from "lucide-react-native";
 
 // ── Security constants ────────────────────────────────────────────
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -42,15 +44,6 @@ export interface AuthModalProps {
   role: "patient" | "doctor";
   onClose: () => void;
   onSuccess: (user: CurrentUser) => void;
-  onLogin: (
-    email: string,
-    password: string,
-    role: "patient" | "doctor"
-  ) => Promise<CurrentUser>;
-  onRegister: (
-    formData: FormData,
-    role: "patient" | "doctor"
-  ) => Promise<CurrentUser>;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -68,9 +61,10 @@ export default function AuthModal({
   role,
   onClose,
   onSuccess,
-  onLogin,
-  onRegister,
 }: AuthModalProps) {
+  // Use the auth hook directly to access login/register functions
+  const { login, register } = useAuth();
+  
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<"register" | "login">("register");
   const [loading, setLoading] = useState(false);
@@ -289,12 +283,12 @@ export default function AuthModal({
   };
 
   const performLogin = async () => {
-    const userData = await onLogin(formData.email, formData.password, role);
+    const userData = await login(formData.email, formData.password, role);
     onSuccess(userData);
   };
 
   const performRegister = async () => {
-    await onRegister(formData, role);
+    await register(formData, role);
     setStep(5); // success screen
   };
 
@@ -310,15 +304,20 @@ export default function AuthModal({
 
   return (
     <Modal visible={visible} animationType="slide">
-      <SafeAreaView style={styles.modalFull}>
-        <View style={styles.bordercard}>
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.stepContent}>
-              {/* ════════════ Step 0: Portal Entry Choice ════════════ */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+      >
+        <SafeAreaView style={styles.modalFull}>
+          <View style={styles.bordercard}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.stepContent}>
+                {/* ════════════ Step 0: Portal Entry Choice ════════════ */}
               {step === 0 && (
                 <View style={{ alignItems: "center" }}>
                   <Text style={styles.h2}>
@@ -685,18 +684,19 @@ export default function AuthModal({
                 </View>
               )}
             </View>
-          </ScrollView>
+            </ScrollView>
 
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={onClose}
-            accessibilityLabel="Close authentication modal"
-            accessibilityRole="button"
-          >
-            <Text style={styles.closeBtnText}>Exit</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={onClose}
+              accessibilityLabel="Close authentication modal"
+              accessibilityRole="button"
+            >
+              <Text style={styles.closeBtnText}>Exit</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
