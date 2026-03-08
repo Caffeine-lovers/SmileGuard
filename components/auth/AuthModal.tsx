@@ -647,7 +647,7 @@ export default function AuthModal({
                 </View>
               )}
             </View>
-                          {/* Close button */}
+              {/* Close button */}
               {step < 6 && (
                 <TouchableOpacity
                   style={styles.closeBtn}
