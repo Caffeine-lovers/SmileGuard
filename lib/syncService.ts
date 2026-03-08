@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.ts";
 
 // Types for sync operations
 export interface PendingTransaction {

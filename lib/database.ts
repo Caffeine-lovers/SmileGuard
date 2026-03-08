@@ -1,5 +1,5 @@
-import { supabase } from "./supabase";
-import { saveTransactionLocally, isOnline, syncPendingTransactions } from "./syncService";
+import { supabase } from "./supabase.ts";
+import { saveTransactionLocally, isOnline, syncPendingTransactions } from "./syncService.ts";
 
 // Type definitions for database operations
 export interface Appointment {
