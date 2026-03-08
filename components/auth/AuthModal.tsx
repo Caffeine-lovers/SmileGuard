@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../../hooks/useAuth.ts"
 import { SafeAreaView } from "react-native-safe-area-context";
 import Alert from "@blazejkustra/react-native-alert";
+import PasswordStrengthMeter from "../ui/password-strength-meter.tsx";
 import {
   FormData,
   CurrentUser,
@@ -23,10 +24,9 @@ import {
 } from "../../types/index.ts";
 import { supabase } from "../../lib/supabase.ts";
 import { Key } from "lucide-react-native";
+import { on } from "node:cluster";
 
-// ── Security constants ────────────────────────────────────────────
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
 
 // ── Input sanitisation ───────────────────────────────────────────
 // Strip anything that looks like SQL / script injection.
@@ -63,15 +63,13 @@ export default function AuthModal({
   onSuccess,
 }: AuthModalProps) {
   // Use the auth hook directly to access login/register functions
-  const { login, register } = useAuth();
+  const { login, register  } = useAuth();
   
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<"register" | "login">("register");
   const [loading, setLoading] = useState(false);
 
-  // Brute-force protection state
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
 
   const [formData, setFormData] = useState<FormData>({
     service: "",
@@ -124,9 +122,6 @@ export default function AuthModal({
     const met = passwordChecks.filter((c) => c.met).length;
     return Math.round((met / passwordChecks.length) * 100);
   }, [passwordChecks]);
-
-  const strengthColor =
-    strengthPercent <= 40 ? "#ef4444" : strengthPercent <= 70 ? "#f59e0b" : "#22c55e";
 
   // Shorthand to update medical intake fields
   const setIntake = (patch: Partial<MedicalIntake>) =>
@@ -190,16 +185,8 @@ export default function AuthModal({
 
   // ── Finalize ─────────────────────────────────────────────────────
 
+
   const handleFinalize = async () => {
-    // Check lockout
-    if (lockoutUntil && Date.now() < lockoutUntil) {
-      const mins = Math.ceil((lockoutUntil - Date.now()) / 60000);
-      Alert.alert(
-        "Account Locked",
-        `Too many failed attempts. Please try again in ${mins} minute(s).`
-      );
-      return;
-    }
 
     if (!formData.email || !formData.password) {
       Alert.alert("Missing Info", "Please complete all required fields.");
@@ -285,6 +272,7 @@ export default function AuthModal({
   const performLogin = async () => {
     const userData = await login(formData.email, formData.password, role);
     onSuccess(userData);
+    console.log("Login successful for user:", userData);
   };
 
   const performRegister = async () => {
@@ -566,17 +554,15 @@ export default function AuthModal({
                   <Text style={styles.h2}>
                     {mode === "login" ? "Welcome Back" : "Create Account"}
                   </Text>
-
                   {/* Name (register only) */}
                   {mode === "register" && (
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Full Name"
-                      value={formData.name}
-                      onChangeText={(t) => setField("name", t)}
-                    />
-                  )}
-
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full Name"
+                    value={formData.name}
+                    onChangeText={(t) => setField("name", t)}
+                                                            />
+                                                              )}
                   <TextInput
                     style={styles.input}
                     placeholder="Email"
@@ -584,36 +570,19 @@ export default function AuthModal({
                     keyboardType="email-address"
                     value={formData.email}
                     onChangeText={(t) => setField("email", t)}
-                  />
+                                                              />
                   <TextInput
                     style={styles.input}
                     placeholder="Password"
                     secureTextEntry
                     value={formData.password}
                     onChangeText={(t) => setField("password", t)}
-                  />
+                                                                  />
 
                   {/* Password strength meter */}
                   {formData.password.length > 0 && (
                     <View style={styles.strengthSection}>
-                      {/* Strength bar */}
-                      <View style={styles.strengthBarBg}>
-                        <View
-                          style={[
-                            styles.strengthBarFill,
-                            { width: `${strengthPercent}%`, backgroundColor: strengthColor },
-                          ]}
-                        />
-                      </View>
-                      <Text style={[styles.strengthLabel, { color: strengthColor }]}>
-                        {strengthPercent <= 40
-                          ? "Weak"
-                          : strengthPercent <= 70
-                          ? "Fair"
-                          : strengthPercent < 100
-                          ? "Good"
-                          : "Strong ✓"}
-                      </Text>
+                      <PasswordStrengthMeter strengthPercent={strengthPercent} />
                       {/* Checklist */}
                       {passwordChecks.map((c) => (
                         <Text key={c.label} style={{ color: c.met ? "#22c55e" : "#9ca3af", fontSize: 13, marginTop: 2 }}>
@@ -640,14 +609,17 @@ export default function AuthModal({
                       </Text>
                     </>
                   )}
+                  {/* =======Login button======== */}
                   <TouchableOpacity
                     style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
-                    onPress={handleFinalize}
+                    onPress={async () => {
+                      await handleFinalize();
+                      await (mode === "login" ? performLogin() : performRegister());
+                    }}
                     disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
+                                      >
+
+                    {loading ? (<ActivityIndicator color="#fff" />) : (
                       <Text style={styles.btnText}>
                         {mode === "login" ? "Enter Portal" : "Complete Registration"}
                       </Text>
@@ -675,16 +647,21 @@ export default function AuthModal({
                 </View>
               )}
             </View>
+                          {/* Close button */}
+              {step < 6 && (
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={async () => {
+                    await onClose();
+                    await setLoading(false);
+                  }}
+                  accessibilityLabel="Close authentication modal"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.closeBtnText}>Exit</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
-
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={onClose}
-              accessibilityLabel="Close authentication modal"
-              accessibilityRole="button"
-            >
-              <Text style={styles.closeBtnText}>Exit</Text>
-            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -873,21 +850,6 @@ const styles = StyleSheet.create({
   },
   strengthSection: {
     marginBottom: 12,
-  },
-  strengthBarBg: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#e5e7eb",
-    marginBottom: 6,
-  },
-  strengthBarFill: {
-    height: 6,
-    borderRadius: 3,
-  },
-  strengthLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 4,
   },
   closeBtn: {
     alignItems: "center",
