@@ -1,6 +1,6 @@
 //appointmentService.ts
 
-import { supabase } from './supabase';
+import { supabase } from './supabase.ts';
 
 // Default total slots per day; can be overridden at app startup to match the UI's slot configuration.
 export let TOTAL_SLOTS_PER_DAY = 8  // adjust to your actual number of slots

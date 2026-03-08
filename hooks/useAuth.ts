@@ -104,10 +104,7 @@ export function useAuth() {
     };
   };
 
-  const register = async (
-    formData: FormData,
-    role: "patient" | "doctor"
-  ): Promise<CurrentUser> => {
+  const register = async (formData: FormData,role: "patient" | "doctor"): Promise<CurrentUser> => {
     // Create the auth account in Supabase
     // Pass name, role, service, and medical intake as metadata — the database
     // trigger will automatically create the profile row from this data
