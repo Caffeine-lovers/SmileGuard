@@ -121,14 +121,23 @@ export function useAuth() {
         },
       },
     });
-
+    
     if (error) {
+      console.error("Registration error:", error);
       throw new Error(error.message);
     }
+    
 
     if (!data.user) {
       throw new Error("Registration failed. Please try again.");
     }
+
+    // Log successful registration for debugging
+    console.log("Registration successful. User ID:", data.user.id, "Role:", role);
+    if (role === "patient") {
+      console.log("Medical intake submitted:", formData.medicalIntake);
+    }
+    
 
     return {
       name: formData.name,

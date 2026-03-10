@@ -289,6 +289,7 @@ export default function AuthModal({
       const message =
         err instanceof Error ? err.message : "Login failed. Please try again.";
       Alert.alert("Login Error", message); // 👈 shows whatever useAuth threw
+      setLoading(false); 
     }
   };
 
@@ -721,12 +722,26 @@ export default function AuthModal({
                     {/* =======Login button======== */}
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
+      
                       onPress={async () => {
-                        await handleFinalize();
-                        await (mode === "login"
-                          ? performLogin()
-                          : performRegister());
+                        try {
+                          setLoading(true);
+                          await handleFinalize();
+
+                          if (mode === "login") {
+                            await performLogin();
+                          } else {
+                            await performRegister();
+                          }
+                        } catch (err) {
+                          const message = err instanceof Error ? err.message : "Authentication failed. Please try again.";
+                          Alert.alert(mode === "login" ? "Login Error" : "Registration Error", message);
+                          console.error("Auth error:", err);
+                        } finally {
+                          setLoading(false);
+                        }
                       }}
+                      
                       disabled={loading}
                     >
                       {loading ? (
@@ -784,6 +799,7 @@ export default function AuthModal({
                   accessibilityLabel="Close authentication modal"
                   accessibilityRole="button"
                 >
+                  
                   <Text style={styles.closeBtnText}>Exit</Text>
                 </TouchableOpacity>
               )}
