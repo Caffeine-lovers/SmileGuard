@@ -698,6 +698,14 @@ export default function AuthModal({
                         ))}
                       </View>
                     )}
+                    {mode === "login" && (
+                      <TouchableOpacity
+                        style={{ alignSelf: "flex-end", marginTop: -8, marginBottom: 12 }}
+                        onPress={() => setStep(6)}
+                      >
+                        <Text style={{ color: "#0b7fab", fontSize: 13 }}>Forgot password?</Text>
+                      </TouchableOpacity>
+                    )}
 
                     {/* Doctor access code (doctor role only) */}
                     {role === "doctor" && (
@@ -727,7 +735,7 @@ export default function AuthModal({
                         try {
                           setLoading(true);
                           await handleFinalize();
-
+                          
                           if (mode === "login") {
                             await performLogin();
                           } else {
@@ -748,9 +756,8 @@ export default function AuthModal({
                         <ActivityIndicator color="#fff" />
                       ) : (
                         <Text style={styles.btnText}>
-                          {mode === "login"
-                            ? "Enter Portal"
-                            : "Complete Registration"}
+                          {mode === "login" ? "Enter Portal": "Complete Registration"}
+                          
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -787,9 +794,88 @@ export default function AuthModal({
                     </TouchableOpacity>
                   </View>
                 )}
+                {/* ════════════ Step 6: Forgot Password ════════════ */}
+                {step === 6 && (
+                  <View>
+                    <Text style={styles.h2}>🔐 Reset Password</Text>
+                    <Text style={[styles.p, { fontSize: 14 }]}>
+                      Enter your email and we'll send you a reset link.
+                    </Text>
+
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email"
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      value={formData.email}
+                      onChangeText={(t) => setField("email", t)}
+                    />
+
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn, { marginTop: 4 }]}
+                      disabled={loading}
+                      onPress={async () => {
+                        if (!formData.email || !isValidEmail(formData.email)) {
+                          Alert.alert("Invalid Email", "Please enter a valid email address.");
+                          return;
+                        }
+                        setLoading(true);
+                        try {
+                          const { error } = await supabase.auth.resetPasswordForEmail(
+                            formData.email,
+                            { redirectTo: "http://localhost:3000/reset-password" }
+                          );
+                          if (error) throw error;
+                          setStep(7);
+                        } catch (err) {
+                          const message = err instanceof Error ? err.message : "Something went wrong.";
+                          Alert.alert("Error", message);
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.btnText}>Send Reset Link</Text>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
+                      onPress={() => setStep(4)}
+                    >
+                      <Text style={styles.secondaryBtnText}>← Back to Login</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* ════════════ Step 7: Reset Email Sent ════════════ */}
+                {step === 7 && (
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={{ fontSize: 40, marginBottom: 10 }}>📬</Text>
+                    <Text style={styles.h2}>Check your inbox</Text>
+                    <Text style={[styles.p, { fontSize: 14 }]}>
+                      A password reset link was sent to{"\n"}
+                      <Text style={{ fontWeight: "700", color: "#0b7fab" }}>
+                        {formData.email}
+                      </Text>
+                    </Text>
+                    <Text style={[styles.subtext, { marginBottom: 24 }]}>
+                      The link expires in 1 hour. Check your spam folder if you don't see it.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.btn, styles.primaryBtn]}
+                      onPress={() => setStep(4)}
+                    >
+                      <Text style={styles.btnText}>Back to Login</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
               {/* Close button */}
-              {step < 6 && (
+              {step < 5 && (
                 <TouchableOpacity
                   style={styles.closeBtn}
                   onPress={async () => {
@@ -803,6 +889,7 @@ export default function AuthModal({
                   <Text style={styles.closeBtnText}>Exit</Text>
                 </TouchableOpacity>
               )}
+              
             </ScrollView>
           </View>
         </SafeAreaView>
