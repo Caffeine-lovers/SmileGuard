@@ -1,2 +1,9 @@
-{"timestamp":"00:00:01.020","source":"Server","level":"ERROR","message":"SyntaxError: Expected property name or '}' in JSON at position 555176 (line 14507 column 1)"}
-{"timestamp":"00:00:01.310","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:01.188","source":"Server","level":"ERROR","message":"SyntaxError: Expected property name or '}' in JSON at position 555176 (line 14507 column 1)"}
+{"timestamp":"00:00:01.595","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:08.834","source":"Server","level":"LOG","message":"🔗 Supabase initialized with URL: \"https://yffvnvusiazjnwmdylji.s...\""}
+{"timestamp":"00:00:09.018","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:00:09.019","source":"Browser","level":"LOG","message":"🔗 Supabase initialized with URL: https://yffvnvusiazjnwmdylji.s..."}
+{"timestamp":"00:04:10.457","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:05:54.747","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:05:55.493","source":"Server","level":"LOG","message":"✓ Compiled in 62ms"}
+{"timestamp":"00:07:24.710","source":"Server","level":"LOG","message":"✓ Compiled in 27ms"}

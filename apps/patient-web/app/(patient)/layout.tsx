@@ -16,7 +16,7 @@ export default function PatientLayout({
   useEffect(() => {
     // Redirect to login if not authenticated or not a patient
     if (!loading && (!currentUser || currentUser.role !== 'patient')) {
-      router.push('/auth/login');
+      router.push('/login');
     }
   }, [currentUser, loading, router]);
 

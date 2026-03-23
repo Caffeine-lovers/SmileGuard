@@ -70,7 +70,7 @@ export default function SignupPage() {
         },
         'patient'
       );
-      router.push('/auth/login?registered=true');
+      router.push('/login?registered=true');
     } catch (err) {
       setLocalError(
         err instanceof Error ? err.message : 'Registration failed. Please try again.'
@@ -278,7 +278,7 @@ export default function SignupPage() {
       <div className="mt-6 text-center">
         <p className="text-gray-600">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-blue-600 font-medium hover:underline">
+          <Link href="/login" className="text-blue-600 font-medium hover:underline">
             Login
           </Link>
         </p>
