@@ -10,6 +10,7 @@ export interface User {
 }
 
 export interface CurrentUser {
+  id: string;        // Supabase auth UUID — used as patient_id / dentist_id in DB
   name: string;
   email: string;
   role: "patient" | "doctor";
@@ -17,15 +18,12 @@ export interface CurrentUser {
 
 // Medical intake — biography & medical history for patient registration
 export interface MedicalIntake {
-  // Biography
   dateOfBirth: string;
   gender: string;
   phone: string;
   address: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
-
-  // Medical History
   allergies: string;
   currentMedications: string;
   medicalConditions: string;
@@ -55,20 +53,19 @@ export interface FormData {
   email: string;
   password: string;
   medicalIntake: MedicalIntake;
-  // Doctor registration — access code required
   doctorAccessCode?: string;
 }
 
-// Password strength helper
 export interface PasswordCheck {
   label: string;
   met: boolean;
 }
 
-export interface Appointment {
+// NOTE: This is the dashboard display type only.
+// The real DB appointment type lives in lib/database.ts as Appointment.
+export interface AppointmentDisplay {
   id: string;
   service: string;
-  date: string;
-  status: "Pending" | "Completed";
+  date: string;        // formatted display string e.g. "Mar 15, 2026"
+  status: "Pending" | "Completed" | "Cancelled";
 }
-

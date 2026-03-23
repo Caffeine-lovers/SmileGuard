@@ -9,6 +9,7 @@ export function useCurrentUser(): CurrentUser | null {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session?.user) {
         setUser({
+          id: session.user.id,
           email: session.user.email!,
           name: session.user.user_metadata?.name,
           role: session.user.user_metadata?.role,
