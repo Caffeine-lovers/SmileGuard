@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
-import { useRouter } from 'next/navigation';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import { getPatientAppointments } from '@/lib/appointmentService';
@@ -11,8 +10,7 @@ import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
 
 export default function PatientDashboard() {
-  const { currentUser, logout } = useAuth();
-  const router = useRouter();
+  const { currentUser } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -40,15 +38,6 @@ export default function PatientDashboard() {
     fetchData();
   }, [currentUser]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -58,28 +47,28 @@ export default function PatientDashboard() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-slate-50 min-h-screen">
       <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
             Welcome, {currentUser?.name}!
           </h1>
+          <p className="text-blue-600 text-sm font-medium">🦷 SmileGuard Patient Portal</p>
           <p className="text-gray-600">Your dental health dashboard</p>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium"
-        >
-          Logout
-        </button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <StatCard number={appointments.length} label="Appointments" />
-        <StatCard number={`₱${balance.toFixed(2)}`} label="Outstanding Balance" />
-        <StatCard number="3" label="Days Until Next Appointment" />
+        <div className="border-l-4 border-blue-600 bg-white rounded-lg shadow-sm p-4">
+          <StatCard number={appointments.length} label="Appointments" />
+        </div>
+        <div className="border-l-4 border-blue-600 bg-white rounded-lg shadow-sm p-4">
+          <StatCard number={`₱${balance.toFixed(2)}`} label="Outstanding Balance" />
+        </div>
+        <div className="border-l-4 border-blue-600 bg-white rounded-lg shadow-sm p-4">
+          <StatCard number={appointments[0]?.appointment_date ?? 'None scheduled'} label="Next Appointment" />
+        </div>
       </div>
 
       {/* Appointments Section */}
@@ -99,7 +88,7 @@ export default function PatientDashboard() {
             {appointments.map((apt) => (
               <AppointmentCard
                 key={apt.id}
-                name="Dr. Smith"
+                name="Your Doctor"
                 service={apt.service}
                 time={apt.appointment_time}
               />
@@ -116,25 +105,29 @@ export default function PatientDashboard() {
           href="/appointments"
           className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center font-medium transition"
         >
-          📅 Book Now
+          <span className="text-2xl mb-1 block">📅</span>
+          Book Now
         </Link>
         <Link
           href="/billing"
-          className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center font-medium transition"
+          className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center font-medium transition"
         >
-          💰 Pay Bill
+          <span className="text-2xl mb-1 block">💰</span>
+          Pay Bill
         </Link>
         <Link
           href="/analysis"
-          className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg text-center font-medium transition"
+          className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center font-medium transition"
         >
-          🦷 AI Analysis
+          <span className="text-2xl mb-1 block">🦷</span>
+          AI Analysis
         </Link>
         <Link
           href="/treatments"
-          className="bg-orange-600 hover:bg-orange-700 text-white p-4 rounded-lg text-center font-medium transition"
+          className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center font-medium transition"
         >
-          🔧 Treatments
+          <span className="text-2xl mb-1 block">🔧</span>
+          Treatments
         </Link>
       </div>
     </div>
