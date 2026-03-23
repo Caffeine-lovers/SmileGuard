@@ -1,29 +1,26 @@
-{"timestamp":"00:00:00.963","source":"Server","level":"ERROR","message":"SyntaxError: Expected property name or '}' in JSON at position 555176 (line 14507 column 1)"}
-{"timestamp":"00:00:01.360","source":"Server","level":"LOG","message":""}
-{"timestamp":"00:02:48.004","source":"Server","level":"LOG","message":"🔗 Supabase initialized with URL: \"https://yffvnvusiazjnwmdylji.s...\""}
-{"timestamp":"00:02:48.208","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:02:48.208","source":"Browser","level":"LOG","message":"🔗 Supabase initialized with URL: https://yffvnvusiazjnwmdylji.s..."}
-{"timestamp":"00:02:48.264","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:48.271","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:57.304","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:57.741","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:58.060","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:58.078","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:58.093","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:58.316","source":"Browser","level":"WARN","message":"Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior=\"smooth\"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior"}
-{"timestamp":"00:02:58.322","source":"Server","level":"WARN","message":"[browser] \"\\u001b[33mDetected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior=\\\"smooth\\\"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior\\u001b[39m\" \"\\u001b[2m(file://C:/Users/PerezKylerLee(Studen/SmileGuard/apps/patient-web/.next/dev/static/chunks/0m~-_next_dist_0adwku7._.js:2431:13)\\u001b[22m\""}
-{"timestamp":"00:02:58.322","source":"Browser","level":"WARN","message":"\u001b[33mDetected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior=\"smooth\"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior\u001b[39m"}
-{"timestamp":"00:02:58.613","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:58.613","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:02:58.613","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:03:22.453","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:03:22.453","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:17:44.417","source":"Server","level":"LOG","message":"✓ Compiled in 910ms"}
-{"timestamp":"00:17:45.249","source":"Browser","level":"ERROR","message":"uncaughtError: ReferenceError: useRouter is not defined"}
-{"timestamp":"00:17:48.133","source":"Server","level":"WARN","message":"⚠ Fast Refresh had to perform a full reload due to a runtime error."}
-{"timestamp":"00:17:48.309","source":"Server","level":"LOG","message":"🔗 Supabase initialized with URL: \"https://yffvnvusiazjnwmdylji.s...\""}
-{"timestamp":"00:17:48.312","source":"Server","level":"LOG","message":"✓ Compiled in 35ms"}
-{"timestamp":"00:17:48.423","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:17:49.238","source":"Browser","level":"LOG","message":"🔗 Supabase initialized with URL: https://yffvnvusiazjnwmdylji.s..."}
-{"timestamp":"00:17:49.238","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
-{"timestamp":"00:18:04.389","source":"Server","level":"LOG","message":"✓ Compiled in 58ms"}
+{"timestamp":"00:00:00.910","source":"Server","level":"ERROR","message":"SyntaxError: Expected property name or '}' in JSON at position 555176 (line 14507 column 1)"}
+{"timestamp":"00:00:01.361","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:01.832","source":"Server","level":"LOG","message":"🔗 Supabase initialized with URL: \"https://yffvnvusiazjnwmdylji.s...\""}
+{"timestamp":"00:00:11.308","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:00:11.308","source":"Browser","level":"LOG","message":"🔗 Supabase initialized with URL: https://yffvnvusiazjnwmdylji.s..."}
+{"timestamp":"00:00:11.365","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:05.026","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:01:05.026","source":"Browser","level":"LOG","message":"🔗 Supabase initialized with URL: https://yffvnvusiazjnwmdylji.s..."}
+{"timestamp":"00:01:05.067","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:05.067","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:12.371","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:12.888","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:13.189","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:13.189","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:13.189","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:13.462","source":"Browser","level":"WARN","message":"Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior=\"smooth\"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior"}
+{"timestamp":"00:01:13.469","source":"Server","level":"WARN","message":"[browser] \"\\u001b[33mDetected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior=\\\"smooth\\\"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior\\u001b[39m\" \"\\u001b[2m(file://C:/Users/PerezKylerLee(Studen/SmileGuard/apps/patient-web/.next/dev/static/chunks/0m~-_next_dist_0adwku7._.js:2431:13)\\u001b[22m\""}
+{"timestamp":"00:01:13.469","source":"Browser","level":"WARN","message":"\u001b[33mDetected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior=\"smooth\"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior\u001b[39m"}
+{"timestamp":"00:01:13.771","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:13.771","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:13.771","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:20.774","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:20.775","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:20.775","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:56.640","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
+{"timestamp":"00:01:56.640","source":"Browser","level":"LOG","message":"🔍 Fetching profile for user: d6b501db-aabb-4a02-99b6-b3cb97437bea"}
