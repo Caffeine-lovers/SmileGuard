@@ -7,7 +7,8 @@
   "files": ["index.ts", "useAuth.ts", "useNetwork.ts"],
   "dependencies": {
     "@smileguard/shared-types": "workspace:*",
-    "@supabase/supabase-js": "^2.95.3"
+    "@supabase/supabase-js": "^2.95.3",
+    "react": "^19.0.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"

@@ -1,12 +1,19 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+
+const BillingPayment = dynamic(
+  () => import('@/components/billing/BillingPayment'),
+  { loading: () => <div className="p-8 text-center">Loading...</div> }
+);
+
 export default function BillingPage() {
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-8 text-gray-800">Billing</h1>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-500">Billing information will be displayed here</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <h1 className="text-4xl font-bold text-gray-800 mb-2">Payment & Billing</h1>
+        <p className="text-gray-600 mb-8">Manage your dental bill and make payments</p>
+        <BillingPayment />
       </div>
     </div>
   );

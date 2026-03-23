@@ -14,7 +14,11 @@
     "patient:build": "pnpm --filter patient-web build",
     "lint": "pnpm --filter doctor-mobile lint"
   },
-  "dependencies": {},
-  "devDependencies": {},
+  "dependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0"
+  },
   "private": true
 }
