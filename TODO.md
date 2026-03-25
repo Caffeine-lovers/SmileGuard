@@ -16,7 +16,7 @@
 ## 📌 Suggestions by Ser Che
 
 - [ ] Develop AI-driven anomaly detection for dental images:
-  - [ ] Detect cavities, cracks, discoloration, gingivitis, mouth ulcers, lesions, and inflammation.
+  - [ ] Detect cavities, cracks, discoloration, gingivitis.
   - [ ] Highlight affected areas with markers (e.g., crosshair/green target).
   - [ ] Provide AI-driven analysis output that identifies issues clearly.
 - [ ] Ensure the AI captures both top and bottom teeth images, including incisors.

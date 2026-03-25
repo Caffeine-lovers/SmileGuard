@@ -1,0 +1,6 @@
+# Monorepo root build outputs
+dist/
+.turbo/
+.next/
+.pnpm-store/
+pnpm-lock.yaml

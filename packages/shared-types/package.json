@@ -1,0 +1,9 @@
+{
+  "name": "@smileguard/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for SmileGuard",
+  "main": "index.ts",
+  "types": "index.ts",
+  "files": ["index.ts"],
+  "private": true
+}

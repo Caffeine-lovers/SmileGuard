@@ -1,7 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorageLib from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase.ts";
 
-// Types for sync operations
+// @ts-ignore - AsyncStorage type mismatch across different React Native versions
+const AsyncStorage = AsyncStorageLib.default || AsyncStorageLib;
+
 export interface PendingTransaction {
   id: string;
   table: string;
@@ -18,30 +20,34 @@ export interface SyncResult {
   errors: string[];
 }
 
-// Storage keys
 const PENDING_TRANSACTIONS_KEY = "@smileguard_pending_transactions";
-const LAST_SYNC_KEY = "@smileguard_last_sync";
-const IS_ONLINE_KEY = "@smileguard_is_online";
+const LAST_SYNC_KEY            = "@smileguard_last_sync";
 
-// Generate unique ID for transactions
-const generateId = (): string => {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
+const generateId = (): string =>
+  `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-// Check if device is online
+// ─────────────────────────────────────────
+// FIX: isOnline no longer depends on the profiles table query.
+// Previously, any RLS error or permission issue on profiles
+// caused isOnline() to return false → every booking saved offline
+// instead of Supabase, silently.
+// Now uses a lightweight HEAD request to the Supabase REST endpoint.
+// ─────────────────────────────────────────
 export const isOnline = async (): Promise<boolean> => {
   try {
-    // Try to ping Supabase
-    const { error } = await supabase.from("profiles").select("id").limit(1);
-    await AsyncStorage.setItem(IS_ONLINE_KEY, "true");
-    return !error;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(
+      "https://yffvnvusiazjnwmdylji.supabase.co/rest/v1/",
+      { method: "HEAD", signal: controller.signal }
+    );
+    clearTimeout(timeout);
+    return response.status < 500;
   } catch {
-    await AsyncStorage.setItem(IS_ONLINE_KEY, "false");
     return false;
   }
 };
 
-// Get pending transactions from local storage
 export const getPendingTransactions = async (): Promise<PendingTransaction[]> => {
   try {
     const data = await AsyncStorage.getItem(PENDING_TRANSACTIONS_KEY);
@@ -52,7 +58,6 @@ export const getPendingTransactions = async (): Promise<PendingTransaction[]> =>
   }
 };
 
-// Save transaction to local storage (for offline use)
 export const saveTransactionLocally = async (
   table: string,
   operation: "INSERT" | "UPDATE" | "DELETE",
@@ -78,7 +83,6 @@ export const saveTransactionLocally = async (
   }
 };
 
-// Sync all pending transactions to the cloud
 export const syncPendingTransactions = async (): Promise<SyncResult> => {
   const result: SyncResult = {
     success: true,
@@ -88,12 +92,8 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
   };
 
   const pending = await getPendingTransactions();
-  
-  if (pending.length === 0) {
-    return result;
-  }
+  if (pending.length === 0) return result;
 
-  // Check if online first
   const online = await isOnline();
   if (!online) {
     result.success = false;
@@ -110,79 +110,50 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
       switch (transaction.table) {
         case "appointments":
           if (transaction.operation === "INSERT") {
-            const { error: insertError } = await supabase
-              .from("appointments")
-              .insert(transaction.data);
-            error = insertError;
+            const { error: e } = await supabase.from("appointments").insert(transaction.data);
+            error = e;
           } else if (transaction.operation === "UPDATE") {
-            const { error: updateError } = await supabase
-              .from("appointments")
-              .update(transaction.data)
-              .eq("id", transaction.data.id);
-            error = updateError;
+            const { error: e } = await supabase.from("appointments").update(transaction.data).eq("id", transaction.data.id);
+            error = e;
           } else if (transaction.operation === "DELETE") {
-            const { error: deleteError } = await supabase
-              .from("appointments")
-              .delete()
-              .eq("id", transaction.data.id);
-            error = deleteError;
+            const { error: e } = await supabase.from("appointments").delete().eq("id", transaction.data.id);
+            error = e;
           }
           break;
 
         case "patients":
           if (transaction.operation === "INSERT") {
-            const { error: insertError } = await supabase
-              .from("patients")
-              .insert(transaction.data);
-            error = insertError;
+            const { error: e } = await supabase.from("patients").insert(transaction.data);
+            error = e;
           } else if (transaction.operation === "UPDATE") {
-            const { error: updateError } = await supabase
-              .from("patients")
-              .update(transaction.data)
-              .eq("id", transaction.data.id);
-            error = updateError;
+            const { error: e } = await supabase.from("patients").update(transaction.data).eq("id", transaction.data.id);
+            error = e;
           } else if (transaction.operation === "DELETE") {
-            const { error: deleteError } = await supabase
-              .from("patients")
-              .delete()
-              .eq("id", transaction.data.id);
-            error = deleteError;
+            const { error: e } = await supabase.from("patients").delete().eq("id", transaction.data.id);
+            error = e;
           }
           break;
 
         case "treatments":
           if (transaction.operation === "INSERT") {
-            const { error: insertError } = await supabase
-              .from("treatments")
-              .insert(transaction.data);
-            error = insertError;
+            const { error: e } = await supabase.from("treatments").insert(transaction.data);
+            error = e;
           } else if (transaction.operation === "UPDATE") {
-            const { error: updateError } = await supabase
-              .from("treatments")
-              .update(transaction.data)
-              .eq("id", transaction.data.id);
-            error = updateError;
+            const { error: e } = await supabase.from("treatments").update(transaction.data).eq("id", transaction.data.id);
+            error = e;
           } else if (transaction.operation === "DELETE") {
-            const { error: deleteError } = await supabase
-              .from("treatments")
-              .delete()
-              .eq("id", transaction.data.id);
-            error = deleteError;
+            const { error: e } = await supabase.from("treatments").delete().eq("id", transaction.data.id);
+            error = e;
           }
           break;
 
         case "billings":
           if (transaction.operation === "INSERT") {
-            const { error: insertError } = await supabase
-              .from("billings")
-              .insert(transaction.data);
-            error = insertError;
+            const { error: e } = await supabase.from("billings").insert(transaction.data);
+            error = e;
           } else if (transaction.operation === "UPDATE") {
-            const { error: updateError } = await supabase
-              .from("billings")
-              .update(transaction.data)
-              .eq("id", transaction.data.id);
-            error = updateError;
+            const { error: e } = await supabase.from("billings").update(transaction.data).eq("id", transaction.data.id);
+            error = e;
           }
           break;
 
@@ -193,7 +164,6 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
       }
 
       if (error) {
-        // Increment retry count and keep if under limit
         if (transaction.retryCount < 3) {
           transaction.retryCount++;
           remainingTransactions.push(transaction);
@@ -207,8 +177,6 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       result.errors.push(`Error syncing ${transaction.table}: ${errorMessage}`);
       result.failedCount++;
-      
-      // Keep transaction for retry if under limit
       if (transaction.retryCount < 3) {
         transaction.retryCount++;
         remainingTransactions.push(transaction);
@@ -216,20 +184,13 @@ export const syncPendingTransactions = async (): Promise<SyncResult> => {
     }
   }
 
-  // Save remaining transactions back to storage
-  await AsyncStorage.setItem(
-    PENDING_TRANSACTIONS_KEY,
-    JSON.stringify(remainingTransactions)
-  );
-
-  // Update last sync time
+  await AsyncStorage.setItem(PENDING_TRANSACTIONS_KEY, JSON.stringify(remainingTransactions));
   await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
 
   result.success = result.failedCount === 0;
   return result;
 };
 
-// Get last sync time
 export const getLastSyncTime = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(LAST_SYNC_KEY);
@@ -238,7 +199,6 @@ export const getLastSyncTime = async (): Promise<string | null> => {
   }
 };
 
-// Clear all pending transactions (after successful sync)
 export const clearPendingTransactions = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(PENDING_TRANSACTIONS_KEY);
@@ -247,15 +207,12 @@ export const clearPendingTransactions = async (): Promise<void> => {
   }
 };
 
-// Get count of pending transactions
 export const getPendingCount = async (): Promise<number> => {
   const pending = await getPendingTransactions();
   return pending.length;
 };
 
-// Check if there are pending transactions
 export const hasPendingTransactions = async (): Promise<boolean> => {
   const count = await getPendingCount();
   return count > 0;
 };
-
