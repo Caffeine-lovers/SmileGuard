@@ -1,0 +1,7 @@
+# Package build outputs
+dist/
+build/
+.tsbuildinfo
+
+# Dependencies (workspace hoisting)
+node_modules/

@@ -32,13 +32,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f7fb" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
         {/* Header Bar */}
         <View style={styles.topBar}>
-          <Text style={styles.topBarText}>SmileGuard MD</Text>
-          <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
-            <Text style={{ color: "white", fontWeight: "bold" }}>Logout</Text>
-          </TouchableOpacity>
+          <Text style={styles.topBarText}>🦷 SmileGuard MD</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -90,10 +87,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                 <Text style={[styles.subHeader, { marginTop: 20 }]}>Requests:</Text>
                 <View style={styles.card}>
-                  <Image
-                    source={{ uri: "https://via.placeholder.com/40" }}
-                    style={styles.icon}
-                  />
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>MY</Text>
+                  </View>
                   <View style={styles.cardText}>
                     <Text style={styles.cardTitle}>Marie Yan</Text>
                     <Text style={styles.cardSubtitle}>Request: Cleaning</Text>
@@ -101,7 +97,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   {/* Action Buttons */}
                   <View style={{ flexDirection: "row", gap: 5 }}>
                     <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: "#4ade80" }]}
+                      style={[styles.actionBtn, { backgroundColor: "#0b7fab" }]}
                       onPress={() => Alert.alert("Accepted", "Request from Marie Yan accepted.")}
                       accessibilityLabel="Accept request from Marie Yan"
                       accessibilityRole="button"
@@ -109,7 +105,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       <Text style={styles.actionBtnText}>✓</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: "#f87171" }]}
+                      style={[styles.actionBtn, { backgroundColor: "#6b7280" }]}
                       onPress={() => Alert.alert("Declined", "Request from Marie Yan declined.")}
                       accessibilityLabel="Decline request from Marie Yan"
                       accessibilityRole="button"
@@ -143,12 +139,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#0b7fab",
   },
-  logoutBtn: {
-    backgroundColor: "#ef4444",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
   scrollContent: {
     paddingBottom: 40,
   },
@@ -158,13 +148,13 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
     color: "#0b7fab",
     textAlign: "center",
   },
   subHeader: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     color: "#333",
     marginBottom: 10,
@@ -239,6 +229,19 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: "#eee",
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#0b7fab",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   actionBtn: {
     width: 24,

@@ -1,53 +1,74 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# ============ Dependencies ============
 node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
 
-# Expo
-.expo/
+# ============ Build outputs ============
 dist/
+build/
+.next/
+.nuxt/
+.turbo/
+out/
+
+# ============ Expo/React Native ============
+.expo/
 web-build/
 expo-env.d.ts
+*.ipa
+*.apk
+app-example/
 
-# Native
+# ============ Native build artifacts ============
+/ios/
+/android/
 .supabase/
-.venv/
-.idea/
-.vscode/
-*.iml
 .kotlin/
-*.orig.*
+.metro-health-check*
+
+# ============ IDE & Editor ============
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*.sublime-workspace
+.DS_Store
+
+# ============ Certificates & Keys ============
 *.jks
 *.p8
 *.p12
 *.key
+*.pem
 *.mobileprovision
+*.orig.*
 
-# Metro
-.metro-health-check*
+# ============ Environment & Config ============
+.env
+.env.local
+.env.*.local
+.env.example.local
+.venv/
+venv/
+__pycache__/
 
-# debug
+# ============ Logs ============
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-.env
-.env.*
-!.env.example
-
-# typescript
+# ============ TypeScript ============
 *.tsbuildinfo
 
-app-example
+# ============ OS ============
+.DS_Store
+Thumbs.db
 
-# generated native folders
-/ios
-/android
-eas.json
-/CHANGES-GUIDE.md
+# ============ Project-specific ============
+CHANGES-GUIDE.md
+/eas.json

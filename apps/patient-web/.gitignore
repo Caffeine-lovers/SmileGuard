@@ -1,0 +1,18 @@
+# Next.js build cache
+.next/
+.turbo/
+out/
+
+# Build outputs
+dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+
+# Dependencies should be in root node_modules (pnpm hoisting)
+node_modules/
