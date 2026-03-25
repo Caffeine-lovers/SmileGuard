@@ -7,4 +7,10 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    rules: {
+      'react/react-in-jsx-scope': 'off', // JSX Transform doesn't require React import
+      '@typescript-eslint/no-explicit-any': 'off', // Allow any type for compatibility layers
+    },
+  },
 ]);

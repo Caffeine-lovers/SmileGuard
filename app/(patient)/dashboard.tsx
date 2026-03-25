@@ -1,3 +1,4 @@
+import React from "react";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase.ts";
 import PatientDashboard from "../../components/dashboard/PatientDashboard.tsx";
@@ -11,6 +12,10 @@ export default function PatientDashboardPage() {
     await supabase.auth.signOut();
     router.replace("/");
   };
+
+  if (!user) {
+    return null; // or a loading screen
+  }
 
   return <PatientDashboard user={user} onLogout={handleLogout} />;
 }

@@ -401,11 +401,8 @@ CREATE POLICY "Users can update own profile"
 CREATE POLICY "Doctors can view patient profiles"
   ON public.profiles FOR SELECT
   USING (
-    -- The viewer must be a doctor
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'doctor'
-    )
+    -- The viewer must be a doctor (check JWT instead of querying to avoid recursion)
+    (auth.jwt() -> 'user_metadata' ->> 'role') = 'doctor'
     -- And the row being viewed must be a patient
     AND role = 'patient'
   );

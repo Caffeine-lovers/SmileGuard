@@ -823,7 +823,7 @@ export default function AuthModal({
                         try {
                           const { error } = await supabase.auth.resetPasswordForEmail(
                             formData.email,
-                            { redirectTo: "http://localhost:3000/reset-password" }
+                            { redirectTo: "http://localhost:8081/reset-password" }
                           );
                           if (error) throw error;
                           setStep(7);
