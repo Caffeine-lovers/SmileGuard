@@ -16,17 +16,21 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (currentUser === undefined) return; // still initializing
+
+    if (!currentUser) {
+      setLoading(false); // not logged in, stop spinner
+      return;
+    }
 
     async function fetchData() {
       setLoading(true);
       try {
-        if (!currentUser) return;
         const [appts, bal] = await Promise.all([
-          getPatientAppointments(currentUser.id),
-          getBalance(currentUser.id),
+          getPatientAppointments(currentUser!.id),
+          getBalance(currentUser!.id),
         ]);
-        setAppointments(appts.slice(0, 5)); // Show recent 5
+        setAppointments(appts.slice(0, 5));
         setBalance(bal);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
