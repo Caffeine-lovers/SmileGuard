@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { supabase } from "../lib/supabase.ts";
+import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index.ts";
 import { Session } from "@supabase/supabase-js";
 

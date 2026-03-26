@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Slot, useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase.ts";
+import { supabase } from "@smileguard/supabase-client";
 import { Session } from "@supabase/supabase-js";
 
 export default function PatientLayout() {

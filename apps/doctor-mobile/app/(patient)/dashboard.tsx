@@ -1,6 +1,6 @@
 import React from "react";
 import { useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase.ts";
+import { supabase } from "@smileguard/supabase-client";
 import PatientDashboard from "../../components/dashboard/PatientDashboard.tsx";
 import { useCurrentUser } from "../../hooks/useCurrentUser.ts";
 

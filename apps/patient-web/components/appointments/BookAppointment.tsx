@@ -40,6 +40,10 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
   const [loadingUserData, setLoadingUserData] = useState(true);
 
+  const step1Complete = selectedService !== null;
+  const step2Complete = step1Complete && selectedDate !== '';
+  const step3Complete = step2Complete && selectedTime !== '';
+
   useEffect(() => {
     fetchAllBlockedSlots();
   }, []);
@@ -174,6 +178,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {SERVICES.map((service) => (
               <button
+                type="button"
                 key={service.id}
                 onClick={() => setSelectedService(service)}
                 className={`p-4 rounded-lg border-2 text-left transition ${
@@ -193,7 +198,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         <hr className="my-8" />
 
         {/* Date Selection */}
-        <div className="mb-8">
+        <div className={`mb-8 transition-opacity ${!step1Complete ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          {!step1Complete && <p className="text-xs text-amber-600 font-medium mb-2">⚠️ Complete Step 1 first</p>}
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 2: Select Date</h2>
           <input
             type="date"
@@ -210,11 +216,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         <hr className="my-8" />
 
         {/* Time Selection */}
-        <div className="mb-8">
+        <div className={`mb-8 transition-opacity ${!step2Complete ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          {!step2Complete && <p className="text-xs text-amber-600 font-medium mb-2">⚠️ Complete Step 2 first</p>}
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 3: Select Time</h2>
           <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
             {TIME_SLOTS.map((time) => (
               <button
+                type="button"
                 key={time}
                 onClick={() => setSelectedTime(time)}
                 disabled={isSlotDisabled(selectedDate, time)}
@@ -235,7 +243,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         <hr className="my-8" />
 
         {/* Notes */}
-        <div className="mb-8">
+        <div className={`mb-8 transition-opacity ${!step3Complete ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          {!step3Complete && <p className="text-xs text-amber-600 font-medium mb-2">⚠️ Complete Step 3 first</p>}
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 4: Additional Notes (Optional)</h2>
           <textarea
             value={notes}
@@ -250,14 +259,20 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       {/* Action Buttons */}
       <div className="flex flex-col md:flex-row gap-4">
         <button
+          type="button"
           onClick={handleBooking}
-          disabled={isBooking || !selectedService || !selectedDate || !selectedTime}
-          className="flex-1 p-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition text-lg"
+          disabled={isBooking || !step3Complete}
+          className={`flex-1 p-4 font-bold rounded-lg transition text-lg text-white ${
+            step3Complete
+              ? 'bg-blue-600 hover:bg-blue-700'
+              : 'bg-gray-300 cursor-not-allowed text-gray-500'
+          }`}
         >
-          {isBooking ? '⏳ Booking...' : '✓ Confirm Appointment'}
+          {isBooking ? '⏳ Booking...' : step3Complete ? '✓ Confirm Appointment' : '⬆ Complete all steps to confirm'}
         </button>
         {onCancel && (
           <button
+            type="button"
             onClick={onCancel}
             className="flex-1 p-4 bg-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-400 transition"
           >

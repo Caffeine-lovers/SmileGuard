@@ -5,7 +5,7 @@ import {
   TouchableOpacity, StyleSheet, ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { supabase } from "../lib/supabase.ts";
+import { supabase } from "@smileguard/supabase-client";
 
 export default function ResetPassword() {
   const router = useRouter();
