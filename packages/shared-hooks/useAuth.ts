@@ -110,7 +110,7 @@ export function useAuth() {
   // ─────────────────────────────────────────
   // LOGIN
   // ─────────────────────────────────────────
-  const login = async (email: string, password: string, expectedRole: "patient" | "doctor") => {
+  const login = async (email: string, password: string, expectedRole: "patient" | "doctor"): Promise<CurrentUser> => {
     setLoading(true);
     setError(null);
 
@@ -123,23 +123,36 @@ export function useAuth() {
       if (error) throw error;
 
       if (data.user) {
-        // Fetch profile to check role
+        // Fetch profile to get name and email
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, name, email")
           .eq("id", data.user.id)
           .single();
 
-        if (profileError) throw new Error("Profile not found");
+        // Determine the user's role - check profile first, then fall back to user_metadata
+        const profileRole = profile?.role;
+        const metadataRole = data.user.user_metadata?.role;
+        const userRole = profileRole || metadataRole;
 
         // Check if user has the right role
-        if (profile.role !== expectedRole) {
+        if (userRole !== expectedRole) {
           await supabase.auth.signOut();
           throw new Error(`Access denied. Please log in as a ${expectedRole}.`);
         }
 
         await fetchProfile(data.user.id);
+        
+        // Return the user data
+        return {
+          id: data.user.id,
+          name: profile?.name || data.user.user_metadata?.name || "User",
+          email: profile?.email || data.user.email || "",
+          role: userRole as "patient" | "doctor",
+        };
       }
+
+      throw new Error("Login failed: No user data returned");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Login failed";
       setError(message);

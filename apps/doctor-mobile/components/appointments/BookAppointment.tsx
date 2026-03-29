@@ -4,8 +4,8 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, SafeAreaView, ActivityIndicator
 } from "react-native";
-import { saveAppointment, Appointment } from "../../lib/database.ts";
-import { getAllBlockedSlots, BlockedSlot } from "../../lib/appointmentService.ts";
+import { saveAppointment, Appointment } from "../../lib/database";
+import { getAllBlockedSlots, BlockedSlot } from "../../lib/appointmentService";
 
 const SERVICES = [
   { id: "cleaning",   name: "Cleaning",               duration: 30,  price: 1500  },

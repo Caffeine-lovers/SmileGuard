@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import AppointmentCard from "./AppointmentCard.tsx";
-import StatCard from "./StatCard.tsx";
+import AppointmentCard from "./AppointmentCard";
+import StatCard from "./StatCard";
 import { CurrentUser } from "@smileguard/shared-types";
 
 interface DoctorDashboardProps {
@@ -36,6 +36,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         {/* Header Bar */}
         <View style={styles.topBar}>
           <Text style={styles.topBarText}>🦷 SmileGuard MD</Text>
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={onLogout}
+            accessibilityLabel="Logout"
+            accessibilityRole="button"
+          >
+            <Text style={styles.logoutBtnText}>Logout</Text>
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -138,6 +146,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#0b7fab",
+  },
+  logoutBtn: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  logoutBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   scrollContent: {
     paddingBottom: 40,

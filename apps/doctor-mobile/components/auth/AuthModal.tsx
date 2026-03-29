@@ -14,7 +14,7 @@ import {
 import { useAuth } from "@smileguard/shared-hooks";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Alert } from 'react-native';
-import PasswordStrengthMeter from "../ui/password-strength-meter.tsx";
+import PasswordStrengthMeter from "../ui/password-strength-meter";
 import {
   FormData,
   CurrentUser,
@@ -37,24 +37,21 @@ const sanitize = (input: string): string =>
 
 export interface AuthModalProps {
   visible: boolean;
-  role: "patient" | "doctor";
   onClose: () => void;
   onSuccess: (user: CurrentUser) => void;
 }
 
 // ══════════════════════════════════════════════════════════════════
-// STEP MAP
+// STEP MAP (DOCTOR ONLY)
 // 0  → Portal entry choice  (login / register)
-// 1  → Service intake        (patient register only)
-// 2  → Biography intake      (patient register only)
-// 3  → Medical history       (patient register only)
-// 4  → Credentials           (everyone)
-// 5  → Success screen        (register only)
+// 1  → Credentials           (doctor login/register)
+// 2  → Success screen        (register only, then enter dashboard)
+// 6  → Forgot password
+// 7  → Reset email sent
 // ══════════════════════════════════════════════════════════════════
 
 export default function AuthModal({
   visible,
-  role,
   onClose,
   onSuccess,
 }: AuthModalProps) {
@@ -62,7 +59,7 @@ export default function AuthModal({
   const { login, register } = useAuth();
 
   const [step, setStep] = useState(0);
-  const [mode, setMode] = useState<"register" | "login">("register");
+  const [mode, setMode] = useState<"register" | "login">("login");
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
@@ -77,8 +74,8 @@ export default function AuthModal({
   // Reset state when modal re-opens
   React.useEffect(() => {
     if (visible) {
-      setStep(0);
-      setMode("register");
+      setStep(0); // Show choice screen first
+      setMode("login");
       setFormData({
         service: "",
         name: "",
@@ -136,57 +133,10 @@ export default function AuthModal({
 
   const handleChoice = (selectedMode: "register" | "login") => {
     setMode(selectedMode);
-    if (selectedMode === "login") {
-      // Both roles → credentials
-      setStep(4);
-    } else if (role === "doctor") {
-      // Doctor register → credentials (no intake)
-      setStep(4);
-    } else {
-      // Patient register → service intake
-      setStep(1);
-    }
+    setStep(1); // Move to credentials screen
   };
 
   const handleNext = () => {
-    // Validate current step before advancing
-    if (step === 1 && !formData.service) {
-      Alert.alert(
-        "Service Required",
-        "Please select a dental service before continuing.",
-      );
-      return;
-    }
-
-    if (step === 2) {
-      const {
-        dateOfBirth,
-        gender,
-        phone,
-        emergencyContactName,
-        emergencyContactPhone,
-      } = formData.medicalIntake;
-      if (!dateOfBirth || !gender || !phone) {
-        Alert.alert(
-          "Missing Info",
-          "Please fill out Date of Birth, Gender, and Phone.",
-        );
-        return;
-      }
-      if (!isValidPhone(phone)) {
-        Alert.alert("Invalid Phone", "Please enter a valid phone number.");
-        return;
-      }
-      if (!emergencyContactName || !emergencyContactPhone) {
-        Alert.alert(
-          "Emergency Contact",
-          "An emergency contact is required for patient safety.",
-        );
-        return;
-      }
-    }
-
-    // Step 3 (medical history) — we allow "None" answers, so no strict validation
     setStep((s) => s + 1);
   };
 
@@ -216,73 +166,12 @@ export default function AuthModal({
       return;
     }
 
-    // ── Doctor access code gate ────────────────────────────────────
-    if (role === "doctor") {
-      if (!formData.doctorAccessCode) {
-        Alert.alert(
-          "Access Code Required",
-          "Doctors must provide a valid clinic access code to continue.",
-        );
-        return;
-      }
-
-      // Verify the code server-side via Edge Function
-      // This prevents codes from being exposed in the client bundle
-      try {
-        const { data, error } = await supabase.functions.invoke(
-          "verify-doctor-code",
-          {
-            body: { code: formData.doctorAccessCode },
-          },
-        );
-
-        if (error) {
-          Alert.alert(
-            "Verification Error",
-            "Unable to verify access code. Please try again.",
-          );
-          return;
-        }
-
-        if (!data?.valid) {
-          Alert.alert(
-            "Invalid Access Code",
-            "The clinic access code you entered is not valid. Please contact your administrator.",
-          );
-          return;
-        }
-      } catch (err) {
-        // Fallback: if Edge Function is not deployed, use database query
-        // This is a temporary fallback until the function is deployed
-        console.warn(
-          "Edge Function not available, falling back to direct query",
-        );
-
-        const { data: codeData, error: codeError } = await supabase
-          .from("doctor_access_codes")
-          .select("id")
-          .eq("code", formData.doctorAccessCode.toUpperCase())
-          .single();
-
-        if (codeError || !codeData) {
-          Alert.alert(
-            "Invalid Access Code",
-            "The clinic access code you entered is not valid. Please contact your administrator.",
-          );
-        } else {
-          Alert.alert(
-            "Access Code Valid",
-            "Your clinic access code has been verified. Proceeding with registration.",
-          );
-        }
-      }
-    }
     setLoading(true);
   };
 
   const performLogin = async () => {
     try {
-      const userData = await login(formData.email, formData.password, role);
+      const userData: CurrentUser = await login(formData.email, formData.password, "doctor");
       onSuccess(userData);
       console.log("Login successful for user:", userData);
     } catch (err) {
@@ -294,15 +183,21 @@ export default function AuthModal({
   };
 
   const performRegister = async () => {
-    await register(formData, role);
-    setStep(5); // success screen
+    try {
+      await register(formData, "doctor");
+      setStep(2); // success screen, then enter dashboard
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Registration failed. Please try again.";
+      Alert.alert("Registration Error", message);
+      setLoading(false);
+    }
   };
 
   const enterDashboardAfterSuccess = () => {
     onSuccess({
       name: formData.name,
       email: formData.email,
-      role,
+      role: "doctor",
     });
   };
 
@@ -323,11 +218,11 @@ export default function AuthModal({
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.stepContent}>
-                {/* ════════════ Step 0: Portal Entry Choice ════════════ */}
+                {/* ════════════ Step 0: Portal Entry Choice (DOCTOR ONLY) ════════════ */}
                 {step === 0 && (
                   <View style={{ alignItems: "center" }}>
                     <Text style={styles.h2}>
-                      {role === "doctor" ? "🩺 Doctor" : "😊 Patient"} Access
+                      🩺 Doctor Access
                     </Text>
                     <Text style={[styles.p, { marginBottom: 40 }]}>
                       Please select an option to continue to your dashboard.
@@ -362,292 +257,8 @@ export default function AuthModal({
                   </View>
                 )}
 
-                {/* ════════════ Step 1: Service Intake (Patient Register) ════════════ */}
+                {/* ════════════ Step 1: Credentials ════════════ */}
                 {step === 1 && (
-                  <View>
-                    <Text style={styles.h2}>Service Intake</Text>
-                    <Text style={styles.stepIndicator}>Step 1 of 4</Text>
-                    {["Cleaning", "AI-Diagnostic Scan", "Root Canal"].map(
-                      (s) => (
-                        <TouchableOpacity
-                          key={s}
-                          style={styles.radioRow}
-                          onPress={() => setField("service", s)}
-                        >
-                          <View
-                            style={[
-                              styles.radio,
-                              formData.service === s && styles.radioActive,
-                            ]}
-                          />
-                          <Text>{s}</Text>
-                        </TouchableOpacity>
-                      ),
-                    )}
-                    <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn]}
-                      onPress={handleNext}
-                    >
-                      <Text style={styles.btnText}>
-                        Next: Your Information →
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* ════════════ Step 2: Biography Intake (Patient Register) ════════════ */}
-                {step === 2 && (
-                  <View>
-                    <Text style={styles.h2}>📋 Personal Information</Text>
-                    <Text style={styles.stepIndicator}>Step 2 of 4</Text>
-
-                    <Text style={styles.label}>Date of Birth *</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="MM/DD/YYYY"
-                      value={formData.medicalIntake.dateOfBirth}
-                      onChangeText={(t) =>
-                        setIntake({ dateOfBirth: sanitize(t) })
-                      }
-                      keyboardType={
-                        Platform.OS === "web" ? "default" : "numeric"
-                      }
-                    />
-
-                    <Text style={styles.label}>Gender *</Text>
-                    <View style={styles.chipRow}>
-                      {[
-                        "Male",
-                        "Female",
-                        "Non-binary",
-                        "Prefer not to say",
-                      ].map((g) => (
-                        <TouchableOpacity
-                          key={g}
-                          style={[
-                            styles.chip,
-                            formData.medicalIntake.gender === g &&
-                              styles.chipActive,
-                          ]}
-                          onPress={() => setIntake({ gender: g })}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              formData.medicalIntake.gender === g &&
-                                styles.chipTextActive,
-                            ]}
-                          >
-                            {g}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    <Text style={styles.label}>Phone Number *</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="(555) 123-4567"
-                      value={formData.medicalIntake.phone}
-                      onChangeText={(t) => setIntake({ phone: sanitize(t) })}
-                      keyboardType="phone-pad"
-                    />
-
-                    <Text style={styles.label}>Home Address</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="123 Main St, City, State ZIP"
-                      value={formData.medicalIntake.address}
-                      onChangeText={(t) => setIntake({ address: sanitize(t) })}
-                    />
-
-                    <Text style={styles.sectionHeader}>
-                      Emergency Contact *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Contact Name"
-                      value={formData.medicalIntake.emergencyContactName}
-                      onChangeText={(t) =>
-                        setIntake({ emergencyContactName: sanitize(t) })
-                      }
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Contact Phone"
-                      value={formData.medicalIntake.emergencyContactPhone}
-                      onChangeText={(t) =>
-                        setIntake({ emergencyContactPhone: sanitize(t) })
-                      }
-                      keyboardType="phone-pad"
-                    />
-
-                    <View style={styles.navRow}>
-                      <TouchableOpacity
-                        style={[styles.btn, styles.secondaryBtn]}
-                        onPress={() => setStep(1)}
-                      >
-                        <Text style={styles.secondaryBtnText}>← Back</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.btn,
-                          styles.primaryBtn,
-                          { flex: 1, marginLeft: 10 },
-                        ]}
-                        onPress={handleNext}
-                      >
-                        <Text style={styles.btnText}>
-                          Next: Medical History →
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {/* ════════════ Step 3: Medical History (Patient Register) ════════════ */}
-                {step === 3 && (
-                  <View>
-                    <Text style={styles.h2}>🏥 Medical History</Text>
-                    <Text style={styles.stepIndicator}>Step 3 of 4</Text>
-                    <Text style={styles.subtext}>
-                      Leave blank or type "None" if not applicable.
-                    </Text>
-
-                    <Text style={styles.label}>Known Allergies</Text>
-                    <TextInput
-                      style={[styles.input, styles.multilineInput]}
-                      placeholder="e.g. Penicillin, Latex, Lidocaine…"
-                      value={formData.medicalIntake.allergies}
-                      onChangeText={(t) =>
-                        setIntake({ allergies: sanitize(t) })
-                      }
-                      multiline
-                    />
-
-                    <Text style={styles.label}>Current Medications</Text>
-                    <TextInput
-                      style={[styles.input, styles.multilineInput]}
-                      placeholder="e.g. Lisinopril 10 mg, Metformin 500 mg…"
-                      value={formData.medicalIntake.currentMedications}
-                      onChangeText={(t) =>
-                        setIntake({ currentMedications: sanitize(t) })
-                      }
-                      multiline
-                    />
-
-                    <Text style={styles.label}>Medical Conditions</Text>
-                    <TextInput
-                      style={[styles.input, styles.multilineInput]}
-                      placeholder="e.g. Diabetes, Hypertension, Asthma…"
-                      value={formData.medicalIntake.medicalConditions}
-                      onChangeText={(t) =>
-                        setIntake({ medicalConditions: sanitize(t) })
-                      }
-                      multiline
-                    />
-
-                    <Text style={styles.label}>
-                      Past Surgeries / Hospitalizations
-                    </Text>
-                    <TextInput
-                      style={[styles.input, styles.multilineInput]}
-                      placeholder="e.g. Appendectomy (2019), Wisdom teeth (2021)…"
-                      value={formData.medicalIntake.pastSurgeries}
-                      onChangeText={(t) =>
-                        setIntake({ pastSurgeries: sanitize(t) })
-                      }
-                      multiline
-                    />
-
-                    <Text style={styles.label}>Smoking Status</Text>
-                    <View style={styles.chipRow}>
-                      {(
-                        [
-                          ["never", "Never"],
-                          ["former", "Former"],
-                          ["current", "Current"],
-                        ] as const
-                      ).map(([val, lbl]) => (
-                        <TouchableOpacity
-                          key={val}
-                          style={[
-                            styles.chip,
-                            formData.medicalIntake.smokingStatus === val &&
-                              styles.chipActive,
-                          ]}
-                          onPress={() => setIntake({ smokingStatus: val })}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              formData.medicalIntake.smokingStatus === val &&
-                                styles.chipTextActive,
-                            ]}
-                          >
-                            {lbl}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    <Text style={styles.label}>Currently Pregnant?</Text>
-                    <View style={styles.chipRow}>
-                      {(
-                        [
-                          ["yes", "Yes"],
-                          ["no", "No"],
-                          ["na", "N/A"],
-                        ] as const
-                      ).map(([val, lbl]) => (
-                        <TouchableOpacity
-                          key={val}
-                          style={[
-                            styles.chip,
-                            formData.medicalIntake.pregnancyStatus === val &&
-                              styles.chipActive,
-                          ]}
-                          onPress={() => setIntake({ pregnancyStatus: val })}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              formData.medicalIntake.pregnancyStatus === val &&
-                                styles.chipTextActive,
-                            ]}
-                          >
-                            {lbl}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    <View style={styles.navRow}>
-                      <TouchableOpacity
-                        style={[styles.btn, styles.secondaryBtn]}
-                        onPress={() => setStep(2)}
-                      >
-                        <Text style={styles.secondaryBtnText}>← Back</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.btn,
-                          styles.primaryBtn,
-                          { flex: 1, marginLeft: 10 },
-                        ]}
-                        onPress={handleNext}
-                      >
-                        <Text style={styles.btnText}>
-                          Next: Create Account →
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {/* ════════════ Step 4: Credentials ════════════ */}
-                {step === 4 && (
                   <View>
                     <Text style={styles.h2}>
                       {mode === "login" ? "Welcome Back" : "Create Account"}
@@ -707,26 +318,6 @@ export default function AuthModal({
                       </TouchableOpacity>
                     )}
 
-                    {/* Doctor access code (doctor role only) */}
-                    {role === "doctor" && (
-                      <>
-                        <Text style={[styles.label, { marginTop: 8 }]}>
-                          Clinic Access Code *
-                        </Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Enter your clinic access code"
-                          autoCapitalize="characters"
-                          value={formData.doctorAccessCode}
-                          onChangeText={(t) => setField("doctorAccessCode", t)}
-                        />
-                        <Text style={styles.helperText}>
-                          This code is issued by your clinic administrator and
-                          is required to verify your identity as an authorized
-                          provider.
-                        </Text>
-                      </>
-                    )}
                     {/* =======Login button======== */}
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
@@ -761,31 +352,15 @@ export default function AuthModal({
                         </Text>
                       )}
                     </TouchableOpacity>
-
-                    {/* Back button for patient register flow */}
-                    {mode === "register" && role === "patient" && (
-                      <TouchableOpacity
-                        style={[
-                          styles.btn,
-                          styles.secondaryBtn,
-                          { marginTop: 10 },
-                        ]}
-                        onPress={() => setStep(3)}
-                      >
-                        <Text style={styles.secondaryBtnText}>
-                          ← Back to Medical History
-                        </Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
                 )}
 
-                {/* ════════════ Step 5: Success (Register Only) ════════════ */}
-                {step === 5 && (
+                {/* ════════════ Step 2: Success (Register Only) ════════════ */}
+                {step === 2 && (
                   <View style={{ alignItems: "center" }}>
                     <Text style={{ fontSize: 40, marginBottom: 10 }}>🎉</Text>
                     <Text style={styles.h2}>All Set!</Text>
-                    <Text style={styles.p}>Your {role} portal is ready.</Text>
+                    <Text style={styles.p}>Your doctor portal is ready.</Text>
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
                       onPress={enterDashboardAfterSuccess}
@@ -875,7 +450,7 @@ export default function AuthModal({
                 )}
               </View>
               {/* Close button */}
-              {step < 5 && (
+              {step !== 2 && (
                 <TouchableOpacity
                   style={styles.closeBtn}
                   onPress={async () => {

@@ -2,5 +2,5 @@
   "version": 3,
   "sources": [],
   "sections": [
-    {"offset": {"line": 10, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/PerezKylerLee%28Studen/SmileGuard/apps/patient-web/app/page.tsx"],"sourcesContent":["import { redirect } from 'next/navigation';\r\n\r\nexport default function RootPage() {\r\n  // Redirect to login or dashboard based on auth status\r\n  redirect('/login');\r\n}\r\n"],"names":["RootPage"],"mappings":";;;;AAAA;AAAA;;AAEe,SAASA;IACtB,sDAAsD;IACtD,IAAA,oXAAQ,EAAC;AACX"}}]
+    {"offset": {"line": 10, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/nangi/OneDrive/Documents/Code/Expo/SmileGuard/apps/patient-web/app/page.tsx"],"sourcesContent":["import { redirect } from 'next/navigation';\r\n\r\nexport default function RootPage() {\r\n  // Redirect to login or dashboard based on auth status\r\n  redirect('/login');\r\n}\r\n"],"names":["RootPage"],"mappings":";;;;AAAA;AAAA;;AAEe,SAASA;IACtB,sDAAsD;IACtD,IAAA,sZAAQ,EAAC;AACX"}}]
 }

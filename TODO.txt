@@ -58,10 +58,11 @@ add npm install @react-navigation/drawer
 
 📌 ##FOR DENTIST##
 
-- [] Dentist Profile Setup 
-- [] Clinic Set up 
+- [x] Sign In / Sign Up
+- [] Dentist Profile Setup
+- [] Clinic Set up
 - [] Set Appointment Rules
-    - [] Appointment Page 
+    - [] Appointment Page
     - [] Cancellation Settings Policy 
         - [] Cancellation Window 
         - [] Fee Amount 
@@ -71,7 +72,7 @@ add npm install @react-navigation/drawer
     - [] Reschedule Rules 
     - [] No-Show Penalty
 - [] Review Dentist and Clinic Information
-- [] “Your Schedule” Page 
+- [] “Your Schedule” Page
     - [] Daily Time Block 
     - [] Schedule Overview 
     - [] Add Slot

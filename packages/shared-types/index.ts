@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────
 
 export interface CurrentUser {
-  id: string;
+  id?: string;
   name: string;
   email: string;
   role: "patient" | "doctor";
@@ -67,8 +67,19 @@ export interface MedicalIntake {
   has_asthma?: boolean;
   allergies?: string;
   current_medications?: string;
+  currentMedications?: string; // camelCase alias for current_medications
   last_checkup?: string;
   previous_treatments?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  phone?: string;
+  address?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  medicalConditions?: string;
+  pastSurgeries?: string;
+  smokingStatus?: "never" | "former" | "current";
+  pregnancyStatus?: "yes" | "no" | "na";
 }
 
 export const EMPTY_MEDICAL_INTAKE: MedicalIntake = {
@@ -78,8 +89,19 @@ export const EMPTY_MEDICAL_INTAKE: MedicalIntake = {
   has_asthma: false,
   allergies: "",
   current_medications: "",
+  currentMedications: "",
   last_checkup: "",
   previous_treatments: "",
+  dateOfBirth: "",
+  gender: "",
+  phone: "",
+  address: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  medicalConditions: "",
+  pastSurgeries: "",
+  smokingStatus: "never",
+  pregnancyStatus: "na",
 };
 
 // ─────────────────────────────────────────
@@ -122,6 +144,11 @@ export interface Billing {
 // ─────────────────────────────────────────
 
 export interface PasswordCheck {
+  label: string;
+  met: boolean;
+}
+
+export interface PasswordCheckDetailed {
   hasUpperCase: boolean;
   hasLowerCase: boolean;
   hasNumber: boolean;
@@ -129,7 +156,7 @@ export interface PasswordCheck {
   length: boolean;
 }
 
-export const emptyPasswordCheck = (): PasswordCheck => ({
+export const emptyPasswordCheckDetailed = (): PasswordCheckDetailed => ({
   hasUpperCase: false,
   hasLowerCase: false,
   hasNumber: false,
@@ -137,7 +164,7 @@ export const emptyPasswordCheck = (): PasswordCheck => ({
   length: false,
 });
 
-export function checkPasswordStrength(password: string): PasswordCheck {
+export function checkPasswordStrengthDetailed(password: string): PasswordCheckDetailed {
   return {
     hasUpperCase: /[A-Z]/.test(password),
     hasLowerCase: /[a-z]/.test(password),
@@ -147,7 +174,7 @@ export function checkPasswordStrength(password: string): PasswordCheck {
   };
 }
 
-export function isPasswordStrong(check: PasswordCheck): boolean {
+export function isPasswordStrongDetailed(check: PasswordCheckDetailed): boolean {
   return Object.values(check).every((v) => v === true);
 }
 

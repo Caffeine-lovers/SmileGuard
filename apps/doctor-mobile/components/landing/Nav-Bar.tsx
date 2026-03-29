@@ -11,14 +11,6 @@ export default function Navigation({ onOpenPortal }: NavigationProps) {
       <Text style={styles.logo}>SmileGuard</Text>
       <View style={styles.navLinks}>
         <TouchableOpacity
-          style={styles.portalBtn}
-          onPress={() => onOpenPortal("patient")}
-          accessibilityLabel="Open patient portal"
-          accessibilityRole="button"
-        >
-          <Text style={styles.portalBtnText}>Patient Portal</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.portalBtn, styles.doctorPortalBtn]}
           onPress={() => onOpenPortal("doctor")}
           accessibilityLabel="Open doctor portal"

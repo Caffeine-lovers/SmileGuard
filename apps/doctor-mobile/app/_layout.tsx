@@ -2,6 +2,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index.ts";
 import { Session } from "@supabase/supabase-js";
@@ -74,8 +75,10 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <SafeAreaProvider>
-      <Slot />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <Slot />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

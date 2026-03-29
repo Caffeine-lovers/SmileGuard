@@ -10,18 +10,19 @@ import AuthModal from "../components/auth/AuthModal.tsx";
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authRole, setAuthRole] = useState<"patient" | "doctor">("patient");
 
   const openPortal = (role: "patient" | "doctor") => {
-    setAuthRole(role);
-    setShowAuthModal(true);
+    // For doctor-mobile app, only doctors should open the portal
+    if (role === "doctor") {
+      setShowAuthModal(true);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView stickyHeaderIndices={[0]} showsVerticalScrollIndicator={false}>
         <Navigation onOpenPortal={openPortal} />
-        <Hero onOpenPortal={() => openPortal("patient")} />
+        <Hero onOpenPortal={() => openPortal("doctor")} />
         <View style={styles.content}>
           <HowItWorks />
         </View>
@@ -30,7 +31,6 @@ export default function LandingPage() {
 
       <AuthModal
         visible={showAuthModal}
-        role={authRole}
         onClose={() => setShowAuthModal(false)}
         onSuccess={() => setShowAuthModal(false)} // root layout handles redirect
       />

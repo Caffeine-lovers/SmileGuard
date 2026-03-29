@@ -4,6 +4,11 @@
   "description": "Shared TypeScript types for SmileGuard",
   "main": "index.ts",
   "types": "index.ts",
-  "files": ["index.ts"],
-  "private": true
+  "files": [
+    "index.ts"
+  ],
+  "private": true,
+  "dependencies": {
+    "react-native-screens": "4.20.0"
+  }
 }
