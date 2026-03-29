@@ -62,6 +62,25 @@ yarn-debug.*
 yarn-error.*
 *.log
 
+# ============ Caches & Dumps ============
+.cache/
+.pytest_cache/
+.mypy_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.tox/
+.coverage
+htmlcov/
+.hypothesis/
+dump.rdb
+*.dump
+*.dmp
+
 # ============ TypeScript ============
 *.tsbuildinfo
 
