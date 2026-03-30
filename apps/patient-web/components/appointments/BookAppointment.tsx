@@ -65,7 +65,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
 
     fetchUserAppointments();
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   const fetchAllBlockedSlots = async () => {
     setLoadingBlockedSlots(true);

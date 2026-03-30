@@ -14,14 +14,18 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     if (!loading && (!currentUser || currentUser.role !== 'patient')) {
       router.push('/login');
     }
-  }, [currentUser, loading, router]);
+  }, [currentUser?.id, currentUser?.role, loading, router]);
 
   const handleLogout = async () => {
     try {
       await logout();
+      // Small delay to ensure auth state is cleared
+      await new Promise((resolve) => setTimeout(resolve, 500));
       router.push('/login');
     } catch (error) {
       console.error('Logout failed:', error);
+      // Still redirect even if logout fails
+      router.push('/login');
     }
   };
 

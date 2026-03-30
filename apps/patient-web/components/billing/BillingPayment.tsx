@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
@@ -63,7 +64,9 @@ export default function BillingPayment({
         const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
         const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
 
-        setOutstandingBalance(balance);
+        const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+        setOutstandingBalance(balance + unpaidApptsSum);
+        
         setBillingHistory(billings);
         setUnpaidAppointments(unpaid);
         
@@ -84,7 +87,7 @@ export default function BillingPayment({
     }
 
     fetchBillingData();
-  }, [currentUser, baseAmount, discountType]);
+  }, [currentUser?.id, baseAmount, discountType]);
 
   const handleAppointmentSelect = (apt: Appointment) => {
     setSelectedAppointment(apt);
@@ -120,25 +123,51 @@ export default function BillingPayment({
 
   const handlePayment = async () => {
     if (discountType !== 'none' && !discountProof) {
-      alert('Please upload proof of PWD/Senior/Insurance ID.');
+      alert('Please upload proof of PWD/Senior ID.');
+      return;
+    }
+
+    if (!selectedAppointment) {
+      alert('Please select an appointment to pay.');
       return;
     }
 
     setIsProcessing(true);
     try {
-      // Mock payment processing
+      // Simulate payment processing
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
+      // Save billing record to database
+      const { error } = await supabase
+        .from('billings')
+        .insert({
+          patient_id: currentUser!.id,
+          appointment_id: selectedAppointment.id,
+          amount,
+          discount_type: discountType,
+          discount_amount: discountAmount,
+          final_amount: finalAmount,
+          payment_status: 'paid',
+          payment_method: paymentMethod,
+          payment_date: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+
       alert(
-        `Payment Successful!\nAmount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: ${paymentMethod}${
+        `Payment Successful!\nAmount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: ${
+          (paymentMethod as string).charAt(0).toUpperCase() + (paymentMethod as string).slice(1)
+        }${
           discountType !== 'none' ? `\nDiscount: -₱${discountAmount.toFixed(2)}` : ''
         }`
       );
+
+      // Callback for parent component
       if (onSuccess) {
         onSuccess({
-          id: '1',
-          patient_id: '1',
-          appointment_id: selectedAppointment?.id || undefined,
+          id: Date.now().toString(),
+          patient_id: currentUser!.id,
+          appointment_id: selectedAppointment.id,
           amount,
           discount_type: discountType,
           discount_amount: discountAmount,
@@ -149,6 +178,21 @@ export default function BillingPayment({
           created_at: new Date().toISOString(),
         });
       }
+
+      // Refresh billing data
+      const [balance, billings, appts] = await Promise.all([
+        getBalance(currentUser!.id),
+        getBillings(currentUser!.id),
+        getPatientAppointments(currentUser!.id),
+      ]);
+
+      const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
+      const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
+      const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+
+      setOutstandingBalance(balance + unpaidApptsSum);
+      setBillingHistory(billings);
+      setUnpaidAppointments(unpaid);
       setSelectedAppointment(null);
       setAmount(0);
       setDiscountType('none');
@@ -182,7 +226,7 @@ export default function BillingPayment({
           <div className="bg-green-50 rounded-lg shadow-md p-6 border-l-4 border-green-600">
             <p className="text-sm text-gray-600">Account Status</p>
             <p className="text-3xl font-bold text-green-700">
-              {outstandingBalance === 0 ? '✓ Paid' : '⚠️ Pending'}
+              {outstandingBalance === 0 && unpaidAppointments.length === 0 ? '✓ Paid' : '⚠️ Pending'}
             </p>
             <p className="text-xs text-gray-500 mt-2">Status</p>
           </div>
@@ -200,38 +244,52 @@ export default function BillingPayment({
               Select Availed Service
             </label>
             {unpaidAppointments.length > 0 ? (
-              <div className="space-y-3">
-                {unpaidAppointments.map((apt) => {
-                  const price = SERVICE_PRICES[apt.service] || 0;
-                  const isSelected = selectedAppointment?.id === apt.id;
-                  return (
-                    <button
-                      type="button"
-                      key={apt.id}
-                      onClick={() => handleAppointmentSelect(apt)}
-                      className={`w-full p-4 rounded-lg flex justify-between items-center border-2 transition ${
-                        isSelected
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300 bg-white'
-                      }`}
-                    >
-                      <div className="text-left">
-                        <p className={`font-bold ${isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
-                          {apt.service}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(apt.appointment_date).toLocaleDateString()} at {apt.appointment_time}
-                        </p>
-                      </div>
-                      <div className={`font-semibold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
-                        ₱{price.toFixed(2)}
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="bg-slate-50 border border-gray-200 rounded-lg p-2">
+                <div className="border border-dashed border-gray-300 rounded bg-white overflow-hidden">
+                  <div className="bg-gray-100 text-gray-500 text-xs font-bold tracking-widest text-center py-2 border-b border-dashed border-gray-300">
+                    PENDING INVOICES
+                  </div>
+                  <div className="flex flex-col">
+                    {unpaidAppointments.map((apt) => {
+                      const price = SERVICE_PRICES[apt.service] || 0;
+                      const isSelected = selectedAppointment?.id === apt.id;
+                      return (
+                        <button
+                          type="button"
+                          key={apt.id}
+                          onClick={() => handleAppointmentSelect(apt)}
+                          className={`w-full p-4 flex justify-between items-center border-b border-dashed border-gray-200 last:border-0 transition text-left ${
+                            isSelected
+                              ? 'bg-blue-50/50'
+                              : 'hover:bg-gray-50 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className={`mt-1 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                              isSelected ? 'border-blue-600' : 'border-gray-400'
+                            }`}>
+                              {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
+                            </div>
+                            <div>
+                              <p className={`font-bold ${isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
+                                {apt.service}
+                              </p>
+                              <p className="text-sm font-mono text-gray-500 mt-0.5">
+                                {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
+                              </p>
+                            </div>
+                          </div>
+                          <div className={`font-mono font-semibold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                            ₱{price.toFixed(2)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="p-4 bg-gray-100 rounded-lg text-gray-500 text-center border border-gray-200">
+              <div className="p-8 bg-gray-50 rounded-lg text-gray-500 text-center border-2 border-dashed border-gray-300">
                 No pending appointments with services to pay.
               </div>
             )}
@@ -247,7 +305,6 @@ export default function BillingPayment({
                 { value: 'none' as const, label: 'None' },
                 { value: 'pwd' as const, label: '👴 PWD (10%)' },
                 { value: 'senior' as const, label: '👵 Senior (15%)' },
-                { value: 'insurance' as const, label: '🛡️ Insurance' },
               ].map((option) => (
                 <button
                   type="button"
