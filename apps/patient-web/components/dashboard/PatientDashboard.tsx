@@ -73,11 +73,10 @@ export default function PatientDashboard() {
         <StatCard icon="💳" number={`₱${balance.toFixed(2)}`} label="Outstanding Balance" accent="border-emerald-500" />
         <StatCard icon="📅" number={formatDate(appointments[0]?.appointment_date ?? '')} label="Next Appointment" accent="border-violet-500" />
       </div>
-
+    
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold text-gray-800">Upcoming Appointments</h2>
-          <Link href="/appointments" className="text-sm text-blue-600 hover:text-blue-700 font-medium">View all →</Link>
         </div>
         {appointments.length > 0 ? (
           <div className="space-y-1">

@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   scrollContent: {
-    flexGrow: 1,
+    flexGrow: 1,P
     justifyContent: "center",
   },
   stepContent: {
