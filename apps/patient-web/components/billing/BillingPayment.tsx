@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
-import type { Billing } from '@/lib/database';
+import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
+import { getPatientAppointments } from '@/lib/appointmentService';
 
 const SERVICE_PRICES: Record<string, number> = {
   Cleaning: 1500,
@@ -32,8 +33,9 @@ export default function BillingPayment({
   onCancel,
 }: BillingPaymentProps) {
   const { currentUser } = useAuth();
-  const [selectedService, setSelectedService] = useState<string>('Check-up');
-  const [amount, setAmount] = useState<number>(baseAmount || SERVICE_PRICES['Check-up']);
+  const [unpaidAppointments, setUnpaidAppointments] = useState<Appointment[]>([]);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [amount, setAmount] = useState<number>(baseAmount || 0);
   const [discountType, setDiscountType] = useState<Billing['discount_type']>('none');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
@@ -52,12 +54,28 @@ export default function BillingPayment({
       setLoadingData(true);
       try {
         if (!currentUser) return;
-        const [balance, billings] = await Promise.all([
+        const [balance, billings, appts] = await Promise.all([
           getBalance(currentUser.id),
           getBillings(currentUser.id),
+          getPatientAppointments(currentUser.id),
         ]);
+        
+        const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
+        const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
+
         setOutstandingBalance(balance);
         setBillingHistory(billings);
+        setUnpaidAppointments(unpaid);
+        
+        if (unpaid.length > 0 && !baseAmount) {
+           const first = unpaid[0];
+           setSelectedAppointment(first);
+           const initialAmt = SERVICE_PRICES[first.service] || 0;
+           setAmount(initialAmt);
+           const result = calculateDiscount(initialAmt, discountType);
+           setDiscountAmount(result.discountAmount);
+           setFinalAmount(result.finalAmount);
+        }
       } catch (err) {
         console.error('Error fetching billing data:', err);
       } finally {
@@ -66,11 +84,11 @@ export default function BillingPayment({
     }
 
     fetchBillingData();
-  }, [currentUser]);
+  }, [currentUser, baseAmount, discountType]);
 
-  const handleServiceChange = (service: string) => {
-    setSelectedService(service);
-    const newAmount = SERVICE_PRICES[service] || 0;
+  const handleAppointmentSelect = (apt: Appointment) => {
+    setSelectedAppointment(apt);
+    const newAmount = SERVICE_PRICES[apt.service] || 0;
     setAmount(newAmount);
     applyDiscount(newAmount, discountType);
   };
@@ -120,7 +138,7 @@ export default function BillingPayment({
         onSuccess({
           id: '1',
           patient_id: '1',
-          appointment_id: undefined,
+          appointment_id: selectedAppointment?.id || undefined,
           amount,
           discount_type: discountType,
           discount_amount: discountAmount,
@@ -131,8 +149,8 @@ export default function BillingPayment({
           created_at: new Date().toISOString(),
         });
       }
-      setSelectedService('Check-up');
-      setAmount(SERVICE_PRICES['Check-up']);
+      setSelectedAppointment(null);
+      setAmount(0);
       setDiscountType('none');
       setDiscountProof(null);
     } catch (error) {
@@ -176,22 +194,47 @@ export default function BillingPayment({
         <h2 className="text-2xl font-bold text-gray-800 mb-6">💰 Make Payment</h2>
 
         <div className="space-y-6">
-          {/* Service Selection */}
+          {/* Availed Services from Appointments */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Select Service
+              Select Availed Service
             </label>
-            <select
-              value={selectedService}
-              onChange={(e) => handleServiceChange(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
-            >
-              {Object.entries(SERVICE_PRICES).map(([service, price]) => (
-                <option key={service} value={service}>
-                  {service} - ₱{price}
-                </option>
-              ))}
-            </select>
+            {unpaidAppointments.length > 0 ? (
+              <div className="space-y-3">
+                {unpaidAppointments.map((apt) => {
+                  const price = SERVICE_PRICES[apt.service] || 0;
+                  const isSelected = selectedAppointment?.id === apt.id;
+                  return (
+                    <button
+                      type="button"
+                      key={apt.id}
+                      onClick={() => handleAppointmentSelect(apt)}
+                      className={`w-full p-4 rounded-lg flex justify-between items-center border-2 transition ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300 bg-white'
+                      }`}
+                    >
+                      <div className="text-left">
+                        <p className={`font-bold ${isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
+                          {apt.service}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(apt.appointment_date).toLocaleDateString()} at {apt.appointment_time}
+                        </p>
+                      </div>
+                      <div className={`font-semibold text-lg ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                        ₱{price.toFixed(2)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 bg-gray-100 rounded-lg text-gray-500 text-center border border-gray-200">
+                No pending appointments with services to pay.
+              </div>
+            )}
           </div>
 
           {/* Discount Selection */}
@@ -207,6 +250,7 @@ export default function BillingPayment({
                 { value: 'insurance' as const, label: '🛡️ Insurance' },
               ].map((option) => (
                 <button
+                  type="button"
                   key={option.value}
                   onClick={() => handleDiscountSelect(option.value)}
                   className={`p-3 rounded-lg border-2 font-semibold transition ${
@@ -250,6 +294,7 @@ export default function BillingPayment({
                 { value: 'gcash' as const, label: '📱 GCash' },
               ].map((option) => (
                 <button
+                  type="button"
                   key={option.value}
                   onClick={() => setPaymentMethod(option.value)}
                   className={`p-3 rounded-lg border-2 font-semibold transition ${
@@ -335,14 +380,16 @@ export default function BillingPayment({
       {/* Action Buttons */}
       <div className="flex flex-col md:flex-row gap-4">
         <button
+          type="button"
           onClick={handlePayment}
-          disabled={isProcessing}
+          disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
           className="flex-1 p-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition text-lg"
         >
           {isProcessing ? '⏳ Processing...' : '✓ Pay Now'}
         </button>
         {onCancel && (
           <button
+            type="button"
             onClick={onCancel}
             className="flex-1 p-4 bg-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-400 transition"
           >
