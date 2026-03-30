@@ -289,7 +289,9 @@ export default function AuthModal({
                     />
 
                     {/* Password strength meter */}
-                    {formData.password.length > 0 && (
+                    {mode === "register" && (
+                    <>
+                      {formData.password.length > 0 && (
                       <View style={styles.strengthSection}>
                         <PasswordStrengthMeter
                           strengthPercent={strengthPercent}
@@ -308,7 +310,10 @@ export default function AuthModal({
                           </Text>
                         ))}
                       </View>
+                      )}
+                    </>
                     )}
+                    
                     {mode === "login" && (
                       <TouchableOpacity
                         style={{ alignSelf: "flex-end", marginTop: -8, marginBottom: 12 }}

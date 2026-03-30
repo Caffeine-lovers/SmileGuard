@@ -4,7 +4,7 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
-import { CurrentUser } from "../types/index.ts";
+import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
 
 export default function RootLayout() {
@@ -18,6 +18,7 @@ export default function RootLayout() {
       if (session?.user) {
         const role = session.user.user_metadata?.role;
         setUser({ 
+          id: session.user.id,
           email: session.user.email!, 
           name: session.user.user_metadata?.name,
           role 
@@ -35,6 +36,7 @@ export default function RootLayout() {
         if (session?.user) {
           const role = session.user.user_metadata?.role;
           setUser({ 
+            id: session.user.id,
             email: session.user.email!, 
             name: session.user.user_metadata?.name,
             role 
@@ -51,23 +53,18 @@ export default function RootLayout() {
   useEffect(() => {
     if (!ready) return;
 
-    const inPatientGroup = segments[0] === "(patient)";
     const inDoctorGroup = segments[0] === "(doctor)";
-    const inResetPassword = segments[0] === "reset-password"; // ← added
+    const inResetPassword = segments[0] === "reset-password";
 
-    if (inResetPassword) return; // ← never redirect away from reset page
+    if (inResetPassword) return;
 
     if (!user) {
-      if (inPatientGroup || inDoctorGroup) {
+      if (inDoctorGroup) {
         router.replace("/");
       }
     } else {
-      if (!inPatientGroup && !inDoctorGroup) {
-        if (user.role === "doctor") {
-          router.replace("/(doctor)/dashboard");
-        } else {
-          router.replace("/(patient)/dashboard");
-        }
+      if (!inDoctorGroup) {
+        router.replace("/(doctor)/dashboard");
       }
     }
   }, [user, ready, segments]);

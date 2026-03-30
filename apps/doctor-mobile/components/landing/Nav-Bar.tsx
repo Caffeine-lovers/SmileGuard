@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 interface NavigationProps {
-  onOpenPortal: (role: "patient" | "doctor") => void;
+  onOpenPortal: () => void;
 }
 
 export default function Navigation({ onOpenPortal }: NavigationProps) {
@@ -12,7 +12,7 @@ export default function Navigation({ onOpenPortal }: NavigationProps) {
       <View style={styles.navLinks}>
         <TouchableOpacity
           style={[styles.portalBtn, styles.doctorPortalBtn]}
-          onPress={() => onOpenPortal("doctor")}
+          onPress={onOpenPortal}
           accessibilityLabel="Open doctor portal"
           accessibilityRole="button"
         >
