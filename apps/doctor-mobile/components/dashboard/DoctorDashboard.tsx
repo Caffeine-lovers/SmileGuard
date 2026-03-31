@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View,
-  Text,
+  Alert,
   StyleSheet,
   TouchableOpacity,
   Image,
@@ -326,12 +326,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.container}>
-            <Text style={[styles.header, { marginBottom: 20 }]}>
-              Welcome, {user.name}
-            </Text>
+            <ScreenHeading title="Quick Actions" />
 
             {/* Stats Panel */}
-            <View style={styles.firstPanel}>
+            <View style={styles.statsPanel}>
               <StatCard number={67} label="Patients" />
               <StatCard number={21} label="Appointments" />
               <StatCard number={911} label="Treatments" />
@@ -814,33 +812,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   container: {
-    flex: 1,
-    alignItems: "center",
-    padding: 20,
+    paddingHorizontal: theme.spacing.screenHorizontalPadding,
+    paddingVertical: theme.spacing.sectionVerticalGap,
   },
-  header: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#0b7fab",
-    textAlign: "center",
-  },
-  subHeader: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 10,
-  },
-  sectionHeader: {
-    width: "100%",
-    marginTop: 30,
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-    paddingBottom: 10,
-  },
-
-  // Stats Panel
-  firstPanel: {
+  statsPanel: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
