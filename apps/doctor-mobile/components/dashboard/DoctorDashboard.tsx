@@ -18,11 +18,26 @@ interface DoctorDashboardProps {
   onLogout: () => void;
 }
 
+
 import { useState } from "react";
 
+type AppointmentType = {
+  id: string;
+  name: string;
+  service: string;
+  time: string;
+  age: number;
+  gender: string;
+  contact: string;
+  email: string;
+  notes: string;
+  imageUrl: string;
+  initials?: string;
+};
+
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
-  // Mock data - in production, fetch from API
-  const appointments = [
+  // Appointments state
+  const [appointments, setAppointments] = useState<AppointmentType[]>([
     {
       id: "apt-1",
       name: "Mart Emman",
@@ -59,12 +74,41 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       notes: "Follow-up for root canal. Mild swelling last visit.",
       imageUrl: "https://randomuser.me/api/portraits/men/3.jpg",
     },
-  ];
+  ]);
 
-  const [selectedPatient, setSelectedPatient] = useState(appointments[0]);
+  // Requests state
+  const [requests, setRequests] = useState<AppointmentType[]>([
+    {
+      id: "req-1",
+      name: "Marie Yan",
+      service: "Cleaning",
+      time: "16:00",
+      age: 25,
+      gender: "Female",
+      contact: "0917-555-1234",
+      email: "marie.yan@email.com",
+      notes: "Request for cleaning. No known allergies.",
+      imageUrl: "https://randomuser.me/api/portraits/women/4.jpg",
+      initials: "MY",
+    },
+    // Add more requests as needed
+  ]);
 
-  const handlePress = (apt: typeof appointments[0]) => {
+  const [selectedPatient, setSelectedPatient] = useState<AppointmentType>(appointments[0]);
+
+  const handlePress = (apt: AppointmentType) => {
     setSelectedPatient(apt);
+  };
+
+  // Accept request: add to appointments, remove from requests
+  const handleAcceptRequest = (req: AppointmentType) => {
+    setAppointments((prev: AppointmentType[]) => [...prev, { ...req, id: `apt-${Date.now()}` }]);
+    setRequests((prev: AppointmentType[]) => prev.filter((r) => r.id !== req.id));
+  };
+
+  // Decline request: remove from requests
+  const handleDeclineRequest = (req: AppointmentType) => {
+    setRequests((prev: AppointmentType[]) => prev.filter((r) => r.id !== req.id));
   };
 
   return (
@@ -155,34 +199,39 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 </View>
 
                 <Text style={[styles.subHeader, { marginTop: 20 }]}>Requests:</Text>
-                <View style={styles.card}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>MY</Text>
+                {requests.length === 0 && (
+                  <Text style={{ color: '#888', textAlign: 'center', marginVertical: 10 }}>No pending requests.</Text>
+                )}
+                {requests.map((req) => (
+                  <View style={styles.card} key={req.id}>
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{req.initials || (req.name.split(' ').map(n => n[0]).join('').toUpperCase())}</Text>
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={styles.cardTitle}>{req.name}</Text>
+                      <Text style={styles.cardSubtitle}>Request: {req.service}</Text>
+                    </View>
+                    {/* Action Buttons */}
+                    <View style={{ flexDirection: "row", gap: 5 }}>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: "#0b7fab" }]}
+                        onPress={() => handleAcceptRequest(req)}
+                        accessibilityLabel={`Accept request from ${req.name}`}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.actionBtnText}>✓</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: "#6b7280" }]}
+                        onPress={() => handleDeclineRequest(req)}
+                        accessibilityLabel={`Decline request from ${req.name}`}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.actionBtnText}>✗</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>Marie Yan</Text>
-                    <Text style={styles.cardSubtitle}>Request: Cleaning</Text>
-                  </View>
-                  {/* Action Buttons */}
-                  <View style={{ flexDirection: "row", gap: 5 }}>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: "#0b7fab" }]}
-                      onPress={() => Alert.alert("Accepted", "Request from Marie Yan accepted.")}
-                      accessibilityLabel="Accept request from Marie Yan"
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.actionBtnText}>✓</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: "#6b7280" }]}
-                      onPress={() => Alert.alert("Declined", "Request from Marie Yan declined.")}
-                      accessibilityLabel="Decline request from Marie Yan"
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.actionBtnText}>✗</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                ))}
               </View>
             </View>
           </View>
