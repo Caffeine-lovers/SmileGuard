@@ -5,7 +5,7 @@ interface AppointmentCardProps {
   name: string;
   service: string;
   time: string;
-  imageUrl?: string;
+  imageUrl?: string | number;
   onPress: () => void;
   highlighted?: boolean;
 }
@@ -23,7 +23,8 @@ export default function AppointmentCard({
       style={[styles.card, highlighted && { backgroundColor: '#ffcccc', borderColor: '#ff0000', borderWidth: 2 }]}
       onPress={onPress}
     >
-      <Image source={{ uri: imageUrl }} style={styles.icon} />
+      <Image source={typeof imageUrl === "string" ? { uri: imageUrl } : imageUrl} 
+        style={styles.icon} />
       <View style={styles.cardText}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={styles.cardTitle}>{name}</Text>

@@ -136,7 +136,7 @@ add npm install @react-navigation/drawer
     - [x] Today’s Appointments
     - [] Upcoming Slots
     - [] Add Appointment Schedule
-    - [] Calendar View
+    - [x] Calendar View
     - [] Search Patient 
     - [] Update Appointment Status
 - [] Image Analyzer Page

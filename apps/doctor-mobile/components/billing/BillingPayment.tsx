@@ -11,7 +11,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { calculateDiscount, Billing, saveBilling } from "../../lib/database.ts";
+import { calculateDiscount, Billing, saveBilling } from "../../lib/database";
 
 interface BillingPaymentProps {
   patientId: string;
