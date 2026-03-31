@@ -18,17 +18,54 @@ interface DoctorDashboardProps {
   onLogout: () => void;
 }
 
-export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
-  const handlePress = (name: string) => {
-    Alert.alert("Patient Details", `You pressed on ${name}'s profile.`);
-  };
+import { useState } from "react";
 
+export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   // Mock data - in production, fetch from API
   const appointments = [
-    { id: "apt-1", name: "Mart Emman", service: "Whitening", time: "10:00" },
-    { id: "apt-2", name: "Jendri Jacin", service: "Aligners", time: "13:00" },
-    { id: "apt-3", name: "Kyler Per", service: "Root Canals", time: "15:00" },
+    {
+      id: "apt-1",
+      name: "Mart Emman",
+      service: "Whitening",
+      time: "10:00",
+      age: 28,
+      gender: "Male",
+      contact: "0917-123-4567",
+      email: "mart.emman@email.com",
+      notes: "Patient requests extra numbing gel. History of sensitivity.",
+      imageUrl: "https://randomuser.me/api/portraits/men/1.jpg",
+    },
+    {
+      id: "apt-2",
+      name: "Jendri Jacin",
+      service: "Aligners",
+      time: "13:00",
+      age: 34,
+      gender: "Male",
+      contact: "0918-234-5678",
+      email: "jendri.jacin@email.com",
+      notes: "First time for aligners. No allergies reported.",
+      imageUrl: "https://randomuser.me/api/portraits/men/2.jpg",
+    },
+    {
+      id: "apt-3",
+      name: "Kyler Per",
+      service: "Root Canals",
+      time: "15:00",
+      age: 41,
+      gender: "Male",
+      contact: "0919-345-6789",
+      email: "kyler.per@email.com",
+      notes: "Follow-up for root canal. Mild swelling last visit.",
+      imageUrl: "https://randomuser.me/api/portraits/men/3.jpg",
+    },
   ];
+
+  const [selectedPatient, setSelectedPatient] = useState(appointments[0]);
+
+  const handlePress = (apt: typeof appointments[0]) => {
+    setSelectedPatient(apt);
+  };
 
   return (
     <SafeAreaProvider>
@@ -70,26 +107,50 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               <View style={styles.column}>
                 <Text style={styles.subHeader}>Today Appointments:</Text>
 
-                {appointments.map((apt) => (
+                {appointments.map((apt, idx) => (
                   <AppointmentCard
                     key={apt.id}
                     name={apt.name}
                     service={apt.service}
                     time={apt.time}
-                    onPress={() => handlePress(apt.name)}
+                    imageUrl={apt.imageUrl}
+                    onPress={() => handlePress(apt)}
+                    highlighted={idx === 0}
                   />
                 ))}
               </View>
 
-              {/* Right Column: Details / Requests */}
+              {/* Right Column: Patient Details */}
               <View style={styles.column}>
-                <Text style={styles.subHeader}>Next Patient Details:</Text>
+                <Text style={styles.subHeader}>Patient Details:</Text>
                 <View style={[styles.detailsCard, styles.shadow]}>
-                  <Text style={{ textAlign: "center", color: "#555" }}>
-                    <Text style={{ fontWeight: "bold" }}>Patient Name:</Text> Mart
-                    Emman{"\n\n"}
-                    <Text style={{ fontWeight: "bold" }}>Notes:</Text> Patient
-                    requests extra numbing gel. History of sensitivity.
+                  <Image
+                    source={{ uri: selectedPatient.imageUrl }}
+                    style={{ width: 60, height: 60, borderRadius: 30, marginBottom: 10 }}
+                  />
+                  <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 4 }}>
+                    {selectedPatient.name}
+                  </Text>
+                  <Text style={{ color: "#555", marginBottom: 2 }}>
+                    <Text style={{ fontWeight: "bold" }}>Service:</Text> {selectedPatient.service}
+                  </Text>
+                  <Text style={{ color: "#555", marginBottom: 2 }}>
+                    <Text style={{ fontWeight: "bold" }}>Time:</Text> {selectedPatient.time}
+                  </Text>
+                  <Text style={{ color: "#555", marginBottom: 2 }}>
+                    <Text style={{ fontWeight: "bold" }}>Age:</Text> {selectedPatient.age}
+                  </Text>
+                  <Text style={{ color: "#555", marginBottom: 2 }}>
+                    <Text style={{ fontWeight: "bold" }}>Gender:</Text> {selectedPatient.gender}
+                  </Text>
+                  <Text style={{ color: "#555", marginBottom: 2 }}>
+                    <Text style={{ fontWeight: "bold" }}>Contact:</Text> {selectedPatient.contact}
+                  </Text>
+                  <Text style={{ color: "#555", marginBottom: 2 }}>
+                    <Text style={{ fontWeight: "bold" }}>Email:</Text> {selectedPatient.email}
+                  </Text>
+                  <Text style={{ color: "#555", marginTop: 6 }}>
+                    <Text style={{ fontWeight: "bold" }}>Notes:</Text> {selectedPatient.notes}
                   </Text>
                 </View>
 
