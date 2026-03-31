@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,20 +6,20 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Modal,
+  Button,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AppointmentCard from "./AppointmentCard";
 import StatCard from "./StatCard";
+import AllAppointments from "../appointments/AllAppointments";
 import { CurrentUser } from "@smileguard/shared-types";
 
 interface DoctorDashboardProps {
   user: CurrentUser;
   onLogout: () => void;
 }
-
-
-import { useState } from "react";
 
 type AppointmentType = {
   id: string;
@@ -37,6 +37,7 @@ type AppointmentType = {
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   // Appointments state
+  const [showAllAppointments, setShowAllAppointments] = useState(false);
   const [appointments, setAppointments] = useState<AppointmentType[]>([
     {
       id: "apt-1",
@@ -149,8 +150,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <View style={styles.dashboardColumns}>
               {/* Left Column: Appointments */}
               <View style={styles.column}>
-                <Text style={styles.subHeader}>Today Appointments:</Text>
-
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.subHeader}>Today Appointments:</Text>
+                  <TouchableOpacity onPress={() => setShowAllAppointments(true)}>
+                    <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
+                  </TouchableOpacity>
+                </View>
                 {appointments.map((apt, idx) => (
                   <AppointmentCard
                     key={apt.id}
@@ -162,6 +167,16 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     highlighted={idx === 0}
                   />
                 ))}
+                <Modal
+                  visible={showAllAppointments}
+                  animationType="slide"
+                  onRequestClose={() => setShowAllAppointments(false)}
+                >
+                  <View style={{ flex: 1, backgroundColor: '#f0f8ff' }}>
+                    <AllAppointments appointments={appointments} />
+                    <Button title="Close" onPress={() => setShowAllAppointments(false)} />
+                  </View>
+                </Modal>
               </View>
 
               {/* Right Column: Patient Details */}
@@ -215,7 +230,16 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     <View style={{ flexDirection: "row", gap: 5 }}>
                       <TouchableOpacity
                         style={[styles.actionBtn, { backgroundColor: "#0b7fab" }]}
-                        onPress={() => handleAcceptRequest(req)}
+                        onPress={() => {
+                          Alert.alert(
+                            "Accept Request",
+                            `Are you sure you want to accept the appointment request from ${req.name}?`,
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Accept", style: "default", onPress: () => handleAcceptRequest(req) },
+                            ]
+                          );
+                        }}
                         accessibilityLabel={`Accept request from ${req.name}`}
                         accessibilityRole="button"
                       >
@@ -223,7 +247,16 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.actionBtn, { backgroundColor: "#6b7280" }]}
-                        onPress={() => handleDeclineRequest(req)}
+                        onPress={() => {
+                          Alert.alert(
+                            "Decline Request",
+                            `Are you sure you want to decline the appointment request from ${req.name}?`,
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Decline", style: "destructive", onPress: () => handleDeclineRequest(req) },
+                            ]
+                          );
+                        }}
                         accessibilityLabel={`Decline request from ${req.name}`}
                         accessibilityRole="button"
                       >

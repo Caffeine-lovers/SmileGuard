@@ -126,12 +126,16 @@ add npm install @react-navigation/drawer
     - [] Analyze Module
     - [] Settings Module
 
+- [x] Homepage
+    - [x] Today Appointment
+    - [x] Appointment Request
+    - [x] Patient Details
 
  
-- [] Appointments Page
-    - [] Today’s Appointments
+- [x] Appointments Page
+    - [x] Today’s Appointments
     - [] Upcoming Slots
-    - [] Add Appointment Schedule 
+    - [] Add Appointment Schedule
     - [] Calendar View
     - [] Search Patient 
     - [] Update Appointment Status
