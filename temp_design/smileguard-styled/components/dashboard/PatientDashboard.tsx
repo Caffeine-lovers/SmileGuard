@@ -1,43 +1,37 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import { getPatientAppointments } from '@/lib/appointmentService';
-import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
+import { getBalance } from '@/lib/paymentService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
-import OutstandingBalance from '@/components/billing/BillingPayment';
 
 export default function PatientDashboard() {
-  const { currentUser, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const { currentUser } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [outstandingBalance, setOutstandingBalance] = useState(0);
+  const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If auth is still initializing, wait
-    if (authLoading) return;
+    if (currentUser === undefined) return; // still initializing
 
-    // If user is not authenticated, redirect to login immediately
     if (!currentUser) {
-      router.push('/login');
+      setLoading(false); // not logged in, stop spinner
       return;
     }
 
-    // User is authenticated, fetch dashboard data
     async function fetchData() {
       setLoading(true);
       try {
-        const [appts, balance] = await Promise.all([
+        const [appts, bal] = await Promise.all([
           getPatientAppointments(currentUser!.id),
-          calculateOutstandingBalance(currentUser!.id),
+          getBalance(currentUser!.id),
         ]);
         setAppointments(appts.slice(0, 5));
-        setOutstandingBalance(balance);
+        setBalance(bal);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {
@@ -46,20 +40,15 @@ export default function PatientDashboard() {
     }
 
     fetchData();
-  }, [currentUser, authLoading, router]);
+  }, [currentUser?.id]);
 
-  // Show loading only while auth is initializing
-  if (authLoading) {
+  if (loading && !appointments.length && balance === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        {/* FIX: border-blue-600 → border-brand-primary */}
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
       </div>
     );
-  }
-
-  // If no user, don't render (will redirect to login)
-  if (!currentUser) {
-    return null;
   }
 
   const formatDate = (dateStr: string) => {
@@ -69,7 +58,12 @@ export default function PatientDashboard() {
 
   return (
     <div className="p-4 md:p-6 bg-bg-screen min-h-screen max-w-5xl mx-auto">
-      <div className="bg-brand-cyan rounded-2xl p-8 mb-8 text-white shadow-sm">
+      {/*
+        FIX: bg-brand-cyan → bg-brand-primary
+        Guidelines: brand-cyan (#29ABE2) is reserved for screen/page headings only.
+        Large filled surfaces (hero banners, cards) use brand-primary (#3DAAB8).
+      */}
+      <div className="bg-brand-primary rounded-2xl p-8 mb-8 text-white shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-4xl">🦷</div>
           <div>
@@ -82,7 +76,7 @@ export default function PatientDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
         <StatCard icon="📋" number={appointments.length} label="Total Appointments" accent="border-brand-primary" />
-        <StatCard icon="💳" number={`₱${outstandingBalance.toFixed(2)}`} label="Outstanding Balance" accent="border-brand-primary" href="/billing" />
+        <StatCard icon="💳" number={`₱${balance.toFixed(2)}`} label="Outstanding Balance" accent="border-brand-primary" href="/billing" />
         <StatCard icon="📅" number={formatDate(appointments[0]?.appointment_date ?? '')} label="Next Appointment" accent="border-brand-primary" />
       </div>
     
@@ -95,10 +89,15 @@ export default function PatientDashboard() {
             {appointments.map((apt, index) => (
               <div key={apt.id} className="flex gap-4 items-start">
                 <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  {/*
+                    FIX: bg-blue-100 text-blue-600 → bg-brand-primary/10 text-brand-primary
+                    Off-brand blue replaced with the brand teal token.
+                  */}
+                  <div className="w-8 h-8 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center text-sm font-bold flex-shrink-0">
                     {index + 1}
                   </div>
-                  {index < appointments.length - 1 && <div className="w-0.5 h-full bg-gray-100 mt-1" />}
+                  {/* FIX: bg-gray-100 → bg-border-card (uses design token, not raw gray) */}
+                  {index < appointments.length - 1 && <div className="w-0.5 h-full bg-border-card mt-1" />}
                 </div>
                 <div className="flex-1 pb-4">
                   <AppointmentCard

@@ -7,7 +7,18 @@ import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
-import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+
+const SERVICE_PRICES: Record<string, number> = {
+  Cleaning: 1500,
+  Whitening: 5000,
+  Fillings: 2000,
+  'Root Canal': 8000,
+  Extraction: 1500,
+  Braces: 35000,
+  Implants: 45000,
+  'X-Ray': 500,
+  'Check-up': 300,
+};
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -44,21 +55,29 @@ export default function BillingPayment({
       setLoadingData(true);
       try {
         if (!currentUser) return;
-        const { outstandingBalance, unpaidAppointments, billingHistory } =
-          await fetchBillingDataForDashboard(currentUser.id);
+        const [balance, billings, appts] = await Promise.all([
+          getBalance(currentUser.id),
+          getBillings(currentUser.id),
+          getPatientAppointments(currentUser.id),
+        ]);
+        
+        const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
+        const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
 
-        setOutstandingBalance(outstandingBalance);
-        setBillingHistory(billingHistory);
-        setUnpaidAppointments(unpaidAppointments);
-
-        if (unpaidAppointments.length > 0 && !baseAmount) {
-          const first = unpaidAppointments[0];
-          setSelectedAppointment(first);
-          const initialAmt = SERVICE_PRICES[first.service] || 0;
-          setAmount(initialAmt);
-          const result = calculateDiscount(initialAmt, discountType);
-          setDiscountAmount(result.discountAmount);
-          setFinalAmount(result.finalAmount);
+        const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+        setOutstandingBalance(balance + unpaidApptsSum);
+        
+        setBillingHistory(billings);
+        setUnpaidAppointments(unpaid);
+        
+        if (unpaid.length > 0 && !baseAmount) {
+           const first = unpaid[0];
+           setSelectedAppointment(first);
+           const initialAmt = SERVICE_PRICES[first.service] || 0;
+           setAmount(initialAmt);
+           const result = calculateDiscount(initialAmt, discountType);
+           setDiscountAmount(result.discountAmount);
+           setFinalAmount(result.finalAmount);
         }
       } catch (err) {
         console.error('Error fetching billing data:', err);
@@ -206,6 +225,11 @@ export default function BillingPayment({
             <p className="text-3xl font-bold text-brand-primary">{billingHistory.length}</p>
             <p className="text-xs text-text-secondary mt-2">On Record</p>
           </div>
+          {/*
+            NOTE: green is intentionally kept here for "Account Status: ✓ Paid".
+            Per guidelines, green signals completed/paid — a semantic success state,
+            not an informational card. This is correct usage.
+          */}
           <div className="bg-green-50 rounded-lg shadow-md p-6 border-l-4 border-green-600">
             <p className="text-sm text-text-secondary">Account Status</p>
             <p className="text-3xl font-bold text-green-700">
@@ -326,6 +350,12 @@ export default function BillingPayment({
             <label className="block text-sm font-semibold text-text-primary mb-3">
               Payment Method
             </label>
+            {/*
+              NOTE: green selected state intentionally kept for payment methods.
+              Green is semantically correct for a payment confirmation action
+              (distinct from the brand-primary informational selected state).
+              This differentiates "I am paying" from "I am selecting info".
+            */}
             <div className="grid grid-cols-2 gap-3">
               {[
                 { value: 'cash' as const, label: '💵 Cash' },
