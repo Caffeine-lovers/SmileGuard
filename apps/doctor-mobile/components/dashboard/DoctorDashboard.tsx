@@ -1,22 +1,17 @@
 import React from "react";
 import {
   View,
-  Alert,
+  Text,
   StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import {
-  AppointmentCard,
-  Navbar,
-  PatientDetailCard,
-  RequestListItem,
-  SectionHeader,
-  ScreenHeading,
-} from "./index";
+import AppointmentCard from "./AppointmentCard.tsx";
 import StatCard from "./StatCard.tsx";
 import { CurrentUser } from "@smileguard/shared-types";
-import { theme } from "../../constants/theme.ts";
 
 interface DoctorDashboardProps {
   user: CurrentUser;
@@ -24,100 +19,102 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
-  const [selectedAppointmentId, setSelectedAppointmentId] = React.useState<string | null>(null);
-
-  const handleAppointmentPress = (id: string, name: string) => {
-    setSelectedAppointmentId(id);
-    Alert.alert("Appointment Selected", `You selected ${name}'s appointment.`);
-  };
-
-  const handleRequestAccept = (id: string) => {
-    Alert.alert("Request Accepted", `Request ${id} has been accepted.`);
-  };
-
-  const handleRequestReject = (id: string) => {
-    Alert.alert("Request Rejected", `Request ${id} has been rejected.`);
+  const handlePress = (name: string) => {
+    Alert.alert("Patient Details", `You pressed on ${name}'s profile.`);
   };
 
   // Mock data - in production, fetch from API
   const appointments = [
-    { id: "apt-1", name: "Mart Emman", service: "Whitening", time: "10:00", status: "upcoming" as const },
-    { id: "apt-2", name: "Jendri Jacin", service: "Aligners", time: "13:00", status: "confirmed" as const },
-    { id: "apt-3", name: "Kyler Per", service: "Root Canals", time: "15:00", status: "upcoming" as const },
+    { id: "apt-1", name: "Mart Emman", service: "Whitening", time: "10:00" },
+    { id: "apt-2", name: "Jendri Jacin", service: "Aligners", time: "13:00" },
+    { id: "apt-3", name: "Kyler Per", service: "Root Canals", time: "15:00" },
   ];
-
-  const requests = [
-    { id: "req-1", name: "Marie Yan", requestType: "Cleaning" },
-    { id: "req-2", name: "Alex Johnson", requestType: "Consultation" },
-  ];
-
-  const nextPatient = appointments[0];
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <Navbar onLogout={onLogout} showLogout={true} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+        {/* Header Bar */}
+        <View style={styles.topBar}>
+          <Text style={styles.topBarText}>🦷 SmileGuard MD</Text>
+        </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.container}>
-            <ScreenHeading title="Quick Actions" />
+            <Text style={[styles.header, { marginBottom: 20 }]}>
+              Welcome, {user.name}
+            </Text>
 
             {/* Stats Panel */}
-            <View style={styles.statsPanel}>
+            <View style={styles.firstPanel}>
               <StatCard number={67} label="Patients" />
               <StatCard number={21} label="Appointments" />
               <StatCard number={911} label="Treatments" />
             </View>
 
-            {/* Appointments Section */}
-            <View style={styles.section}>
-              <SectionHeader 
-                label="Today Appointments:" 
-                actionLabel="See more"
-                onActionPress={() => Alert.alert("See more appointments")}
-              />
-              {appointments.map((apt) => (
-                <AppointmentCard
-                  key={apt.id}
-                  id={apt.id}
-                  name={apt.name}
-                  service={apt.service}
-                  time={apt.time}
-                  status={apt.status}
-                  isSelected={selectedAppointmentId === apt.id}
-                  onPress={() => handleAppointmentPress(apt.id, apt.name)}
-                />
-              ))}
+            {/* Quick Actions Header */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.header}>Quick Actions</Text>
             </View>
 
-            {/* Next Patient Details Section */}
-            <View style={styles.section}>
-              <SectionHeader label="Next Patient Details:" />
-              <PatientDetailCard
-                patientName={nextPatient.name}
-                service={nextPatient.service}
-                time={nextPatient.time}
-                age={41}
-                gender="Male"
-                contact="0919-345-6789"
-                email="kyler@email.com"
-                notes="Follow-up appointment. Patient requests extra numbing gel. History of sensitivity."
-              />
-            </View>
+            {/* Dashboard Columns */}
+            <View style={styles.dashboardColumns}>
+              {/* Left Column: Appointments */}
+              <View style={styles.column}>
+                <Text style={styles.subHeader}>Today Appointments:</Text>
 
-            {/* Requests Section */}
-            <View style={styles.section}>
-              <SectionHeader label="Requests:" />
-              {requests.map((req) => (
-                <RequestListItem
-                  key={req.id}
-                  id={req.id}
-                  name={req.name}
-                  requestType={req.requestType}
-                  onAccept={handleRequestAccept}
-                  onReject={handleRequestReject}
-                />
-              ))}
+                {appointments.map((apt) => (
+                  <AppointmentCard
+                    key={apt.id}
+                    name={apt.name}
+                    service={apt.service}
+                    time={apt.time}
+                    onPress={() => handlePress(apt.name)}
+                  />
+                ))}
+              </View>
+
+              {/* Right Column: Details / Requests */}
+              <View style={styles.column}>
+                <Text style={styles.subHeader}>Next Patient Details:</Text>
+                <View style={[styles.detailsCard, styles.shadow]}>
+                  <Text style={{ textAlign: "center", color: "#555" }}>
+                    <Text style={{ fontWeight: "bold" }}>Patient Name:</Text> Mart
+                    Emman{"\n\n"}
+                    <Text style={{ fontWeight: "bold" }}>Notes:</Text> Patient
+                    requests extra numbing gel. History of sensitivity.
+                  </Text>
+                </View>
+
+                <Text style={[styles.subHeader, { marginTop: 20 }]}>Requests:</Text>
+                <View style={styles.card}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>MY</Text>
+                  </View>
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>Marie Yan</Text>
+                    <Text style={styles.cardSubtitle}>Request: Cleaning</Text>
+                  </View>
+                  {/* Action Buttons */}
+                  <View style={{ flexDirection: "row", gap: 5 }}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: "#0b7fab" }]}
+                      onPress={() => Alert.alert("Accepted", "Request from Marie Yan accepted.")}
+                      accessibilityLabel="Accept request from Marie Yan"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.actionBtnText}>✓</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: "#6b7280" }]}
+                      onPress={() => Alert.alert("Declined", "Request from Marie Yan declined.")}
+                      accessibilityLabel="Decline request from Marie Yan"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.actionBtnText}>✗</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -127,26 +124,142 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.colors["bg-screen"],
+  topBar: {
+    height: 60,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  topBarText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0b7fab",
   },
   scrollContent: {
     paddingBottom: 40,
   },
   container: {
-    paddingHorizontal: theme.spacing.screenHorizontalPadding,
-    paddingVertical: theme.spacing.sectionVerticalGap,
+    flex: 1,
+    alignItems: "center",
+    padding: 20,
   },
-  statsPanel: {
+  header: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#0b7fab",
+    textAlign: "center",
+  },
+  subHeader: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 10,
+  },
+  sectionHeader: {
+    width: "100%",
+    marginTop: 30,
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    paddingBottom: 10,
+  },
+
+  // Stats Panel
+  firstPanel: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
     gap: 10,
     flexWrap: "wrap",
-    marginBottom: theme.spacing.sectionVerticalGap,
   },
-  section: {
-    marginBottom: theme.spacing.sectionVerticalGap,
+
+  // Dashboard Columns
+  dashboardColumns: {
+    flexDirection: "row",
+    width: "100%",
+    flexWrap: "wrap",
+    gap: 20,
+  },
+  column: {
+    flex: 1,
+    minWidth: 300,
+  },
+
+  // Cards
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  detailsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    minHeight: 150,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardText: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  cardTitle: {
+    fontWeight: "bold",
+    fontSize: 14,
+    color: "#333",
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: "#777",
+  },
+  icon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#eee",
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#0b7fab",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  actionBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  shadow: {
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+    elevation: 5,
   },
 });
