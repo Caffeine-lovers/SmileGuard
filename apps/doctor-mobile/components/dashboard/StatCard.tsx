@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { theme } from "../../constants/theme.ts";
 
 interface StatCardProps {
   number: number | string;
@@ -8,7 +9,7 @@ interface StatCardProps {
 
 export default function StatCard({ number, label }: StatCardProps) {
   return (
-    <View style={[styles.panel, styles.shadow]}>
+    <View style={styles.panel}>
       <Text style={styles.statNumber}>{number}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
@@ -17,28 +18,24 @@ export default function StatCard({ number, label }: StatCardProps) {
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: "#ffffff",
+    backgroundColor: theme.colors["bg-surface"],
     flex: 1,
     minWidth: 100,
     paddingVertical: 20,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: theme.spacing.cardBorderRadius,
+    ...theme.shadows.card,
   },
   statNumber: {
     fontSize: 28,
-    fontWeight: "bold",
-    color: "#0b7fab",
+    fontWeight: "700",
+    color: theme.colors["brand-primary"],
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: "#666",
-  },
-  shadow: {
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 5,
+    fontWeight: "600",
+    color: theme.colors["text-secondary"],
   },
 });
