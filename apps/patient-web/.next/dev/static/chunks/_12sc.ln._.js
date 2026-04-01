@@ -144,16 +144,27 @@ function useAuth() {
             });
             if (error) throw error;
             if (data.user) {
-                // Fetch profile to check role
-                const { data: profile, error: profileError } = await __TURBOPACK__imported__module__$5b$project$5d2f$packages$2f$supabase$2d$client$2f$index$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["supabase"].from("profiles").select("role").eq("id", data.user.id).single();
-                if (profileError) throw new Error("Profile not found");
+                // Fetch profile to get name and email
+                const { data: profile, error: profileError } = await __TURBOPACK__imported__module__$5b$project$5d2f$packages$2f$supabase$2d$client$2f$index$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["supabase"].from("profiles").select("role, name, email").eq("id", data.user.id).single();
+                // Determine the user's role - check profile first, then fall back to user_metadata
+                const profileRole = profile?.role;
+                const metadataRole = data.user.user_metadata?.role;
+                const userRole = profileRole || metadataRole;
                 // Check if user has the right role
-                if (profile.role !== expectedRole) {
+                if (userRole !== expectedRole) {
                     await __TURBOPACK__imported__module__$5b$project$5d2f$packages$2f$supabase$2d$client$2f$index$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["supabase"].auth.signOut();
                     throw new Error(`Access denied. Please log in as a ${expectedRole}.`);
                 }
                 await fetchProfile(data.user.id);
+                // Return the user data
+                return {
+                    id: data.user.id,
+                    name: profile?.name || data.user.user_metadata?.name || "User",
+                    email: profile?.email || data.user.email || "",
+                    role: userRole
+                };
             }
+            throw new Error("Login failed: No user data returned");
         } catch (err) {
             const message = err instanceof Error ? err.message : "Login failed";
             setError(message);

@@ -130,6 +130,8 @@ add npm install @react-navigation/drawer
     - [x] Today Appointment
     - [x] Appointment Request
     - [x] Patient Details
+    - [x] Patients List
+        - [x] With a Search Function
 
  
 - [x] Appointments Page

@@ -46,6 +46,7 @@ const getToday = () => {
   // en-CA gives YYYY-MM-DD in local time
 };
 
+const SERVICE_OPTIONS = ['Cleaning', 'Whitening', 'Fillings', 'Root Canal', 'Extraction', 'Braces Consultation', 'Implants Consultation', 'X-Ray', 'Check-Up'];
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   // Appointments state
@@ -54,6 +55,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
   const [showAllPatients, setShowAllPatients] = useState(false);
   const [patientSearchQuery, setPatientSearchQuery] = useState<string>("");
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const today = getToday();
   const [appointments, setAppointments] = useState<AppointmentType[]>([
     {
@@ -236,6 +238,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const handleSavePatient = () => {
     if (editedPatient) {
+      // Update patients list
+      setPatients((prev: AppointmentType[]) =>
+        prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
+      );
+      
       // Check if status was changed to completed and it's for today
       if (editedPatient.status === 'completed' && editedPatient.date === today) {
         // Remove the appointment from the list
@@ -455,11 +462,42 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           </View>
                           <View style={styles.editField}>
                             <Text style={styles.editLabel}>Service:</Text>
-                            <TextInput
-                              style={styles.editInput}
-                              value={editedPatient.service}
-                              onChangeText={(text) => setEditedPatient({ ...editedPatient, service: text })}
-                            />
+                            <TouchableOpacity
+                              style={[styles.editInput, { justifyContent: 'center', paddingHorizontal: 10 }]}
+                              onPress={() => setShowServiceDropdown(!showServiceDropdown)}
+                            >
+                              <Text style={{ color: editedPatient.service ? '#000' : '#999' }}>
+                                {editedPatient.service || 'Select a service'}
+                              </Text>
+                            </TouchableOpacity>
+                            {showServiceDropdown && (
+                              <View style={{ backgroundColor: '#f5f5f5', borderRadius: 4, marginTop: 4}}>
+                                <ScrollView
+                                  style={{ maxHeight: 150 }}
+                                  nestedScrollEnabled={true}>
+                                  {SERVICE_OPTIONS.map((service) => (
+                                    <TouchableOpacity
+                                      key={service}
+                                      onPress={() => {
+                                        setEditedPatient({ ...editedPatient, service });
+                                        setShowServiceDropdown(false);
+                                      }}
+                                      style={{
+                                        paddingHorizontal: 15,
+                                        paddingVertical: 12,
+                                        borderBottomWidth: 1,
+                                        borderBottomColor: '#e0e0e0',
+                                        backgroundColor: editedPatient.service === service ? '#e3f2fd' : 'transparent',
+                                      }}
+                                    >
+                                      <Text style={{ color: editedPatient.service === service ? '#1976d2' : '#333' }}>
+                                        {service}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </ScrollView>
+                              </View>
+                            )}
                           </View>
                           <View style={styles.editField}>
                             <Text style={styles.editLabel}>Time:</Text>
@@ -633,7 +671,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       />
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#555' }}>{patient.service}</Text>
+                        <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
                         <Text style={{ fontSize: 11, color: '#999' }}>{patient.contact}</Text>
                       </View>
                     </View>
@@ -699,26 +737,35 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           )
                           .map((patient) => (
                             <View key={patient.id} style={[styles.card, styles.shadow, { marginBottom: 25 }]}>
-                              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                                <Image
-                                  source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                                  style={{ width: 60, height: 60, borderRadius: 30, marginRight: 12 }}
-                                />
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333', marginBottom: 4 }}>{patient.name}</Text>
-                                  <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
-                                    <Text style={{ fontWeight: 'bold' }}>Service:</Text> {patient.service}
-                                  </Text>
-                                  <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
-                                    <Text style={{ fontWeight: 'bold' }}>Age:</Text> {patient.age} | <Text style={{ fontWeight: 'bold' }}>Gender:</Text> {patient.gender}
-                                  </Text>
-                                  <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
-                                    <Text style={{ fontWeight: 'bold' }}>Contact:</Text> {patient.contact}
-                                  </Text>
-                                  <Text style={{ fontSize: 12, color: '#555' }}>
-                                    <Text style={{ fontWeight: 'bold' }}>Email:</Text> {patient.email}
-                                  </Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', flex: 1 }}>
+                                  <Image
+                                    source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                                    style={{ width: 60, height: 60, borderRadius: 30, marginRight: 12 }}
+                                  />
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333', marginBottom: 4 }}>{patient.name}</Text>
+                                    
+                                    <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
+                                      <Text style={{ fontWeight: 'bold' }}>Age:</Text> {patient.age} | <Text style={{ fontWeight: 'bold' }}>Gender:</Text> {patient.gender}
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
+                                      <Text style={{ fontWeight: 'bold' }}>Contact:</Text> {patient.contact}
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#555' }}>
+                                      <Text style={{ fontWeight: 'bold' }}>Email:</Text> {patient.email}
+                                    </Text>
+                                  </View>
                                 </View>
+                                <TouchableOpacity 
+                                  style={{ paddingHorizontal: 8 }}
+                                  onPress={() => {
+                                    setEditedPatient({ ...patient });
+                                    setIsEditingPatient(true);
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>Edit</Text>
+                                </TouchableOpacity>
                               </View>
                             </View>
                           ))
