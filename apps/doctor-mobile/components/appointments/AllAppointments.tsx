@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ScrollView, TextInput } from "react-native";
 import { AppointmentType } from "../dashboard/DoctorDashboard";
 
 interface AllAppointmentsProps {
@@ -30,10 +30,37 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Map of date string to appointments
-  const appointmentsByDate: { [date: string]: AppointmentType[] } = {};
+  // Handle search and auto-navigation
+  useEffect(() => {
+    // Build appointment map inside effect to avoid dependency loop
+    const appointmentsByDate: { [date: string]: AppointmentType[] } = {};
     appointments.forEach((apt) => {
+      const dateStr = apt.date || getDateString(today);
+      if (!appointmentsByDate[dateStr]) appointmentsByDate[dateStr] = [];
+      appointmentsByDate[dateStr].push(apt);
+    });
+
+    if (searchQuery.trim()) {
+      const searchLower = searchQuery.toLowerCase();
+      const matchingDates = Object.keys(appointmentsByDate).filter((dateStr) =>
+        appointmentsByDate[dateStr].some((apt) => apt.name.toLowerCase().includes(searchLower))
+      );
+      
+      // Auto-navigate to first matching date
+      if (matchingDates.length > 0) {
+        const firstMatchDate = new Date(matchingDates[0]);
+        setSelectedDate(firstMatchDate);
+        setCurrentMonth(firstMatchDate.getMonth());
+        setCurrentYear(firstMatchDate.getFullYear());
+      }
+    }
+  }, [searchQuery, appointments]);
+
+  // Map of date string to appointments (for rendering)
+  const appointmentsByDate: { [date: string]: AppointmentType[] } = {};
+  appointments.forEach((apt) => {
     const dateStr = apt.date || getDateString(today);
     if (!appointmentsByDate[dateStr]) appointmentsByDate[dateStr] = [];
     appointmentsByDate[dateStr].push(apt);
@@ -41,11 +68,27 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments }) => {
 
   const days = getMonthDays(currentYear, currentMonth);
   const selectedDateStr = getDateString(selectedDate);
-  const appointmentsForSelected = appointmentsByDate[selectedDateStr] || [];
+  let appointmentsForSelected = appointmentsByDate[selectedDateStr] || [];
+  
+  // Filter appointments based on search query
+  if (searchQuery.trim()) {
+    const searchLower = searchQuery.toLowerCase();
+    appointmentsForSelected = appointmentsForSelected.filter((apt) =>
+      apt.name.toLowerCase().includes(searchLower)
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Appointments</Text>
+      {/* Global Search */}
+      <TextInput
+        style={styles.globalSearchInput}
+        placeholder="Search patient by name across calendar..."
+        placeholderTextColor="#999"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
       {/* Calendar Controls */}
       <View style={styles.calendarHeader}>
         <TouchableOpacity onPress={() => {
@@ -220,6 +263,17 @@ const styles = StyleSheet.create({
     color: '#0b7fab',
     marginVertical: 8,
     textAlign: 'center',
+  },
+  globalSearchInput: {
+    backgroundColor: '#fff',
+    borderColor: '#0b7fab',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    fontSize: 14,
+    color: '#333',
   },
   container: {
     flex: 1,

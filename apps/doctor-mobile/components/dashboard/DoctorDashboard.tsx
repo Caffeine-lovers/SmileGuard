@@ -368,14 +368,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </SafeAreaView>
                 </Modal>
 
-                <Text style={[styles.subHeader, { marginTop: 20 }]}>Requests:</Text>
+                <Text style={[styles.subHeader, { marginTop: 20 }]}> Appointment Requests:</Text>
                 {requests.length === 0 && (
                   <Text style={{ color: '#888', textAlign: 'center', marginVertical: 10 }}>No pending requests.</Text>
                 )}
                 {requests.map((req) => (
                   <View style={styles.card} key={req.id}>
                     <View style={styles.avatar}>
-                      <Text style={styles.avatarText}>{req.initials || (req.name.split(' ').map(n => n[0]).join('').toUpperCase())}</Text>
+                      <Image
+                        source={typeof req.imageUrl === "string" ? { uri: req.imageUrl } : req.imageUrl}
+                        style={{ width: 40, height: 40, borderRadius: 20 }}
+                      />
                     </View>
                     <View style={styles.cardText}>
                       <Text style={styles.cardTitle}>{req.name}</Text>
