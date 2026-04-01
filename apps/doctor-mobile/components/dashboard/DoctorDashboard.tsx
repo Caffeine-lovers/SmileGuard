@@ -52,6 +52,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [showAllAppointments, setShowAllAppointments] = useState(false);
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
+  const [showAllPatients, setShowAllPatients] = useState(false);
+  const [patientSearchQuery, setPatientSearchQuery] = useState<string>("");
   const today = getToday();
   const [appointments, setAppointments] = useState<AppointmentType[]>([
     {
@@ -114,6 +116,94 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       imageUrl: require("../../assets/images/researchers/mariel.jpg"),
     },
     // Add more requests as needed
+  ]);
+
+  // Patients state
+  const [patients, setPatients] = useState<AppointmentType[]>([
+    {
+      id: "pat-1",
+      name: "Mart Emman",
+      service: "Whitening",
+      time: "10:00",
+      date: "2026-04-01",
+      age: 28,
+      gender: "Male",
+      contact: "0917-123-4567",
+      email: "mart.emman@email.com",
+      notes: "Patient requests extra numbing gel. History of sensitivity.",
+      imageUrl: require("../../assets/images/researchers/mart.jpg"),
+      status: 'scheduled',
+    },
+    {
+      id: "pat-2",
+      name: "Jendri Jacin",
+      service: "Aligners",
+      time: "13:00",
+      date: "2026-04-02",
+      age: 34,
+      gender: "Male",
+      contact: "0918-234-5678",
+      email: "jendri.jacin@email.com",
+      notes: "First time for aligners. No allergies reported.",
+      imageUrl: require("../../assets/images/researchers/jendri.jpg"),
+      status: 'scheduled',
+    },
+    {
+      id: "pat-3",
+      name: "Kyler Per",
+      service: "Root Canals",
+      time: "15:00",
+      date: "2026-03-30",
+      age: 41,
+      gender: "Male",
+      contact: "0919-345-6789",
+      email: "kyler.per@email.com",
+      notes: "Follow-up for root canal. Mild swelling last visit.",
+      imageUrl: require("../../assets/images/researchers/kyler.jpg"),
+      status: 'completed',
+    },
+    {
+      id: "pat-4",
+      name: "Marie Yan",
+      service: "Cleaning",
+      time: "16:00",
+      date: "2026-04-01",
+      age: 25,
+      gender: "Female",
+      contact: "0917-555-1234",
+      email: "marie.yan@email.com",
+      notes: "Request for cleaning. No known allergies.",
+      imageUrl: require("../../assets/images/researchers/mariel.jpg"),
+      status: 'scheduled',
+    },
+    {
+      id: "pat-5",
+      name: "Sarah Johnson",
+      service: "Orthodontics",
+      time: "11:00",
+      date: "2026-04-03",
+      age: 22,
+      gender: "Female",
+      contact: "0916-111-2222",
+      email: "sarah.johnson@email.com",
+      notes: "Braces adjustment needed.",
+      imageUrl: require("../../assets/images/user.png"),
+      status: 'scheduled',
+    },
+    {
+      id: "pat-6",
+      name: "Michael Chen",
+      service: "Extraction",
+      time: "14:00",
+      date: "2026-04-05",
+      age: 45,
+      gender: "Male",
+      contact: "0920-333-4444",
+      email: "michael.chen@email.com",
+      notes: "Tooth extraction scheduled.",
+      imageUrl: require("../../assets/images/user.png"),
+      status: 'scheduled',
+    },
   ]);
 
   const todayAppointments = appointments.filter(apt => apt.date === today);
@@ -526,6 +616,117 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     </View>
                   </View>
                 ))}
+
+                <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients List:</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ fontSize: 12, color: '#999' }}>Showing {Math.min(3, patients.length)} of {patients.length} patients</Text>
+                  <TouchableOpacity onPress={() => setShowAllPatients(true)}>
+                    <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
+                  </TouchableOpacity>
+                </View>
+                {patients.slice(0, 3).map((patient) => (
+                  <View key={patient.id} style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Image
+                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#555' }}>{patient.service}</Text>
+                        <Text style={{ fontSize: 11, color: '#999' }}>{patient.contact}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+
+                {/* All Patients Modal */}
+                <Modal
+                  visible={showAllPatients}
+                  animationType="slide"
+                  onRequestClose={() => {
+                    setShowAllPatients(false);
+                    setPatientSearchQuery("");
+                  }}
+                >
+                  <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0b7fab' }}>All Patients</Text>
+                      <TouchableOpacity onPress={() => {
+                        setShowAllPatients(false);
+                        setPatientSearchQuery("");
+                      }}>
+                        <Text style={{ fontSize: 16, color: '#0b7fab', fontWeight: 'bold' }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                      <TextInput
+                        style={{
+                          backgroundColor: '#fff',
+                          borderColor: '#0b7fab',
+                          borderWidth: 1,
+                          borderRadius: 8,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          fontSize: 14,
+                          color: '#333',
+                        }}
+                        placeholder="Search patients by name, service..."
+                        placeholderTextColor="#999"
+                        value={patientSearchQuery}
+                        onChangeText={setPatientSearchQuery}
+                      />
+                    </View>
+                    <ScrollView style={{ padding: 16 }}>
+                      {patients
+                        .filter((patient) =>
+                          patient.name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          patient.service.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          patient.email.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                          patient.contact.includes(patientSearchQuery)
+                        )
+                        .length === 0 ? (
+                        <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 16 }}>
+                          No patients found matching "{patientSearchQuery}"
+                        </Text>
+                      ) : (
+                        patients
+                          .filter((patient) =>
+                            patient.name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                            patient.service.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                            patient.email.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+                            patient.contact.includes(patientSearchQuery)
+                          )
+                          .map((patient) => (
+                            <View key={patient.id} style={[styles.card, styles.shadow, { marginBottom: 25 }]}>
+                              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                                <Image
+                                  source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                                  style={{ width: 60, height: 60, borderRadius: 30, marginRight: 12 }}
+                                />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333', marginBottom: 4 }}>{patient.name}</Text>
+                                  <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
+                                    <Text style={{ fontWeight: 'bold' }}>Service:</Text> {patient.service}
+                                  </Text>
+                                  <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
+                                    <Text style={{ fontWeight: 'bold' }}>Age:</Text> {patient.age} | <Text style={{ fontWeight: 'bold' }}>Gender:</Text> {patient.gender}
+                                  </Text>
+                                  <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
+                                    <Text style={{ fontWeight: 'bold' }}>Contact:</Text> {patient.contact}
+                                  </Text>
+                                  <Text style={{ fontSize: 12, color: '#555' }}>
+                                    <Text style={{ fontWeight: 'bold' }}>Email:</Text> {patient.email}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          ))
+                      )}
+                    </ScrollView>
+                  </SafeAreaView>
+                </Modal>
+
               </View>
             </View>
           </View>
