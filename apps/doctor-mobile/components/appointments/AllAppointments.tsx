@@ -181,10 +181,11 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
       {(() => {
         const rows: React.ReactNode[] = [];
         let cells: React.ReactNode[] = [];
+        let cellKey = 0;
 
         // Empty cells before first day
         for (let i = 0; i < days[0].getDay(); i++) {
-          cells.push(<View key={`empty-${i}`} style={styles.dayCell} />);
+          cells.push(<View key={`empty-${cellKey++}`} style={styles.dayCell} />);
         }
 
         days.forEach((date) => {
@@ -206,7 +207,8 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
           );
 
           if (cells.length === 7) {
-            rows.push(<View key={`row-${rows.length}`} style={{ flexDirection: 'row' }}>{cells}</View>);
+            rows.push(<View key={`row-${cellKey}`} style={{ flexDirection: 'row' }}>{cells}</View>);
+            cellKey += 7;
             cells = [];
           }
         });
@@ -214,9 +216,9 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
         // Fill last row with empty cells
         if (cells.length > 0) {
           while (cells.length < 7) {
-            cells.push(<View key={`empty-end-${cells.length}`} style={styles.dayCell} />);
+            cells.push(<View key={`empty-end-${cellKey++}`} style={styles.dayCell} />);
           }
-          rows.push(<View key={`row-${rows.length}`} style={{ flexDirection: 'row' }}>{cells}</View>);
+          rows.push(<View key={`row-${cellKey}`} style={{ flexDirection: 'row' }}>{cells}</View>);
         }
 
         return rows;

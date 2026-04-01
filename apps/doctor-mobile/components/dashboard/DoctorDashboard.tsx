@@ -73,7 +73,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       name: "Jendri Jacin",
       service: "Aligners",
       time: "13:00",
-      date: "2026-04-02",
+      date: "2026-04-01",
       age: 34,
       gender: "Male",
       contact: "0918-234-5678",
@@ -146,10 +146,27 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const handleSavePatient = () => {
     if (editedPatient) {
-      setAppointments((prev: AppointmentType[]) =>
-        prev.map((apt) => (apt.id === editedPatient.id ? editedPatient : apt))
-      );
-      setSelectedPatient(editedPatient);
+      // Check if status was changed to completed and it's for today
+      if (editedPatient.status === 'completed' && editedPatient.date === today) {
+        // Remove the appointment from the list
+        const updatedAppointments = appointments.filter(apt => apt.id !== editedPatient.id);
+        setAppointments(updatedAppointments);
+        
+        // Update selected patient to the next available
+        const remainingTodayAppointments = updatedAppointments.filter(apt => apt.date === today);
+        if (remainingTodayAppointments.length > 0) {
+          setSelectedPatient(remainingTodayAppointments[0]);
+        } else {
+          setSelectedPatient(updatedAppointments.length > 0 ? updatedAppointments[0] : selectedPatient);
+        }
+      } else {
+        // Otherwise, just update the appointment
+        setAppointments((prev: AppointmentType[]) =>
+          prev.map((apt) => (apt.id === editedPatient.id ? editedPatient : apt))
+        );
+        setSelectedPatient(editedPatient);
+      }
+      
       setIsEditingPatient(false);
       Alert.alert("Success", "Patient information updated successfully.");
     }
@@ -161,9 +178,29 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   };
 
   const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
-    setAppointments((prev: AppointmentType[]) =>
-      prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
-    );
+    const appointment = appointments.find(apt => apt.id === appointmentId);
+    
+    // If marking as completed and it's for today, remove it from today's appointments
+    if (status === 'completed' && appointment && appointment.date === today) {
+      const updatedAppointments = appointments.filter(apt => apt.id !== appointmentId);
+      setAppointments(updatedAppointments);
+      
+      // If the removed appointment was the selected patient, update selectedPatient
+      if (selectedPatient.id === appointmentId) {
+        const remainingTodayAppointments = updatedAppointments.filter(apt => apt.date === today);
+        if (remainingTodayAppointments.length > 0) {
+          setSelectedPatient(remainingTodayAppointments[0]);
+        } else {
+          // If no more today appointments, select the first remaining appointment
+          setSelectedPatient(updatedAppointments.length > 0 ? updatedAppointments[0] : selectedPatient);
+        }
+      }
+    } else {
+      // Otherwise, just update the status
+      setAppointments((prev) =>
+        prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
+      );
+    }
   };
 
   const getStatusBgColor = (status?: string) => {
@@ -224,7 +261,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
                 ) : (
                   todayAppointments.map((apt, idx) => (
-                    <>
                       <AppointmentCard
                         key={apt.id}
                         name={apt.name}
@@ -234,7 +270,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         onPress={() => handlePress(apt)}
                         highlighted={idx === 0}
                       />
-                    </>
                   ))
                 )}
                 <Modal
