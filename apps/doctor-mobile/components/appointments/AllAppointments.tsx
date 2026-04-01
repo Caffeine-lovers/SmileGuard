@@ -4,6 +4,7 @@ import { AppointmentType } from "../dashboard/DoctorDashboard";
 
 interface AllAppointmentsProps {
   appointments: AppointmentType[];
+  onUpdateAppointmentStatus?: (appointmentId: string, status: 'scheduled' | 'arrived' | 'finished') => void;
 }
 
 const getToday = () => {
@@ -25,12 +26,34 @@ const getMonthDays = (year: number, month: number) => {
   return days;
 };
 
-const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments }) => {
+const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdateAppointmentStatus }) => {
   const today = getToday();
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [appointmentStatuses, setAppointmentStatuses] = useState<{ [id: string]: 'scheduled' | 'arrived' | 'finished' }>({});
+
+  // Initialize statuses from appointments
+  useEffect(() => {
+    const statuses: { [id: string]: 'scheduled' | 'arrived' | 'finished' } = {};
+    appointments.forEach((apt) => {
+      statuses[apt.id] = apt.status || 'scheduled';
+    });
+    setAppointmentStatuses(statuses);
+  }, [appointments]);
+
+  // Handle status update
+  const handleUpdateStatus = (aptId: string, newStatus: 'scheduled' | 'arrived' | 'finished') => {
+    setAppointmentStatuses((prev) => ({
+      ...prev,
+      [aptId]: newStatus,
+    }));
+    // Call parent callback if provided
+    if (onUpdateAppointmentStatus) {
+      onUpdateAppointmentStatus(aptId, newStatus);
+    }
+  };
 
   // Handle search and auto-navigation
   useEffect(() => {
@@ -180,17 +203,54 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments }) => {
       <FlatList
         data={appointmentsForSelected}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={typeof item.imageUrl === "string" ? { uri: item.imageUrl } : item.imageUrl} style={styles.icon} />
-            <View style={styles.info}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.detail}>Service: {item.service}</Text>
-              <Text style={styles.detail}>Time: {item.time}</Text>
-              <Text style={styles.detail}>Contact: {item.contact}</Text>
+        renderItem={({ item }) => {
+          const currentStatus = appointmentStatuses[item.id] || 'scheduled';
+          const getStatusColor = (status: string) => {
+            if (status === 'scheduled') return '#FFC107';
+            if (status === 'arrived') return '#2196F3';
+            if (status === 'finished') return '#4CAF50';
+            return '#999';
+          };
+          
+          return (
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Image source={typeof item.imageUrl === "string" ? { uri: item.imageUrl } : item.imageUrl} style={styles.icon} />
+                <View style={styles.info}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  <Text style={styles.detail}>Service: {item.service}</Text>
+                  <Text style={styles.detail}>Time: {item.time}</Text>
+                  <Text style={styles.detail}>Contact: {item.contact}</Text>
+                  <View style={styles.statusContainer}>
+                    <Text style={[styles.statusBadge, { backgroundColor: getStatusColor(currentStatus) }]}>
+                      {currentStatus.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.actionButtons}>
+                <TouchableOpacity 
+                  style={[styles.statusButton, currentStatus === 'scheduled' && styles.statusButtonActive]}
+                  onPress={() => handleUpdateStatus(item.id, 'scheduled')}
+                >
+                  <Text style={[styles.buttonText, currentStatus === 'scheduled' && { color: '#fff' }]}>Scheduled</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.statusButton, currentStatus === 'arrived' && styles.statusButtonActive]}
+                  onPress={() => handleUpdateStatus(item.id, 'arrived')}
+                >
+                  <Text style={[styles.buttonText, currentStatus === 'arrived' && { color: '#fff' }]}>Arrived</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.statusButton, currentStatus === 'finished' && styles.statusButtonActive]}
+                  onPress={() => handleUpdateStatus(item.id, 'finished')}
+                >
+                  <Text style={[styles.buttonText, currentStatus === 'finished' && { color: '#fff' }]}>Finished</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
+          );
+        }}
         ListEmptyComponent={<Text style={styles.empty}>No appointments found.</Text>}
       />
     </View>
@@ -288,8 +348,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 12,
@@ -309,6 +368,43 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+    marginBottom: 8,
+  },
+  statusContainer: {
+    marginTop: 6,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+    alignSelf: 'flex-start',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  statusButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    alignItems: 'center',
+  },
+  statusButtonActive: {
+    backgroundColor: '#0b7fab',
+    borderColor: '#0b7fab',
+  },
+  buttonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#333',
   },
   name: {
     fontWeight: "bold",

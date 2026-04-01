@@ -35,6 +35,7 @@ export type AppointmentType = {
   notes: string;
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
+  status?: 'scheduled' | 'arrived' | 'finished'; // Appointment status
 };
 
 const getToday = () => {
@@ -156,6 +157,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setEditedPatient(null);
   };
 
+  const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'arrived' | 'finished') => {
+    setAppointments((prev: AppointmentType[]) =>
+      prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
+    );
+  };
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
@@ -223,7 +230,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   onRequestClose={() => setShowAllAppointments(false)}
                 >
                   <View style={{ flex: 1, backgroundColor: '#f0f8ff' }}>
-                    <AllAppointments appointments={appointments} />
+                    <AllAppointments appointments={appointments} onUpdateAppointmentStatus={handleUpdateAppointmentStatus} />
                     <Button title="Close" onPress={() => setShowAllAppointments(false)} />
                   </View>
                 </Modal>
