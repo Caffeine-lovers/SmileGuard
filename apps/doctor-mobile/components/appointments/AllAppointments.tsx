@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ScrollView, TextInput } from "react-native";
+import { View, Text, FlatList, Image, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Alert } from "react-native";
 import { AppointmentType } from "../dashboard/DoctorDashboard";
 
 interface AllAppointmentsProps {
   appointments: AppointmentType[];
-  onUpdateAppointmentStatus?: (appointmentId: string, status: 'scheduled' | 'arrived' | 'finished') => void;
+  onUpdateAppointmentStatus?: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => void;
 }
 
 const getToday = () => {
@@ -32,11 +32,14 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
   const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [appointmentStatuses, setAppointmentStatuses] = useState<{ [id: string]: 'scheduled' | 'arrived' | 'finished' }>({});
+  const [appointmentStatuses, setAppointmentStatuses] = useState<{ [id: string]: 'scheduled' | 'completed' | 'cancelled' | 'no-show' }>({});
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [editingStatus, setEditingStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show'>('scheduled');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   // Initialize statuses from appointments
   useEffect(() => {
-    const statuses: { [id: string]: 'scheduled' | 'arrived' | 'finished' } = {};
+    const statuses: { [id: string]: 'scheduled' | 'completed' | 'cancelled' | 'no-show' } = {};
     appointments.forEach((apt) => {
       statuses[apt.id] = apt.status || 'scheduled';
     });
@@ -44,7 +47,7 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
   }, [appointments]);
 
   // Handle status update
-  const handleUpdateStatus = (aptId: string, newStatus: 'scheduled' | 'arrived' | 'finished') => {
+  const handleUpdateStatus = (aptId: string, newStatus: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
     setAppointmentStatuses((prev) => ({
       ...prev,
       [aptId]: newStatus,
@@ -53,6 +56,33 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
     if (onUpdateAppointmentStatus) {
       onUpdateAppointmentStatus(aptId, newStatus);
     }
+  };
+
+  const handleEditStatus = (aptId: string, currentStatus: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
+    setEditingAppointmentId(aptId);
+    setEditingStatus(currentStatus);
+    setShowStatusDropdown(false);
+  };
+
+  const handleSaveStatus = () => {
+    if (editingAppointmentId) {
+      handleUpdateStatus(editingAppointmentId, editingStatus);
+      setEditingAppointmentId(null);
+      Alert.alert("Success", "Appointment status updated successfully.");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAppointmentId(null);
+    setShowStatusDropdown(false);
+  };
+
+  const getStatusColor = (status: string) => {
+    if (status === 'scheduled') return '#FFC107';
+    if (status === 'completed') return '#4CAF50';
+    if (status === 'cancelled') return '#F44336';
+    if (status === 'no-show') return '#9C27B0';
+    return '#999';
   };
 
   // Handle search and auto-navigation
@@ -205,12 +235,6 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
           const currentStatus = appointmentStatuses[item.id] || 'scheduled';
-          const getStatusColor = (status: string) => {
-            if (status === 'scheduled') return '#FFC107';
-            if (status === 'arrived') return '#2196F3';
-            if (status === 'finished') return '#4CAF50';
-            return '#999';
-          };
           
           return (
             <View style={styles.card}>
@@ -230,23 +254,68 @@ const AllAppointments: React.FC<AllAppointmentsProps> = ({ appointments, onUpdat
               </View>
               <View style={styles.actionButtons}>
                 <TouchableOpacity 
-                  style={[styles.statusButton, currentStatus === 'scheduled' && styles.statusButtonActive]}
-                  onPress={() => handleUpdateStatus(item.id, 'scheduled')}
+                  style={styles.statusDropdownButton}
+                  onPress={() => {
+                    handleEditStatus(item.id, currentStatus);
+                    setShowStatusDropdown(!showStatusDropdown);
+                  }}
                 >
-                  <Text style={[styles.buttonText, currentStatus === 'scheduled' && { color: '#fff' }]}>Scheduled</Text>
+                  <Text style={styles.dropdownButtonText}>
+                    {editingAppointmentId === item.id ? editingStatus.toUpperCase() : currentStatus.toUpperCase()}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.statusButton, currentStatus === 'arrived' && styles.statusButtonActive]}
-                  onPress={() => handleUpdateStatus(item.id, 'arrived')}
-                >
-                  <Text style={[styles.buttonText, currentStatus === 'arrived' && { color: '#fff' }]}>Arrived</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.statusButton, currentStatus === 'finished' && styles.statusButtonActive]}
-                  onPress={() => handleUpdateStatus(item.id, 'finished')}
-                >
-                  <Text style={[styles.buttonText, currentStatus === 'finished' && { color: '#fff' }]}>Finished</Text>
-                </TouchableOpacity>
+
+                {editingAppointmentId === item.id && (
+                  <View style={styles.dropdownMenu}>
+                    {(['scheduled', 'completed', 'cancelled', 'no-show'] as const).map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[
+                          styles.dropdownItem,
+                          editingStatus === status && styles.dropdownItemSelected
+                        ]}
+                        onPress={() => {
+                          setEditingStatus(status);
+                        }}
+                      >
+                        <View style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: 3,
+                          backgroundColor: getStatusColor(status),
+                          marginRight: 8
+                        }} />
+                        <Text style={[
+                          styles.dropdownItemText,
+                          editingStatus === status && styles.dropdownItemTextSelected
+                        ]}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </Text>
+                        {editingStatus === status && (
+                          <Text style={styles.checkmark}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {editingAppointmentId === item.id && (
+                  <View style={styles.actionButtonsRow}>
+                    <TouchableOpacity 
+                      style={[styles.saveButton, styles.saveButtonConfirm]}
+                      onPress={handleSaveStatus}
+                    >
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.saveButton, styles.saveButtonCancel]}
+                      onPress={handleCancelEdit}
+                    >
+                      <Text style={styles.saveButtonCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </View>
           );
@@ -386,25 +455,100 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
   },
-  statusButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
+  statusDropdownButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  statusButtonActive: {
-    backgroundColor: '#0b7fab',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
     borderColor: '#0b7fab',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minWidth: '100%',
+    marginBottom: 8,
   },
-  buttonText: {
-    fontSize: 11,
-    fontWeight: '600',
+  dropdownButtonText: {
+    fontSize: 13,
+    fontWeight: 'bold',
     color: '#333',
+  },
+  dropdownArrow: {
+    fontSize: 10,
+    color: '#0b7fab',
+    marginLeft: 8,
+  },
+  dropdownMenu: {
+    backgroundColor: '#fff',
+    borderColor: '#0b7fab',
+    borderWidth: 1,
+    borderRadius: 6,
+    marginBottom: 8,
+    overflow: 'hidden',
+    minWidth: '100%',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomColor: '#f0f0f0',
+    borderBottomWidth: 1,
+    backgroundColor: '#fff',
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#E3F2FD',
+    borderBottomColor: '#0b7fab',
+    borderBottomWidth: 2,
+  },
+  dropdownItemText: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  dropdownItemTextSelected: {
+    color: '#0b7fab',
+    fontWeight: 'bold',
+  },
+  checkmark: {
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    minWidth: '100%',
+  },
+  saveButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  saveButtonConfirm: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  saveButtonCancel: {
+    backgroundColor: '#fff',
+    borderColor: '#F44336',
+  },
+  saveButtonText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  saveButtonCancelText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#F44336',
   },
   name: {
     fontWeight: "bold",

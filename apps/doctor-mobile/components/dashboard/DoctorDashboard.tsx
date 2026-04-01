@@ -17,6 +17,7 @@ import StatCard from "./StatCard";
 import AllAppointments from "../appointments/AllAppointments";
 import { CurrentUser } from "@smileguard/shared-types";
 
+
 interface DoctorDashboardProps {
   user: CurrentUser;
   onLogout: () => void;
@@ -35,7 +36,7 @@ export type AppointmentType = {
   notes: string;
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
-  status?: 'scheduled' | 'arrived' | 'finished'; // Appointment status
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show'; // Appointment status
 };
 
 const getToday = () => {
@@ -65,6 +66,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       email: "mart.emman@email.com",
       notes: "Patient requests extra numbing gel. History of sensitivity.",
       imageUrl: require("../../assets/images/researchers/mart.jpg"),
+      status: 'scheduled',
     },
     {
       id: "apt-2",
@@ -78,6 +80,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       email: "jendri.jacin@email.com",
       notes: "First time for aligners. No allergies reported.",
       imageUrl: require("../../assets/images/researchers/jendri.jpg"),
+      status: 'scheduled',
     },
     {
       id: "apt-3",
@@ -91,6 +94,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       email: "kyler.per@email.com",
       notes: "Follow-up for root canal. Mild swelling last visit.",
       imageUrl: require("../../assets/images/researchers/kyler.jpg"),
+      status: 'completed',
     },
   ]);
 
@@ -108,7 +112,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       email: "marie.yan@email.com",
       notes: "Request for cleaning. No known allergies.",
       imageUrl: require("../../assets/images/researchers/mariel.jpg"),
-      initials: "MY",
     },
     // Add more requests as needed
   ]);
@@ -157,10 +160,18 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setEditedPatient(null);
   };
 
-  const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'arrived' | 'finished') => {
+  const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
     setAppointments((prev: AppointmentType[]) =>
       prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
     );
+  };
+
+  const getStatusBgColor = (status?: string) => {
+    if (status === 'scheduled') return '#FFC107';
+    if (status === 'completed') return '#4CAF50';
+    if (status === 'cancelled') return '#F44336';
+    if (status === 'no-show') return '#9C27B0';
+    return '#999';
   };
 
   return (
@@ -213,15 +224,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
                 ) : (
                   todayAppointments.map((apt, idx) => (
-                    <AppointmentCard
-                      key={apt.id}
-                      name={apt.name}
-                      service={apt.service}
-                      time={apt.time}
-                      imageUrl={apt.imageUrl}
-                      onPress={() => handlePress(apt)}
-                      highlighted={idx === 0}
-                    />
+                    <>
+                      <AppointmentCard
+                        key={apt.id}
+                        name={apt.name}
+                        service={apt.service}
+                        time={apt.time}
+                        imageUrl={apt.imageUrl}
+                        onPress={() => handlePress(apt)}
+                        highlighted={idx === 0}
+                      />
+                    </>
                   ))
                 )}
                 <Modal
@@ -280,6 +293,19 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     <Text style={{ color: "#555", marginTop: 6 }}>
                       <Text style={{ fontWeight: "bold" }}>Notes:</Text> {selectedPatient.notes}
                     </Text>
+                    <View style={{ marginTop: 12, alignItems: 'center' }}>
+                      <Text style={{ fontWeight: "bold", marginBottom: 6 }}>Appointment Status:</Text>
+                      <View style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 20,
+                        backgroundColor: getStatusBgColor(selectedPatient.status || 'scheduled')
+                      }}>
+                        <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 12 }}>
+                          {(selectedPatient.status || 'scheduled').toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
                 )}
 
@@ -359,6 +385,34 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                               onChangeText={(text) => setEditedPatient({ ...editedPatient, notes: text })}
                               multiline
                             />
+                          </View>
+
+                          <View style={styles.editField}>
+                            <Text style={styles.editLabel}>Appointment Status:</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                              {(['scheduled', 'completed', 'cancelled', 'no-show'] as const).map((st) => (
+                                <TouchableOpacity
+                                  key={st}
+                                  style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 8,
+                                    borderRadius: 20,
+                                    backgroundColor: editedPatient.status === st ? getStatusBgColor(st) : '#e0e0e0',
+                                    borderWidth: editedPatient.status === st ? 2 : 0,
+                                    borderColor: editedPatient.status === st ? '#0b7fab' : 'transparent'
+                                  }}
+                                  onPress={() => setEditedPatient({ ...editedPatient, status: st })}
+                                >
+                                  <Text style={{
+                                    fontWeight: 'bold',
+                                    color: editedPatient.status === st ? '#fff' : '#333',
+                                    fontSize: 12
+                                  }}>
+                                    {st.toUpperCase()}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
                           </View>
 
                           <View style={styles.editButtonContainer}>
