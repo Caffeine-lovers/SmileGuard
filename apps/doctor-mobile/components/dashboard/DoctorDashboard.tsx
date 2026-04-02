@@ -15,6 +15,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AppointmentCard from "./AppointmentCard";
 import StatCard from "./StatCard";
 import AllAppointments from "../appointments/AllAppointments";
+import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import { CurrentUser } from "@smileguard/shared-types";
 
 
@@ -73,6 +74,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [showAllPatients, setShowAllPatients] = useState(false);
   const [patientSearchQuery, setPatientSearchQuery] = useState<string>("");
   const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
+  const [showPatientDetails, setShowPatientDetails] = useState(false);
+  const [viewingPatient, setViewingPatient] = useState<AppointmentType | null>(null);
+  const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
+  const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -365,6 +371,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           </TouchableOpacity>
         </View>
 
+        {/* Main Content Area */}
+        {activeTab === 'dashboard' ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.container}>
             <Text style={[styles.header, { marginBottom: 20 }]}>
@@ -893,16 +901,27 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                                     </Text>
                                   </View>
                                 </View>
-                                <TouchableOpacity 
-                                  style={{ paddingHorizontal: 8 }}
-                                  onPress={() => {
-                                    setOriginalPatient({ ...patient });
-                                    setEditedPatient({ ...patient });
-                                    setIsEditingPatient(true);
-                                  }}
-                                >
-                                  <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>Edit</Text>
-                                </TouchableOpacity>
+                                <View style={{ flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                                  <TouchableOpacity 
+                                    style={{ paddingHorizontal: 8 }}
+                                    onPress={() => {
+                                      setViewingPatient(patient);
+                                      setShowPatientDetails(true);
+                                    }}
+                                  >
+                                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>View</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity 
+                                    style={{ paddingHorizontal: 8 }}
+                                    onPress={() => {
+                                      setOriginalPatient({ ...patient });
+                                      setEditedPatient({ ...patient });
+                                      setIsEditingPatient(true);
+                                    }}
+                                  >
+                                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>Edit</Text>
+                                  </TouchableOpacity>
+                                </View>
                               </View>
                             </View>
                           ))
@@ -915,7 +934,192 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </View>
         </ScrollView>
+        ) : (
+        // Records Tab Content
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+            <TextInput
+              style={{
+                backgroundColor: '#fff',
+                borderColor: '#0b7fab',
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: '#333',
+              }}
+              placeholder="Search by name, service, email, contact..."
+              placeholderTextColor="#999"
+              value={quickSearchQuery}
+              onChangeText={setQuickSearchQuery}
+            />
+          </View>
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+            {patients
+              .filter((patient) =>
+                patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                patient.contact.includes(quickSearchQuery)
+              )
+              .length === 0 ? (
+              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'All patients listed below'}
+              </Text>
+            ) : (
+              patients
+                .filter((patient) =>
+                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.contact.includes(quickSearchQuery)
+                )
+                .map((patient) => (
+                  <TouchableOpacity
+                    key={patient.id}
+                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                    onPress={() => {
+                      setViewingPatient(patient);
+                      setShowPatientDetails(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Image
+                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.contact}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
+        )}
       </SafeAreaView>
+
+      {/* Patient Details Modal */}
+      <PatientDetailsView
+        visible={showPatientDetails}
+        patient={viewingPatient}
+        onClose={() => {
+          setShowPatientDetails(false);
+          setViewingPatient(null);
+        }}
+      />
+
+      {/* Quick Patient Search Modal */}
+      <Modal
+        visible={showQuickPatientSearch}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowQuickPatientSearch(false);
+          setQuickSearchQuery("");
+        }}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0b7fab' }}>Search Patient Records</Text>
+            <TouchableOpacity onPress={() => {
+              setShowQuickPatientSearch(false);
+              setQuickSearchQuery("");
+            }}>
+              <Text style={{ fontSize: 24, color: '#0b7fab', fontWeight: 'bold' }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+            <TextInput
+              style={{
+                backgroundColor: '#fff',
+                borderColor: '#0b7fab',
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: '#333',
+              }}
+              placeholder="Search by name, service, email, contact..."
+              placeholderTextColor="#999"
+              value={quickSearchQuery}
+              onChangeText={setQuickSearchQuery}
+            />
+          </View>
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+            {patients
+              .filter((patient) =>
+                patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                patient.contact.includes(quickSearchQuery)
+              )
+              .length === 0 ? (
+              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'Enter a search query to find patients'}
+              </Text>
+            ) : (
+              patients
+                .filter((patient) =>
+                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.contact.includes(quickSearchQuery)
+                )
+                .map((patient) => (
+                  <TouchableOpacity
+                    key={patient.id}
+                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                    onPress={() => {
+                      setViewingPatient(patient);
+                      setShowPatientDetails(true);
+                      setShowQuickPatientSearch(false);
+                      setQuickSearchQuery("");
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Image
+                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.service} • {patient.contact}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Bottom Tab Bar */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'dashboard' && styles.tabItemActive]}
+          onPress={() => {
+            setActiveTab('dashboard');
+            setQuickSearchQuery("");
+          }}
+        >
+          <Text style={[styles.tabIcon, activeTab === 'dashboard' && styles.tabIconActive]}>🏠</Text>
+          <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Dashboard</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'records' && styles.tabItemActive]}
+          onPress={() => setActiveTab('records')}
+        >
+          <Text style={[styles.tabIcon, activeTab === 'records' && styles.tabIconActive]}>📋</Text>
+          <Text style={[styles.tabLabel, activeTab === 'records' && styles.tabLabelActive]}>Records</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaProvider>
   );
 }
@@ -946,6 +1150,41 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderTopColor: '#e0e0e0',
+    borderTopWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+    justifyContent: 'space-around',
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  tabItemActive: {
+    borderTopWidth: 3,
+    borderTopColor: '#0b7fab',
+  },
+  tabIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  tabIconActive: {
+    fontSize: 24,
+  },
+  tabLabel: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+  },
+  tabLabelActive: {
+    color: '#0b7fab',
+    fontWeight: '600',
   },
   scrollContent: {
     paddingBottom: 40,
