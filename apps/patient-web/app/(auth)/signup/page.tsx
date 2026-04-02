@@ -79,16 +79,16 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
-      <h2 className="text-3xl font-bold text-center mb-2 text-gray-800">
+    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card">
+      <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
         Create Account
       </h2>
-      <p className="text-center text-gray-500 mb-8">
+      <p className="text-center text-text-secondary mb-8">
         Step {step} of 2
       </p>
 
       {(authError || localError) && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6 text-sm">
+        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
           {authError || localError}
         </div>
       )}
@@ -96,7 +96,7 @@ export default function SignupPage() {
       {step === 1 ? (
         <form onSubmit={handleNext} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Full Name
             </label>
             <input
@@ -104,13 +104,13 @@ export default function SignupPage() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
               placeholder="John Doe"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Email Address
             </label>
             <input
@@ -118,19 +118,19 @@ export default function SignupPage() {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Service Type
             </label>
             <select
               value={formData.service}
               onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
             >
               <option value="General">General Checkup</option>
               <option value="Cleaning">Cleaning</option>
@@ -142,7 +142,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Password
             </label>
             <input
@@ -150,30 +150,30 @@ export default function SignupPage() {
               value={formData.password}
               onChange={(e) => handlePasswordChange(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
               placeholder="••••••••"
             />
             <div className="mt-2 text-sm space-y-1">
-              <p className={`${passwordCheck.hasUpperCase ? 'text-green-600' : 'text-gray-500'}`}>
+              <p className={`${passwordCheck.hasUpperCase ? 'text-green-600' : 'text-text-secondary'}`}>
                 ✓ Uppercase letter
               </p>
-              <p className={`${passwordCheck.hasLowerCase ? 'text-green-600' : 'text-gray-500'}`}>
+              <p className={`${passwordCheck.hasLowerCase ? 'text-green-600' : 'text-text-secondary'}`}>
                 ✓ Lowercase letter
               </p>
-              <p className={`${passwordCheck.hasNumber ? 'text-green-600' : 'text-gray-500'}`}>
+              <p className={`${passwordCheck.hasNumber ? 'text-green-600' : 'text-text-secondary'}`}>
                 ✓ Number
               </p>
-              <p className={`${passwordCheck.hasSpecialChar ? 'text-green-600' : 'text-gray-500'}`}>
+              <p className={`${passwordCheck.hasSpecialChar ? 'text-green-600' : 'text-text-secondary'}`}>
                 ✓ Special character
               </p>
-              <p className={`${passwordCheck.length ? 'text-green-600' : 'text-gray-500'}`}>
+              <p className={`${passwordCheck.length ? 'text-green-600' : 'text-text-secondary'}`}>
                 ✓ At least 8 characters
               </p>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Confirm Password
             </label>
             <input
@@ -181,14 +181,14 @@ export default function SignupPage() {
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
               placeholder="••••••••"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition"
+            className="w-full bg-brand-primary hover:bg-brand-primary/90 text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
           >
             Next: Medical Information
           </button>
@@ -211,7 +211,7 @@ export default function SignupPage() {
                 }
                 className="w-4 h-4"
               />
-              <span className="ml-2 text-gray-700">I have diabetes</span>
+              <span className="ml-2 text-text-primary">I have diabetes</span>
             </label>
           </div>
 
@@ -231,12 +231,12 @@ export default function SignupPage() {
                 }
                 className="w-4 h-4"
               />
-              <span className="ml-2 text-gray-700">I have heart disease</span>
+              <span className="ml-2 text-text-primary">I have heart disease</span>
             </label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Allergies
             </label>
             <textarea
@@ -250,7 +250,7 @@ export default function SignupPage() {
                   },
                 })
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
               placeholder="List any allergies..."
               rows={3}
             />
@@ -260,14 +260,14 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition"
+              className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
             >
               Back
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition"
+              className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
             >
               {loading ? 'Creating...' : 'Create Account'}
             </button>
@@ -276,9 +276,9 @@ export default function SignupPage() {
       )}
 
       <div className="mt-6 text-center">
-        <p className="text-gray-600">
+        <p className="text-text-secondary">
           Already have an account?{' '}
-          <Link href="/login" className="text-blue-600 font-medium hover:underline">
+          <Link href="/login" className="text-text-link font-medium hover:underline">
             Login
           </Link>
         </p>

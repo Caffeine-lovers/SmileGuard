@@ -38,28 +38,28 @@ export default function AnalysisPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-bg-screen">
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">AI Oral Analysis</h1>
-        <p className="text-gray-600 mb-8">Upload a photo of your teeth for AI-powered analysis</p>
+        <h1 className="text-4xl font-bold text-brand-cyan mb-2">🔍 AI Oral Analysis</h1>
+        <p className="text-text-secondary mb-8">Upload a photo of your teeth for AI-powered analysis</p>
 
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-bg-surface rounded-card shadow-sm border border-border-card p-8">
           {/* Image Upload */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-4">
+            <label className="block text-sm font-semibold text-text-primary mb-4">
               Upload Image
             </label>
-            <div className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition">
+            <div className="border-2 border-dashed border-brand-primary/30 rounded-lg p-8 text-center hover:border-brand-primary transition">
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleFileSelect}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-text-on-avatar hover:file:bg-brand-primary/90"
               />
               {selectedFile && (
                 <p className="text-sm text-green-600 mt-2">✓ {selectedFile.name} selected</p>
               )}
-              <p className="text-xs text-gray-500 mt-4">JPG, PNG or WebP image (max 5MB)</p>
+              <p className="text-xs text-text-secondary mt-4">JPG, PNG or WebP image (max 5MB)</p>
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export default function AnalysisPage() {
             <button
               onClick={handleUpload}
               disabled={uploading || !selectedFile}
-              className="w-full p-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              className="w-full p-3 bg-brand-primary text-text-on-avatar font-semibold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition"
             >
               {uploading ? 'Analyzing...' : 'Analyze Image'}
             </button>
@@ -76,16 +76,16 @@ export default function AnalysisPage() {
 
           {/* Results */}
           {result && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-card">
               <h3 className="font-semibold text-green-800 mb-2">Analysis Results</h3>
               <p className="text-green-700">{result}</p>
             </div>
           )}
 
           {/* Info Box */}
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
-            <p className="font-semibold mb-2">Tips for best results:</p>
-            <ul className="list-disc pl-5 space-y-1">
+          <div className="p-4 bg-brand-primary/5 border border-brand-primary/20 rounded-card text-sm text-text-primary">
+            <p className="font-semibold mb-2">💡 Tips for best results:</p>
+            <ul className="list-disc pl-5 space-y-1 text-text-secondary">
               <li>Ensure good lighting and clear visibility of your teeth</li>
               <li>Take a straight-on photo of your front teeth</li>
               <li>Keep the image steady and in focus</li>
@@ -96,7 +96,7 @@ export default function AnalysisPage() {
 
         {/* Back Link */}
         <div className="mt-8">
-          <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 font-medium">
+          <Link href="/dashboard" className="text-text-link hover:text-brand-primary/90 font-medium">
             ← Back to Dashboard
           </Link>
         </div>

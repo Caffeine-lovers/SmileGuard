@@ -9,11 +9,25 @@ const BookAppointment = dynamic(
 
 export default function AppointmentsPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">Book an Appointment</h1>
-        <p className="text-gray-600 mb-8">Schedule a visit with our dental professionals</p>
-        <BookAppointment />
+    <div className="min-h-screen bg-bg-screen">
+      <div className="px-4 py-8">
+        <div className="max-w-7xl mx-auto mb-8">
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 px-2">
+          {/* Empty space on left for balance */}
+          <div className="lg:col-span-1" />
+
+          {/* Book Appointment (Center) - Main Form */}
+          <div className="lg:col-span-2">
+            <div className="sticky top-8 shadow-lg rounded-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.4)]">
+              <BookAppointment />
+            </div>
+          </div>
+
+          {/* Empty space on right for balance */}
+          <div className="lg:col-span-1" />
+        </div>
       </div>
     </div>
   );
