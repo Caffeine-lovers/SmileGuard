@@ -17,6 +17,7 @@ import StatCard from "./StatCard";
 import AllAppointments from "../appointments/AllAppointments";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "./RecordsTab";
+import AppointmentsTab from "./AppointmentsTab";
 import { CurrentUser } from "@smileguard/shared-types";
 
 
@@ -68,7 +69,6 @@ const TIME_OPTIONS = generateTimeOptions();
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   // Appointments state
-  const [showAllAppointments, setShowAllAppointments] = useState(false);
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
   const [originalPatient, setOriginalPatient] = useState<AppointmentType | null>(null);
@@ -78,7 +78,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [viewingPatient, setViewingPatient] = useState<AppointmentType | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -291,8 +291,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
       );
       
-      // Check if status was changed to completed and it's for today
-      if (editedPatient.status === 'completed' && editedPatient.date === today) {
+      // Check if status was changed to non-scheduled and it's for today
+      // Remove from dashboard if status is not 'scheduled' (i.e., completed, cancelled, no-show)
+      if (editedPatient.status !== 'scheduled' && editedPatient.date === today) {
         // Remove the appointment from the list
         const updatedAppointments = appointments.filter(apt => apt.id !== editedPatient.id);
         setAppointments(updatedAppointments);
@@ -325,11 +326,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setOriginalPatient(null);
   };
 
-  const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
+  const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard: boolean = false) => {
     const appointment = appointments.find(apt => apt.id === appointmentId);
     
-    // If marking as completed and it's for today, remove it from today's appointments
-    if (status === 'completed' && appointment && appointment.date === today) {
+    // If marking as completed, it's for today, and shouldRemoveFromDashboard is true, remove it from today's appointments
+    if (status === 'completed' && appointment && appointment.date === today && shouldRemoveFromDashboard) {
       const updatedAppointments = appointments.filter(apt => apt.id !== appointmentId);
       setAppointments(updatedAppointments);
       
@@ -401,7 +402,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               <View style={styles.column}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={styles.subHeader}>Today Appointments:</Text>
-                  <TouchableOpacity onPress={() => setShowAllAppointments(true)}>
+                  <TouchableOpacity onPress={() => setActiveTab('appointments')}>
                     <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
                   </TouchableOpacity>
                 </View>
@@ -422,17 +423,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       />
                   ))
                 )}
-                <Modal
-                  visible={showAllAppointments}
-                  animationType="slide"
-                  onRequestClose={() => setShowAllAppointments(false)}
-                >
-                  <View style={{ flex: 1, backgroundColor: '#f0f8ff' }}>
-                    <AllAppointments appointments={appointments} onUpdateAppointmentStatus={handleUpdateAppointmentStatus} />
-                    <Button title="Close" onPress={() => setShowAllAppointments(false)} />
-                  </View>
-                </Modal>
-              </View>
+                </View>
 
               {/* Right Column: Patient Details */}
               <View style={styles.column}>
@@ -809,7 +800,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </View>
         </ScrollView>
-        ) : (
+        ) : activeTab === 'records' ? (
         // Records Tab Content
         <RecordsTab
           patients={patients}
@@ -822,6 +813,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           sortPatients={sortPatients}
           setViewingPatient={setViewingPatient}
           setShowPatientDetails={setShowPatientDetails}
+          styles={styles}
+        />
+        ) : (
+        // Appointments Tab Content
+        <AppointmentsTab
+          appointments={appointments}
+          onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
           styles={styles}
         />
         )}
@@ -948,6 +946,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         >
           <Text style={[styles.tabIcon, activeTab === 'records' && styles.tabIconActive]}>📋</Text>
           <Text style={[styles.tabLabel, activeTab === 'records' && styles.tabLabelActive]}>Records</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, activeTab === 'appointments' && styles.tabItemActive]}
+          onPress={() => setActiveTab('appointments')}
+        >
+          <Text style={[styles.tabIcon, activeTab === 'appointments' && styles.tabIconActive]}>📅</Text>
+          <Text style={[styles.tabLabel, activeTab === 'appointments' && styles.tabLabelActive]}>Appointments</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaProvider>
