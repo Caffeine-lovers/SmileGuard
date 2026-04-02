@@ -13,22 +13,33 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log("[useAuth] Initializing auth hook...");
     supabase.auth
       .getSession()
       .then(({ data: { session } }: { data: { session: Session | null } }) => {
+        console.log("[useAuth] Initial session check:", { hasSession: !!session, userId: session?.user?.id });
         if (session?.user) {
           fetchProfile(session.user.id);
         } else {
+          console.log("[useAuth] No active session found");
           setLoading(false);
         }
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("[useAuth] Error getting session:", err);
+        setLoading(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event: AuthChangeEvent, session: Session | null) => {
+        console.log("[useAuth] Auth state changed:", { event: _event, hasSession: !!session, userId: session?.user?.id });
+        if (_event === "SIGNED_OUT") {
+          console.warn("[useAuth] Session expired or user signed out");
+        }
         if (session?.user) {
           await fetchProfile(session.user.id);
         } else {
+          console.log("[useAuth] Session cleared, user set to null");
           setCurrentUser(null);
         }
       }
@@ -38,7 +49,7 @@ export function useAuth() {
   }, []);
 
   const fetchProfile = async (userId: string) => {
-    console.log("🔍 Fetching profile for user:", userId);
+    console.log("[useAuth] Fetching profile for user:", userId);
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -48,10 +59,11 @@ export function useAuth() {
 
       if (error) {
         if (error.code === "PGRST116") {
-          console.warn("⚠️ Profile not found, creating from user metadata...");
+          console.warn("[useAuth] Profile not found, creating from user metadata...");
           const { data: { user } } = await supabase.auth.getUser();
 
           if (!user || user.id !== userId) {
+            console.error("[useAuth] User verification failed");
             setError("User not found.");
             setLoading(false);
             return;
@@ -73,7 +85,7 @@ export function useAuth() {
             .single();
 
           if (createError) {
-            console.error("❌ Error creating profile:", createError);
+            console.error("[useAuth] Error creating profile:", createError);
             setCurrentUser({
               id: userId,
               name: userName,
@@ -81,6 +93,7 @@ export function useAuth() {
               role: userRole as "patient" | "doctor",
             });
           } else {
+            console.log("[useAuth] Profile created successfully:", createdProfile);
             setCurrentUser({
               id: userId,
               name: createdProfile.name,
@@ -92,6 +105,7 @@ export function useAuth() {
           throw error;
         }
       } else {
+        console.log("[useAuth] Profile fetched successfully:", { name: data.name, role: data.role });
         setCurrentUser({
           id: userId,
           name: data.name,
@@ -100,7 +114,7 @@ export function useAuth() {
         });
       }
     } catch (err) {
-      console.error("❌ Error fetching profile:", err);
+      console.error("[useAuth] Error fetching profile:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch profile");
     } finally {
       setLoading(false);

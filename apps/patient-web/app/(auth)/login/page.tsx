@@ -27,20 +27,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
-      <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">
+    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card">
+      <h2 className="text-3xl font-bold text-center mb-8 text-text-primary">
         Patient Login
       </h2>
 
       {(error || localError) && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6">
           {error || localError}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-text-primary mb-2">
             Email Address
           </label>
           <input
@@ -48,13 +48,13 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition bg-bg-surface text-text-primary"
             placeholder="you@example.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-text-primary mb-2">
             Password
           </label>
           <input
@@ -62,7 +62,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition bg-bg-surface text-text-primary"
             placeholder="••••••••"
           />
         </div>
@@ -70,21 +70,21 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition"
+          className="w-full bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
         >
           {loading ? 'Logging in...' : 'Login'}
         </button>
       </form>
 
       <div className="mt-6 text-center">
-        <p className="text-gray-600">
+        <p className="text-text-secondary">
           Don't have an account?{' '}
-          <Link href="/signup" className="text-blue-600 font-medium hover:underline">
+          <Link href="/signup" className="text-text-link font-medium hover:underline">
             Sign up
           </Link>
         </p>
-        <p className="text-sm text-gray-500 mt-2">
-          <Link href="/reset-password" className="text-blue-600 hover:underline">
+        <p className="text-sm text-text-secondary mt-2">
+          <Link href="/reset-password" className="text-text-link hover:underline">
             Forgot password?
           </Link>
         </p>

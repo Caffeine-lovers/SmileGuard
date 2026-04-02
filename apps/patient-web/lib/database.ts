@@ -43,7 +43,7 @@ export interface Billing {
   patient_id: string;
   appointment_id?: string;
   amount: number;
-  discount_type?: 'none' | 'pwd' | 'senior' | 'insurance';
+  discount_type?: 'none' | 'pwd' | 'senior';
   discount_amount?: number;
   final_amount: number;
   payment_status: 'pending' | 'paid' | 'overdue';
@@ -63,9 +63,6 @@ export const calculateDiscount = (
     case 'pwd':
     case 'senior':
       discountAmount = amount * 0.2; // 20% discount
-      break;
-    case 'insurance':
-      discountAmount = amount * 0.3; // 30% discount (example)
       break;
     default:
       discountAmount = 0;

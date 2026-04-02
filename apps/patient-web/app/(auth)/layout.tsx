@@ -6,12 +6,12 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="flex min-h-screen bg-gradient-to-br from-bg-screen to-brand-primary/10">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-12 bg-blue-600">
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-12 bg-brand-primary">
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-white mb-4">SmileGuard</h1>
-          <p className="text-blue-100 text-lg">
+          <h1 className="text-5xl font-bold text-text-on-avatar mb-4">SmileGuard</h1>
+          <p className="text-text-on-avatar/80 text-lg">
             Your trusted partner for dental health
           </p>
         </div>

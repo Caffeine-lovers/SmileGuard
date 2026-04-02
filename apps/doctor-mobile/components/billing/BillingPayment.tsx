@@ -28,8 +28,8 @@ const SERVICE_PRICES: Record<string, number> = {
   "Fillings": 2000,
   "Root Canal": 8000,
   "Extraction": 1500,
-  "Braces": 35000,
-  "Implants": 45000,
+  "Braces": 25000,
+  "Implants": 2000,
   "X-Ray": 500,
   "Check-up": 300,
 };

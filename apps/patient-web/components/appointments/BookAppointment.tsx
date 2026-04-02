@@ -6,15 +6,15 @@ import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments } fro
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
-  { id: 'cleaning', name: 'Cleaning', duration: 30, price: 1500 },
-  { id: 'whitening', name: 'Whitening', duration: 60, price: 5000 },
-  { id: 'fillings', name: 'Fillings', duration: 45, price: 2000 },
-  { id: 'root-canal', name: 'Root Canal', duration: 90, price: 8000 },
-  { id: 'extraction', name: 'Extraction', duration: 30, price: 1500 },
-  { id: 'braces', name: 'Braces Consultation', duration: 60, price: 35000 },
-  { id: 'implants', name: 'Implants Consultation', duration: 60, price: 45000 },
-  { id: 'xray', name: 'X-Ray', duration: 15, price: 500 },
-  { id: 'checkup', name: 'Check-up', duration: 20, price: 300 },
+  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '🪥' },
+  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '✨' },
+  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '🦷' },
+  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '⚕️' },
+  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '🔧' },
+  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '😁' },
+  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '🏥' },
+  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '📡' },
+  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '🩺' },
 ];
 
 const TIME_SLOTS = [
@@ -27,30 +27,51 @@ interface BookAppointmentProps {
   onCancel?: () => void;
 }
 
+// ─── Step badge ───────────────────────────────────────────────────────────────
+function StepBadge({ n, done }: { n: number; done: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mr-2 transition-colors ${
+        done ? 'bg-brand-primary text-white' : 'bg-border-card text-text-secondary'
+      }`}
+    >
+      {done ? '✓' : n}
+    </span>
+  );
+}
+
+// ─── Locked overlay ───────────────────────────────────────────────────────────
+function LockedOverlay({ message }: { message: string }) {
+  return (
+    <div className="absolute inset-0 rounded-2xl bg-white/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 z-10">
+      <span className="text-2xl">🔒</span>
+      <p className="text-xs font-semibold text-text-secondary">{message}</p>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function BookAppointment({ onSuccess, onCancel }: BookAppointmentProps) {
   const { currentUser } = useAuth();
-  const [selectedService, setSelectedService] = useState<(typeof SERVICES)[0] | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedTime, setSelectedTime] = useState<string>('');
-  const [notes, setNotes] = useState<string>('');
-  const [isBooking, setIsBooking] = useState(false);
-  const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
+  const [selectedService, setSelectedService]         = useState<(typeof SERVICES)[0] | null>(null);
+  const [selectedDate, setSelectedDate]               = useState<string>('');
+  const [selectedTime, setSelectedTime]               = useState<string>('');
+  const [notes, setNotes]                             = useState<string>('');
+  const [isBooking, setIsBooking]                     = useState(false);
+  const [blockedSlots, setBlockedSlots]               = useState<any[]>([]);
   const [loadingBlockedSlots, setLoadingBlockedSlots] = useState(true);
-  const [fullyBookedDates, setFullyBookedDates] = useState<Set<string>>(new Set());
-  const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
-  const [loadingUserData, setLoadingUserData] = useState(true);
+  const [fullyBookedDates, setFullyBookedDates]       = useState<Set<string>>(new Set());
+  const [userAppointments, setUserAppointments]       = useState<Appointment[]>([]);
+  const [loadingUserData, setLoadingUserData]         = useState(true);
 
   const step1Complete = selectedService !== null;
   const step2Complete = step1Complete && selectedDate !== '';
   const step3Complete = step2Complete && selectedTime !== '';
 
-  useEffect(() => {
-    fetchAllBlockedSlots();
-  }, []);
+  useEffect(() => { fetchAllBlockedSlots(); }, []);
 
   useEffect(() => {
     if (!currentUser) return;
-
     async function fetchUserAppointments() {
       setLoadingUserData(true);
       try {
@@ -63,27 +84,23 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         setLoadingUserData(false);
       }
     }
-
     fetchUserAppointments();
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   const fetchAllBlockedSlots = async () => {
     setLoadingBlockedSlots(true);
     try {
       const slots = await getAllBlockedSlots();
       setBlockedSlots(slots);
-
       const dateCounts: Record<string, number> = {};
       for (const slot of slots) {
         dateCounts[slot.date] = (dateCounts[slot.date] ?? 0) + 1;
       }
-
       const full = new Set(
         Object.entries(dateCounts)
           .filter(([, count]) => count >= TIME_SLOTS.length)
           .map(([date]) => date)
       );
-
       setFullyBookedDates(full);
     } catch (error) {
       console.error('Error fetching blocked slots:', error);
@@ -93,31 +110,21 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
   };
 
-  const isSlotDisabled = (date: string, time: string) => {
-    return isSlotTaken(blockedSlots, date, time);
-  };
+  const isSlotDisabled = (date: string, time: string) => isSlotTaken(blockedSlots, date, time);
 
   const handleBooking = async () => {
     if (!selectedService || !selectedDate || !selectedTime || !currentUser) {
       alert('Please select service, date, and time');
       return;
     }
-
     setIsBooking(true);
     try {
-      const result = await bookSlot(
-        currentUser.id,
-        '', // dentistId (optional for now)
-        selectedService.name,
-        selectedDate,
-        selectedTime
-      );
-
+      const result = await bookSlot(currentUser.id, '', selectedService.name, selectedDate, selectedTime);
       if (result.success) {
         alert('Appointment booked successfully!');
         if (onSuccess) {
           onSuccess({
-            id: '1', // This will be generated by Supabase
+            id: '1',
             patient_id: currentUser.id,
             dentist_id: null,
             service: selectedService.name,
@@ -141,144 +148,239 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
   };
 
+  // ─── Loading ────────────────────────────────────────────────────────────────
   if (loadingBlockedSlots) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-bg-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-cyan" />
       </div>
     );
   }
 
+  const formattedDate = selectedDate
+    ? new Date(selectedDate + 'T00:00').toLocaleDateString('en-PH', {
+        weekday: 'short', month: 'short', day: 'numeric',
+      })
+    : null;
+
+  // ─── BENTO LAYOUT ──────────────────────────────────────────────────────────
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-4xl font-bold text-gray-800 mb-2">📅 Book an Appointment</h1>
-      <p className="text-gray-600 mb-8">Schedule a visit with our dental professionals</p>
+    <div className="min-h-screen bg-bg-screen p-4 md:p-6">
 
-      {/* Upcoming Appointments Summary */}
-      {!loadingUserData && userAppointments.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <div className="bg-green-50 rounded-lg shadow-md p-6 border-l-4 border-green-600">
-            <p className="text-sm text-gray-600">Upcoming Appointments</p>
-            <p className="text-3xl font-bold text-green-700">{userAppointments.length}</p>
-            <p className="text-xs text-gray-500 mt-2">Already scheduled</p>
-          </div>
-          <div className="bg-blue-50 rounded-lg shadow-md p-6 border-l-4 border-blue-600">
-            <p className="text-sm text-gray-600">Next Available</p>
-            <p className="text-3xl font-bold text-blue-700">{TIME_SLOTS.length} slots</p>
-            <p className="text-xs text-gray-500 mt-2">Per day</p>
+      {/* Page header */}
+      <div className="mb-5">
+        <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
+        <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
+      </div>
+
+      {/* Bento grid — 12-column base */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+
+        {/* ━━━━ CELL A: Service picker (col 1–8, row 1) ━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
+            <StepBadge n={1} done={step1Complete} />
+            Choose a Service
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {SERVICES.map((service) => {
+              const active = selectedService?.id === service.id;
+              return (
+                <button
+                  type="button"
+                  key={service.id}
+                  onClick={() => setSelectedService(service)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                    active
+                      ? 'border-brand-primary bg-brand-primary/5 shadow-md'
+                      : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
+                  }`}
+                >
+                  <span className="text-2xl block mb-2">{service.icon}</span>
+                  <p className={`font-semibold text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
+                    {service.name}
+                  </p>
+                  <p className="text-xs text-text-secondary mt-0.5">{service.duration} min</p>
+                  <p className={`text-xs font-bold mt-2 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
+                    ₱{service.price.toLocaleString()}
+                  </p>
+                  {active && (
+                    <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-brand-primary flex items-center justify-center">
+                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                        <path d="M1 4L3 6L7 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
 
-      {/* Booking Form */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        {/* Service Selection */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 1: Select Service</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {SERVICES.map((service) => (
-              <button
-                type="button"
-                key={service.id}
-                onClick={() => setSelectedService(service)}
-                className={`p-4 rounded-lg border-2 text-left transition ${
-                  selectedService?.id === service.id
-                    ? 'border-blue-600 bg-blue-50 shadow-md'
-                    : 'border-gray-200 hover:border-blue-300 hover:shadow'
-                }`}
-              >
-                <div className="font-semibold text-gray-800">{service.name}</div>
-                <div className="text-sm text-gray-600 mt-1">{service.duration} mins</div>
-                <div className="text-blue-600 font-bold mt-2">₱{service.price}</div>
-              </button>
-            ))}
+        {/* ━━━━ CELL B: Booking summary (col 9–12, rows 1–2) ━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-4 flex flex-col gap-4">
+
+          {/* Live snapshot card */}
+          <div className="bg-brand-primary rounded-2xl p-5 text-white shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-4">Your Booking</p>
+            <div className="space-y-3">
+              {[
+                { icon: selectedService?.icon ?? '—', label: 'Service', value: selectedService?.name ?? null },
+                { icon: '📅', label: 'Date',    value: formattedDate },
+                { icon: '🕐', label: 'Time',    value: selectedTime || null },
+              ].map(({ icon, label, value }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <span className="text-lg mt-0.5">{icon}</span>
+                  <div>
+                    <p className="text-[10px] text-white/60 uppercase tracking-wide">{label}</p>
+                    <p className="text-sm font-semibold">
+                      {value ?? <span className="text-white/40 italic">Not selected</span>}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {selectedService && (
+                <div className="border-t border-white/20 pt-3 flex justify-between items-center">
+                  <p className="text-xs text-white/60">Estimated fee</p>
+                  <p className="text-lg font-bold">₱{selectedService.price.toLocaleString()}</p>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Prior bookings pill */}
+          {!loadingUserData && userAppointments.length > 0 && (
+            <div className="bg-bg-surface rounded-2xl border border-border-card p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-sm flex-shrink-0">
+                {userAppointments.length}
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-text-primary">Existing bookings</p>
+                <p className="text-xs text-text-secondary">Already on your schedule</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <hr className="my-8" />
-
-        {/* Date Selection */}
-        <div className={`mb-8 transition-opacity ${!step1Complete ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-          {!step1Complete && <p className="text-xs text-amber-600 font-medium mb-2">⚠️ Complete Step 1 first</p>}
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 2: Select Date</h2>
+        {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+          {!step1Complete && <LockedOverlay message="Pick a service first" />}
+          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
+            <StepBadge n={2} done={step2Complete} />
+            Select a Date
+          </p>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            disabled={fullyBookedDates.has(selectedDate)}
-            className="w-full md:w-1/3 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+            disabled={!step1Complete || fullyBookedDates.has(selectedDate)}
+            className="w-full p-3 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-surface text-text-primary text-sm"
           />
-          {fullyBookedDates.has(selectedDate) && (
-            <p className="text-sm text-red-600 mt-2">⚠️ This date is fully booked</p>
-          )}
+          {fullyBookedDates.has(selectedDate) ? (
+            <p className="text-xs text-brand-danger mt-2 font-medium">⚠️ Fully booked — pick another date</p>
+          ) : step2Complete ? (
+            <p className="text-xs text-brand-primary mt-2 font-medium">✓ {formattedDate}</p>
+          ) : null}
         </div>
 
-        <hr className="my-8" />
-
-        {/* Time Selection */}
-        <div className={`mb-8 transition-opacity ${!step2Complete ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-          {!step2Complete && <p className="text-xs text-amber-600 font-medium mb-2">⚠️ Complete Step 2 first</p>}
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 3: Select Time</h2>
-          <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
-            {TIME_SLOTS.map((time) => (
-              <button
-                type="button"
-                key={time}
-                onClick={() => setSelectedTime(time)}
-                disabled={isSlotDisabled(selectedDate, time)}
-                className={`p-2 rounded-lg text-sm font-medium transition ${
-                  selectedTime === time
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : isSlotDisabled(selectedDate, time)
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-gray-100 hover:bg-blue-100 hover:border-blue-300'
-                }`}
-              >
-                {time}
-              </button>
-            ))}
+        {/* ━━━━ CELL D: Time picker (col 6–12, row 2) ━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+          {!step2Complete && <LockedOverlay message="Pick a date first" />}
+          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
+            <StepBadge n={3} done={step3Complete} />
+            Select a Time
+          </p>
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+            {TIME_SLOTS.map((time) => {
+              const disabled = isSlotDisabled(selectedDate, time);
+              const active   = selectedTime === time;
+              return (
+                <button
+                  type="button"
+                  key={time}
+                  onClick={() => setSelectedTime(time)}
+                  disabled={!step2Complete || disabled}
+                  className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                    active
+                      ? 'bg-brand-primary text-white shadow-sm'
+                      : disabled
+                        ? 'bg-border-card text-text-secondary cursor-not-allowed line-through opacity-50'
+                        : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'
+                  }`}
+                >
+                  {time}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <hr className="my-8" />
-
-        {/* Notes */}
-        <div className={`mb-8 transition-opacity ${!step3Complete ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-          {!step3Complete && <p className="text-xs text-amber-600 font-medium mb-2">⚠️ Complete Step 3 first</p>}
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Step 4: Additional Notes (Optional)</h2>
+        {/* ━━━━ CELL E: Notes (col 1–8, row 3) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-8 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+          {!step3Complete && <LockedOverlay message="Complete steps 1–3 first" />}
+          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
+            <StepBadge n={4} done={step3Complete && notes.length > 0} />
+            Notes{' '}
+            <span className="text-text-secondary font-normal normal-case tracking-normal ml-1">(optional)</span>
+          </p>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any special requests, medical concerns, or conditions we should know about..."
-            className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50"
+            disabled={!step3Complete}
+            placeholder="Any special requests, medical concerns, or conditions we should know about…"
             rows={4}
+            className="w-full p-4 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
           />
         </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <button
-          type="button"
-          onClick={handleBooking}
-          disabled={isBooking || !step3Complete}
-          className={`flex-1 p-4 font-bold rounded-lg transition text-lg text-white ${
-            step3Complete
-              ? 'bg-blue-600 hover:bg-blue-700'
-              : 'bg-gray-300 cursor-not-allowed text-gray-500'
-          }`}
-        >
-          {isBooking ? '⏳ Booking...' : step3Complete ? '✓ Confirm Appointment' : '⬆ Complete all steps to confirm'}
-        </button>
-        {onCancel && (
+        {/* ━━━━ CELL F: Confirm CTA (col 9–12, row 3) ━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-4 flex flex-col gap-3">
           <button
             type="button"
-            onClick={onCancel}
-            className="flex-1 p-4 bg-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-400 transition"
+            onClick={handleBooking}
+            disabled={isBooking || !step3Complete}
+            className={`w-full py-5 rounded-2xl font-bold text-base transition-all duration-200 ${
+              step3Complete
+                ? 'bg-brand-primary text-white hover:bg-brand-primary/90 shadow-md hover:shadow-lg hover:-translate-y-0.5'
+                : 'bg-border-card text-text-secondary cursor-not-allowed'
+            }`}
           >
-            Cancel
+            {isBooking ? '⏳ Booking…' : step3Complete ? '✓ Confirm Appointment' : '⬆ Complete all steps'}
           </button>
-        )}
+
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-full py-4 rounded-2xl bg-bg-surface border border-border-card text-text-primary font-semibold text-sm hover:bg-bg-notes transition"
+            >
+              Cancel
+            </button>
+          )}
+
+          {/* Progress tracker — shown while steps are incomplete */}
+          {!step3Complete && (
+            <div className="bg-bg-notes rounded-2xl border border-border-card p-4">
+              <p className="text-xs text-text-secondary font-medium mb-2">Progress</p>
+              <div className="space-y-1.5">
+                {[
+                  { label: 'Service', done: step1Complete },
+                  { label: 'Date',    done: step2Complete },
+                  { label: 'Time',    done: step3Complete },
+                ].map((s) => (
+                  <div key={s.label} className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${s.done ? 'bg-brand-primary' : 'bg-border-card'}`} />
+                    <p className={`text-xs ${s.done ? 'text-brand-primary font-semibold' : 'text-text-secondary'}`}>
+                      {s.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );

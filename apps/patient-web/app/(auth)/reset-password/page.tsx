@@ -97,16 +97,16 @@ export default function ResetPasswordPage() {
 
   if (!ready) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="text-gray-600 mt-4">Verifying reset link...</p>
+      <div className="bg-bg-surface rounded-lg shadow-lg p-8 text-center border border-border-card">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto"></div>
+        <p className="text-text-secondary mt-4">Verifying reset link...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-8">
-      <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">
+    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card">
+      <h2 className="text-3xl font-bold text-center mb-8 text-text-primary">
         🔐 Set New Password
       </h2>
 
@@ -115,8 +115,8 @@ export default function ResetPasswordPage() {
           message.includes('✅') || message.includes('updated')
             ? 'bg-green-50 border border-green-200 text-green-700'
             : message.includes('Error') || message.includes('invalid')
-            ? 'bg-red-50 border border-red-200 text-red-700'
-            : 'bg-blue-50 border border-blue-200 text-blue-700'
+            ? 'bg-brand-danger/10 border border-brand-danger text-brand-danger'
+            : 'bg-brand-primary/10 border border-brand-primary text-brand-primary'
         }`}>
           {message}
         </div>
@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
       {!message.includes('✅') && !message.includes('invalid') && (
         <form onSubmit={handleReset} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               New Password
             </label>
             <input
@@ -133,16 +133,16 @@ export default function ResetPasswordPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition bg-bg-surface text-text-primary"
               placeholder="••••••••"
             />
-            <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
+            <p className="text-xs text-text-secondary mt-1">Must be at least 8 characters</p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition"
+            className="w-full bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
           >
             {loading ? 'Updating...' : 'Update Password'}
           </button>
@@ -150,7 +150,7 @@ export default function ResetPasswordPage() {
       )}
 
       <div className="mt-6 text-center">
-        <Link href="/login" className="text-blue-600 font-medium hover:underline">
+        <Link href="/login" className="text-text-link font-medium hover:underline">
           Return to Login
         </Link>
       </div>
