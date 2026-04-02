@@ -11,7 +11,10 @@ import {
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AppointmentType } from "./DoctorDashboard";
+import { Appointment } from "../../data/dashboardData";
+
+// Type alias for backwards compatibility
+type AppointmentType = Appointment;
 
 interface AppointmentsTabProps {
   appointments: AppointmentType[];
