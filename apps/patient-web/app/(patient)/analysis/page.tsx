@@ -3,16 +3,46 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+interface Detection {
+  class_id: number;
+  class_name: string;
+  confidence: number;
+  bbox_xyxy: number[];
+  bbox_xywhn: number[];
+}
+
+interface AnalysisResult {
+  detections: Detection[];
+  count: number;
+  image_size: number[];
+  model: string;
+}
+
 export default function AnalysisPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      setResult(null); // Reset previous result when a new image is selected
     }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = reader.result as string;
+        // Remove the data:image/jpeg;base64, prefix
+        const base64Data = base64String.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = (error) => reject(error);
+    });
   };
 
   const handleUpload = async () => {
@@ -23,15 +53,35 @@ export default function AnalysisPage() {
 
     setUploading(true);
     try {
-      // Mock AI analysis
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setResult(
-        'AI Analysis Complete: The image shows good overall oral health. Regular brushing and flossing recommended.'
-      );
-      setSelectedFile(null);
-    } catch (error) {
+      const endpoint = process.env.NEXT_PUBLIC_SMILEGUARD_ENDPOINT;
+      if (!endpoint) {
+        throw new Error('Modal Prediction URL is not set in environment variables.');
+      }
+
+      // Convert image to base64
+      const image_b64 = await fileToBase64(selectedFile);
+
+      // Send to Modal.com Serverless GPU
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_b64: image_b64,
+          conf: 0.30,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data: AnalysisResult = await response.json();
+      setResult(data);
+    } catch (error: any) {
       console.error('Error uploading image:', error);
-      alert('Failed to analyze image');
+      alert(`Failed to analyze image: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -78,7 +128,21 @@ export default function AnalysisPage() {
           {result && (
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-card">
               <h3 className="font-semibold text-green-800 mb-2">Analysis Results</h3>
-              <p className="text-green-700">{result}</p>
+              {result.count === 0 ? (
+                <p className="text-green-700">No issues detected! Your teeth look clean based on this image.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-green-700 font-medium">Found {result.count} potential issue{result.count > 1 ? 's' : ''}:</p>
+                  <ul className="list-disc pl-5 mt-2 text-green-800">
+                    {result.detections.map((det, index) => (
+                      <li key={index} className="capitalize">
+                        <strong>{det.class_name.replace('_', ' ')}</strong> ({(det.confidence * 100).toFixed(1)}% confidence)
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm text-green-700 mt-4 italic">Please show these results to your dentist for a professional diagnosis.</p>
+                </div>
+              )}
             </div>
           )}
 
