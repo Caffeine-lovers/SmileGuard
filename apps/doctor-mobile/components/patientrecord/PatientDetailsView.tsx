@@ -30,6 +30,7 @@ interface PatientDetailsViewProps {
   visible: boolean;
   patient: AppointmentType | null;
   onClose: () => void;
+  onEdit?: () => void;
 }
 
 const getStatusColor = (status?: string) => {
@@ -67,7 +68,7 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
-export default function PatientDetailsView({ visible, patient, onClose }: PatientDetailsViewProps) {
+export default function PatientDetailsView({ visible, patient, onClose, onEdit }: PatientDetailsViewProps) {
   if (!patient) return null;
 
   return (
@@ -145,9 +146,25 @@ export default function PatientDetailsView({ visible, patient, onClose }: Patien
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.closeButtonFull} onPress={onClose}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {onEdit && (
+              <TouchableOpacity 
+                style={[styles.closeButtonFull, { backgroundColor: '#0b7fab', flex: 1 }]} 
+                onPress={() => {
+                  onEdit();
+                  onClose();
+                }}
+              >
+                <Text style={styles.closeButtonText}>Edit</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity 
+              style={[styles.closeButtonFull, { backgroundColor: '#999', flex: onEdit ? 1 : undefined }]} 
+              onPress={onClose}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     </Modal>

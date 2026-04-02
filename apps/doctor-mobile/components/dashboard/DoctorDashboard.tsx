@@ -16,6 +16,7 @@ import AppointmentCard from "./AppointmentCard";
 import StatCard from "./StatCard";
 import AllAppointments from "../appointments/AllAppointments";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
+import RecordsTab from "./RecordsTab";
 import { CurrentUser } from "@smileguard/shared-types";
 
 
@@ -71,9 +72,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
   const [originalPatient, setOriginalPatient] = useState<AppointmentType | null>(null);
-  const [showAllPatients, setShowAllPatients] = useState(false);
-  const [patientSearchQuery, setPatientSearchQuery] = useState<string>("");
   const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
+  const [patientSortOrder, setPatientSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
   const [viewingPatient, setViewingPatient] = useState<AppointmentType | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
@@ -276,6 +276,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } else if (patientSortBy === 'service') {
       sorted.sort((a, b) => a.service.localeCompare(b.service));
+    }
+    
+    if (patientSortOrder === 'desc') {
+      sorted.reverse();
     }
     return sorted;
   };
@@ -769,166 +773,37 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients List:</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <Text style={{ fontSize: 12, color: '#999' }}>Showing {Math.min(3, patients.length)} of {patients.length} patients</Text>
-                  <TouchableOpacity onPress={() => setShowAllPatients(true)}>
+                  <TouchableOpacity onPress={() => setActiveTab('records')}>
                     <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
                   </TouchableOpacity>
                 </View>
                 {patients.slice(0, 3).map((patient) => (
-                  <View key={patient.id} style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
-                        <Text style={{ fontSize: 11, color: '#999' }}>{patient.contact}</Text>
+                  <TouchableOpacity
+                    key={patient.id}
+                    onPress={() => {
+                      setViewingPatient(patient);
+                      setShowPatientDetails(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Image
+                          source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                          style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
+                          <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
+                          <Text style={{ fontSize: 11, color: '#999' }}>{patient.contact}</Text>
+                        </View>
+                        <Text style={{ fontSize: 14, color: '#0b7fab' }}>→</Text>
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
 
-                {/* All Patients Modal */}
-                <Modal
-                  visible={showAllPatients}
-                  animationType="slide"
-                  onRequestClose={() => {
-                    setShowAllPatients(false);
-                    setPatientSearchQuery("");
-                  }}
-                >
-                  <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
-                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0b7fab' }}>All Patients</Text>
-                      <TouchableOpacity onPress={() => {
-                        setShowAllPatients(false);
-                        setPatientSearchQuery("");
-                      }}>
-                        <Text style={{ fontSize: 16, color: '#0b7fab', fontWeight: 'bold' }}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
-                      <TextInput
-                        style={{
-                          backgroundColor: '#fff',
-                          borderColor: '#0b7fab',
-                          borderWidth: 1,
-                          borderRadius: 8,
-                          paddingHorizontal: 12,
-                          paddingVertical: 10,
-                          fontSize: 14,
-                          color: '#333',
-                          marginBottom: 12,
-                        }}
-                        placeholder="Search patients by name, service..."
-                        placeholderTextColor="#999"
-                        value={patientSearchQuery}
-                        onChangeText={setPatientSearchQuery}
-                      />
-                      <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap' }}>
-                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666', alignSelf: 'center' }}>Sort by:</Text>
-                        <TouchableOpacity
-                          onPress={() => setPatientSortBy('name')}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 16,
-                            backgroundColor: patientSortBy === 'name' ? '#0b7fab' : '#e0e0e0',
-                            borderWidth: 1,
-                            borderColor: patientSortBy === 'name' ? '#0b7fab' : '#ccc',
-                          }}
-                        >
-                          <Text style={{ fontSize: 12, color: patientSortBy === 'name' ? '#fff' : '#333', fontWeight: '500' }}>Name</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => setPatientSortBy('date')}
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 16,
-                            backgroundColor: patientSortBy === 'date' ? '#0b7fab' : '#e0e0e0',
-                            borderWidth: 1,
-                            borderColor: patientSortBy === 'date' ? '#0b7fab' : '#ccc',
-                          }}
-                        >
-                          <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                    <ScrollView style={{ padding: 16 }}>
-                      {sortPatients(
-                        patients
-                          .filter((patient) =>
-                            patient.name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                            patient.service.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                            patient.email.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                            patient.contact.includes(patientSearchQuery)
-                          )
-                      ).length === 0 ? (
-                        <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 16 }}>
-                          No patients found matching "{patientSearchQuery}"
-                        </Text>
-                      ) : (
-                        sortPatients(
-                          patients
-                            .filter((patient) =>
-                              patient.name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                              patient.service.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                              patient.email.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-                              patient.contact.includes(patientSearchQuery)
-                            )
-                        )
-                          .map((patient) => (
-                            <View key={patient.id} style={[styles.card, styles.shadow, { marginBottom: 25 }]}>
-                              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', flex: 1 }}>
-                                  <Image
-                                    source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                                    style={{ width: 60, height: 60, borderRadius: 30, marginRight: 12 }}
-                                  />
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333', marginBottom: 4 }}>{patient.name}</Text>
-                                    
-                                    <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
-                                      <Text style={{ fontWeight: 'bold' }}>Age:</Text> {patient.age} | <Text style={{ fontWeight: 'bold' }}>Gender:</Text> {patient.gender}
-                                    </Text>
-                                    <Text style={{ fontSize: 12, color: '#555', marginBottom: 2 }}>
-                                      <Text style={{ fontWeight: 'bold' }}>Contact:</Text> {patient.contact}
-                                    </Text>
-                                    <Text style={{ fontSize: 12, color: '#555' }}>
-                                      <Text style={{ fontWeight: 'bold' }}>Email:</Text> {patient.email}
-                                    </Text>
-                                  </View>
-                                </View>
-                                <View style={{ flexDirection: 'column', gap: 8, alignItems: 'center' }}>
-                                  <TouchableOpacity 
-                                    style={{ paddingHorizontal: 8 }}
-                                    onPress={() => {
-                                      setViewingPatient(patient);
-                                      setShowPatientDetails(true);
-                                    }}
-                                  >
-                                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>View</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity 
-                                    style={{ paddingHorizontal: 8 }}
-                                    onPress={() => {
-                                      setOriginalPatient({ ...patient });
-                                      setEditedPatient({ ...patient });
-                                      setIsEditingPatient(true);
-                                    }}
-                                  >
-                                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>Edit</Text>
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
-                            </View>
-                          ))
-                      )}
-                    </ScrollView>
-                  </SafeAreaView>
-                </Modal>
+
 
               </View>
             </View>
@@ -936,71 +811,19 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         </ScrollView>
         ) : (
         // Records Tab Content
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
-          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-            <TextInput
-              style={{
-                backgroundColor: '#fff',
-                borderColor: '#0b7fab',
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: '#333',
-              }}
-              placeholder="Search by name, service, email, contact..."
-              placeholderTextColor="#999"
-              value={quickSearchQuery}
-              onChangeText={setQuickSearchQuery}
-            />
-          </View>
-          <ScrollView style={{ flex: 1, padding: 16 }}>
-            {patients
-              .filter((patient) =>
-                patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.contact.includes(quickSearchQuery)
-              )
-              .length === 0 ? (
-              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'All patients listed below'}
-              </Text>
-            ) : (
-              patients
-                .filter((patient) =>
-                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.contact.includes(quickSearchQuery)
-                )
-                .map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                    onPress={() => {
-                      setViewingPatient(patient);
-                      setShowPatientDetails(true);
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.contact}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
-            )}
-          </ScrollView>
-        </SafeAreaView>
+        <RecordsTab
+          patients={patients}
+          quickSearchQuery={quickSearchQuery}
+          setQuickSearchQuery={setQuickSearchQuery}
+          patientSortBy={patientSortBy}
+          setPatientSortBy={setPatientSortBy}
+          patientSortOrder={patientSortOrder}
+          setPatientSortOrder={setPatientSortOrder}
+          sortPatients={sortPatients}
+          setViewingPatient={setViewingPatient}
+          setShowPatientDetails={setShowPatientDetails}
+          styles={styles}
+        />
         )}
       </SafeAreaView>
 
@@ -1011,6 +834,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         onClose={() => {
           setShowPatientDetails(false);
           setViewingPatient(null);
+        }}
+        onEdit={() => {
+          if (viewingPatient) {
+            setOriginalPatient({ ...viewingPatient });
+            setEditedPatient({ ...viewingPatient });
+            setIsEditingPatient(true);
+          }
         }}
       />
 

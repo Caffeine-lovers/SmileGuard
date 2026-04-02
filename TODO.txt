@@ -88,11 +88,11 @@ add npm install @react-navigation/drawer
     - [] Daily or Weekly Schedule
 
 - [] Clinic Homepage Dashboard FOR DENTIST
-    - [] All Patients Record
-        - [] Filter
-            - [] Name A-Z, Z-A 
-            - [] Treatment Type
-            - [] Status
+    - [x] All Patients Record
+        - [x] Filter
+            - [x] Name A-Z, Z-A 
+            - [x] Treatment Type
+            - [x] Status
         - [] View Record Button //directs to Patient Profile
             - [] Patient Profile Page 
                 -[] Patient Name
