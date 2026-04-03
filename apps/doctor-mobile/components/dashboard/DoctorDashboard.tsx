@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Modal,
   Button,
   TextInput,
-  ActivityIndicator,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
@@ -20,50 +19,28 @@ import RecordsTab from "./RecordsTab";
 import AppointmentsTab from "./AppointmentsTab";
 import { CurrentUser } from "@smileguard/shared-types";
 import {
-  getDoctorAppointments,
-  getTodayAppointments,
-  getPatientInfo,
-  updateDoctorAppointmentStatus,
-  getDoctorStats,
-} from "../../lib/appointmentService";
+  Appointment,
+  SERVICE_OPTIONS,
+  GENDER_OPTIONS,
+  TIME_OPTIONS,
+  getToday,
+  SAMPLE_APPOINTMENTS,
+  SAMPLE_REQUESTS,
+  SAMPLE_PATIENTS,
+} from "../../data/dashboardData";
+
+// Type alias for backwards compatibility
+export type AppointmentType = Appointment;
 
 interface DoctorDashboardProps {
   user: CurrentUser;
   onLogout: () => void;
 }
 
-export type AppointmentType = {
-  id: string;
-  name: string;
-  service: string;
-  time: string;
-  date: string; // YYYY-MM-DD
-  age: number;
-  gender: string;
-  contact: string;
-  email: string;
-  notes: string;
-  imageUrl: string | number; // string for URI, number for require()
-  initials?: string;
-  status?: 'scheduled' | 'arrived' | 'finished'; // Appointment status
-};
-
-const getToday = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toLocaleDateString('en-CA'); 
-  // en-CA gives YYYY-MM-DD in local time
-};
-
-const SERVICE_OPTIONS = ['Cleaning', 'Whitening', 'Fillings', 'Root Canal', 'Extraction', 'Braces Consultation', 'Implants Consultation', 'X-Ray', 'Check-Up'];
-
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   // Appointments state
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({ totalPatients: 0, totalAppointments: 0, upcomingAppointments: 0, completedAppointments: 0 });
-  
   const [originalPatient, setOriginalPatient] = useState<AppointmentType | null>(null);
   const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
   const [patientSortOrder, setPatientSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -76,58 +53,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const today = getToday();
-  const [appointments, setAppointments] = useState<AppointmentType[]>([]);
-  const [requests, setRequests] = useState<AppointmentType[]>([]);
-
-  // Fetch appointments from Supabase on component mount
-  useEffect(() => {
-    fetchAppointments();
-  }, [user?.id]);
-
-  const fetchAppointments = async () => {
-    if (!user?.id) return;
-
-    try {
-      setIsLoading(true);
-      
-      // Get doctor's appointments
-      const [doctorApts, doctorStats] = await Promise.all([
-        getDoctorAppointments(user.id),
-        getDoctorStats(user.id),
-      ]);
-
-      setStats(doctorStats);
-
-      // Transform appointments to match AppointmentType format
-      const transformedApts = await Promise.all(
-        doctorApts.map(async (apt) => {
-          const patient = await getPatientInfo(apt.patient_id);
-
-          return {
-            id: apt.id,
-            name: patient?.name || 'Unknown Patient',
-            service: apt.service,
-            time: apt.appointment_time,
-            date: apt.appointment_date,
-            age: 0, // Age not available in profiles table
-            gender: patient?.role || 'Not specified',
-            contact: patient?.email || '',
-            email: patient?.email || '',
-            notes: apt.notes || '',
-            imageUrl: 'https://via.placeholder.com/60', // Placeholder since we don't have image URLs
-            status: (apt.status as 'scheduled' | 'arrived' | 'finished') || 'scheduled',
-          };
-        })
-      );
-
-      setAppointments(transformedApts);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      Alert.alert('Error', 'Failed to load appointments');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [appointments, setAppointments] = useState<AppointmentType[]>(SAMPLE_APPOINTMENTS);
+  const [requests, setRequests] = useState<AppointmentType[]>(SAMPLE_REQUESTS);
+  const [patients, setPatients] = useState<AppointmentType[]>(SAMPLE_PATIENTS);
 
   const todayAppointments = appointments.filter(apt => apt.date === today);
 
@@ -221,19 +149,38 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setOriginalPatient(null);
   };
 
-  const handleUpdateAppointmentStatus = async (appointmentId: string, status: 'scheduled' | 'arrived' | 'finished') => {
-    // Update local state immediately for UX
-    setAppointments((prev: AppointmentType[]) =>
-      prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
-    );
-
-    // Update in Supabase
-    const result = await updateDoctorAppointmentStatus(appointmentId, status);
-    if (!result.success) {
-      Alert.alert('Error', result.message);
-      // Revert local state on error
-      await fetchAppointments();
+  const handleUpdateAppointmentStatus = (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard: boolean = false) => {
+    const appointment = appointments.find(apt => apt.id === appointmentId);
+    
+    // If marking as completed, it's for today, and shouldRemoveFromDashboard is true, remove it from today's appointments
+    if (status === 'completed' && appointment && appointment.date === today && shouldRemoveFromDashboard) {
+      const updatedAppointments = appointments.filter(apt => apt.id !== appointmentId);
+      setAppointments(updatedAppointments);
+      
+      // If the removed appointment was the selected patient, update selectedPatient
+      if (selectedPatient.id === appointmentId) {
+        const remainingTodayAppointments = updatedAppointments.filter(apt => apt.date === today);
+        if (remainingTodayAppointments.length > 0) {
+          setSelectedPatient(remainingTodayAppointments[0]);
+        } else {
+          // If no more today appointments, select the first remaining appointment
+          setSelectedPatient(updatedAppointments.length > 0 ? updatedAppointments[0] : selectedPatient);
+        }
+      }
+    } else {
+      // Otherwise, just update the status
+      setAppointments((prev) =>
+        prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
+      );
     }
+  };
+
+  const getStatusBgColor = (status?: string) => {
+    if (status === 'scheduled') return '#FFC107';
+    if (status === 'completed') return '#4CAF50';
+    if (status === 'cancelled') return '#F44336';
+    if (status === 'no-show') return '#9C27B0';
+    return '#999';
   };
 
   return (
@@ -255,12 +202,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         {/* Main Content Area */}
         {activeTab === 'dashboard' ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {isLoading ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-              <ActivityIndicator size="large" color="#0b7fab" />
-              <Text style={{ marginTop: 10, color: '#0b7fab' }}>Loading appointments...</Text>
-            </View>
-          ) : (
           <View style={styles.container}>
             <Text style={[styles.header, { marginBottom: 20 }]}>
               Welcome, {user.name}
@@ -268,9 +209,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
             {/* Stats Panel */}
             <View style={styles.firstPanel}>
-              <StatCard number={stats.totalPatients} label="Patients" />
-              <StatCard number={stats.totalAppointments} label="Appointments" />
-              <StatCard number={stats.completedAppointments} label="Completed" />
+              <StatCard number={67} label="Patients" />
+              <StatCard number={21} label="Appointments" />
+              <StatCard number={911} label="Treatments" />
             </View>
 
             {/* Quick Actions Header */}
@@ -642,10 +583,45 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     </View>
                   </View>
                 ))}
+
+                <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients List:</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ fontSize: 12, color: '#999' }}>Showing {Math.min(3, patients.length)} of {patients.length} patients</Text>
+                  <TouchableOpacity onPress={() => setActiveTab('records')}>
+                    <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
+                  </TouchableOpacity>
+                </View>
+                {patients.slice(0, 3).map((patient) => (
+                  <TouchableOpacity
+                    key={patient.id}
+                    onPress={() => {
+                      setViewingPatient(patient);
+                      setShowPatientDetails(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Image
+                          source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                          style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
+                          <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
+                          <Text style={{ fontSize: 11, color: '#999' }}>{patient.contact}</Text>
+                        </View>
+                        <Text style={{ fontSize: 14, color: '#0b7fab' }}>→</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+
+
+
               </View>
             </View>
           </View>
-          )}
         </ScrollView>
         ) : activeTab === 'records' ? (
         // Records Tab Content
