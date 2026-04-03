@@ -153,7 +153,7 @@ export default function AuthModal({
       return;
     }
 
-    if (!passwordStrong) {
+    if (mode === "register" && !passwordStrong) {
       Alert.alert(
         "Weak Password",
         "Your password must meet all the strength requirements listed below the field.",
