@@ -91,23 +91,6 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
               style={styles.profileImage}
             />
             <Text style={styles.patientName}>{patient.name}</Text>
-            {patient.status && (
-              <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(patient.status) }]}>
-                <Text style={[styles.statusText, { color: getStatusColor(patient.status) }]}>
-                  {patient.status.charAt(0).toUpperCase() + patient.status.slice(1)}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Appointment Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Appointment Information</Text>
-            <View style={styles.infoContainer}>
-              <DetailRow label="Date" value={formatDate(patient.date)} />
-              <DetailRow label="Time" value={patient.time} />
-              <DetailRow label="Service" value={patient.service} />
-            </View>
           </View>
 
           {/* Personal Information */}
@@ -136,10 +119,7 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
             <Text style={styles.sectionTitle}>Additional Information</Text>
             <View style={styles.infoContainer}>
               <DetailRow label="Patient ID" value={patient.id} />
-              <DetailRow 
-                label="Record Status" 
-                value={patient.status ? patient.status.charAt(0).toUpperCase() + patient.status.slice(1) : "N/A"} 
-              />
+              <DetailRow label="Account Created" value={formatDate(patient.date)} />
             </View>
           </View>
         </ScrollView>

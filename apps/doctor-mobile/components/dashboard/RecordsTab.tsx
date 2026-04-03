@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Appointment } from "../../data/dashboardData";
+import { getAllPatients } from "../../lib/profilesPatients";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -41,6 +43,40 @@ export default function RecordsTab({
   setShowPatientDetails,
   styles,
 }: RecordsTabProps) {
+  const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
+  const [loadingSupabase, setLoadingSupabase] = useState(true);
+
+  // Fetch real patients from Supabase profiles table only
+  useEffect(() => {
+    const fetchSupabasePatients = async () => {
+      setLoadingSupabase(true);
+      try {
+        const data = await getAllPatients();
+        // Map Supabase data to AppointmentType - using only profiles table data
+        const mapped: AppointmentType[] = data.map((patient) => ({
+          id: patient.id,
+          name: patient.name,
+          email: patient.email,
+          service: patient.service || 'General',
+          contact: '',
+          time: '',
+          date: patient.created_at,
+          age: 0,
+          gender: '',
+          notes: '',
+          imageUrl: require('../../assets/images/user.png'),
+          status: 'scheduled' as const,
+        }));
+        setSupabasePatients(mapped);
+      } catch (error) {
+        console.error('Error fetching Supabase patients:', error);
+      } finally {
+        setLoadingSupabase(false);
+      }
+    };
+
+    fetchSupabasePatients();
+  }, []);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
       <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
@@ -107,8 +143,13 @@ export default function RecordsTab({
         </View>
       </View>
       <ScrollView style={{ flex: 1, padding: 16 }}>
-        {sortPatients(
-          patients
+        {loadingSupabase ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color="#0b7fab" />
+            <Text style={{ marginTop: 12, color: '#0b7fab', fontSize: 14 }}>Loading patients...</Text>
+          </View>
+        ) : sortPatients(
+          supabasePatients
             .filter((patient) =>
               patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
               patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
@@ -118,11 +159,11 @@ export default function RecordsTab({
         )
           .length === 0 ? (
           <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-            {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'All patients listed below'}
+            {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'No patients in database'}
           </Text>
         ) : (
           sortPatients(
-            patients
+            supabasePatients
               .filter((patient) =>
                 patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
                 patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
@@ -147,7 +188,7 @@ export default function RecordsTab({
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
                     <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                    <Text style={{ fontSize: 12, color: '#666' }}>{patient.contact}</Text>
+                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: '500' }}>Patient</Text>
                   </View>
                   <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
                 </View>
