@@ -652,6 +652,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       <PatientDetailsView
         visible={showPatientDetails}
         patient={viewingPatient}
+        allAppointments={appointments}
         onClose={() => {
           setShowPatientDetails(false);
           setViewingPatient(null);
@@ -813,8 +814,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#fff',
     borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingHorizontal: 0,
     justifyContent: 'space-around',
   },
   tabItem: {

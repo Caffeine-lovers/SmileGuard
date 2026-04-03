@@ -31,6 +31,7 @@ interface PatientDetailsViewProps {
   patient: AppointmentType | null;
   onClose: () => void;
   onEdit?: () => void;
+  allAppointments?: AppointmentType[];
 }
 
 const getStatusColor = (status?: string) => {
@@ -68,8 +69,25 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
-export default function PatientDetailsView({ visible, patient, onClose, onEdit }: PatientDetailsViewProps) {
+export default function PatientDetailsView({ visible, patient, onClose, onEdit, allAppointments = [] }: PatientDetailsViewProps) {
   if (!patient) return null;
+
+  // Get today's date for comparison
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Filter all appointments by patient name (including current appointment)
+  const allPatientAppointments = allAppointments
+    .filter(apt => apt.name === patient.name)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // Separate appointments into past, current, and upcoming
+  const upcomingAppointments = allPatientAppointments.filter(apt => new Date(apt.date) > today);
+  const pastAppointments = allPatientAppointments.filter(apt => new Date(apt.date) < today);
+  const currentAppointments = allPatientAppointments.filter(apt => {
+    const aptDate = new Date(apt.date);
+    return aptDate.getTime() === today.getTime();
+  });
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -91,13 +109,6 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
               style={styles.profileImage}
             />
             <Text style={styles.patientName}>{patient.name}</Text>
-            {patient.status && (
-              <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(patient.status) }]}>
-                <Text style={[styles.statusText, { color: getStatusColor(patient.status) }]}>
-                  {patient.status.charAt(0).toUpperCase() + patient.status.slice(1)}
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* Appointment Information */}
@@ -142,6 +153,91 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
               />
             </View>
           </View>
+
+          {/* Appointment History */}
+          {allPatientAppointments.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>All Appointments</Text>
+              
+              {/* Upcoming Appointments */}
+              {upcomingAppointments.length > 0 && (
+                <View style={styles.appointmentCategory}>
+                  <Text style={styles.categoryLabel}>Upcoming</Text>
+                  <View style={styles.historyContainer}>
+                    {upcomingAppointments.map((apt, index) => (
+                      <View key={apt.id} style={[styles.historyItem, index !== upcomingAppointments.length - 1 && styles.historyItemBorder]}>
+                        <View style={styles.historyItemLeft}>
+                          <Text style={styles.historyItemDate}>{formatDate(apt.date)}</Text>
+                          <Text style={styles.historyItemTime}>{apt.time}</Text>
+                        </View>
+                        <View style={styles.historyItemCenter}>
+                          <Text style={styles.historyItemService}>{apt.service}</Text>
+                          <Text style={styles.historyItemNotes}>{apt.notes || 'No notes'}</Text>
+                        </View>
+                        <View style={[styles.historyItemStatus, { backgroundColor: getStatusBgColor(apt.status) }]}>
+                          <Text style={[styles.historyItemStatusText, { color: getStatusColor(apt.status) }]}>
+                            {apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1) : 'N/A'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Current Appointments */}
+              {currentAppointments.length > 0 && (
+                <View style={styles.appointmentCategory}>
+                  <Text style={styles.categoryLabel}>Today</Text>
+                  <View style={styles.historyContainer}>
+                    {currentAppointments.map((apt, index) => (
+                      <View key={apt.id} style={[styles.historyItem, index !== currentAppointments.length - 1 && styles.historyItemBorder]}>
+                        <View style={styles.historyItemLeft}>
+                          <Text style={styles.historyItemDate}>{formatDate(apt.date)}</Text>
+                          <Text style={styles.historyItemTime}>{apt.time}</Text>
+                        </View>
+                        <View style={styles.historyItemCenter}>
+                          <Text style={styles.historyItemService}>{apt.service}</Text>
+                          <Text style={styles.historyItemNotes}>{apt.notes || 'No notes'}</Text>
+                        </View>
+                        <View style={[styles.historyItemStatus, { backgroundColor: getStatusBgColor(apt.status) }]}>
+                          <Text style={[styles.historyItemStatusText, { color: getStatusColor(apt.status) }]}>
+                            {apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1) : 'N/A'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Past Appointments */}
+              {pastAppointments.length > 0 && (
+                <View style={styles.appointmentCategory}>
+                  <Text style={styles.categoryLabel}>Past</Text>
+                  <View style={styles.historyContainer}>
+                    {pastAppointments.map((apt, index) => (
+                      <View key={apt.id} style={[styles.historyItem, index !== pastAppointments.length - 1 && styles.historyItemBorder]}>
+                        <View style={styles.historyItemLeft}>
+                          <Text style={styles.historyItemDate}>{formatDate(apt.date)}</Text>
+                          <Text style={styles.historyItemTime}>{apt.time}</Text>
+                        </View>
+                        <View style={styles.historyItemCenter}>
+                          <Text style={styles.historyItemService}>{apt.service}</Text>
+                          <Text style={styles.historyItemNotes}>{apt.notes || 'No notes'}</Text>
+                        </View>
+                        <View style={[styles.historyItemStatus, { backgroundColor: getStatusBgColor(apt.status) }]}>
+                          <Text style={[styles.historyItemStatusText, { color: getStatusColor(apt.status) }]}>
+                            {apt.status ? apt.status.charAt(0).toUpperCase() + apt.status.slice(1) : 'N/A'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
         </ScrollView>
 
         {/* Footer */}
@@ -299,5 +395,70 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  historyContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    overflow: 'hidden',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    gap: 10,
+  },
+  historyItemBorder: {
+    borderBottomColor: '#f0f0f0',
+    borderBottomWidth: 1,
+  },
+  historyItemLeft: {
+    width: 60,
+    alignItems: 'center',
+  },
+  historyItemDate: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#0b7fab',
+    marginBottom: 2,
+  },
+  historyItemTime: {
+    fontSize: 11,
+    color: '#666',
+  },
+  historyItemCenter: {
+    flex: 1,
+  },
+  historyItemService: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 3,
+  },
+  historyItemNotes: {
+    fontSize: 11,
+    color: '#999',
+  },
+  historyItemStatus: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  historyItemStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  appointmentCategory: {
+    marginBottom: 16,
+  },
+  categoryLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#0b7fab',
+    marginBottom: 8,
+    paddingLeft: 4,
   },
 });
