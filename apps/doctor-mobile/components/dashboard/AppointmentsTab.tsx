@@ -12,7 +12,7 @@ import {
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Appointment } from "../../data/dashboardData";
-import { getDoctorAppointmentsByDate, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
+import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -47,6 +47,7 @@ export default function AppointmentsTab({
   const [selectedDate, setSelectedDate] = useState<string>(getTodayFormatted());
   const [loading, setLoading] = useState(false);
   const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentType[]>([]);
+  const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentType[]>([]);
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
 
@@ -68,6 +69,45 @@ export default function AppointmentsTab({
     };
   };
 
+  // Fetch all appointments for the current month on mount and when month changes
+  useEffect(() => {
+    const fetchMonthAppointments = async () => {
+      try {
+        console.log('📅 Loading all appointments for month:', currentMonth.toDateString());
+        // Get first and last day of the month
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        
+        const startDate = formatDate(firstDay);
+        const endDate = formatDate(lastDay);
+        
+        console.log(`📊 Fetching appointments from ${startDate} to ${endDate}`);
+        
+        // Fetch all appointments for the month with date range
+        const doctorAppointments = await getDoctorAppointments(null, startDate, endDate);
+        
+        console.log(`✅ Fetched ${doctorAppointments.length} total appointments for the month`);
+        
+        if (doctorAppointments.length > 0) {
+          // Transform backend data to match UI format
+          const transformed = doctorAppointments.map(transformBackendAppointment);
+          setAllMonthAppointments(transformed);
+          console.log('📊 All month appointments loaded for calendar');
+        } else {
+          setAllMonthAppointments([]);
+          console.log('ℹ️ No appointments found for this month');
+        }
+      } catch (error) {
+        console.error('❌ Error fetching month appointments:', error);
+        setAllMonthAppointments([]);
+      }
+    };
+
+    fetchMonthAppointments();
+  }, [currentMonth]);
+
   // Fetch appointments for the selected date from backend
   useEffect(() => {
     const fetchAppointmentsForDate = async () => {
@@ -84,7 +124,6 @@ export default function AppointmentsTab({
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
           console.log('📊 Transformed appointments:', transformed);
-          Alert.alert('✅ Backend Connected', `Loaded ${transformed.length} appointments from Supabase`);
         } else {
           setFetchedAppointments([]);
           console.log('ℹ️ No appointments found for this date');
@@ -136,8 +175,9 @@ export default function AppointmentsTab({
   };
 
   const getAppointmentCountForDate = (dateStr: string) => {
-    // Use fetched appointments if available, otherwise fall back to sample data
-    const appointmentsToUse = fetchedAppointments.length > 0 ? fetchedAppointments : appointments;
+    // Use all month appointments for calendar counts (loaded on mount and month change)
+    // Only show real Supabase data (no fallback to sample data)
+    const appointmentsToUse = allMonthAppointments;
     const appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
     
     // Apply the same filtering logic as the appointments list
@@ -194,6 +234,8 @@ export default function AppointmentsTab({
                 Alert.alert("✅ Success", result.message);
                 // Refresh appointments after cancellation
                 console.log('🔄 Refreshing appointments after cancellation...');
+                
+                // Refresh current day appointments
                 const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
                 if (doctorAppointments.length > 0) {
                   const transformed = doctorAppointments.map(transformBackendAppointment);
@@ -201,7 +243,24 @@ export default function AppointmentsTab({
                 } else {
                   setFetchedAppointments([]);
                 }
-                console.log(`✅ Appointments refreshed - now showing ${doctorAppointments.length} appointments`);
+                console.log(`✅ Day appointments refreshed - now showing ${doctorAppointments.length} appointments`);
+                
+                // Also refresh entire month appointments for calendar
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                const startDate = formatDate(firstDay);
+                const endDate = formatDate(lastDay);
+                
+                const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+                if (monthAppointments.length > 0) {
+                  const transformed = monthAppointments.map(transformBackendAppointment);
+                  setAllMonthAppointments(transformed);
+                } else {
+                  setAllMonthAppointments([]);
+                }
+                console.log(`✅ Month appointments refreshed - calendar updated`);
               } else {
                 Alert.alert("❌ Error", result.message);
               }
@@ -224,8 +283,8 @@ export default function AppointmentsTab({
   const formatStatus = (s: string) =>
   s.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-');
 
-  // Filter appointments - use fetched appointments if available, otherwise sample data
-  const appointmentsToDisplay = fetchedAppointments.length > 0 ? fetchedAppointments : appointments;
+  // Filter appointments - only use real Supabase data (no fallback to sample data)
+  const appointmentsToDisplay = fetchedAppointments;
   const filteredAppointments = appointmentsToDisplay.filter((apt) => {
     const matchesSearch =
       apt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -435,7 +494,7 @@ export default function AppointmentsTab({
           )}
           {loading && (
             <Text style={{ textAlign: 'center', color: '#0b7fab', marginTop: 20, fontSize: 14, fontWeight: 'bold' }}>
-              ⏳ Loading appointments from backend...
+              ⏳ Loading appointments...
             </Text>
           )}
           {filteredAppointments.length === 0 ? (
@@ -470,7 +529,7 @@ export default function AppointmentsTab({
                       }}
                     >
                       <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>
-                        {appointment.status === 'scheduled' ? 'Pending' : 
+                        {appointment.status === 'scheduled' ? 'Pending' :
                          appointment.status === 'completed' ? 'Completed' :
                          appointment.status === 'cancelled' ? 'Cancelled' : 'No-show'}
                       </Text>
