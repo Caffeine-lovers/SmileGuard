@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Appointment } from "../../data/dashboardData";
+import { getDoctorAppointmentsByDate, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -44,8 +45,62 @@ export default function AppointmentsTab({
   };
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayFormatted());
+  const [loading, setLoading] = useState(false);
+  const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentType[]>([]);
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
+
+  // Transform backend appointments to match UI format
+  const transformBackendAppointment = (apt: DoctorAppointment): AppointmentType => {
+    return {
+      id: apt.id,
+      name: apt.patient_name || 'Unknown Patient',
+      service: apt.service || 'General Visit',
+      time: apt.appointment_time || '00:00',
+      date: apt.appointment_date || '',
+      age: 0,
+      gender: 'N/A',
+      contact: '',
+      email: '',
+      notes: apt.notes || '',
+      imageUrl: 'https://via.placeholder.com/50', // Placeholder
+      status: apt.status as any,
+    };
+  };
+
+  // Fetch appointments for the selected date from backend
+  useEffect(() => {
+    const fetchAppointmentsForDate = async () => {
+      try {
+        setLoading(true);
+        // Get dentist ID from localStorage or user context (you may need to adjust this)
+        // For now, pass null to get ALL appointments for the date (not filtered by doctor)
+        const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+        
+        console.log(`✅ Fetched ${doctorAppointments.length} appointments for ${selectedDate}`);
+        
+        if (doctorAppointments.length > 0) {
+          // Transform backend data to match UI format
+          const transformed = doctorAppointments.map(transformBackendAppointment);
+          setFetchedAppointments(transformed);
+          console.log('📊 Transformed appointments:', transformed);
+          Alert.alert('✅ Backend Connected', `Loaded ${transformed.length} appointments from Supabase`);
+        } else {
+          setFetchedAppointments([]);
+          console.log('ℹ️ No appointments found for this date');
+        }
+      } catch (error) {
+        console.error('❌ Error fetching appointments from backend:', error);
+        setFetchedAppointments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (selectedDate) {
+      fetchAppointmentsForDate();
+    }
+  }, [selectedDate]);
 
   // Calendar format helper (used throughout component)
   const formatDate = (date: Date): string => {
@@ -81,7 +136,9 @@ export default function AppointmentsTab({
   };
 
   const getAppointmentCountForDate = (dateStr: string) => {
-    const appointmentsForDate = appointments.filter(apt => apt.date === dateStr);
+    // Use fetched appointments if available, otherwise fall back to sample data
+    const appointmentsToUse = fetchedAppointments.length > 0 ? fetchedAppointments : appointments;
+    const appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
     
     // Apply the same filtering logic as the appointments list
     if (appointmentFilterBy === 'all') return appointmentsForDate.length;
@@ -121,6 +178,44 @@ export default function AppointmentsTab({
     }
   };
 
+  // Handler to cancel appointment using backend service
+  const handleCancelAppointmentFromBackend = async (appointmentId: string, appointmentName: string) => {
+    Alert.alert(
+      "Cancel Appointment",
+      `Are you sure you want to cancel the appointment with ${appointmentName}?`,
+      [
+        { text: "Keep", onPress: () => {}, style: "cancel" },
+        {
+          text: "Cancel Appointment",
+          onPress: async () => {
+            try {
+              const result = await cancelAppointment(appointmentId);
+              if (result.success) {
+                Alert.alert("✅ Success", result.message);
+                // Refresh appointments after cancellation
+                console.log('🔄 Refreshing appointments after cancellation...');
+                const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+                if (doctorAppointments.length > 0) {
+                  const transformed = doctorAppointments.map(transformBackendAppointment);
+                  setFetchedAppointments(transformed);
+                } else {
+                  setFetchedAppointments([]);
+                }
+                console.log(`✅ Appointments refreshed - now showing ${doctorAppointments.length} appointments`);
+              } else {
+                Alert.alert("❌ Error", result.message);
+              }
+            } catch (error) {
+              console.error("❌ Error cancelling appointment:", error);
+              Alert.alert("❌ Error", "Failed to cancel appointment. Please try again.");
+            }
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
   const handleCancelEdit = () => {
     setEditingAppointmentId(null);
     setShowStatusDropdown(false);
@@ -129,8 +224,9 @@ export default function AppointmentsTab({
   const formatStatus = (s: string) =>
   s.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-');
 
-  // Filter appointments
-  const filteredAppointments = appointments.filter((apt) => {
+  // Filter appointments - use fetched appointments if available, otherwise sample data
+  const appointmentsToDisplay = fetchedAppointments.length > 0 ? fetchedAppointments : appointments;
+  const filteredAppointments = appointmentsToDisplay.filter((apt) => {
     const matchesSearch =
       apt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       apt.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -337,6 +433,11 @@ export default function AppointmentsTab({
               </Text>
             </View>
           )}
+          {loading && (
+            <Text style={{ textAlign: 'center', color: '#0b7fab', marginTop: 20, fontSize: 14, fontWeight: 'bold' }}>
+              ⏳ Loading appointments from backend...
+            </Text>
+          )}
           {filteredAppointments.length === 0 ? (
             <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
               {searchQuery ? `No appointments found matching "${searchQuery}"` : selectedDate ? 'No appointments on this date' : 'No appointments found'}
@@ -350,7 +451,11 @@ export default function AppointmentsTab({
               {/* Row 1: Image + (Name + Status) + Edit Button */}
               <View style={{ flexDirection: 'row', alignItems: 'center'}}>
                 <Image
-                  source={typeof appointment.imageUrl === "string" ? { uri: appointment.imageUrl } : appointment.imageUrl}
+                  source={
+                    (appointment as any).patient_avatar
+                      ? { uri: (appointment as any).patient_avatar }
+                      : require('../../assets/images/user.png')
+                  }
                   style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
                 />
                 <View style={{ flex: 1 }}>

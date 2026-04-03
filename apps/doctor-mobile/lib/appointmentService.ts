@@ -159,6 +159,8 @@ export interface DoctorAppointment {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  patient_name?: string; // Patient name from profiles table
+  patient_avatar?: string; // Patient avatar URL from profiles table
 }
 
 export interface PatientInfo {
@@ -175,16 +177,21 @@ export interface PatientInfo {
 // GET ALL APPOINTMENTS FOR DOCTOR
 // ─────────────────────────────────────────
 export async function getDoctorAppointments(
-  dentistId: string,
+  dentistId: string | null,
   startDate?: string,
   endDate?: string
 ): Promise<DoctorAppointment[]> {
   try {
+    // Step 1: Fetch appointments
     let query = supabase
       .from('appointments')
       .select('*')
-      .or(`dentist_id.eq.${dentistId},dentist_id.is.null`)
       .neq('status', 'cancelled');
+
+    // Only filter by dentistId if provided
+    if (dentistId && dentistId !== 'null') {
+      query = query.or(`dentist_id.eq.${dentistId},dentist_id.is.null`);
+    }
 
     if (startDate) {
       query = query.gte('appointment_date', startDate);
@@ -193,18 +200,64 @@ export async function getDoctorAppointments(
       query = query.lte('appointment_date', endDate);
     }
 
-    const { data, error } = await query
+    const { data: appointmentsData, error: appointmentsError } = await query
       .order('appointment_date', { ascending: false })
       .order('appointment_time', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching doctor appointments:', error);
+    if (appointmentsError) {
+      console.error('❌ Error fetching doctor appointments:', appointmentsError);
       return [];
     }
 
-    return data || [];
+    if (!appointmentsData || appointmentsData.length === 0) {
+      console.log('ℹ️ No appointments found');
+      return [];
+    }
+
+    // Step 2: Get unique patient IDs
+    const patientIds = [...new Set(appointmentsData.map(apt => apt.patient_id))];
+    console.log(`📋 Found ${patientIds.length} unique patients`);
+
+    // Step 3: Fetch profiles for all patients
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', patientIds);
+
+    console.log('📊 Profiles Query Response:', {
+      profilesDataLength: profilesData?.length || 0,
+      profilesError,
+    });
+
+    if (profilesError) {
+      console.error('❌ Error fetching profiles:', profilesError);
+    }
+
+    // Step 4: Create a map of patient ID -> profile
+    const profileMap = new Map();
+    (profilesData || []).forEach(profile => {
+      profileMap.set(profile.id, profile);
+      const nameValue = profile.full_name || profile.name || profile.user_name;
+      console.log(`✅ Profile found: ${profile.id} -> ${nameValue}`);
+    });
+
+    // Step 5: Transform appointments with patient names and avatars
+    const transformedData = appointmentsData.map((apt: any) => {
+      const profile = profileMap.get(apt.patient_id);
+      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+
+      return {
+        ...apt,
+        patient_name: patientName,
+        patient_avatar: patientAvatar,
+      };
+    });
+
+    console.log(`✅ Fetched ${transformedData.length} appointments for doctor`);
+    return transformedData || [];
   } catch (err) {
-    console.error('Exception fetching doctor appointments:', err);
+    console.error('❌ Exception fetching doctor appointments:', err);
     return [];
   }
 }
@@ -212,27 +265,93 @@ export async function getDoctorAppointments(
 // ─────────────────────────────────────────
 // GET APPOINTMENTS FOR A SPECIFIC DATE
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// GET APPOINTMENTS FOR A SPECIFIC DATE
+// ─────────────────────────────────────────
 export async function getDoctorAppointmentsByDate(
-  dentistId: string,
+  dentistId: string | null,
   date: string
 ): Promise<DoctorAppointment[]> {
   try {
-    const { data, error } = await supabase
+    // Step 1: Fetch appointments
+    let query = supabase
       .from('appointments')
       .select('*')
-      .or(`dentist_id.eq.${dentistId},dentist_id.is.null`)
       .eq('appointment_date', date)
-      .neq('status', 'cancelled')
-      .order('appointment_time', { ascending: true });
+      .neq('status', 'cancelled');
 
-    if (error) {
-      console.error('Error fetching appointments by date:', error);
+    // Only filter by dentistId if provided
+    if (dentistId && dentistId !== 'null') {
+      query = query.or(`dentist_id.eq.${dentistId},dentist_id.is.null`);
+    }
+
+    const { data: appointmentsData, error: appointmentsError } = await query.order('appointment_time', { ascending: true });
+
+    if (appointmentsError) {
+      console.error('❌ Error fetching appointments by date:', appointmentsError);
       return [];
     }
 
-    return data || [];
+    if (!appointmentsData || appointmentsData.length === 0) {
+      console.log('ℹ️ No appointments found for date:', date);
+      return [];
+    }
+
+    // Step 2: Get unique patient IDs
+    const patientIds = [...new Set(appointmentsData.map(apt => apt.patient_id))];
+    console.log(`📋 Found ${patientIds.length} unique patients:`, patientIds);
+
+    // Step 3: Fetch profiles for all patients
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', patientIds);
+
+    console.log('📊 Profiles Query Response:', {
+      patientIds,
+      profilesDataLength: profilesData?.length || 0,
+      profilesData,
+      profilesError,
+    });
+
+    if (profilesError) {
+      console.error('❌ Error fetching profiles:', profilesError);
+    }
+
+    // Step 4: Create a map of patient ID -> profile
+    const profileMap = new Map();
+    (profilesData || []).forEach(profile => {
+      console.log('🔍 Available profile fields:', Object.keys(profile));
+      console.log('📌 Profile details:', profile);
+      
+      profileMap.set(profile.id, profile);
+      
+      // Try different column names
+      const nameValue = profile.full_name || profile.name || profile.user_name || profile.email;
+      console.log(`✅ Profile found: ${profile.id} -> ${nameValue}`);
+    });
+
+    // Step 5: Transform appointments with patient names and avatars
+    const transformedData = appointmentsData.map((apt: any) => {
+      const profile = profileMap.get(apt.patient_id);
+      
+      // Try different column names for name
+      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+      
+      // Try different column names for avatar
+      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+
+      return {
+        ...apt,
+        patient_name: patientName,
+        patient_avatar: patientAvatar,
+      };
+    });
+
+    console.log(`✅ Fetched ${transformedData.length} appointments for date ${date}`);
+    return transformedData || [];
   } catch (err) {
-    console.error('Exception fetching appointments by date:', err);
+    console.error('❌ Exception fetching appointments by date:', err);
     return [];
   }
 }
