@@ -71,6 +71,28 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
+const formatDateOfBirth = (dateStr: string): string => {
+  if (!dateStr) return "Not provided";
+  try {
+    // Handle mm/dd/YYYY format
+    if (dateStr.includes('/')) {
+      const [month, day, year] = dateStr.split('/');
+      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    
+    // Handle ISO date format
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    
+    return dateStr;
+  } catch {
+    return dateStr;
+  }
+};
+
 export default function PatientDetailsView({ visible, patient, onClose, onEdit }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [loading, setLoading] = useState(false);
@@ -126,7 +148,7 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
               <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
               <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
               <DetailRow label="Email" value={patient.email || "Not provided"} />
-              <DetailRow label="Date of Birth" value={medicalIntake?.dateOfBirth || "Not provided"} />
+              <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
               <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
             </View>
           </View>
@@ -153,11 +175,11 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
                 </View>
               ) : medicalIntake ? (
                 <>
-                  <DetailRow label="Allergies" value={medicalIntake.allergies || "Not specified"} />
-                  <DetailRow label="Current Medications" value={medicalIntake.currentMedications || "Not specified"} />
-                  <DetailRow label="Medical Conditions" value={medicalIntake.medicalConditions || "Not specified"} />
-                  <DetailRow label="Past Surgeries" value={medicalIntake.pastSurgeries || "Not specified"} />
-                  <DetailRow label="Smoking Status" value={medicalIntake.smokingStatus || "Not specified"} />
+                  <DetailRow label="Allergies" value={medicalIntake.allergies || "None"} />
+                  <DetailRow label="Current Medications" value={medicalIntake.currentMedications || "None"} />
+                  <DetailRow label="Medical Conditions" value={medicalIntake.medicalConditions || "None"} />
+                  <DetailRow label="Past Surgeries" value={medicalIntake.pastSurgeries || "None"} />
+                  <DetailRow label="Smoking Status" value={medicalIntake.smokingStatus || "None"} />
                   {medicalIntake.gender?.toLowerCase() !== 'male' && (
                     <DetailRow label="Pregnancy Status" value={medicalIntake.pregnancyStatus || "Not specified"} />
                   )}
