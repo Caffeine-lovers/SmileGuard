@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CurrentUser, FormData } from "../types/index.ts";
+import { CurrentUser, FormData } from "../types/index";
 import { supabase } from "@smileguard/supabase-client";
 import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 

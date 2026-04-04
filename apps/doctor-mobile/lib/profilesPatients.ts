@@ -35,33 +35,94 @@ export async function getPatientProfile(
 export async function getPatientMedicalIntake(
   patientId: string
 ): Promise<MedicalIntake | null> {
+  console.log('=== MEDICAL INTAKE FETCH DEBUG ===');
+  console.log('PatientID to query:', patientId, 'Type:', typeof patientId);
+  
+  // DEBUG: Get current logged-in user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  console.log('Current user:', { 
+    uid: user?.id,
+    email: user?.email,
+    error: userError
+  });
+  
+  // DEBUG: Check current user's role in profiles
+  if (user?.id) {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('id, name, role')
+      .eq('id', user.id)
+      .single();
+    
+    console.log('Current user profile:', userProfile);
+  }
+  
+  // Step 1: Get ALL records (no filter) to see what exists
+  const { data: allRecords, error: allError } = await supabase
+    .from('medical_intake')
+    .select('id, patient_id')
+    .limit(10);
+  
+  console.log('Step 1 - All records in table (no filter):', {
+    count: allRecords?.length,
+    error: allError,
+    records: allRecords?.map(r => ({ id: r.id, patient_id: r.patient_id, matchesQuery: r.patient_id === patientId }))
+  });
+  
+  // Step 2: Try filtered query
+  const { data: filtered, error: filterError } = await supabase
+    .from('medical_intake')
+    .select('id, patient_id, gender, phone')
+    .eq('patient_id', patientId);
+  
+  console.log('Step 2 - Filtered query (.eq("patient_id", patientId)):', {
+    count: filtered?.length,
+    error: filterError,
+    records: filtered
+  });
+  
+  // Step 3: Try fetching ALL columns for this patient
   const { data, error } = await supabase
     .from('medical_intake')
-    .select(
-      'date_of_birth, gender, phone, address, emergency_contact_name, emergency_contact_phone, allergies, current_medications, medical_conditions, past_surgeries, smoking_status, pregnancy_status'
-    )
-    .eq('patient_id', patientId)
-    .single();
+    .select('*')
+    .eq('patient_id', patientId);
 
+  console.log('Step 3 - Full record fetch:', { 
+    count: data?.length, 
+    error,
+    firstRecord: data?.[0]
+  });
+  console.log('=== END DEBUG ===');
+  
   if (error) {
     console.error('Error fetching medical intake:', error);
     return null;
   }
 
+  // If no records found, return null
+  if (!data || data.length === 0) {
+    console.warn('No medical intake records found for patient:', patientId);
+    return null;
+  }
+
+  // Use the first record
+  const record = data[0];
+  console.log('Medical intake record found:', record);
+
   // Map database fields to camelCase for the app
   return {
-    dateOfBirth: data.date_of_birth || '',
-    gender: data.gender || '',
-    phone: data.phone || '',
-    address: data.address || '',
-    emergencyContactName: data.emergency_contact_name || '',
-    emergencyContactPhone: data.emergency_contact_phone || '',
-    allergies: data.allergies || 'None',
-    currentMedications: data.current_medications || 'None',
-    medicalConditions: data.medical_conditions || 'None',
-    pastSurgeries: data.past_surgeries || 'None',
-    smokingStatus: data.smoking_status || '',
-    pregnancyStatus: data.pregnancy_status || '',
+    dateOfBirth: record.date_of_birth || '',
+    gender: record.gender || '',
+    phone: record.phone || '',
+    address: record.address || '',
+    emergencyContactName: record.emergency_contact_name || '',
+    emergencyContactPhone: record.emergency_contact_phone || '',
+    allergies: record.allergies || '',
+    currentMedications: record.current_medications || '',
+    medicalConditions: record.medical_conditions || '',
+    pastSurgeries: record.past_surgeries || '',
+    smokingStatus: record.smoking_status || '',
+    pregnancyStatus: record.pregnancy_status || '',
   };
 }
 
@@ -99,24 +160,132 @@ export async function getCompletePatientData(patientId: string): Promise<{
 export async function getAllPatients(): Promise<
   Array<{
     id: string;
-    name: string;
-    email: string;
-    service: string;
+    patient_id: string;
+    name?: string;
+    email?: string;
+    service?: string;
     created_at: string;
+    phone?: string;
+    gender?: string;
+    allergies?: string;
+    medical_conditions?: string;
   }>
 > {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, name, email, service, created_at')
-    .eq('role', 'patient')
-    .order('created_at', { ascending: false });
+  // First, try to fetch ALL columns from medical_intake to test access
+  const { data: allData, error: allError } = await supabase
+    .from('medical_intake')
+    .select('*');
 
-  if (error) {
-    console.error('Error fetching all patients:', error);
+  console.log('All columns fetch result:', { count: allData?.length, allError });
+
+  // Then fetch specific columns
+  const { data: medicalData, error: medicalError } = await supabase
+    .from('medical_intake')
+    .select('id, patient_id, created_at, phone, gender, allergies, medical_conditions')
+    .limit(100);
+
+  console.log('Medical data fetch result:', { medicalData, medicalError });
+
+  if (medicalError) {
+    console.error('Error fetching medical intake:', medicalError);
     return [];
   }
 
-  return data || [];
+  if (!medicalData || medicalData.length === 0) {
+    console.warn('No medical intake records found');
+    // Try fallback: fetch from profiles instead and get all patient info
+    return getAllPatientsFromProfiles();
+  }
+
+  console.log('Found medical records:', medicalData.length);
+
+  // Get unique patient IDs
+  const patientIds = [...new Set(medicalData.map((m: any) => m.patient_id))];
+  console.log('Patient IDs to fetch:', patientIds);
+
+  // Fetch corresponding profiles
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, name, email, service')
+    .in('id', patientIds);
+
+  console.log('Profile data fetch result:', { profileData, profileError });
+
+  if (profileError) {
+    console.error('Error fetching profiles:', profileError);
+  }
+
+  // Map profiles into a lookup object
+  const profileMap = (profileData || []).reduce((acc: any, profile: any) => {
+    acc[profile.id] = profile;
+    return acc;
+  }, {});
+
+  console.log('Profile map:', profileMap);
+
+  // Combine medical_intake with profiles
+  const result = medicalData.map((item: any) => {
+    const profile = profileMap[item.patient_id] || {};
+    return {
+      id: item.patient_id,  // ← Use patient_id as the ID, not medical_intake's ID
+      patient_id: item.patient_id,
+      name: profile.name || 'Unknown Patient',
+      email: profile.email || '',
+      service: profile.service || 'General',
+      created_at: item.created_at,
+      phone: item.phone || '',
+      gender: item.gender || '',
+      allergies: item.allergies || '',
+      medical_conditions: item.medical_conditions || '',
+    };
+  });
+
+  console.log('Final result:', result);
+  return result;
+}
+
+// Fallback: Get patients from profiles table
+async function getAllPatientsFromProfiles(): Promise<
+  Array<{
+    id: string;
+    patient_id: string;
+    name?: string;
+    email?: string;
+    service?: string;
+    created_at: string;
+    phone?: string;
+    gender?: string;
+    allergies?: string;
+    medical_conditions?: string;
+  }>
+> {
+  console.log('Using fallback: fetching from profiles table');
+  
+  const { data: profilesData, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, name, email, service, created_at')
+    .eq('role', 'patient');
+
+  console.log('Profiles fetch result:', { count: profilesData?.length, profilesError });
+
+  if (profilesError || !profilesData) {
+    console.error('Error fetching profiles fallback:', profilesError);
+    return [];
+  }
+
+  // Map profiles to the same format
+  return profilesData.map((profile: any) => ({
+    id: profile.id,
+    patient_id: profile.id,
+    name: profile.name || 'Unknown Patient',
+    email: profile.email || '',
+    service: profile.service || 'General',
+    created_at: profile.created_at,
+    phone: '',
+    gender: '',
+    allergies: '',
+    medical_conditions: '',
+  }));
 }
 
 // ─────────────────────────────────────────

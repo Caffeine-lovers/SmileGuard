@@ -46,27 +46,30 @@ export default function RecordsTab({
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
 
-  // Fetch real patients from Supabase profiles table only
+  // Fetch real patients from Supabase medical_intake table with profiles join
   useEffect(() => {
     const fetchSupabasePatients = async () => {
       setLoadingSupabase(true);
       try {
         const data = await getAllPatients();
-        // Map Supabase data to AppointmentType - using only profiles table data
+        console.log('RecordsTab - Received patients:', data);
+        
         const mapped: AppointmentType[] = data.map((patient) => ({
-          id: patient.id,
-          name: patient.name,
-          email: patient.email,
+          id: patient.patient_id,
+          name: patient.name || 'Unknown Patient',
+          email: patient.email || '',
           service: patient.service || 'General',
-          contact: '',
+          contact: patient.phone || '',
           time: '',
           date: patient.created_at,
           age: 0,
-          gender: '',
+          gender: patient.gender || '',
           notes: '',
           imageUrl: require('../../assets/images/user.png'),
           status: 'scheduled' as const,
         }));
+        
+        console.log('RecordsTab - Mapped patients:', mapped);
         setSupabasePatients(mapped);
       } catch (error) {
         console.error('Error fetching Supabase patients:', error);
@@ -188,7 +191,7 @@ export default function RecordsTab({
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
                     <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: '500' }}>Patient</Text>
+                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: '500' }}>{patient.service}</Text>
                   </View>
                   <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
                 </View>

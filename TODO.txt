@@ -98,7 +98,7 @@ add npm install @react-navigation/drawer
                 -[x] Patient Name
                 -[x] Show Status 
                 -[x] Overview tab 
-                    - [] Appointments Lists 
+                    - [x] Appointments Lists 
                     - [x] Notes Displays 
         - [] Treatment Overview Page 
             - [] Ongoing Treatments 
@@ -128,7 +128,7 @@ add npm install @react-navigation/drawer
 - [x] Appointments Page
     - [x] Today’s Appointments
     - [x] Upcoming Slots
-    - [] Add Appointment Schedule
+    - [x] Add Appointment Schedule
     - [x] Calendar View
     - [x] Search Patient 
     - [x] Update Appointment Status
