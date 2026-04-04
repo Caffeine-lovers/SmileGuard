@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,11 @@ import {
   Image,
   Modal,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getPatientMedicalIntake } from "../../lib/profilesPatients";
+import { MedicalIntake } from "../../types/index";
 
 export type AppointmentType = {
   id: string;
@@ -69,6 +72,28 @@ const formatDate = (dateStr: string): string => {
 };
 
 export default function PatientDetailsView({ visible, patient, onClose, onEdit }: PatientDetailsViewProps) {
+  const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible && patient?.id) {
+      loadMedicalIntake(patient.id);
+    }
+  }, [visible, patient?.id]);
+
+  const loadMedicalIntake = async (patientId: string) => {
+    setLoading(true);
+    try {
+      const intake = await getPatientMedicalIntake(patientId);
+      setMedicalIntake(intake);
+      console.log('Loaded medical intake:', intake);
+    } catch (error) {
+      console.error('Error loading medical intake:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!patient) return null;
 
   return (
@@ -97,10 +122,49 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Information</Text>
             <View style={styles.infoContainer}>
-              <DetailRow label="Age" value={patient.age.toString()} />
-              <DetailRow label="Gender" value={patient.gender} />
-              <DetailRow label="Contact Number" value={patient.contact} />
-              <DetailRow label="Email" value={patient.email} />
+              {patient.age > 0 && <DetailRow label="Age" value={patient.age.toString()} />}
+              <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
+              <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
+              <DetailRow label="Email" value={patient.email || "Not provided"} />
+              <DetailRow label="Date of Birth" value={medicalIntake?.dateOfBirth || "Not provided"} />
+              <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
+            </View>
+          </View>
+
+          {/* Emergency Contact */}
+          {medicalIntake && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Emergency Contact</Text>
+              <View style={styles.infoContainer}>
+                <DetailRow label="Name" value={medicalIntake.emergencyContactName || "Not provided"} />
+                <DetailRow label="Phone" value={medicalIntake.emergencyContactPhone || "Not provided"} />
+              </View>
+            </View>
+          )}
+
+          {/* Medical History */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Medical History</Text>
+            <View style={styles.infoContainer}>
+              {loading ? (
+                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                  <ActivityIndicator size="small" color="#0b7fab" />
+                  <Text style={{ marginTop: 8, color: '#0b7fab', fontSize: 12 }}>Loading medical records...</Text>
+                </View>
+              ) : medicalIntake ? (
+                <>
+                  <DetailRow label="Allergies" value={medicalIntake.allergies || "Not specified"} />
+                  <DetailRow label="Current Medications" value={medicalIntake.currentMedications || "Not specified"} />
+                  <DetailRow label="Medical Conditions" value={medicalIntake.medicalConditions || "Not specified"} />
+                  <DetailRow label="Past Surgeries" value={medicalIntake.pastSurgeries || "Not specified"} />
+                  <DetailRow label="Smoking Status" value={medicalIntake.smokingStatus || "Not specified"} />
+                  {medicalIntake.gender?.toLowerCase() !== 'male' && (
+                    <DetailRow label="Pregnancy Status" value={medicalIntake.pregnancyStatus || "Not specified"} />
+                  )}
+                </>
+              ) : (
+                <Text style={styles.noDataText}>No medical history records available</Text>
+              )}
             </View>
           </View>
 
@@ -113,6 +177,18 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
               </Text>
             </View>
           </View>
+
+          {/* Appointment Information (if available) */}
+          {patient.date && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Appointment Information</Text>
+              <View style={styles.infoContainer}>
+                <DetailRow label="Date" value={formatDate(patient.date)} />
+                {patient.time && <DetailRow label="Time" value={patient.time} />}
+                {patient.service && <DetailRow label="Service" value={patient.service} />}
+              </View>
+            </View>
+          )}
 
           {/* Additional Information */}
           <View style={styles.section}>
@@ -261,6 +337,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 20,
+  },
+  serviceText: {
+    fontSize: 14,
+    color: '#0b7fab',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  noDataText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
   footer: {
     paddingHorizontal: 16,
