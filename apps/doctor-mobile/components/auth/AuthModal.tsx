@@ -61,6 +61,7 @@ export default function AuthModal({
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<"register" | "login">("login");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     service: "",
@@ -175,9 +176,26 @@ export default function AuthModal({
       onSuccess(userData);
       console.log("Login successful for user:", userData);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Login failed. Please try again.";
-      Alert.alert("Login Error", message); // 👈 shows whatever useAuth threw
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (err instanceof Error) {
+        const message = err.message.toLowerCase();
+        
+        // Handle specific Supabase error messages
+        if (message.includes("invalid login credentials")) {
+          errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        } else if (message.includes("user not found") || message.includes("does not exist")) {
+          errorMessage = "No account found with this email. Please check or register.";
+        } else if (message.includes("invalid email")) {
+          errorMessage = "Please enter a valid email address.";
+        } else if (message.includes("password")) {
+          errorMessage = "Wrong password. Please try again.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      Alert.alert("Login Error", errorMessage);
       setLoading(false); 
     }
   };
@@ -280,13 +298,25 @@ export default function AuthModal({
                       value={formData.email}
                       onChangeText={(t) => setField("email", t)}
                     />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Password"
-                      secureTextEntry
-                      value={formData.password}
-                      onChangeText={(t) => setField("password", t)}
-                    />
+                    <View style={styles.passwordContainer}>
+                      <TextInput
+                        style={styles.passwordInput}
+                        placeholder="Password"
+                        secureTextEntry={!showPassword}
+                        value={formData.password}
+                        onChangeText={(t) => setField("password", t)}
+                      />
+                      <TouchableOpacity
+                        style={styles.passwordToggle}
+                        onPress={() => setShowPassword(!showPassword)}
+                        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.passwordToggleText}>
+                          {showPassword ? "👁️" : "👁️‍🗨️"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
 
                     {/* Password strength meter */}
                     {mode === "register" && (
@@ -602,6 +632,25 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 14,
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingRight: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+  },
+  passwordToggle: {
+    padding: 8,
+  },
+  passwordToggleText: {
+    fontSize: 18,
   },
   multilineInput: {
     minHeight: 70,

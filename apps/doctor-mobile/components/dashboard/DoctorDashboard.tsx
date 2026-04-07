@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,9 +6,6 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Modal,
-  Button,
-  TextInput,
   Modal,
   Button,
   TextInput,
@@ -36,19 +32,6 @@ import {
 
 // Type alias for backwards compatibility
 export type AppointmentType = Appointment;
-import {
-  Appointment,
-  SERVICE_OPTIONS,
-  GENDER_OPTIONS,
-  TIME_OPTIONS,
-  getToday,
-  SAMPLE_APPOINTMENTS,
-  SAMPLE_REQUESTS,
-  SAMPLE_PATIENTS,
-} from "../../data/dashboardData";
-
-// Type alias for backwards compatibility
-export type AppointmentType = Appointment;
 
 interface DoctorDashboardProps {
   user: CurrentUser;
@@ -56,26 +39,6 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
-  // Appointments state
-  const [isEditingPatient, setIsEditingPatient] = useState(false);
-  const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
-  const [originalPatient, setOriginalPatient] = useState<AppointmentType | null>(null);
-  const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
-  const [patientSortOrder, setPatientSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [showPatientDetails, setShowPatientDetails] = useState(false);
-  const [viewingPatient, setViewingPatient] = useState<AppointmentType | null>(null);
-  const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
-  const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments'>('dashboard');
-  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
-  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
-  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
-  const today = getToday();
-  const [appointments, setAppointments] = useState<AppointmentType[]>(SAMPLE_APPOINTMENTS);
-  const [requests, setRequests] = useState<AppointmentType[]>(SAMPLE_REQUESTS);
-  const [patients, setPatients] = useState<AppointmentType[]>(SAMPLE_PATIENTS);
-
-  const todayAppointments = appointments.filter(apt => apt.date === today);
   // Appointments state
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
@@ -243,18 +206,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           >
             <Text style={styles.logoutBtnText}>Logout</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.logoutBtn}
-            onPress={onLogout}
-            accessibilityLabel="Logout"
-            accessibilityRole="button"
-          >
-            <Text style={styles.logoutBtnText}>Logout</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Main Content Area */}
-        {activeTab === 'dashboard' ? (
         {/* Main Content Area */}
         {activeTab === 'dashboard' ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -303,32 +256,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   ))
                 )}
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.subHeader}>Today Appointments:</Text>
-                  <TouchableOpacity onPress={() => setActiveTab('appointments')}>
-                    <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
-                  </TouchableOpacity>
-                </View>
-                {todayAppointments.length === 0 ? (
-                  <View style={{ padding: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, minHeight: 100 }}>
-                    <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>No appointments scheduled for today</Text>
-                  </View>
-                ) : (
-                  todayAppointments.map((apt, idx) => (
-                      <AppointmentCard
-                        key={apt.id}
-                        name={apt.name}
-                        service={apt.service}
-                        time={apt.time}
-                        imageUrl={apt.imageUrl}
-                        onPress={() => handlePress(apt)}
-                        highlighted={idx === 0}
-                      />
-                  ))
-                )}
-                </View>
 
-              {/* Right Column: Patient Details */}
               {/* Right Column: Patient Details */}
               <View style={styles.column}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -338,378 +266,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>Edit</Text>
                     </TouchableOpacity>
                   )}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.subHeader}>Patient Details:</Text>
-                  {todayAppointments.length > 0 && (
-                    <TouchableOpacity onPress={handleEditPatient}>
-                      <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>Edit</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
                 {todayAppointments.length === 0 ? (
                   <View style={[styles.detailsCard, styles.shadow, { alignItems: 'center', justifyContent: 'center', minHeight: 150 }]}>
                     <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>Select an appointment to view patient details</Text>
-                {todayAppointments.length === 0 ? (
-                  <View style={[styles.detailsCard, styles.shadow, { alignItems: 'center', justifyContent: 'center', minHeight: 150 }]}>
-                    <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>Select an appointment to view patient details</Text>
                   </View>
-                ) : (
-                  <View style={[styles.detailsCard, styles.shadow]}>
-                    <Image
-                      source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                      style={{ width: 60, height: 60, borderRadius: 30, marginBottom: 10 }}
-                    />
-                    <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 4 }}>
-                      {selectedPatient.name}
-                    </Text>
-                    <Text style={{ color: "#555", marginBottom: 2 }}>
-                      <Text style={{ fontWeight: "bold" }}>Service:</Text> {selectedPatient.service}
-                    </Text>
-                    <Text style={{ color: "#555", marginBottom: 2 }}>
-                      <Text style={{ fontWeight: "bold" }}>Time:</Text> {selectedPatient.time}
-                    </Text>
-                    <Text style={{ color: "#555", marginBottom: 2 }}>
-                      <Text style={{ fontWeight: "bold" }}>Age:</Text> {selectedPatient.age}
-                    </Text>
-                    <Text style={{ color: "#555", marginBottom: 2 }}>
-                      <Text style={{ fontWeight: "bold" }}>Gender:</Text> {selectedPatient.gender}
-                    </Text>
-                    <Text style={{ color: "#555", marginBottom: 2 }}>
-                      <Text style={{ fontWeight: "bold" }}>Contact:</Text> {selectedPatient.contact}
-                    </Text>
-                    <Text style={{ color: "#555", marginBottom: 2 }}>
-                      <Text style={{ fontWeight: "bold" }}>Email:</Text> {selectedPatient.email}
-                    </Text>
-                    <Text style={{ color: "#555", marginTop: 6 }}>
-                      <Text style={{ fontWeight: "bold" }}>Notes:</Text> {selectedPatient.notes}
-                    </Text>
-                    <View style={{ marginTop: 12, alignItems: 'center' }}>
-                      <Text style={{ fontWeight: "bold", marginBottom: 6 }}>Appointment Status:</Text>
-                      <View style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 20,
-                        backgroundColor: getStatusBgColor(selectedPatient.status || 'scheduled')
-                      }}>
-                        <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 12 }}>
-                          {(selectedPatient.status || 'scheduled').toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
-                {/* Edit Patient Modal */}
-                <Modal
-                  visible={isEditingPatient}
-                  animationType="slide"
-                  onRequestClose={handleCancelEdit}
-                >
-                  <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
-                    <ScrollView style={{ padding: 20, paddingTop: 10 }} contentContainerStyle={{ paddingBottom: 20 }}>
-                      <Text style={styles.editHeader}>Edit Patient Information</Text>
-                      {editedPatient && (
-                        <View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Name:</Text>
-                            <TextInput
-                              style={[styles.editInput, { backgroundColor: isFieldChanged('name') ? '#fffacd' : '#fff' }]}
-                              value={editedPatient.name}
-                              onChangeText={(text) => setEditedPatient({ ...editedPatient, name: text })}
-                            />
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Service:</Text>
-                            <TouchableOpacity
-                              style={[styles.editInput, { justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: '#d0d0d0', backgroundColor: isFieldChanged('service') ? '#fffacd' : '#fff' }]}
-                              onPress={() => setShowServiceDropdown(!showServiceDropdown)}
-                            >
-                              <Text style={{ color: editedPatient.service ? '#000' : '#999' }}>
-                                {editedPatient.service || 'Select a service'}
-                              </Text>
-                            </TouchableOpacity>
-                            {showServiceDropdown && (
-                              <View style={{ backgroundColor: '#f5f5f5', borderRadius: 4, marginTop: 4, borderWidth: 1, borderColor: '#d0d0d0' }}>
-                                <ScrollView
-                                  style={{ maxHeight: 150 }}
-                                  nestedScrollEnabled={true}>
-                                  {SERVICE_OPTIONS.map((service) => (
-                                    <TouchableOpacity
-                                      key={service}
-                                      onPress={() => {
-                                        setEditedPatient({ ...editedPatient, service });
-                                        setShowServiceDropdown(false);
-                                      }}
-                                      style={{
-                                        paddingHorizontal: 15,
-                                        paddingVertical: 12,
-                                        borderBottomWidth: 1,
-                                        borderBottomColor: '#e0e0e0',
-                                        backgroundColor: editedPatient.service === service ? '#e3f2fd' : 'transparent',
-                                      }}
-                                    >
-                                      <Text style={{ color: editedPatient.service === service ? '#1976d2' : '#333' }}>
-                                        {service}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </ScrollView>
-                              </View>
-                            )}
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Time:</Text>
-                            <TouchableOpacity
-                              style={[styles.editInput, { justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: '#d0d0d0', backgroundColor: isFieldChanged('time') ? '#fffacd' : '#fff' }]}
-                              onPress={() => setShowTimeDropdown(!showTimeDropdown)}
-                            >
-                              <Text style={{ color: editedPatient.time ? '#000' : '#999' }}>
-                                {editedPatient.time || 'Select a time'}
-                              </Text>
-                            </TouchableOpacity>
-                            {showTimeDropdown && (
-                              <View style={{ backgroundColor: '#f5f5f5', borderRadius: 4, marginTop: 4, borderWidth: 1, borderColor: '#d0d0d0' }}>
-                                <ScrollView
-                                  style={{ maxHeight: 150 }}
-                                  nestedScrollEnabled={true}>
-                                  {TIME_OPTIONS.map((time) => (
-                                    <TouchableOpacity
-                                      key={time}
-                                      onPress={() => {
-                                        setEditedPatient({ ...editedPatient, time });
-                                        setShowTimeDropdown(false);
-                                      }}
-                                      style={{
-                                        paddingHorizontal: 15,
-                                        paddingVertical: 12,
-                                        borderBottomWidth: 1,
-                                        borderBottomColor: '#e0e0e0',
-                                        backgroundColor: editedPatient.time === time ? '#e3f2fd' : 'transparent',
-                                      }}
-                                    >
-                                      <Text style={{ color: editedPatient.time === time ? '#1976d2' : '#333' }}>
-                                        {time}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </ScrollView>
-                              </View>
-                            )}
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Age:</Text>
-                            <TextInput
-                              style={[styles.editInput, { backgroundColor: isFieldChanged('age') ? '#fffacd' : '#fff' }]}
-                              value={editedPatient.age.toString()}
-                              onChangeText={(text) => setEditedPatient({ ...editedPatient, age: parseInt(text) || 0 })}
-                              keyboardType="numeric"
-                            />
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Gender:</Text>
-                            <TouchableOpacity
-                              style={[styles.editInput, { justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: '#d0d0d0', backgroundColor: isFieldChanged('gender') ? '#fffacd' : '#fff' }]}
-                              onPress={() => setShowGenderDropdown(!showGenderDropdown)}
-                            >
-                              <Text style={{ color: editedPatient.gender ? '#000' : '#999' }}>
-                                {editedPatient.gender || 'Select a gender'}
-                              </Text>
-                            </TouchableOpacity>
-                            {showGenderDropdown && (
-                              <View style={{ backgroundColor: '#f5f5f5', borderRadius: 4, marginTop: 4, borderWidth: 1, borderColor: '#d0d0d0' }}>
-                                <ScrollView
-                                  style={{ maxHeight: 150 }}
-                                  nestedScrollEnabled={true}>
-                                  {GENDER_OPTIONS.map((gender) => (
-                                    <TouchableOpacity
-                                      key={gender}
-                                      onPress={() => {
-                                        setEditedPatient({ ...editedPatient, gender });
-                                        setShowGenderDropdown(false);
-                                      }}
-                                      style={{
-                                        paddingHorizontal: 15,
-                                        paddingVertical: 12,
-                                        borderBottomWidth: 1,
-                                        borderBottomColor: '#e0e0e0',
-                                        backgroundColor: editedPatient.gender === gender ? '#e3f2fd' : 'transparent',
-                                      }}
-                                    >
-                                      <Text style={{ color: editedPatient.gender === gender ? '#1976d2' : '#333' }}>
-                                        {gender}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </ScrollView>
-                              </View>
-                            )}
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Contact:</Text>
-                            <TextInput
-                              style={[styles.editInput, { backgroundColor: isFieldChanged('contact') ? '#fffacd' : '#fff' }]}
-                              value={editedPatient.contact}
-                              onChangeText={(text) => setEditedPatient({ ...editedPatient, contact: text })}
-                            />
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Email:</Text>
-                            <TextInput
-                              style={[styles.editInput, { backgroundColor: isFieldChanged('email') ? '#fffacd' : '#fff' }]}
-                              value={editedPatient.email}
-                              onChangeText={(text) => setEditedPatient({ ...editedPatient, email: text })}
-                            />
-                          </View>
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Notes:</Text>
-                            <TextInput
-                              style={[styles.editInput, { height: 80, textAlignVertical: 'top', backgroundColor: isFieldChanged('notes') ? '#fffacd' : '#fff' }]}
-                              value={editedPatient.notes}
-                              onChangeText={(text) => setEditedPatient({ ...editedPatient, notes: text })}
-                              multiline
-                            />
-                          </View>
-
-                          <View style={styles.editField}>
-                            <Text style={styles.editLabel}>Appointment Status:</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                              {(['scheduled', 'completed', 'cancelled', 'no-show'] as const).map((st) => (
-                                <TouchableOpacity
-                                  key={st}
-                                  style={{
-                                    paddingHorizontal: 14,
-                                    paddingVertical: 8,
-                                    borderRadius: 20,
-                                    backgroundColor: editedPatient.status === st ? getStatusBgColor(st) : '#e0e0e0',
-                                    borderWidth: (editedPatient.status === st && isFieldChanged('status')) ? 3 : editedPatient.status === st ? 2 : 0,
-                                    borderColor: (editedPatient.status === st && isFieldChanged('status')) ? '#FFD700' : editedPatient.status === st ? '#0b7fab' : 'transparent'
-                                  }}
-                                  onPress={() => setEditedPatient({ ...editedPatient, status: st })}
-                                >
-                                  <Text style={{
-                                    fontWeight: 'bold',
-                                    color: editedPatient.status === st ? '#fff' : '#333',
-                                    fontSize: 12
-                                  }}>
-                                    {st.toUpperCase()}
-                                  </Text>
-                                </TouchableOpacity>
-                              ))}
-                            </View>
-                          </View>
-
-                          <View style={styles.editButtonContainer}>
-                            <TouchableOpacity style={[styles.editButton, styles.editButtonSave]} onPress={handleSavePatient}>
-                              <Text style={styles.editButtonText}>Save</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.editButton, styles.editButtonCancel]} onPress={handleCancelEdit}>
-                              <Text style={[styles.editButtonText, styles.editButtonCancelText]}>Cancel</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      )}
-                    </ScrollView>
-                  </SafeAreaView>
-                </Modal>
-
-                <Text style={[styles.subHeader, { marginTop: 20 }]}> Appointment Requests:</Text>
-                {requests.length === 0 && (
-                  <Text style={{ color: '#888', textAlign: 'center', marginVertical: 10 }}>No pending requests.</Text>
-                )}
-                {requests.map((req) => (
-                  <View style={styles.card} key={req.id}>
-                    <View style={styles.avatar}>
-                      <Image
-                        source={typeof req.imageUrl === "string" ? { uri: req.imageUrl } : req.imageUrl}
-                        style={{ width: 40, height: 40, borderRadius: 20 }}
-                      />
-                    </View>
-                    <View style={styles.cardText}>
-                      <Text style={styles.cardTitle}>{req.name}</Text>
-                      <Text style={styles.cardSubtitle}>Service: {req.service}</Text>
-                      <Text style={styles.cardDate}>
-                        Appointment Date: {new Date(req.date).toLocaleDateString('en-US', {
-                          month: 'long',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </Text>
-                    </View>
-                    {/* Action Buttons */}
-                    <View style={{ flexDirection: "row", gap: 5 }}>
-                      <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: "#0b7fab" }]}
-                        onPress={() => {
-                          Alert.alert(
-                            "Accept Request",
-                            `Are you sure you want to accept the appointment request from ${req.name}?`,
-                            [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Accept", style: "default", onPress: () => handleAcceptRequest(req) },
-                            ]
-                          );
-                        }}
-                        accessibilityLabel={`Accept request from ${req.name}`}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.actionBtnText}>✓</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: "#6b7280" }]}
-                        onPress={() => {
-                          Alert.alert(
-                            "Decline Request",
-                            `Are you sure you want to decline the appointment request from ${req.name}?`,
-                            [
-                              { text: "Cancel", style: "cancel" },
-                              { text: "Decline", style: "destructive", onPress: () => handleDeclineRequest(req) },
-                            ]
-                          );
-                        }}
-                        accessibilityLabel={`Decline request from ${req.name}`}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.actionBtnText}>✗</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-
-                <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients List:</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={{ fontSize: 12, color: '#999' }}>Showing {Math.min(3, patients.length)} of {patients.length} patients</Text>
-                  <TouchableOpacity onPress={() => setActiveTab('records')}>
-                    <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See more</Text>
-                  </TouchableOpacity>
-                </View>
-                {patients.slice(0, 3).map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    onPress={() => {
-                      setViewingPatient(patient);
-                      setShowPatientDetails(true);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Image
-                          source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                          style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
-                          <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
-                          <Text style={{ fontSize: 11, color: '#999' }}>{patient.contact}</Text>
-                        </View>
-                        <Text style={{ fontSize: 14, color: '#0b7fab' }}>→</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-
-
-
                 ) : (
                   <View style={[styles.detailsCard, styles.shadow]}>
                     <Image
@@ -1094,161 +655,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           styles={styles}
         />
         )}
-        ) : activeTab === 'records' ? (
-        // Records Tab Content
-        <RecordsTab
-          patients={patients}
-          quickSearchQuery={quickSearchQuery}
-          setQuickSearchQuery={setQuickSearchQuery}
-          patientSortBy={patientSortBy}
-          setPatientSortBy={setPatientSortBy}
-          patientSortOrder={patientSortOrder}
-          setPatientSortOrder={setPatientSortOrder}
-          sortPatients={sortPatients}
-          setViewingPatient={setViewingPatient}
-          setShowPatientDetails={setShowPatientDetails}
-          styles={styles}
-        />
-        ) : (
-        // Appointments Tab Content
-        <AppointmentsTab
-          appointments={appointments}
-          onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
-          styles={styles}
-        />
-        )}
       </SafeAreaView>
-
-      {/* Patient Details Modal */}
-      <PatientDetailsView
-        visible={showPatientDetails}
-        patient={viewingPatient}
-        onClose={() => {
-          setShowPatientDetails(false);
-          setViewingPatient(null);
-        }}
-        onEdit={() => {
-          if (viewingPatient) {
-            setOriginalPatient({ ...viewingPatient });
-            setEditedPatient({ ...viewingPatient });
-            setIsEditingPatient(true);
-          }
-        }}
-      />
-
-      {/* Quick Patient Search Modal */}
-      <Modal
-        visible={showQuickPatientSearch}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowQuickPatientSearch(false);
-          setQuickSearchQuery("");
-        }}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0b7fab' }}>Search Patient Records</Text>
-            <TouchableOpacity onPress={() => {
-              setShowQuickPatientSearch(false);
-              setQuickSearchQuery("");
-            }}>
-              <Text style={{ fontSize: 24, color: '#0b7fab', fontWeight: 'bold' }}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-            <TextInput
-              style={{
-                backgroundColor: '#fff',
-                borderColor: '#0b7fab',
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: '#333',
-              }}
-              placeholder="Search by name, service, email, contact..."
-              placeholderTextColor="#999"
-              value={quickSearchQuery}
-              onChangeText={setQuickSearchQuery}
-            />
-          </View>
-          <ScrollView style={{ flex: 1, padding: 16 }}>
-            {patients
-              .filter((patient) =>
-                patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.contact.includes(quickSearchQuery)
-              )
-              .length === 0 ? (
-              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'Enter a search query to find patients'}
-              </Text>
-            ) : (
-              patients
-                .filter((patient) =>
-                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.contact.includes(quickSearchQuery)
-                )
-                .map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                    onPress={() => {
-                      setViewingPatient(patient);
-                      setShowPatientDetails(true);
-                      setShowQuickPatientSearch(false);
-                      setQuickSearchQuery("");
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.service} • {patient.contact}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Bottom Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'dashboard' && styles.tabItemActive]}
-          onPress={() => {
-            setActiveTab('dashboard');
-            setQuickSearchQuery("");
-          }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'dashboard' && styles.tabIconActive]}>🏠</Text>
-          <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Dashboard</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'records' && styles.tabItemActive]}
-          onPress={() => setActiveTab('records')}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'records' && styles.tabIconActive]}>📋</Text>
-          <Text style={[styles.tabLabel, activeTab === 'records' && styles.tabLabelActive]}>Records</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'appointments' && styles.tabItemActive]}
-          onPress={() => setActiveTab('appointments')}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'appointments' && styles.tabIconActive]}>📅</Text>
-          <Text style={[styles.tabLabel, activeTab === 'appointments' && styles.tabLabelActive]}>Appointments</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Patient Details Modal */}
       <PatientDetailsView
@@ -1445,51 +852,6 @@ const styles = StyleSheet.create({
     color: '#0b7fab',
     fontWeight: '600',
   },
-  logoutBtn: {
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  logoutBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingHorizontal: 0,
-    justifyContent: 'space-around',
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  tabItemActive: {
-    borderTopWidth: 3,
-    borderTopColor: '#0b7fab',
-  },
-  tabIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  tabIconActive: {
-    fontSize: 24,
-  },
-  tabLabel: {
-    fontSize: 11,
-    color: '#666',
-    fontWeight: '500',
-  },
-  tabLabelActive: {
-    color: '#0b7fab',
-    fontWeight: '600',
-  },
   scrollContent: {
     paddingBottom: 40,
   },
@@ -1581,12 +943,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginTop: 4,
   },
-  cardDate: {
-    fontSize: 12,
-    color: "#555",
-    fontWeight: "bold",
-    marginTop: 4,
-  },
   icon: {
     width: 40,
     height: 40,
@@ -1624,72 +980,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 6,
     elevation: 5,
-  },
-  editContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-    zIndex: 1000,
-  },
-  editModal: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "90%",
-  },
-  editHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 20,
-    color: "#333",
-  },
-  editField: {
-    marginBottom: 20,
-  },
-  editLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: "#555",
-  },
-  editInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: "#333",
-  },
-  editButtonContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 24,
-    paddingBottom: 20,
-  },
-  editButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  editButtonSave: {
-    backgroundColor: "#0b7fab",
-  },
-  editButtonCancel: {
-    backgroundColor: "#ddd",
-  },
-  editButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  editButtonCancelText: {
-    color: "#333",
   },
   editContainer: {
     position: "absolute",
