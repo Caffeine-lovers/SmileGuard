@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,14 +9,16 @@ import {
   Modal,
   Button,
   TextInput,
+  Animated,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AppointmentCard from "./AppointmentCard";
 import StatCard from "./StatCard";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
-import RecordsTab from "./RecordsTab";
-import AppointmentsTab from "./AppointmentsTab";
+import RecordsTab from "../navigation/RecordsTab";
+import AppointmentsTab from "../navigation/AppointmentsTab";
+import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus } from "../../lib/appointmentService";
 import { CurrentUser } from "@smileguard/shared-types";
 import {
@@ -39,6 +41,22 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
+  // Get safe area insets to respect status bar and notches
+  const insets = useSafeAreaInsets();
+  
+  // Sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarAnimatedValue = useRef(new Animated.Value(0)).current;
+  
+  // Animate sidebar position when open/closed
+  useEffect(() => {
+    Animated.timing(sidebarAnimatedValue, {
+      toValue: sidebarOpen ? 0 : -260,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [sidebarOpen, sidebarAnimatedValue]);
+  
   // Appointments state
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
@@ -49,7 +67,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [viewingPatient, setViewingPatient] = useState<AppointmentType | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'settings'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -195,20 +213,21 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   return (
     <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
-        {/* Header Bar */}
-        <View style={styles.topBar}>
-          <Text style={styles.topBarText}>🦷 SmileGuard MD</Text>
-          <TouchableOpacity
-            style={styles.logoutBtn}
-            onPress={onLogout}
-            accessibilityLabel="Logout"
-            accessibilityRole="button"
-          >
-            <Text style={styles.logoutBtnText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.mainContainer}>
+          {/* Toggle Button - Always Visible */}
+          {!sidebarOpen && (
+            <TouchableOpacity
+              style={styles.floatingToggleButton}
+              onPress={() => setSidebarOpen(true)}
+              accessibilityLabel="Open sidebar"
+              accessibilityRole="button"
+            >
+              <Text style={styles.floatingToggleIcon}>☰</Text>
+            </TouchableOpacity>
+          )}
 
-        {/* Main Content Area */}
+          {/* Main Content Area - Full Width */}
+          <View style={styles.contentArea}>
         {activeTab === 'dashboard' ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.container}>
@@ -647,210 +666,392 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           setShowPatientDetails={setShowPatientDetails}
           styles={styles}
         />
-        ) : (
+        ) : activeTab === 'appointments' ? (
         // Appointments Tab Content
         <AppointmentsTab
           appointments={appointments}
           onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
           styles={styles}
         />
+        ) : (
+        // Settings Tab Content
+        <SettingsTab user={user} styles={styles} />
         )}
-      </SafeAreaView>
+          </View>
 
-      {/* Patient Details Modal */}
-      <PatientDetailsView
-        visible={showPatientDetails}
-        patient={viewingPatient}
-        onClose={() => {
-          setShowPatientDetails(false);
-          setViewingPatient(null);
-        }}
-        onEdit={() => {
-          if (viewingPatient) {
-            setOriginalPatient({ ...viewingPatient });
-            setEditedPatient({ ...viewingPatient });
-            setIsEditingPatient(true);
-          }
-        }}
-      />
+          {/* Patient Details Modal */}
+          <PatientDetailsView
+            visible={showPatientDetails}
+            patient={viewingPatient}
+            onClose={() => {
+              setShowPatientDetails(false);
+              setViewingPatient(null);
+            }}
+            onEdit={() => {
+              if (viewingPatient) {
+                setOriginalPatient({ ...viewingPatient });
+                setEditedPatient({ ...viewingPatient });
+                setIsEditingPatient(true);
+              }
+            }}
+          />
 
-      {/* Quick Patient Search Modal */}
-      <Modal
-        visible={showQuickPatientSearch}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowQuickPatientSearch(false);
-          setQuickSearchQuery("");
-        }}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0b7fab' }}>Search Patient Records</Text>
-            <TouchableOpacity onPress={() => {
+          {/* Quick Patient Search Modal */}
+          <Modal
+            visible={showQuickPatientSearch}
+            animationType="slide"
+            onRequestClose={() => {
               setShowQuickPatientSearch(false);
               setQuickSearchQuery("");
-            }}>
-              <Text style={{ fontSize: 24, color: '#0b7fab', fontWeight: 'bold' }}>✕</Text>
+            }}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0b7fab' }}>Search Patient Records</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowQuickPatientSearch(false);
+                  setQuickSearchQuery("");
+                }}>
+                  <Text style={{ fontSize: 24, color: '#0b7fab', fontWeight: 'bold' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                <TextInput
+                  style={{
+                    backgroundColor: '#fff',
+                    borderColor: '#0b7fab',
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontSize: 14,
+                    color: '#333',
+                  }}
+                  placeholder="Search by name, service, email, contact..."
+                  placeholderTextColor="#999"
+                  value={quickSearchQuery}
+                  onChangeText={setQuickSearchQuery}
+                />
+              </View>
+              <ScrollView style={{ flex: 1, padding: 16 }}>
+                {patients
+                  .filter((patient) =>
+                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.contact.includes(quickSearchQuery)
+                  )
+                  .length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                    {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'Enter a search query to find patients'}
+                  </Text>
+                ) : (
+                  patients
+                    .filter((patient) =>
+                      patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                      patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                      patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                      patient.contact.includes(quickSearchQuery)
+                    )
+                    .map((patient) => (
+                      <TouchableOpacity
+                        key={patient.id}
+                        style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                        onPress={() => {
+                          setViewingPatient(patient);
+                          setShowPatientDetails(true);
+                          setShowQuickPatientSearch(false);
+                          setQuickSearchQuery("");
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Image
+                            source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                            style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                            <Text style={{ fontSize: 12, color: '#666' }}>{patient.service} • {patient.contact}</Text>
+                          </View>
+                          <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
+        </View>
+
+        {/* Left Sidebar Navigation - Overlaying */}
+        <Animated.View
+          style={[
+            styles.sidebarOverlay,
+            {
+              transform: [{ translateX: sidebarAnimatedValue }],
+              top: insets.top,
+              bottom: insets.bottom,
+            },
+          ]}
+        >
+          {/* Toggle Button in Sidebar */}
+          <TouchableOpacity
+            style={styles.sidebarToggleButton}
+            onPress={() => setSidebarOpen(false)}
+            accessibilityLabel="Close sidebar"
+            accessibilityRole="button"
+          >
+            <Text style={styles.sidebarToggleIcon}>✕</Text>
+          </TouchableOpacity>
+
+          {sidebarOpen && (
+            <View style={styles.logoSection}>
+              <Text style={styles.logoText}>🦷</Text>
+              <Text style={styles.logoTitle}>SmileGuard</Text>
+            </View>
+          )}
+
+          {/* Navigation Items */}
+          <View style={styles.navItems}>
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
+              onPress={() => {
+                setActiveTab('dashboard');
+                setQuickSearchQuery("");
+              }}
+              accessibilityLabel="Dashboard"
+              accessibilityRole="button"
+            >
+              <Text style={styles.navIcon}>🏠</Text>
+              {sidebarOpen && <Text style={[styles.navLabel, activeTab === 'dashboard' && styles.navLabelActive]}>Dashboard</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === 'records' && styles.navItemActive]}
+              onPress={() => setActiveTab('records')}
+              accessibilityLabel="Records"
+              accessibilityRole="button"
+            >
+              <Text style={styles.navIcon}>📋</Text>
+              {sidebarOpen && <Text style={[styles.navLabel, activeTab === 'records' && styles.navLabelActive]}>Records</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === 'appointments' && styles.navItemActive]}
+              onPress={() => setActiveTab('appointments')}
+              accessibilityLabel="Appointments"
+              accessibilityRole="button"
+            >
+              <Text style={styles.navIcon}>📅</Text>
+              {sidebarOpen && <Text style={[styles.navLabel, activeTab === 'appointments' && styles.navLabelActive]}>Appointments</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
+              onPress={() => setActiveTab('settings')}
+              accessibilityLabel="Settings"
+              accessibilityRole="button"
+            >
+              <Text style={styles.navIcon}>⚙️</Text>
+              {sidebarOpen && <Text style={[styles.navLabel, activeTab === 'settings' && styles.navLabelActive]}>Settings</Text>}
             </TouchableOpacity>
           </View>
-          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-            <TextInput
-              style={{
-                backgroundColor: '#fff',
-                borderColor: '#0b7fab',
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: '#333',
-              }}
-              placeholder="Search by name, service, email, contact..."
-              placeholderTextColor="#999"
-              value={quickSearchQuery}
-              onChangeText={setQuickSearchQuery}
-            />
-          </View>
-          <ScrollView style={{ flex: 1, padding: 16 }}>
-            {patients
-              .filter((patient) =>
-                patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.contact.includes(quickSearchQuery)
-              )
-              .length === 0 ? (
-              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'Enter a search query to find patients'}
-              </Text>
-            ) : (
-              patients
-                .filter((patient) =>
-                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.contact.includes(quickSearchQuery)
-                )
-                .map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                    onPress={() => {
-                      setViewingPatient(patient);
-                      setShowPatientDetails(true);
-                      setShowQuickPatientSearch(false);
-                      setQuickSearchQuery("");
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.service} • {patient.contact}</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: 'bold' }}>→</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
 
-      {/* Bottom Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'dashboard' && styles.tabItemActive]}
-          onPress={() => {
-            setActiveTab('dashboard');
-            setQuickSearchQuery("");
-          }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'dashboard' && styles.tabIconActive]}>🏠</Text>
-          <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Dashboard</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'records' && styles.tabItemActive]}
-          onPress={() => setActiveTab('records')}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'records' && styles.tabIconActive]}>📋</Text>
-          <Text style={[styles.tabLabel, activeTab === 'records' && styles.tabLabelActive]}>Records</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'appointments' && styles.tabItemActive]}
-          onPress={() => setActiveTab('appointments')}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'appointments' && styles.tabIconActive]}>📅</Text>
-          <Text style={[styles.tabLabel, activeTab === 'appointments' && styles.tabLabelActive]}>Appointments</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Logout Button at Bottom */}
+          <TouchableOpacity
+            style={styles.sidebarLogoutBtn}
+            onPress={onLogout}
+            accessibilityLabel="Logout"
+            accessibilityRole="button"
+          >
+            <Text style={styles.sidebarLogoutIcon}>🚪</Text>
+            {sidebarOpen && <Text style={styles.sidebarLogoutText}>Logout</Text>}
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Backdrop Overlay - Closes sidebar when tapped */}
+        {sidebarOpen && (
+          <TouchableOpacity
+            style={styles.backdropOverlay}
+            onPress={() => setSidebarOpen(false)}
+            activeOpacity={0}
+            accessibilityLabel="Close sidebar"
+            accessibilityRole="button"
+          />
+        )}
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    height: 60,
-    backgroundColor: "#fff",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  topBarText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#0b7fab",
-  },
-  logoutBtn: {
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  logoutBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingHorizontal: 0,
-    justifyContent: 'space-around',
-  },
-  tabItem: {
+  // Main Container
+  mainContainer: {
     flex: 1,
+    backgroundColor: '#f0f8ff',
+    position: 'relative',
+  },
+  
+  // Sidebar Styles
+  sidebar: {
+    width: 260,
+    backgroundColor: '#0b7fab',
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    borderRightWidth: 1,
+    borderRightColor: '#0a5f8f',
+  },
+
+  sidebarOverlay: {
+    position: 'absolute',
+    left: 0,
+    width: 260,
+    backgroundColor: '#0b7fab',
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    borderRightWidth: 1,
+    borderRightColor: '#0a5f8f',
+    zIndex: 50,
+  },
+
+  floatingToggleButton: {
+    position: 'absolute',
+    left: 12,
+    top: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#0b7fab',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
+  floatingToggleIcon: {
+    fontSize: 22,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+
+  backdropOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 40,
+  },
+
+  sidebarToggleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  sidebarToggleIcon: {
+    fontSize: 20,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+
+  logoSection: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+
+  logoText: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+
+  logoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+
+  navItems: {
+    flex: 1,
+    gap: 8,
+  },
+
+  navItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'flex-start',
   },
-  tabItemActive: {
-    borderTopWidth: 3,
-    borderTopColor: '#0b7fab',
+
+  navItemActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#fff',
   },
-  tabIcon: {
-    fontSize: 24,
-    marginBottom: 4,
+
+  navIcon: {
+    fontSize: 20,
+    marginRight: 12,
   },
-  tabIconActive: {
-    fontSize: 24,
-  },
-  tabLabel: {
-    fontSize: 11,
-    color: '#666',
+
+  navLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
     fontWeight: '500',
   },
-  tabLabelActive: {
-    color: '#0b7fab',
+
+  navLabelActive: {
+    color: '#fff',
     fontWeight: '600',
+  },
+
+  sidebarLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    marginTop: 16,
+  },
+
+  sidebarLogoutIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+
+  sidebarLogoutText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Content Area
+  contentArea: {
+    flex: 1,
+    backgroundColor: '#f0f8ff',
+  },
+
+  scrollViewContent: {
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: 40,
@@ -1046,5 +1247,76 @@ const styles = StyleSheet.create({
   },
   editButtonCancelText: {
     color: "#333",
+  },
+
+  // Settings Styles
+  settingsSection: {
+    marginBottom: 24,
+  },
+
+  settingsSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0b7fab',
+    marginBottom: 12,
+  },
+
+  settingsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  settingsItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  settingsToggleItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  settingsLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+
+  settingsValue: {
+    fontSize: 14,
+    color: '#0b7fab',
+    fontWeight: '500',
+  },
+
+  toggleSwitch: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#e0e0e0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+
+  toggleButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 2,
+    elevation: 2,
   },
 });
