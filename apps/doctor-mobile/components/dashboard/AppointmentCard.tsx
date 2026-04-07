@@ -5,7 +5,7 @@ interface AppointmentCardProps {
   name: string;
   service: string;
   time: string;
-  imageUrl?: string;
+  imageUrl?: string | number;
   onPress: () => void;
   highlighted?: boolean;
 }
@@ -19,10 +19,21 @@ export default function AppointmentCard({
   highlighted = false,
 }: AppointmentCardProps) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Image source={{ uri: imageUrl }} style={styles.icon} />
+    <TouchableOpacity
+      style={[styles.card, highlighted && { backgroundColor: '#ffcccc', borderColor: '#ff0000', borderWidth: 2 }]}
+      onPress={onPress}
+    >
+      <Image source={typeof imageUrl === "string" ? { uri: imageUrl } : imageUrl} 
+        style={styles.icon} />
       <View style={styles.cardText}>
-        <Text style={styles.cardTitle}>{name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={styles.cardTitle}>{name}</Text>
+          {highlighted && (
+            <View style={styles.priorityLabel}>
+              <Text style={styles.priorityLabelText}>Upcoming Patient</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.cardSubtitle}>{service}</Text>
       </View>
       <Text style={styles.timeText}>{time}</Text>
@@ -47,6 +58,20 @@ const styles = StyleSheet.create({
   cardText: {
     flex: 1,
     marginLeft: 10,
+  },
+  priorityLabel: {
+    backgroundColor: '#ff0000',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+    alignSelf: 'flex-start',
+  },
+  priorityLabelText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
   cardTitle: {
     fontWeight: "bold",
