@@ -44,6 +44,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Get safe area insets to respect status bar and notches
   const insets = useSafeAreaInsets();
   
+  // Doctor profile state
+  const [doctorProfile, setDoctorProfile] = useState<CurrentUser>(user);
+  
+  // Handle profile updates
+  const handleUpdateProfile = (updatedData: Partial<CurrentUser>) => {
+    setDoctorProfile(prev => ({ ...prev, ...updatedData }));
+  };
+  
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarAnimatedValue = useRef(new Animated.Value(0)).current;
@@ -232,7 +240,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.container}>
             <Text style={[styles.header, { marginBottom: 20 }]}>
-              Welcome, {user.name}
+              Welcome, {doctorProfile.name}
             </Text>
 
             {/* Stats Panel */}
@@ -675,7 +683,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         />
         ) : (
         // Settings Tab Content
-        <SettingsTab user={user} styles={styles} />
+        <SettingsTab user={doctorProfile} onUpdateProfile={handleUpdateProfile} styles={styles} />
         )}
           </View>
 
@@ -1263,8 +1271,9 @@ const styles = StyleSheet.create({
 
   settingsCard: {
     backgroundColor: '#fff',
-    borderRadius: 8,
+    borderRadius: 0,
     marginBottom: 8,
+    marginHorizontal: -16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     shadowColor: '#000',
