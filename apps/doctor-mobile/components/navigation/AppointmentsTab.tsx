@@ -13,6 +13,7 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
+import { supabase } from "../../lib/supabase";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -166,6 +167,11 @@ export default function AppointmentsTab({
     return '#0b7fab';
   };
 
+  const getCalendarBadgeColor = () => {
+    // Used for calendar badge - matches the filter color
+    return getFilterBadgeColor();
+  };
+
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
@@ -175,17 +181,28 @@ export default function AppointmentsTab({
   };
 
   const getAppointmentCountForDate = (dateStr: string) => {
-    // Use all month appointments for calendar counts (loaded on mount and month change)
-    // Only show real Supabase data (no fallback to sample data)
+    // Use all month appointments for calendar counts
     const appointmentsToUse = allMonthAppointments;
-    const appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
+    let appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
     
-    // Apply the same filtering logic as the appointments list
-    if (appointmentFilterBy === 'all') return appointmentsForDate.length;
-    if (appointmentFilterBy === 'scheduled') return appointmentsForDate.filter(apt => apt.status !== 'completed').length;
-    if (appointmentFilterBy === 'completed') return appointmentsForDate.filter(apt => apt.status === 'completed').length;
-    if (appointmentFilterBy === 'cancelled') return appointmentsForDate.filter(apt => apt.status === 'cancelled').length;
-    if (appointmentFilterBy === 'no-show') return appointmentsForDate.filter(apt => apt.status === 'no-show').length;
+    // Apply the active filter to calendar counts
+    if (appointmentFilterBy === 'all') {
+      // Show all appointments
+      return appointmentsForDate.length;
+    } else if (appointmentFilterBy === 'scheduled') {
+      // Show only scheduled/pending appointments
+      return appointmentsForDate.filter(apt => apt.status === 'scheduled').length;
+    } else if (appointmentFilterBy === 'completed') {
+      // Show only completed appointments
+      return appointmentsForDate.filter(apt => apt.status === 'completed').length;
+    } else if (appointmentFilterBy === 'cancelled') {
+      // Show only cancelled appointments
+      return appointmentsForDate.filter(apt => apt.status === 'cancelled').length;
+    } else if (appointmentFilterBy === 'no-show') {
+      // Show only no-show appointments
+      return appointmentsForDate.filter(apt => apt.status === 'no-show').length;
+    }
+    
     return appointmentsForDate.length;
   };
 
@@ -212,22 +229,31 @@ export default function AppointmentsTab({
   const handleSaveStatus = async () => {
     if (editingAppointmentId) {
       try {
-        // Pass false to prevent removing the appointment from the list in the appointments tab
-        await onUpdateAppointmentStatus(editingAppointmentId, editingStatus, false);
+        console.log(`🔄 Updating appointment ${editingAppointmentId} to status: ${editingStatus}`);
+        
+        // Call Supabase function to update status (bypasses RLS)
+        const { data, error } = await supabase.rpc('update_appointment_status', {
+          p_appointment_id: editingAppointmentId,
+          p_new_status: editingStatus
+        });
+
+        console.log('📊 Supabase RPC response:', { data, error });
+
+        if (error) {
+          console.error('❌ Error updating appointment status:', error);
+          Alert.alert("Error", "Failed to update appointment status: " + error.message);
+          return;
+        }
+
+        console.log('✅ Appointment status updated successfully via RPC');
         setEditingAppointmentId(null);
         
-        // Refresh current day appointments to show updated status
-        console.log('🔄 Refreshing appointments after status update...');
-        const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
-        if (doctorAppointments.length > 0) {
-          const transformed = doctorAppointments.map(transformBackendAppointment);
-          setFetchedAppointments(transformed);
-        } else {
-          setFetchedAppointments([]);
-        }
-        console.log(`✅ Day appointments refreshed`);
+        // Auto-switch to 'all' filter to show the updated appointment status
+        console.log('🔄 Switching filter to "All" to show updated appointment...');
+        setAppointmentFilterBy('all');
         
-        // Also refresh entire month appointments for calendar
+        // Also refresh entire month appointments for calendar FIRST
+        console.log('🔄 Refreshing month appointments for calendar...');
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
         const firstDay = new Date(year, month, 1);
@@ -236,15 +262,37 @@ export default function AppointmentsTab({
         const endDate = formatDate(lastDay);
         
         const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+        console.log(`📅 Fetched ${monthAppointments.length} total appointments for the month`);
+        
         if (monthAppointments.length > 0) {
           const transformed = monthAppointments.map(transformBackendAppointment);
           setAllMonthAppointments(transformed);
+          console.log(`✅ Month appointments updated - calendar will refresh`);
+          
+          // Log the specific date to verify the appointment is there
+          const appointmentDate = monthAppointments.find(apt => apt.id === editingAppointmentId)?.appointment_date;
+          if (appointmentDate) {
+            const countOnDate = transformed.filter(apt => apt.date === appointmentDate).length;
+            console.log(`📍 Date ${appointmentDate} now has ${countOnDate} total appointments`);
+          }
         } else {
           setAllMonthAppointments([]);
+          console.log(`⚠️ No appointments found in month`);
         }
-        console.log(`✅ Month appointments refreshed - calendar updated`);
         
-        Alert.alert("Success", "Appointment status updated successfully.");
+        // Refresh current day appointments to show updated status
+        console.log('🔄 Refreshing current day appointments...');
+        const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+        if (doctorAppointments.length > 0) {
+          const transformed = doctorAppointments.map(transformBackendAppointment);
+          setFetchedAppointments(transformed);
+          console.log(`✅ Day appointments refreshed - showing all statuses now with filter 'all'`);
+        } else {
+          setFetchedAppointments([]);
+        }
+        console.log(`✅ Day appointments refreshed`);
+        
+        Alert.alert("Success", "Appointment status updated to " + formatStatus(editingStatus) + ". Filter switched to 'All' to show the update.");
       } catch (error) {
         console.error('Error updating status:', error);
         Alert.alert("Error", "Failed to update appointment status.");
@@ -266,6 +314,11 @@ export default function AppointmentsTab({
               const result = await cancelAppointment(appointmentId);
               if (result.success) {
                 Alert.alert("✅ Success", result.message);
+                
+                // Auto-switch to 'all' filter to show the cancelled appointment
+                console.log('🔄 Switching filter to "All" to show cancelled appointment...');
+                setAppointmentFilterBy('all');
+                
                 // Refresh appointments after cancellation
                 console.log('🔄 Refreshing appointments after cancellation...');
                 
@@ -277,7 +330,7 @@ export default function AppointmentsTab({
                 } else {
                   setFetchedAppointments([]);
                 }
-                console.log(`✅ Day appointments refreshed - now showing ${doctorAppointments.length} appointments`);
+                console.log(`✅ Day appointments refreshed - now showing ${doctorAppointments.length} appointments with filter 'all'`);
                 
                 // Also refresh entire month appointments for calendar
                 const year = currentMonth.getFullYear();
@@ -371,7 +424,7 @@ export default function AppointmentsTab({
     const matchesDate = selectedDate ? apt.date === selectedDate : true;
 
     if (appointmentFilterBy === 'all') return matchesSearch && matchesDate;
-    if (appointmentFilterBy === 'scheduled') return matchesSearch && matchesDate && apt.status !== 'completed';
+    if (appointmentFilterBy === 'scheduled') return matchesSearch && matchesDate && apt.status === 'scheduled';
     if (appointmentFilterBy === 'completed') return matchesSearch && matchesDate && apt.status === 'completed';
     if (appointmentFilterBy === 'cancelled') return matchesSearch && matchesDate && apt.status === 'cancelled';
     if (appointmentFilterBy === 'no-show') return matchesSearch && matchesDate && apt.status === 'no-show';
@@ -569,7 +622,7 @@ export default function AppointmentsTab({
                     {!isUnavailable && appointmentCount > 0 && (
                       <View
                         style={{
-                          backgroundColor: isSelected ? '#fff' : getFilterBadgeColor(),
+                          backgroundColor: isSelected ? '#fff' : getCalendarBadgeColor(),
                           borderRadius: 8,
                           width: 14,
                           height: 14,
@@ -578,7 +631,7 @@ export default function AppointmentsTab({
                           marginTop: 2,
                         }}
                       >
-                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: isSelected ? getFilterBadgeColor() : '#fff' }}>
+                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: isSelected ? getCalendarBadgeColor() : '#fff' }}>
                           {appointmentCount}
                         </Text>
                       </View>

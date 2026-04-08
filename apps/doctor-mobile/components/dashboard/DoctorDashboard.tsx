@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView as RNScrollView,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AppointmentCard from "./AppointmentCard";
@@ -21,12 +22,7 @@ import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
 import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus } from "../../lib/appointmentService";
-import { 
-  fetchDoctorAppointments, 
-  fetchTodayAppointments, 
-  getAppointmentStats, 
-  fetchDoctorPatients
-} from "../../lib/dashboardService";
+import * as dashboardService from "../../lib/dashboardService";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
   SERVICE_OPTIONS,
@@ -52,6 +48,7 @@ export interface DashboardAppointment {
   status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
   patient_id?: string;
   dentist_id?: string | null;
+  medicalIntake?: any;
 }
 
 interface DoctorDashboardProps {
@@ -69,7 +66,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [dataFetched, setDataFetched] = useState(false);
   
   // Handle profile updates
   const handleUpdateProfile = (updatedData: Partial<CurrentUser>) => {
@@ -95,6 +91,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
   const [patientSortOrder, setPatientSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
+  const [expandPatientDetails, setExpandPatientDetails] = useState(false);
   const [viewingPatient, setViewingPatient] = useState<DashboardAppointment | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
@@ -109,98 +106,143 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [patients, setPatients] = useState<DashboardAppointment[]>([]);
   const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
 
-  const todayAppointments = appointments.filter(apt => apt.date === today);
+  // Filter today's appointments - exclude completed and cancelled ones
+  const todayAppointments = appointments.filter(apt => 
+    apt.date === today && 
+    apt.status !== 'completed' && 
+    apt.status !== 'cancelled' && 
+    apt.status !== 'no-show'
+  );
+  
+  // Auto-select first appointment from today's list
   const [selectedPatient, setSelectedPatient] = useState<DashboardAppointment | null>(
     todayAppointments.length > 0 ? todayAppointments[0] : (appointments.length > 0 ? appointments[0] : null)
   );
+
+  // Update selectedPatient whenever todayAppointments changes
+  useEffect(() => {
+    if (todayAppointments.length > 0 && !selectedPatient) {
+      setSelectedPatient(todayAppointments[0]);
+    }
+  }, [todayAppointments, selectedPatient]);
+
+  // Auto-show patient details when a patient is selected
+  useEffect(() => {
+    if (selectedPatient) {
+      setShowPatientDetails(true);
+    }
+  }, [selectedPatient]);
 
   // ─────────────────────────────────────────
   // FETCH DATA FROM SUPABASE
   // ─────────────────────────────────────────
   
-  useEffect(() => {
-    if (!user?.id || dataFetched) return;
+  const refreshDashboardData = useCallback(async () => {
+    if (!user?.id) return;
 
-    const initializeDashboard = async () => {
-      try {
-        setLoadingAppointments(true);
-        setLoadingPatients(true);
-        setErrorMessage(null);
+    try {
+      setLoadingAppointments(true);
+      setLoadingPatients(true);
+      setErrorMessage(null);
 
-        console.log('📥 Fetching appointments from Supabase...');
-        const { success: aptSuccess, data: appointmentData } = await fetchDoctorAppointments(user.id!);
+      console.log('📥 Fetching appointments with patient details from Supabase...');
+      const { success: aptSuccess, data: appointmentData } = await dashboardService.fetchDoctorAppointmentsWithPatients(user.id!);
+      
+      if (aptSuccess && appointmentData.length > 0) {
+        const transformedAppointments = appointmentData.map((apt: any) => ({
+          id: apt.id || '',
+          name: apt.patient_name || 'Patient',
+          service: apt.service || '',
+          time: apt.appointment_time || '',
+          date: apt.appointment_date || '',
+          age: 0,
+          gender: apt.medicalIntake?.gender || '',
+          contact: apt.medicalIntake?.phone || '',
+          email: apt.patient_email || '',
+          notes: apt.notes || '',
+          imageUrl: require('../../assets/images/user.png'),
+          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+          patient_id: apt.patient_id,
+          dentist_id: apt.dentist_id,
+          medicalIntake: apt.medicalIntake,
+        }));
+        setAppointments(transformedAppointments);
         
-        if (aptSuccess && appointmentData.length > 0) {
-          const transformedAppointments = appointmentData.map((apt: SupabaseAppointment) => ({
-            id: apt.id || '',
-            name: 'Patient',
-            service: apt.service || '',
-            time: apt.appointment_time || '',
-            date: apt.appointment_date || '',
-            age: 0,
-            gender: '',
-            contact: '',
-            email: '',
-            notes: apt.notes || '',
-            imageUrl: require('../../assets/images/user.png'),
-            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
-            patient_id: apt.patient_id,
-            dentist_id: apt.dentist_id,
-          }));
-          setAppointments(transformedAppointments);
-          console.log(`✅ Loaded ${transformedAppointments.length} appointments`);
-        } else {
-          setAppointments([]);
-          console.log('ℹ️ No appointments found');
-        }
-
-        const { success: statsSuccess, stats: statsData } = await getAppointmentStats(user.id!);
-        if (statsSuccess) {
-          setStats(statsData);
-          console.log('✅ Stats loaded:', statsData);
-        }
-
-        console.log('📥 Fetching patients from Supabase...');
-        const { success: patSuccess, data: patientData } = await fetchDoctorPatients(user.id!);
-        
-        if (patSuccess && patientData.length > 0) {
-          const transformedPatients = patientData.map((patient: any) => ({
-            id: patient.id,
-            name: patient.name || 'Unknown',
-            email: patient.email || '',
-            contact: patient.email || '',
-            service: patient.service || '',
-            time: '',
-            date: today,
-            age: 0,
-            gender: '',
-            notes: '',
-            imageUrl: require('../../assets/images/user.png'),
-            status: 'scheduled' as const,
-            patient_id: patient.id,
-          }));
-          setPatients(transformedPatients);
-          console.log(`✅ Loaded ${transformedPatients.length} patients`);
-        } else {
-          setPatients([]);
-          console.log('ℹ️ No patients found');
-        }
-
-        setDataFetched(true);
-      } catch (error) {
-        console.error('❌ Error initializing dashboard:', error);
-        setErrorMessage('Failed to load dashboard data');
-      } finally {
-        setLoadingAppointments(false);
-        setLoadingPatients(false);
+        // Calculate stats from the actual appointments data
+        const calculatedStats = {
+          total: transformedAppointments.length,
+          scheduled: transformedAppointments.filter(a => a.status === 'scheduled').length,
+          completed: transformedAppointments.filter(a => a.status === 'completed').length,
+          cancelled: transformedAppointments.filter(a => a.status === 'cancelled').length,
+          noShow: transformedAppointments.filter(a => a.status === 'no-show').length,
+        };
+        setStats(calculatedStats);
+        console.log(`✅ Loaded ${transformedAppointments.length} appointments with patient names`);
+        console.log('✅ Stats calculated:', calculatedStats);
+      } else {
+        setAppointments([]);
+        setStats({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
+        console.log('ℹ️ No appointments found');
       }
-    };
 
-    initializeDashboard();
-  }, [user?.id, dataFetched, today]);
+      console.log('📥 Fetching patients from Supabase...');
+      const { success: patSuccess, data: patientData } = await dashboardService.fetchDoctorPatients(user.id!);
+      
+      if (patSuccess && patientData.length > 0) {
+        const transformedPatients = patientData.map((patient: any) => ({
+          id: patient.id,
+          name: patient.name || 'Unknown',
+          email: patient.email || '',
+          contact: patient.phone || '',
+          service: patient.service || '',
+          time: '',
+          date: today,
+          age: 0,
+          gender: '',
+          notes: '',
+          imageUrl: require('../../assets/images/user.png'),
+          status: 'scheduled' as const,
+          patient_id: patient.id,
+        }));
+        setPatients(transformedPatients);
+        console.log(`✅ Loaded ${transformedPatients.length} patients`);
+      } else {
+        setPatients([]);
+        console.log('ℹ️ No patients found');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching dashboard data:', error);
+      setErrorMessage('Failed to load dashboard data');
+    } finally {
+      setLoadingAppointments(false);
+      setLoadingPatients(false);
+    }
+  }, [user?.id, today]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    refreshDashboardData();
+  }, [user?.id]);
+
+  // ─────────────────────────────────────────
+  // UPDATE DASHBOARD WHEN COMPONENT OPENS
+  // ─────────────────────────────────────────
+  
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Dashboard tab focused - refreshing data...');
+      refreshDashboardData();
+      setExpandPatientDetails(false);
+      
+      return () => {
+        // Cleanup if needed
+      };
+    }, [refreshDashboardData])
+  );
 
   const handlePress = (apt: DashboardAppointment) => {
     setSelectedPatient(apt);
+    setExpandPatientDetails(false);
   };
 
   const handleAcceptRequest = (req: DashboardAppointment) => {
@@ -308,6 +350,59 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     return '#999';
   };
 
+  // Format date of birth
+  const formatDateOfBirth = (dateStr: string): string => {
+    if (!dateStr) return "Not provided";
+    try {
+      // Handle mm/dd/YYYY format
+      if (dateStr.includes('/')) {
+        const [month, day, year] = dateStr.split('/');
+        const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      
+      // Handle ISO date format
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Format appointment date
+  const formatAppointmentDate = (dateStr: string): string => {
+    if (!dateStr) return "Not provided";
+    try {
+      // Handle YYYY-MM-DD format
+      if (dateStr.includes('-')) {
+        const [year, month, day] = dateStr.split('-');
+        const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      
+      // Handle mm/dd/YYYY format
+      if (dateStr.includes('/')) {
+        const [month, day, year] = dateStr.split('/');
+        const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      
+      // Handle ISO date format
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Loading indicator
   if (loadingAppointments || loadingPatients) {
     return (
@@ -397,33 +492,104 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>No appointment selected</Text>
                         </View>
                       ) : (
-                        <View style={[styles.detailsCard, styles.shadow]}>
-                          <Image
-                            source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                            style={{ width: 60, height: 60, borderRadius: 30, marginBottom: 10 }}
-                          />
-                          <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 4 }}>
-                            {selectedPatient.name}
-                          </Text>
-                          <Text style={{ color: "#555", marginBottom: 2 }}>
-                            <Text style={{ fontWeight: "bold" }}>Service:</Text> {selectedPatient.service}
-                          </Text>
-                          <Text style={{ color: "#555", marginBottom: 2 }}>
-                            <Text style={{ fontWeight: "bold" }}>Time:</Text> {selectedPatient.time}
-                          </Text>
-                          <Text style={{ color: "#555", marginBottom: 2 }}>
-                            <Text style={{ fontWeight: "bold" }}>Status:</Text></Text>
+                        <View style={[styles.detailsCard, styles.shadow, { position: 'relative' }]}>
+                          {/* Status Badge - Top Right Corner */}
                           <View style={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
                             paddingHorizontal: 12,
                             paddingVertical: 6,
                             borderRadius: 20,
                             backgroundColor: getStatusBgColor(selectedPatient.status || 'scheduled'),
-                            marginTop: 8
+                            zIndex: 10,
                           }}>
                             <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 12 }}>
                               {(selectedPatient.status || 'scheduled').toUpperCase()}
                             </Text>
                           </View>
+
+                          {/* Patient Header */}
+                          <View style={{ alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
+                            <Image
+                              source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
+                              style={{ width: 60, height: 60, borderRadius: 30, marginBottom: 10 }}
+                            />
+                            <Text style={{ fontWeight: "bold", fontSize: 18 }}>
+                              {selectedPatient.name}
+                            </Text>
+                          </View>
+
+                          {/* Appointment Details */}
+                          <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>APPOINTMENT DETAILS</Text>
+                            <DetailRow label="Service" value={selectedPatient.service || "Not specified"} />
+                            <DetailRow label="Time" value={selectedPatient.time || "Not specified"} />
+                            <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
+                          </View>
+
+                          {/* See More Button */}
+                          <TouchableOpacity 
+                            style={{
+                              paddingVertical: 14,
+                              paddingHorizontal: 16,
+                              marginBottom: 24,
+                              backgroundColor: expandPatientDetails ? '#E3F2FD' : '#f5f5f5',
+                              borderRadius: 8,
+                              borderWidth: 1,
+                              borderColor: expandPatientDetails ? '#0b7fab' : '#ddd',
+                              alignItems: 'center',
+                            }}
+                            onPress={() => setExpandPatientDetails(!expandPatientDetails)}
+                          >
+                            <Text style={{
+                              fontSize: 13,
+                              fontWeight: '600',
+                              color: expandPatientDetails ? '#0b7fab' : '#666',
+                            }}>
+                              {expandPatientDetails ? '◀ Show Less' : '▶ See More'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          {/* Contact Information - Expanded */}
+                          {expandPatientDetails && (
+                            <>
+                              <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>CONTACT INFORMATION</Text>
+                                <DetailRow label="Email" value={selectedPatient.email || "Not provided"} />
+                                <DetailRow label="Phone" value={selectedPatient.contact || "Not provided"} />
+                              </View>
+
+                              {/* Personal Details */}
+                              {selectedPatient.medicalIntake && (
+                                <>
+                                  <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>PERSONAL DETAILS</Text>
+                                    <DetailRow label="Gender" value={selectedPatient.medicalIntake.gender || "Not specified"} />
+                                    <DetailRow label="Date of Birth" value={formatDateOfBirth(selectedPatient.medicalIntake.dateOfBirth)} />
+                                    <DetailRow label="Address" value={selectedPatient.medicalIntake.address || "Not provided"} />
+                                  </View>
+
+                                  {/* Emergency Contact */}
+                                  <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>EMERGENCY CONTACT</Text>
+                                    <DetailRow label="Contact Name" value={selectedPatient.medicalIntake.emergencyContactName || "Not provided"} />
+                                    <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake.emergencyContactPhone || "Not provided"} />
+                                  </View>
+
+                                  {/* Medical History */}
+                                  <View style={{ marginHorizontal: 0 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>MEDICAL HISTORY</Text>
+                                    <DetailRow label="Allergies" value={selectedPatient.medicalIntake.allergies || "None"} />
+                                    <DetailRow label="Current Medications" value={selectedPatient.medicalIntake.currentMedications || "None"} />
+                                    <DetailRow label="Medical Conditions" value={selectedPatient.medicalIntake.medicalConditions || "None"} />
+                                    <DetailRow label="Past Surgeries" value={selectedPatient.medicalIntake.pastSurgeries || "None"} />
+                                    <DetailRow label="Smoking Status" value={selectedPatient.medicalIntake.smokingStatus || "Not specified"} />
+                                  </View>
+                                </>
+                              )}
+                            </>
+                          )}
                         </View>
                       )}
 
@@ -509,7 +675,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       </Modal>
 
                       {/* Patients List */}
-                      <Text style={[styles.subHeader, { marginTop: 20 }]}>Patient Roster ({patients.length}):</Text>
+                      <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients ({patients.length}):</Text>
                       {patients.length > 0 ? (
                         <>
                           {patients.slice(0, 3).map((patient) => (
@@ -959,3 +1125,40 @@ const styles = StyleSheet.create({
     color: "#333",
   },
 });
+
+// ─────────────────────────────────────────
+// HELPER COMPONENT
+// ─────────────────────────────────────────
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingVertical: 18,
+      paddingHorizontal: 8,
+      borderBottomColor: '#f0f0f0',
+      borderBottomWidth: 1,
+      gap: 20,
+    }}>
+      <Text style={{
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#666',
+        flexShrink: 1,
+      }}>
+        {label}
+      </Text>
+      <Text style={{
+        fontSize: 13,
+        color: '#333',
+        textAlign: 'right',
+        fontWeight: '500',
+        flexShrink: 1,
+      }}>
+        {value}
+      </Text>
+    </View>
+  );
+}

@@ -13,8 +13,7 @@ export async function getBookedSlots(date: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('appointments')
     .select('appointment_time')
-    .eq('appointment_date', date)          // DATE = 'YYYY-MM-DD' direct match
-    .neq('status', 'cancelled');
+    .eq('appointment_date', date);
 
   if (error) {
     console.error('Error fetching booked slots:', error);
@@ -71,8 +70,7 @@ export async function checkDayFull(date: string): Promise<boolean> {
   const { data, error } = await supabase
     .from('appointments')
     .select('id')
-    .eq('appointment_date', date)
-    .neq('status', 'cancelled');
+    .eq('appointment_date', date);
 
   if (error) {
     console.error('Error checking day:', error);
@@ -88,17 +86,26 @@ export async function checkDayFull(date: string): Promise<boolean> {
 export async function cancelAppointment(
   appointmentId: string
 ): Promise<{ success: boolean; message: string }> {
-  const { error } = await supabase
-    .from('appointments')
-    .update({ status: 'cancelled' })
-    .eq('id', appointmentId);
+  try {
+    console.log(`🚫 Cancelling appointment: ${appointmentId}`);
+    
+    // Use RPC function to bypass RLS (same as update_appointment_status)
+    const { data, error } = await supabase.rpc('update_appointment_status', {
+      p_appointment_id: appointmentId,
+      p_new_status: 'cancelled'
+    });
 
-  if (error) {
-    console.error('Cancellation error:', error);
+    if (error) {
+      console.error('❌ Cancellation error via RPC:', error);
+      return { success: false, message: 'Cancellation failed. Please try again.' };
+    }
+
+    console.log('✅ Appointment cancelled successfully via RPC');
+    return { success: true, message: 'Appointment cancelled successfully.' };
+  } catch (err) {
+    console.error('❌ Exception during cancellation:', err);
     return { success: false, message: 'Cancellation failed. Please try again.' };
   }
-
-  return { success: true, message: 'Appointment cancelled successfully.' };
 }
 
 // ─────────────────────────────────────────
@@ -117,7 +124,6 @@ export async function getAllBlockedSlots(): Promise<BlockedSlot[]> {
   const { data, error } = await supabase
     .from('appointments')
     .select('appointment_date, appointment_time, patient_id, service')
-    .neq('status', 'cancelled')
     .order('appointment_date', { ascending: true });
 
   if (error) {

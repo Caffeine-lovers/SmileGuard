@@ -281,7 +281,7 @@ export async function fetchAppointmentWithPatientDetails(appointmentId: string):
     if (appointment?.patient_id) {
       const { data: patient } = await supabase
         .from('profiles')
-        .select('id, name, email, role, service')
+        .select('id, name, email, role')
         .eq('id', appointment.patient_id)
         .single();
 
@@ -293,6 +293,108 @@ export async function fetchAppointmentWithPatientDetails(appointmentId: string):
   } catch (err) {
     console.error('❌ Exception fetching appointment details:', err);
     return { success: false, data: null, message: 'Failed to fetch appointment' };
+  }
+}
+
+/**
+ * Fetch all appointments for a doctor with patient details and medical intake
+ * Joins appointments with patient profiles and medical intake data
+ */
+export async function fetchDoctorAppointmentsWithPatients(doctorId: string): Promise<{
+  success: boolean;
+  data: any[];
+  message: string;
+}> {
+  try {
+    // Fetch appointments
+    const { data: appointments, error: aptError } = await supabase
+      .from('appointments')
+      .select(`
+        id,
+        patient_id,
+        dentist_id,
+        service,
+        appointment_date,
+        appointment_time,
+        status,
+        notes,
+        created_at,
+        updated_at
+      `)
+      .eq('dentist_id', doctorId)
+      .order('appointment_date', { ascending: false });
+
+    if (aptError) {
+      console.error('❌ Error fetching appointments:', aptError);
+      return { success: false, data: [], message: aptError.message };
+    }
+
+    if (!appointments || appointments.length === 0) {
+      console.log('ℹ️ No appointments found');
+      return { success: true, data: [], message: 'No appointments found' };
+    }
+
+    // Get unique patient IDs
+    const patientIds = [...new Set(appointments.map(a => a.patient_id))];
+
+    // Fetch patient profiles
+    const { data: patients, error: patError } = await supabase
+      .from('profiles')
+      .select('id, name, email, role')
+      .in('id', patientIds);
+
+    if (patError) {
+      console.error('❌ Error fetching patient profiles:', patError);
+    }
+
+    // Fetch medical intake data for all patients
+    const { data: medicalIntakes, error: medError } = await supabase
+      .from('medical_intake')
+      .select('*')
+      .in('patient_id', patientIds);
+
+    if (medError) {
+      console.error('❌ Error fetching medical intake:', medError);
+    }
+
+    // Create a map of patients by ID for quick lookup
+    const patientMap = (patients || []).reduce((acc: any, patient: any) => {
+      acc[patient.id] = patient;
+      return acc;
+    }, {});
+
+    // Create a map of medical intake by patient ID
+    const medicalIntakeMap = (medicalIntakes || []).reduce((acc: any, intake: any) => {
+      acc[intake.patient_id] = {
+        dateOfBirth: intake.date_of_birth || '',
+        gender: intake.gender || '',
+        phone: intake.phone || '',
+        address: intake.address || '',
+        emergencyContactName: intake.emergency_contact_name || '',
+        emergencyContactPhone: intake.emergency_contact_phone || '',
+        allergies: intake.allergies || '',
+        currentMedications: intake.current_medications || '',
+        medicalConditions: intake.medical_conditions || '',
+        pastSurgeries: intake.past_surgeries || '',
+        smokingStatus: intake.smoking_status || '',
+        pregnancyStatus: intake.pregnancy_status || '',
+      };
+      return acc;
+    }, {});
+
+    // Combine appointment data with patient and medical information
+    const enrichedAppointments = appointments.map((apt: any) => ({
+      ...apt,
+      patient_name: patientMap[apt.patient_id]?.name || 'Patient',
+      patient_email: patientMap[apt.patient_id]?.email || '',
+      medicalIntake: medicalIntakeMap[apt.patient_id] || null,
+    }));
+
+    console.log(`✅ Fetched ${enrichedAppointments.length} appointments with patient details`);
+    return { success: true, data: enrichedAppointments, message: 'Appointments with patients fetched successfully' };
+  } catch (err) {
+    console.error('❌ Exception fetching appointments with patients:', err);
+    return { success: false, data: [], message: 'Failed to fetch appointments' };
   }
 }
 

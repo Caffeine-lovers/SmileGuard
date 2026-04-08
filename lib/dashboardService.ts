@@ -6,6 +6,13 @@
 import { supabase } from './supabase';
 import { Appointment } from '@smileguard/shared-types';
 
+// Export type for enhanced appointments with patient details
+export interface AppointmentWithPatient extends Appointment {
+  patient_name?: string;
+  patient_email?: string;
+  patient_phone?: string;
+}
+
 // ─────────────────────────────────────────
 // APPOINTMENTS
 // ─────────────────────────────────────────
@@ -60,6 +67,80 @@ export async function fetchDoctorAppointments(doctorId: string): Promise<{
     return { success: true, data: appointments, message: 'Appointments fetched successfully' };
   } catch (err) {
     console.error('❌ Exception fetching appointments:', err);
+    return { success: false, data: [], message: 'Failed to fetch appointments' };
+  }
+}
+
+/**
+ * Fetch all appointments for a doctor with patient details
+ * Joins appointments with patient profiles
+ */
+export async function fetchDoctorAppointmentsWithPatients(doctorId: string): Promise<{
+  success: boolean;
+  data: any[];
+  message: string;
+}> {
+  try {
+    // Fetch appointments
+    const { data: appointments, error: aptError } = await supabase
+      .from('appointments')
+      .select(`
+        id,
+        patient_id,
+        dentist_id,
+        service,
+        appointment_date,
+        appointment_time,
+        status,
+        notes,
+        created_at,
+        updated_at
+      `)
+      .eq('dentist_id', doctorId)
+      .order('appointment_date', { ascending: false });
+
+    if (aptError) {
+      console.error('❌ Error fetching appointments:', aptError);
+      return { success: false, data: [], message: aptError.message };
+    }
+
+    if (!appointments || appointments.length === 0) {
+      console.log('ℹ️ No appointments found');
+      return { success: true, data: [], message: 'No appointments found' };
+    }
+
+    // Get unique patient IDs
+    const patientIds = [...new Set(appointments.map(a => a.patient_id))];
+
+    // Fetch patient profiles
+    const { data: patients, error: patError } = await supabase
+      .from('profiles')
+      .select('id, name, email, role')
+      .in('id', patientIds);
+
+    if (patError) {
+      console.error('❌ Error fetching patient profiles:', patError);
+      // Continue with patient data as null if fetch fails
+    }
+
+    // Create a map of patients by ID for quick lookup
+    const patientMap = (patients || []).reduce((acc: any, patient: any) => {
+      acc[patient.id] = patient;
+      return acc;
+    }, {});
+
+    // Combine appointment data with patient information
+    const enrichedAppointments = appointments.map((apt: any) => ({
+      ...apt,
+      patient_name: patientMap[apt.patient_id]?.name || 'Patient',
+      patient_email: patientMap[apt.patient_id]?.email || '',
+      patient_phone: patientMap[apt.patient_id]?.phone || '',
+    }));
+
+    console.log(`✅ Fetched ${enrichedAppointments.length} appointments with patient details`);
+    return { success: true, data: enrichedAppointments, message: 'Appointments with patients fetched successfully' };
+  } catch (err) {
+    console.error('❌ Exception fetching appointments with patients:', err);
     return { success: false, data: [], message: 'Failed to fetch appointments' };
   }
 }
@@ -209,7 +290,7 @@ export async function fetchDoctorPatients(doctorId: string): Promise<{
     // Fetch patient profiles
     const { data: patients, error: patError } = await supabase
       .from('profiles')
-      .select('id, name, email, phone, role')
+      .select('id, name, email, role')
       .in('id', uniquePatientIds)
       .eq('role', 'patient');
 
