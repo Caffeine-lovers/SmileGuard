@@ -5,6 +5,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Switch,
+  Animated,
 } from 'react-native';
 import { CurrentUser } from '@smileguard/shared-types';
 import DoctorProfileEdit from '../settings/ClinicProfileViewing';
@@ -15,10 +17,25 @@ interface SettingsTabProps {
   styles: any;
 }
 
+type Theme = 'light' | 'dark';
+type FontSize = 'small' | 'medium' | 'large';
+
+interface AppSettings {
+  appointmentReminders: boolean;
+  newPatientRequests: boolean;
+  theme: Theme;
+  fontSize: FontSize;
+}
 
 export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsTabProps) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
+  const [appSettings, setAppSettings] = useState<AppSettings>({
+    appointmentReminders: true,
+    newPatientRequests: true,
+    theme: 'light',
+    fontSize: 'medium',
+  });
 
   const handleSaveProfile = (updatedUser: Partial<CurrentUser>) => {
     const newUser = { ...currentUser, ...updatedUser };
@@ -28,6 +45,29 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
     }
     setEditingProfile(false);
   };
+
+  const toggleNotificationSetting = (setting: 'appointmentReminders' | 'newPatientRequests') => {
+    setAppSettings(prev => ({
+      ...prev,
+      [setting]: !prev[setting],
+    }));
+  };
+
+  const updateTheme = (newTheme: Theme) => {
+    setAppSettings(prev => ({
+      ...prev,
+      theme: newTheme,
+    }));
+  };
+
+  const updateFontSize = (newSize: FontSize) => {
+    setAppSettings(prev => ({
+      ...prev,
+      fontSize: newSize,
+    }));
+  };
+
+  const fontSizeValues = { small: 12, medium: 14, large: 16 };
 
   return (
     <>
@@ -56,17 +96,23 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
             <View style={styles.settingsCard}>
               <View style={styles.settingsToggleItem}>
                 <Text style={styles.settingsLabel}>Appointment Reminders</Text>
-                <View style={styles.toggleSwitch}>
-                  <View style={[styles.toggleButton, { marginLeft: 6 }]} />
-                </View>
+                <Switch
+                  value={appSettings.appointmentReminders}
+                  onValueChange={() => toggleNotificationSetting('appointmentReminders')}
+                  trackColor={{ false: '#ccc', true: '#11c' }}
+                  thumbColor={appSettings.appointmentReminders ? '#0b7fab' : '#f4f3f4'}
+                />
               </View>
             </View>
             <View style={styles.settingsCard}>
               <View style={styles.settingsToggleItem}>
                 <Text style={styles.settingsLabel}>New Patient Requests</Text>
-                <View style={styles.toggleSwitch}>
-                  <View style={[styles.toggleButton, { marginLeft: 6 }]} />
-                </View>
+                <Switch
+                  value={appSettings.newPatientRequests}
+                  onValueChange={() => toggleNotificationSetting('newPatientRequests')}
+                  trackColor={{ false: '#ccc', true: '#0b7fab' }}
+                  thumbColor={appSettings.newPatientRequests ? '#0b7fab' : '#f4f3f4'}
+                />
               </View>
             </View>
           </View>
@@ -74,17 +120,77 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
           {/* Appearance Settings */}
           <View style={styles.settingsSection}>
             <Text style={styles.settingsSectionTitle}>🎨 Appearance</Text>
+            
+            {/* Theme Selection */}
             <View style={styles.settingsCard}>
-              <TouchableOpacity style={styles.settingsItem}>
+              <View style={{ paddingVertical: 12, paddingHorizontal: 16 }}>
                 <Text style={styles.settingsLabel}>Theme</Text>
-                <Text style={styles.settingsValue}>Light</Text>
-              </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                  {(['light', 'dark'] as const).map((themeOption) => (
+                    <TouchableOpacity
+                      key={themeOption}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        borderWidth: 2,
+                        borderColor: appSettings.theme === themeOption ? '#0b7fab' : '#ddd',
+                        backgroundColor: appSettings.theme === themeOption ? '#e3f2fd' : '#f5f5f5',
+                        alignItems: 'center',
+                      }}
+                      onPress={() => updateTheme(themeOption)}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: '600',
+                          color: appSettings.theme === themeOption ? '#0b7fab' : '#666',
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {themeOption}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
+
+            {/* Font Size Selection */}
             <View style={styles.settingsCard}>
-              <TouchableOpacity style={styles.settingsItem}>
+              <View style={{ paddingVertical: 12, paddingHorizontal: 16 }}>
                 <Text style={styles.settingsLabel}>Font Size</Text>
-                <Text style={styles.settingsValue}>Medium</Text>
-              </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                  {(['small', 'medium', 'large'] as const).map((sizeOption) => (
+                    <TouchableOpacity
+                      key={sizeOption}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        borderWidth: 2,
+                        borderColor: appSettings.fontSize === sizeOption ? '#0b7fab' : '#ddd',
+                        backgroundColor: appSettings.fontSize === sizeOption ? '#e3f2fd' : '#f5f5f5',
+                        alignItems: 'center',
+                      }}
+                      onPress={() => updateFontSize(sizeOption)}
+                    >
+                      <Text
+                        style={{
+                          fontSize: fontSizeValues[sizeOption],
+                          fontWeight: '600',
+                          color: appSettings.fontSize === sizeOption ? '#0b7fab' : '#666',
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {sizeOption}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
           </View>
 
