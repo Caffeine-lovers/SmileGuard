@@ -21,7 +21,7 @@ import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
 import SettingsTab from "../navigation/SettingsTab";
-import { updateDoctorAppointmentStatus } from "../../lib/appointmentService";
+import { updateDoctorAppointmentStatus, getDoctorAppointments } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
@@ -65,6 +65,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [loadingPatients, setLoadingPatients] = useState(true);
+  const [loadingOnTabSwitch, setLoadingOnTabSwitch] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Handle profile updates
@@ -145,30 +146,31 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       setLoadingPatients(true);
       setErrorMessage(null);
 
-      console.log('📥 Fetching appointments with patient details from Supabase...');
-      const { success: aptSuccess, data: appointmentData } = await dashboardService.fetchDoctorAppointmentsWithPatients(user.id!);
+      console.log('📥 Fetching ALL appointments (including cancelled) from RPC...');
+      // Use RPC function to get ALL appointments including cancelled (bypasses RLS)
+      const rpcAppointments = await getDoctorAppointments(user.id);
       
-      if (aptSuccess && appointmentData.length > 0) {
-        const transformedAppointments = appointmentData.map((apt: any) => ({
+      if (rpcAppointments && rpcAppointments.length > 0) {
+        const transformedAppointments = rpcAppointments.map((apt: any) => ({
           id: apt.id || '',
-          name: apt.patient_name || 'Patient',
+          name: apt.patient_profile?.name || 'Patient',
           service: apt.service || '',
           time: apt.appointment_time || '',
           date: apt.appointment_date || '',
           age: 0,
-          gender: apt.medicalIntake?.gender || '',
-          contact: apt.medicalIntake?.phone || '',
-          email: apt.patient_email || '',
+          gender: apt.patient_profile?.gender || '',
+          contact: apt.patient_profile?.phone || '',
+          email: apt.patient_profile?.email || '',
           notes: apt.notes || '',
           imageUrl: require('../../assets/images/user.png'),
           status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
           patient_id: apt.patient_id,
           dentist_id: apt.dentist_id,
-          medicalIntake: apt.medicalIntake,
+          medicalIntake: apt.patient_profile?.metadata,
         }));
         setAppointments(transformedAppointments);
         
-        // Calculate stats from the actual appointments data
+        // Calculate stats from the actual appointments data - COUNT ALL REGARDLESS OF STATUS
         const calculatedStats = {
           total: transformedAppointments.length,
           scheduled: transformedAppointments.filter(a => a.status === 'scheduled').length,
@@ -177,7 +179,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           noShow: transformedAppointments.filter(a => a.status === 'no-show').length,
         };
         setStats(calculatedStats);
-        console.log(`✅ Loaded ${transformedAppointments.length} appointments with patient names`);
+        console.log(`✅ Loaded ${transformedAppointments.length} total appointments from RPC (including all statuses)`);
         console.log('✅ Stats calculated:', calculatedStats);
       } else {
         setAppointments([]);
@@ -231,11 +233,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   useFocusEffect(
     useCallback(() => {
       console.log('🔄 Dashboard tab focused - refreshing data...');
+      setLoadingOnTabSwitch(true);
       refreshDashboardData();
       setExpandPatientDetails(false);
       
+      // Hide loading indicator after a short delay to show the content
+      const timer = setTimeout(() => {
+        setLoadingOnTabSwitch(false);
+      }, 500);
+      
       return () => {
-        // Cleanup if needed
+        clearTimeout(timer);
       };
     }, [refreshDashboardData])
   );
@@ -845,6 +853,24 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               onPress={() => setSidebarOpen(false)}
               activeOpacity={0}
             />
+          )}
+
+          {/* Loading Overlay for Tab Navigation */}
+          {loadingOnTabSwitch && (
+            <View style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 999,
+            }}>
+              <ActivityIndicator size="large" color="#0b7fab" />
+              <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 14, fontWeight: '600' }}>Loading...</Text>
+            </View>
           )}
         </View>
       </SafeAreaView>

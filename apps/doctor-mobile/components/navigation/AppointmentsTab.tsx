@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
 import { supabase } from "../../lib/supabase";
@@ -241,6 +242,58 @@ export default function AppointmentsTab({
     setCurrentMonth(today);
     setSelectedDate(formatDate(today));
   };
+
+  // Refresh appointments whenever this tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 AppointmentsTab focused - refreshing all data...');
+      setLoading(true);
+      
+      // Refresh both month and daily appointments
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      
+      const startDate = formatDate(firstDay);
+      const endDate = formatDate(lastDay);
+      
+      let monthFetched = false;
+      let dayFetched = false;
+      
+      const checkBothComplete = () => {
+        if (monthFetched && dayFetched) {
+          setLoading(false);
+        }
+      };
+      
+      // Fetch month appointments
+      getDoctorAppointments(null, startDate, endDate).then(doctorAppointments => {
+        if (doctorAppointments.length > 0) {
+          const transformed = doctorAppointments.map(transformBackendAppointment);
+          setAllMonthAppointments(transformed);
+          console.log(`✅ Refreshed ${transformed.length} appointments for the month`);
+        } else {
+          setAllMonthAppointments([]);
+        }
+        monthFetched = true;
+        checkBothComplete();
+      });
+      
+      // Fetch daily appointments
+      getDoctorAppointmentsByDate(null, selectedDate).then(doctorAppointments => {
+        if (doctorAppointments.length > 0) {
+          const transformed = doctorAppointments.map(transformBackendAppointment);
+          setFetchedAppointments(transformed);
+          console.log(`✅ Refreshed ${transformed.length} appointments for ${selectedDate}`);
+        } else {
+          setFetchedAppointments([]);
+        }
+        dayFetched = true;
+        checkBothComplete();
+      });
+    }, [currentMonth, selectedDate])
+  );
 
   const handleSaveStatus = async () => {
     if (editingAppointmentId) {
