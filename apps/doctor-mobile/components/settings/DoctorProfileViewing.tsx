@@ -151,7 +151,7 @@ export default function DoctorProfileView({
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>👨‍⚕️ Doctor Profile</Text>
+        <Text style={styles.headerTitle}>Doctor Profile</Text>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           {onClose && (
             <TouchableOpacity
@@ -216,7 +216,7 @@ export default function DoctorProfileView({
 
         {/* License & Credentials Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 License & Credentials</Text>
+          <Text style={styles.sectionTitle}>License & Credentials</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>License Number:</Text>
@@ -241,7 +241,7 @@ export default function DoctorProfileView({
 
         {/* Doctor Information Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👤 Doctor Information</Text>
+          <Text style={styles.sectionTitle}>Doctor Information</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Name:</Text>
@@ -266,7 +266,7 @@ export default function DoctorProfileView({
 
         {/* Availability Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🟢 Availability</Text>
+          <Text style={styles.sectionTitle}>Availability</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Status:</Text>

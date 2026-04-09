@@ -108,7 +108,7 @@ export default function DoctorProfileEdit({
 
       {/* Form Content */}
       <View style={styles.stepContent}>
-        <Text style={styles.h2}>🩺 Doctor Professional Details</Text>
+        <Text style={styles.h2}>Doctor Professional Details</Text>
         <Text style={styles.p}>Update your professional information</Text>
 
         {/* Section: License & Credentials */}

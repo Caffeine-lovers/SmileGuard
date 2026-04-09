@@ -117,7 +117,7 @@ add npm install @react-navigation/drawer
         
     - [x] Appointment Module
         - [] Notification Page
-        - [] Add Appointment Schedule 
+        - [x] Add Appointment Schedule 
         - [x] Sorting Date 
         - [x] Show Upcoming Appointed Schedule 
         - [x] Show Future Appointed Schedule 

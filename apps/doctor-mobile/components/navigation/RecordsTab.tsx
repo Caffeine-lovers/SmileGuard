@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Appointment } from "../../data/dashboardData";
 import { getAllPatients } from "../../lib/profilesPatients";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { supabase } from "../../lib/supabase";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -44,17 +46,20 @@ export default function RecordsTab({
   setShowPatientDetails,
   styles,
 }: RecordsTabProps) {
+  const router = useRouter();
   const currentUser = useCurrentUser();
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
+  const [dummyPatients, setDummyPatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
+  const [loadingDummy, setLoadingDummy] = useState(true);
 
-  // Fetch real patients from Supabase medical_intake table with profiles join
+  // Fetch profiles patients on initial load
   useEffect(() => {
     const fetchSupabasePatients = async () => {
       setLoadingSupabase(true);
       try {
         const data = await getAllPatients();
-        console.log('RecordsTab - Received patients:', data);
+        console.log('RecordsTab - Received profiles patients:', data);
         
         const mapped: AppointmentType[] = data.map((patient) => ({
           id: patient.patient_id,
@@ -71,10 +76,10 @@ export default function RecordsTab({
           status: 'scheduled' as const,
         }));
         
-        console.log('RecordsTab - Mapped patients:', mapped);
+        console.log('RecordsTab - Mapped profiles patients:', mapped);
         setSupabasePatients(mapped);
       } catch (error) {
-        console.error('Error fetching Supabase patients:', error);
+        console.error('Error fetching profiles patients:', error);
       } finally {
         setLoadingSupabase(false);
       }
@@ -82,13 +87,72 @@ export default function RecordsTab({
 
     fetchSupabasePatients();
   }, []);
+
+  // Fetch dummy_accounts patients whenever screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchDummyPatients = async () => {
+        setLoadingDummy(true);
+        try {
+          const { data, error } = await supabase
+            .from("dummy_accounts")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+          if (error) {
+            console.error("Error fetching dummy accounts:", error);
+            return;
+          }
+
+          const mapped: AppointmentType[] = (data || []).map((patient) => ({
+            id: patient.id,
+            name: patient.patient_name || "Unknown Patient",
+            email: patient.email || "",
+            service: patient.service || "General",
+            contact: patient.phone || "",
+            time: "",
+            date: patient.created_at,
+            age: 0,
+            gender: patient.gender || "",
+            notes: patient.notes || "",
+            imageUrl: require("../../assets/images/user.png"),
+            status: "scheduled" as const,
+          }));
+
+          console.log("RecordsTab - Dummy patients:", mapped);
+          setDummyPatients(mapped);
+        } catch (error) {
+          console.error("Error in fetchDummyPatients:", error);
+        } finally {
+          setLoadingDummy(false);
+        }
+      };
+
+      fetchDummyPatients();
+    }, [])
+  );
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
       {/* Header with Current User Name */}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderBottomColor: '#ddd', borderBottomWidth: 2 }}>
+      <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#0b7fab', marginBottom: 4 }}>
           Patient Records
         </Text>
+        <TouchableOpacity
+          onPress={() => router.push('/(doctor)/add-patient')}
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            backgroundColor: '#0b7fab',
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <Text style={{ fontSize: 18, color: '#fff', fontWeight: 'bold' }}>+</Text>
+          <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Add Patient</Text>
+        </TouchableOpacity>
       </View>
       <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
         <TextInput
@@ -154,60 +218,114 @@ export default function RecordsTab({
         </View>
       </View>
       <ScrollView style={{ flex: 1, padding: 16 }}>
-        {loadingSupabase ? (
+        {loadingDummy && loadingSupabase ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color="#0b7fab" />
             <Text style={{ marginTop: 12, color: '#0b7fab', fontSize: 14 }}>Loading patients...</Text>
           </View>
-        ) : sortPatients(
-          supabasePatients
-            .filter((patient) =>
-              patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-              patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-              patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-              patient.contact.includes(quickSearchQuery)
-            )
-        )
-          .length === 0 ? (
-          <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-            {quickSearchQuery ? `No patients found matching "${quickSearchQuery}"` : 'No patients in database'}
-          </Text>
         ) : (
-          sortPatients(
-            supabasePatients
-              .filter((patient) =>
-                patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                patient.contact.includes(quickSearchQuery)
-              )
-          )
-            .map((patient) => (
-              <TouchableOpacity
-                key={patient.id}
-                style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                onPress={() => {
-                  setViewingPatient(patient);
-                  setShowPatientDetails(true);
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Image
-                    source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                    style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                    <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                    <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: '500' }}>Patient</Text>
-                  </View>
-                  <Image
-                    source={require('../../assets/images/icon/open.png')}
-                    style={{ width: 18, height: 18, resizeMode: 'contain' }}
-                  />
-                </View>
-              </TouchableOpacity>
-            ))
+          <>
+            {/* Dummy Accounts Patients Section */}
+            {!loadingDummy && dummyPatients.length > 0 && (
+              <>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 8 }}>
+                  Dummy Accounts
+                </Text>
+                {sortPatients(
+                  dummyPatients.filter((patient) =>
+                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.contact.includes(quickSearchQuery)
+                  )
+                ).map((patient) => (
+                  <TouchableOpacity
+                    key={patient.id}
+                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12, borderLeftColor: '#4CAF50', borderLeftWidth: 3 }]}
+                    onPress={() => {
+                      setViewingPatient(patient);
+                      setShowPatientDetails(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Image
+                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
+                        <Text style={{ fontSize: 12, color: '#4CAF50', fontWeight: '500' }}>Dummy Account</Text>
+                      </View>
+                      <Image
+                        source={require('../../assets/images/icon/open.png')}
+                        style={{ width: 18, height: 18, resizeMode: 'contain' }}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            {/* Profiles Patients Section */}
+            {!loadingSupabase && supabasePatients.length > 0 && (
+              <>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 16 }}>
+                  Existing Patients
+                </Text>
+                {sortPatients(
+                  supabasePatients.filter((patient) =>
+                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.contact.includes(quickSearchQuery)
+                  )
+                ).map((patient) => (
+                  <TouchableOpacity
+                    key={patient.id}
+                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                    onPress={() => {
+                      setViewingPatient(patient);
+                      setShowPatientDetails(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Image
+                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
+                        <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: '500' }}>Patient</Text>
+                      </View>
+                      <Image
+                        source={require('../../assets/images/icon/open.png')}
+                        style={{ width: 18, height: 18, resizeMode: 'contain' }}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            {/* No patients message */}
+            {!loadingDummy && !loadingSupabase && dummyPatients.length === 0 && supabasePatients.length === 0 && (
+              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                No patients found
+              </Text>
+            )}
+
+            {/* No results matching search */}
+            {!loadingDummy && !loadingSupabase && 
+             dummyPatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 &&
+             supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 &&
+             quickSearchQuery && (
+              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                No patients found matching "{quickSearchQuery}"
+              </Text>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
