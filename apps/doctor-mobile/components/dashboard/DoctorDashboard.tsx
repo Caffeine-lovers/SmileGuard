@@ -23,6 +23,8 @@ import AppointmentsTab from "../navigation/AppointmentsTab";
 import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
+import { getDoctorProfile } from "../../lib/doctorService";
+import { updatePatientMedicalIntake } from "../../lib/profilesPatients";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
@@ -62,12 +64,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const insets = useSafeAreaInsets();
   
   // Doctor profile state
-  const [doctorProfile, setDoctorProfile] = useState<CurrentUser>(user);
+  const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
   
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [loadingOnTabSwitch, setLoadingOnTabSwitch] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Handle profile updates
@@ -110,12 +113,38 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
 
   // Filter today's appointments - exclude completed and cancelled ones
-  const todayAppointments = appointments.filter(apt => 
-    apt.date === today && 
-    apt.status !== 'completed' && 
-    apt.status !== 'cancelled' && 
-    apt.status !== 'no-show'
-  );
+  const todayAppointments = appointments
+    .filter(apt => 
+      apt.date === today && 
+      apt.status !== 'completed' && 
+      apt.status !== 'cancelled' && 
+      apt.status !== 'no-show'
+    )
+    .sort((a, b) => {
+      // Convert time strings (e.g., "09:30 AM" or "2:30 PM") to comparable format
+      const timeA = a.time || '';
+      const timeB = b.time || '';
+      
+      const parseTime = (timeStr: string) => {
+        // Handle 24-hour and 12-hour formats
+        const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (!match) return 0;
+        
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const period = match[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if AM/PM is present
+        if (period) {
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
+        }
+        
+        return hours * 60 + minutes;
+      };
+      
+      return parseTime(timeA) - parseTime(timeB);
+    });
   
   // Auto-select first appointment from today's list
   const [selectedPatient, setSelectedPatient] = useState<DashboardAppointment | null>(
@@ -135,6 +164,30 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       setShowPatientDetails(true);
     }
   }, [selectedPatient]);
+
+  // ─────────────────────────────────────────
+  // FETCH DOCTOR PROFILE FROM DOCTORS TABLE
+  // ─────────────────────────────────────────
+  
+  useEffect(() => {
+    const fetchDoctorInfo = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const doctorProfile = await getDoctorProfile(user.id);
+        if (doctorProfile) {
+          setDoctorProfile(prev => ({
+            ...prev,
+            doctor_name: doctorProfile.doctor_name || doctorProfile.doctor_name,
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching doctor profile:", error);
+      }
+    };
+    
+    fetchDoctorInfo();
+  }, [user?.id]);
 
   // ─────────────────────────────────────────
   // FETCH DATA FROM SUPABASE
@@ -161,13 +214,26 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           age: 0,
           gender: apt.patient_profile?.gender || '',
           contact: apt.patient_profile?.phone || '',
-          email: apt.patient_profile?.email || '',
+          email: apt.profiles?.email || '',
           notes: apt.notes || '',
           imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
           status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
           patient_id: apt.patient_id,
           dentist_id: apt.dentist_id,
-          medicalIntake: apt.patient_profile?.metadata,
+          medicalIntake: apt.patient_profile ? {
+            gender: apt.patient_profile.gender || '',
+            phone: apt.patient_profile.phone || '',
+            address: apt.patient_profile.address || '',
+            dateOfBirth: apt.patient_profile.date_of_birth || '',
+            emergencyContactName: apt.patient_profile.emergency_contact_name || '',
+            emergencyContactPhone: apt.patient_profile.emergency_contact_phone || '',
+            allergies: apt.patient_profile.allergies || '',
+            currentMedications: apt.patient_profile.current_medications || '',
+            medicalConditions: apt.patient_profile.medical_conditions || '',
+            pastSurgeries: apt.patient_profile.past_surgeries || '',
+            smokingStatus: apt.patient_profile.smoking_status || '',
+            pregnancyStatus: apt.patient_profile.pregnancy_status || '',
+          } : null,
         }));
         setAppointments(transformedAppointments);
         
@@ -217,6 +283,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     } finally {
       setLoadingAppointments(false);
       setLoadingPatients(false);
+      setIsRefreshing(false);
     }
   }, [user?.id, today]);
 
@@ -289,8 +356,29 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     return sorted;
   };
 
-  const handleSavePatient = () => {
+  const handleSavePatient = async () => {
     if (editedPatient) {
+      // Save to Supabase first
+      const result = await updatePatientMedicalIntake(editedPatient.patient_id || '', {
+        gender: editedPatient.gender,
+        phone: editedPatient.contact,
+        address: editedPatient.medicalIntake?.address,
+        dateOfBirth: editedPatient.medicalIntake?.dateOfBirth,
+        emergencyContactName: editedPatient.medicalIntake?.emergencyContactName,
+        emergencyContactPhone: editedPatient.medicalIntake?.emergencyContactPhone,
+        allergies: editedPatient.medicalIntake?.allergies,
+        currentMedications: editedPatient.medicalIntake?.currentMedications,
+        medicalConditions: editedPatient.medicalIntake?.medicalConditions,
+        pastSurgeries: editedPatient.medicalIntake?.pastSurgeries,
+        smokingStatus: editedPatient.medicalIntake?.smokingStatus,
+        pregnancyStatus: editedPatient.medicalIntake?.pregnancyStatus,
+      });
+
+      if (!result.success) {
+        Alert.alert('Error', result.message);
+        return;
+      }
+
       setPatients((prev) =>
         prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
       );
@@ -378,9 +466,38 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             {activeTab === 'dashboard' ? (
               <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.container}>
-                  <Text style={[styles.header, { marginBottom: 20 }]}>
-                    Welcome, {doctorProfile.name}
-                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <Text style={[styles.header, { marginBottom: 0 }]}>
+                      Welcome, {doctorProfile.doctor_name || doctorProfile.name}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setIsRefreshing(true);
+                        refreshDashboardData();
+                      }}
+                      disabled={isRefreshing}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 8,
+                        backgroundColor: '#E3F2FD',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: '#0b7fab',
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      {isRefreshing ? (
+                        <ActivityIndicator size="small" color="#0b7fab" />
+                      ) : (
+                        <Image
+                          source={require('../../assets/images/icon/refresh.png')}
+                          style={{ width: 24, height: 24, resizeMode: 'contain' }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  </View>
 
                   {/* Stats Panel - from Supabase */}
                   <View style={styles.firstPanel}>
@@ -728,6 +845,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 appointments={appointments}
                 onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
                 styles={styles}
+                doctorId={user.id}
               />
             ) : (
               <SettingsTab user={doctorProfile} onUpdateProfile={handleUpdateProfile} styles={styles} />
@@ -738,6 +856,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           <PatientDetailsView
             visible={showPatientDetails}
             patient={viewingPatient}
+            doctorId={user.id}
             onClose={() => {
               setShowPatientDetails(false);
               setViewingPatient(null);

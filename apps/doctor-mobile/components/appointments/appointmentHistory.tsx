@@ -6,34 +6,48 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Image,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPatientAppointments } from "../../lib/profilesPatients";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateWithTime } from "../../lib/dateFormatters";
+import AppointmentEdit from "./appointmentEdit";
 
 interface AppointmentHistoryProps {
   patientId: string;
   patientName: string;
+  doctorId: string;
   onBack: () => void;
 }
 
 const categorizeAppointments = (appointments: any[]) => {
-  const now = new Date();
+  // Get today's date at midnight in local timezone
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
   const past: any[] = [];
   const current: any[] = [];
   const future: any[] = [];
 
   appointments.forEach((appt) => {
-    const apptDate = new Date(appt.appointment_date);
-    const diffMs = apptDate.getTime() - now.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    // Parse appointment_date string (format: YYYY-MM-DD)
+    const dateParts = appt.appointment_date.split('T')[0].split('-');
+    const apptDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+    apptDate.setHours(0, 0, 0, 0);
+    
+    const timeDiff = apptDate.getTime() - today.getTime();
+    const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
 
-    if (diffDays >= 0 && diffDays < 1) {
+    if (daysDiff === 0) {
+      // Same day = current/today
       current.push(appt);
-    } else if (diffDays >= 1) {
+    } else if (daysDiff > 0) {
+      // Future dates
       future.push(appt);
     } else {
+      // Past dates
       past.push(appt);
     }
   });
@@ -41,7 +55,7 @@ const categorizeAppointments = (appointments: any[]) => {
   return { past, current, future };
 };
 
-function AppointmentCard({ appointment }: { appointment: any }) {
+function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (appt: any) => void }) {
   const apptDate = new Date(appointment.appointment_date);
   const formattedDate = apptDate.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -61,15 +75,23 @@ function AppointmentCard({ appointment }: { appointment: any }) {
           <Text style={styles.cardService}>{appointment.service || 'General Appointment'}</Text>
           <Text style={styles.cardDate}>{formattedDate}</Text>
         </View>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: statusBgColor },
-          ]}
-        >
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {appointment.status?.charAt(0).toUpperCase() + appointment.status?.slice(1) || 'Scheduled'}
-          </Text>
+        <View style={{ alignItems: 'center', gap: 8 }}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusBgColor },
+            ]}
+          >
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {appointment.status?.charAt(0).toUpperCase() + appointment.status?.slice(1) || 'Scheduled'}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => onEdit(appointment)}
+          >
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
         </View>
       </View>
       {appointment.notes && (
@@ -84,11 +106,14 @@ function AppointmentCard({ appointment }: { appointment: any }) {
 export default function AppointmentHistory({
   patientId,
   patientName,
+  doctorId,
   onBack,
 }: AppointmentHistoryProps) {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'current' | 'future' | 'past'>('all');
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     loadAppointments();
@@ -106,7 +131,26 @@ export default function AppointmentHistory({
     }
   };
 
+  const handleEditAppointment = (appointment: any) => {
+    setEditingAppointment(appointment);
+    setShowEditModal(true);
+  };
+
+  const handleSaveAppointment = () => {
+    // Reload appointments after save
+    loadAppointments();
+  };
+
   const { past, current, future } = categorizeAppointments(appointments);
+
+  // Debug categorization
+  console.log('📅 Appointment Categorization:');
+  console.log(`   Today: ${current.length} appointments`);
+  console.log(`   Future: ${future.length} appointments`);
+  console.log(`   Past: ${past.length} appointments`);
+  if (current.length > 0) {
+    console.log('   Today appointments:', current.map(a => ({ date: a.appointment_date, service: a.service })));
+  }
 
   const getFilteredAppointments = () => {
     switch (activeTab) {
@@ -128,8 +172,12 @@ export default function AppointmentHistory({
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f9f9f9' }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backButton}>← Back</Text>
+        <TouchableOpacity onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Image
+            source={require('../../assets/images/icon/back.png')}
+            style={{ width: 24, height: 24, resizeMode: 'contain' }}
+          />
+          <Text style={styles.backButton}>Back</Text>
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Appointment History</Text>
@@ -194,27 +242,27 @@ export default function AppointmentHistory({
           <>
             {activeTab === 'all' && current.length > 0 && (
               <>
-                <Text style={styles.categoryTitle}>📅 Today's Appointments</Text>
+                <Text style={styles.categoryTitle}>Today's Appointments</Text>
                 {current.map((appt: any) => (
-                  <AppointmentCard key={appt.id} appointment={appt} />
+                  <AppointmentCard key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
                 ))}
               </>
             )}
 
             {activeTab === 'all' && future.length > 0 && (
               <>
-                <Text style={styles.categoryTitle}>🗓️ Upcoming Appointments</Text>
+                <Text style={styles.categoryTitle}>Upcoming Appointments</Text>
                 {future.map((appt: any) => (
-                  <AppointmentCard key={appt.id} appointment={appt} />
+                  <AppointmentCard key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
                 ))}
               </>
             )}
 
             {activeTab === 'all' && past.length > 0 && (
               <>
-                <Text style={styles.categoryTitle}>📋 Past Appointments</Text>
+                <Text style={styles.categoryTitle}>Past Appointments</Text>
                 {past.map((appt: any) => (
-                  <AppointmentCard key={appt.id} appointment={appt} />
+                  <AppointmentCard key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
                 ))}
               </>
             )}
@@ -222,13 +270,27 @@ export default function AppointmentHistory({
             {activeTab !== 'all' && filteredAppointments.length > 0 && (
               <>
                 {filteredAppointments.map((appt: any) => (
-                  <AppointmentCard key={appt.id} appointment={appt} />
+                  <AppointmentCard key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
                 ))}
               </>
             )}
           </>
         )}
       </ScrollView>
+
+      {/* Edit Appointment Modal */}
+      {editingAppointment && (
+        <AppointmentEdit
+          visible={showEditModal}
+          appointment={editingAppointment}
+          doctorId={doctorId}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingAppointment(null);
+          }}
+          onSave={handleSaveAppointment}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -342,6 +404,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
+    gap: 8,
   },
   cardService: {
     fontSize: 14,
@@ -372,5 +435,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#555',
     lineHeight: 18,
+  },
+  editButton: {
+    backgroundColor: '#0b7fab',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  editButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

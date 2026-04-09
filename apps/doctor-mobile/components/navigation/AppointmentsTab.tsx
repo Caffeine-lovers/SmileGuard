@@ -15,6 +15,7 @@ import { useFocusEffect } from "expo-router";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
 import { supabase } from "../../lib/supabase";
+import AppointmentEdit from "../appointments/appointmentEdit";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -23,18 +24,17 @@ interface AppointmentsTabProps {
   appointments: AppointmentType[];
   onUpdateAppointmentStatus: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard?: boolean) => Promise<void>;
   styles: any;
+  doctorId?: string;
 }
 
 export default function AppointmentsTab({
   appointments,
   onUpdateAppointmentStatus,
   styles,
+  doctorId: providedDoctorId,
 }: AppointmentsTabProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show'>('all');
-  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
-  const [editingStatus, setEditingStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show'>('scheduled');
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   // Helper to get today's date in YYYY-MM-DD format
@@ -50,8 +50,27 @@ export default function AppointmentsTab({
   const [loading, setLoading] = useState(false);
   const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentType[]>([]);
   const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentType[]>([]);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [doctorId, setDoctorId] = useState<string>('');
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
+
+  // Initialize doctor ID from prop or auth
+  useEffect(() => {
+    if (providedDoctorId) {
+      setDoctorId(providedDoctorId);
+    } else {
+      // Try to get from Supabase auth
+      const getCurrentUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setDoctorId(user.id);
+        }
+      };
+      getCurrentUser();
+    }
+  }, [providedDoctorId]);
 
   // Transform backend appointments to match UI format
   const transformBackendAppointment = (apt: DoctorAppointment): AppointmentType => {
@@ -272,91 +291,6 @@ export default function AppointmentsTab({
     }, [currentMonth, selectedDate])
   );
 
-  const handleSaveStatus = async () => {
-    if (editingAppointmentId) {
-      try {
-        console.log(`🔄 Updating appointment ${editingAppointmentId} to status: ${editingStatus}`);
-        
-        // Call Supabase function to update status (bypasses RLS)
-        const { data, error } = await supabase.rpc('update_appointment_status', {
-          p_appointment_id: editingAppointmentId,
-          p_new_status: editingStatus
-        });
-
-        console.log('📊 Supabase RPC response:', { data, error });
-
-        if (error) {
-          console.error('❌ Error updating appointment status:', error);
-          Alert.alert("Error", "Failed to update appointment status: " + error.message);
-          return;
-        }
-
-        console.log('✅ Appointment status updated successfully via RPC');
-        setEditingAppointmentId(null);
-        
-        // Auto-switch to 'all' filter to show the updated appointment status
-        console.log('🔄 Switching filter to "All" to show updated appointment...');
-        setAppointmentFilterBy('all');
-        
-        // Also refresh entire month appointments for calendar FIRST
-        console.log('🔄 Refreshing month appointments for calendar...');
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const startDate = formatDate(firstDay);
-        const endDate = formatDate(lastDay);
-        
-        const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
-        console.log(`📅 Fetched ${monthAppointments.length} total appointments for the month`);
-        
-        if (monthAppointments.length > 0) {
-          const transformed = monthAppointments.map(transformBackendAppointment);
-          
-          // Log breakdown by status to verify cancelled appointments are included
-          const statusBreakdown = {
-            scheduled: transformed.filter(apt => apt.status === 'scheduled').length,
-            completed: transformed.filter(apt => apt.status === 'completed').length,
-            cancelled: transformed.filter(apt => apt.status === 'cancelled').length,
-            'no-show': transformed.filter(apt => apt.status === 'no-show').length,
-          };
-          console.log('📊 Status breakdown after update:', statusBreakdown);
-          console.log(`📅 Fetched ${transformed.length} total appointments for the month`);
-          
-          setAllMonthAppointments(transformed);
-          console.log(`✅ Month appointments updated - calendar will refresh`);
-          
-          // Log the specific date to verify the appointment is there
-          const appointmentDate = monthAppointments.find(apt => apt.id === editingAppointmentId)?.appointment_date;
-          if (appointmentDate) {
-            const countOnDate = transformed.filter(apt => apt.date === appointmentDate).length;
-            console.log(`📍 Date ${appointmentDate} now has ${countOnDate} total appointments`);
-          }
-        } else {
-          setAllMonthAppointments([]);
-          console.log(`⚠️ No appointments found in month`);
-        }
-        
-        // Refresh current day appointments to show updated status
-        console.log('🔄 Refreshing current day appointments...');
-        const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
-        if (doctorAppointments.length > 0) {
-          const transformed = doctorAppointments.map(transformBackendAppointment);
-          setFetchedAppointments(transformed);
-          console.log(`✅ Day appointments refreshed - showing all statuses now with filter 'all'`);
-        } else {
-          setFetchedAppointments([]);
-        }
-        console.log(`✅ Day appointments refreshed`);
-        
-        Alert.alert("Success", "Appointment status updated to " + formatStatus(editingStatus) + ". Filter switched to 'All' to show the update.");
-      } catch (error) {
-        console.error('Error updating status:', error);
-        Alert.alert("Error", "Failed to update appointment status.");
-      }
-    }
-  };
-
   // Handler to cancel appointment using backend service
   const handleCancelAppointmentFromBackend = async (appointmentId: string, appointmentName: string) => {
     Alert.alert(
@@ -429,13 +363,45 @@ export default function AppointmentsTab({
     );
   };
 
-  const handleCancelEdit = () => {
-    setEditingAppointmentId(null);
-    setShowStatusDropdown(false);
+  // Handler to open AppointmentEdit modal
+  const handleEditAppointment = (appointment: any) => {
+    console.log('🔧 Opening appointment edit modal for:', appointment.id);
+    // Ensure appointment has appointment_date field (mapped from date for AppointmentEdit compatibility)
+    const appointmentForModal = {
+      ...appointment,
+      appointment_date: appointment.date, // Restore appointment_date field for AppointmentEdit component
+    };
+    console.log('📋 Appointment data for modal:', appointmentForModal);
+    setEditingAppointment(appointmentForModal);
+    setShowEditModal(true);
   };
 
-  const formatStatus = (s: string) =>
-  s.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-');
+  // Handler after appointment is saved in edit modal
+  const handleSaveAppointment = async () => {
+    console.log('✅ Appointment saved, refreshing appointments...');
+    // Reload appointments for the selected date
+    const dayAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+    if (dayAppointments.length > 0) {
+      const transformed = dayAppointments.map(transformBackendAppointment);
+      setFetchedAppointments(transformed);
+    } else {
+      setFetchedAppointments([]);
+    }
+    
+    // Also reload month appointments for calendar
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = formatDate(firstDay);
+    const endDate = formatDate(lastDay);
+    
+    const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+    if (monthAppointments.length > 0) {
+      const transformed = monthAppointments.map(transformBackendAppointment);
+      setAllMonthAppointments(transformed);
+    }
+  };
 
   // Refresh button handler - fetches latest appointments from Supabase
   const handleRefreshAppointments = async () => {
@@ -534,7 +500,7 @@ export default function AppointmentsTab({
       <ScrollView style={{ flex: 1 }}>
         {/* Title Section */}
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#0b7fab' }}>Appointments</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#0b7fab', marginTop: 15 }}>Appointments</Text>
           <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Manage your patient appointments</Text>
         </View>
 
@@ -755,7 +721,7 @@ export default function AppointmentsTab({
           {selectedDate && (
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0b7fab', paddingBottom: 8 }}>
-                📅 {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} ({filteredAppointments.length} appointments)
               </Text>
             </View>
           )}
@@ -803,124 +769,41 @@ export default function AppointmentsTab({
                   </View>
                   <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
                   <Text style={{ fontSize: 11, color: '#999' }}>
-                    📅 {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at {appointment.time}
+                    {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at {appointment.time}
                   </Text>
                 </View>
-                {editingAppointmentId !== appointment.id && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEditingAppointmentId(appointment.id);
-                      setEditingStatus(appointment.status || 'scheduled');
-                    }}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      backgroundColor: '#0b7fab',
-                      borderRadius: 6,
-                      marginLeft: 8,
-                    }}
-                  >
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>Edit</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {editingAppointmentId === appointment.id && (
-                <Modal
-                  visible={true}
-                  transparent={true}
-                  animationType="fade"
+                <TouchableOpacity
+                  onPress={() => handleEditAppointment(appointment)}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: '#0b7fab',
+                    borderRadius: 6,
+                    marginLeft: 8,
+                  }}
                 >
-                  <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 20, width: '90%', maxWidth: 400 }}>
-                      <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333', marginBottom: 16, textAlign: 'center' }}>Change Appointment Status</Text>
-                      <View style={{ marginBottom: 16 }}>
-                        <TouchableOpacity onPress={() => setShowStatusDropdown(!showStatusDropdown)}>
-                          <View
-                            style={{
-                              borderColor: '#0b7fab',
-                              borderWidth: 1,
-                              borderRadius: 8,
-                              paddingHorizontal: 12,
-                              paddingVertical: 12,
-                              flexDirection: 'row',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <Text style={{ color: '#333', fontSize: 14 }}>{editingStatus}</Text>
-                            <Text style={{ color: '#0b7fab', fontSize: 16 }}>{showStatusDropdown ? '▲' : '▼'}</Text>
-                          </View>
-                        </TouchableOpacity>
-                        {showStatusDropdown && (
-                          <View
-                            style={{
-                              borderColor: '#0b7fab',
-                              borderWidth: 1,
-                              borderTopWidth: 0,
-                              borderBottomLeftRadius: 8,
-                              borderBottomRightRadius: 8,
-                              marginTop: -1,
-                            }}
-                          >
-                            {STATUS_OPTIONS.map((status) => (
-                              <TouchableOpacity
-                                key={status}
-                                onPress={() => {
-                                  setEditingStatus(status);
-                                  setShowStatusDropdown(false);
-                                }}
-                                style={{
-                                  paddingHorizontal: 12,
-                                  paddingVertical: 12,
-                                  backgroundColor: editingStatus === status ? '#f0f0f0' : '#fff',
-                                  borderBottomColor: '#ddd',
-                                  borderBottomWidth: 1,
-                                }}
-                              >
-                                <Text style={{ color: '#333', fontSize: 14 }}>
-                                    {formatStatus(status)}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: 12 }}>
-                        <TouchableOpacity
-                          onPress={handleSaveStatus}
-                          style={{
-                            flex: 1,
-                            backgroundColor: '#0b7fab',
-                            paddingVertical: 12,
-                            borderRadius: 8,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Save</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={handleCancelEdit}
-                          style={{
-                            flex: 1,
-                            backgroundColor: '#f0f0f0',
-                            paddingVertical: 12,
-                            borderRadius: 8,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Text style={{ color: '#333', fontWeight: 'bold', fontSize: 13 }}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
-              )}
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>Edit</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))
           )}
         </View>
       </ScrollView>
+
+      {/* AppointmentEdit Modal */}
+      {editingAppointment && (
+        <AppointmentEdit
+          visible={showEditModal}
+          appointment={editingAppointment}
+          doctorId={doctorId}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingAppointment(null);
+          }}
+          onSave={handleSaveAppointment}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -78,15 +78,32 @@ export async function getDoctorAppointments(
       // Continue anyway with available data
     }
 
+    // Step 3b: Fetch medical intake data for all patients
+    const { data: medicalIntakeData, error: medicalIntakeError } = await supabase
+      .from('medical_intake')
+      .select('*')
+      .in('patient_id', patientIds);
+
+    if (medicalIntakeError) {
+      // Continue anyway with available data
+    }
+
     // Step 4: Create a map of patient ID -> profile
     const profileMap = new Map();
     (profilesData || []).forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
+    // Step 4b: Create a map of patient ID -> medical intake
+    const medicalIntakeMap = new Map();
+    (medicalIntakeData || []).forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
+    });
+
     // Step 5: Transform appointments with patient names and avatars
     const transformedData = appointmentsData.map((apt: any) => {
       const profile = profileMap.get(apt.patient_id);
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
       const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
       const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
 
@@ -94,6 +111,8 @@ export async function getDoctorAppointments(
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
 
@@ -294,27 +313,21 @@ export async function updateDoctorAppointmentStatus(
   doctorId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // Update appointment with doctor assignment and status
-    const { data, error } = await supabase
-      .from('appointments')
-      .update({ 
-        status, 
-        dentist_id: doctorId,
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', appointmentId)
-      .select();
+    // Use RPC function to bypass RLS policies (same as AppointmentsTab)
+    const { data, error } = await supabase.rpc('update_appointment_status', {
+      p_appointment_id: appointmentId,
+      p_new_status: status
+    });
 
     if (error) {
+      console.error('❌ RPC Error updating appointment status:', error);
       return { success: false, message: `Failed to update: ${error.message}` };
     }
 
-    if (!data || data.length === 0) {
-      return { success: false, message: 'Update failed: No rows affected' };
-    }
-
+    console.log('✅ Appointment status updated via RPC:', { appointmentId, status });
     return { success: true, message: 'Appointment status updated successfully' };
   } catch (err) {
+    console.error('❌ Exception updating appointment status:', err);
     return { success: false, message: `Exception: ${err}` };
   }
 }

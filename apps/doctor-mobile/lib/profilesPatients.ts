@@ -81,20 +81,70 @@ export async function getPatientAppointments(
     service: string;
     appointment_date: string;
     status: string;
+    notes?: string;
     created_at: string;
   }>
 > {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('id, patient_id, service, appointment_date, status, created_at')
-    .eq('patient_id', patientId)
-    .order('appointment_date', { ascending: false });
+  try {
+    // First, try using the RPC function to bypass RLS (same as calendar uses)
+    console.log(`🔍 Fetching appointments for patient: ${patientId}`);
+    
+    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
+      p_start_date: null,
+      p_end_date: null,
+      p_dentist_id: null
+    });
 
-  if (error) {
+    if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
+      // Filter for this specific patient
+      const patientAppointments = appointmentsData.filter((apt: any) => apt.patient_id === patientId);
+      
+      if (patientAppointments.length > 0) {
+        const statusBreakdown = {
+          scheduled: patientAppointments.filter(a => a.status === 'scheduled').length,
+          completed: patientAppointments.filter(a => a.status === 'completed').length,
+          cancelled: patientAppointments.filter(a => a.status === 'cancelled').length,
+          'no-show': patientAppointments.filter(a => a.status === 'no-show').length,
+        };
+        console.log(`✅ RPC: Fetched ${patientAppointments.length} appointments for patient ${patientId}. Breakdown:`, statusBreakdown);
+        return patientAppointments;
+      }
+    }
+
+    // Fallback: Direct query with explicit select
+    console.log('⚠️ RPC returned no data, trying direct query...');
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('id, patient_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
+      .eq('patient_id', patientId)
+      .order('appointment_date', { ascending: false });
+
+    if (error) {
+      console.error(`❌ Direct query error for patient ${patientId}:`, error);
+      return [];
+    }
+
+    if (!data) {
+      console.log(`⚠️ No appointments data returned for patient ${patientId}`);
+      return [];
+    }
+
+    // Log breakdown by status
+    const statusBreakdown = {
+      scheduled: data.filter(a => a.status === 'scheduled').length,
+      completed: data.filter(a => a.status === 'completed').length,
+      cancelled: data.filter(a => a.status === 'cancelled').length,
+      'no-show': data.filter(a => a.status === 'no-show').length,
+      null_status: data.filter(a => !a.status).length,
+    };
+    console.log(`✅ Direct query: Fetched ${data.length} appointments for patient ${patientId}. Breakdown:`, statusBreakdown);
+    console.log('📋 Appointments:', data.map(a => ({ id: a.id, service: a.service, status: a.status, date: a.appointment_date })));
+
+    return data || [];
+  } catch (error) {
+    console.error(`❌ Exception fetching patient appointments for ${patientId}:`, error);
     return [];
   }
-
-  return data || [];
 }
 
 // ─────────────────────────────────────────
@@ -117,7 +167,73 @@ export async function updateAppointmentStatus(
 }
 
 // ─────────────────────────────────────────
-// 2D. AUTO-UPDATE PAST APPOINTMENTS
+// 2D. UPDATE PATIENT MEDICAL INTAKE
+// ─────────────────────────────────────────
+export async function updatePatientMedicalIntake(
+  patientId: string,
+  medicalData: Partial<MedicalIntake>
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Convert camelCase to snake_case for database
+    const dbData: any = {};
+    
+    if (medicalData.dateOfBirth !== undefined) dbData.date_of_birth = medicalData.dateOfBirth;
+    if (medicalData.gender !== undefined) dbData.gender = medicalData.gender;
+    if (medicalData.phone !== undefined) dbData.phone = medicalData.phone;
+    if (medicalData.address !== undefined) dbData.address = medicalData.address;
+    if (medicalData.emergencyContactName !== undefined) dbData.emergency_contact_name = medicalData.emergencyContactName;
+    if (medicalData.emergencyContactPhone !== undefined) dbData.emergency_contact_phone = medicalData.emergencyContactPhone;
+    if (medicalData.allergies !== undefined) dbData.allergies = medicalData.allergies;
+    if (medicalData.currentMedications !== undefined) dbData.current_medications = medicalData.currentMedications;
+    if (medicalData.medicalConditions !== undefined) dbData.medical_conditions = medicalData.medicalConditions;
+    if (medicalData.pastSurgeries !== undefined) dbData.past_surgeries = medicalData.pastSurgeries;
+    if (medicalData.smokingStatus !== undefined) dbData.smoking_status = medicalData.smokingStatus;
+    if (medicalData.pregnancyStatus !== undefined) dbData.pregnancy_status = medicalData.pregnancyStatus;
+
+    // First, check if medical_intake record exists for this patient
+    const { data: existingData, error: checkError } = await supabase
+      .from('medical_intake')
+      .select('id')
+      .eq('patient_id', patientId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 means no rows found, which is expected
+      return { success: false, message: 'Error checking medical intake record' };
+    }
+
+    if (existingData) {
+      // Update existing medical intake
+      const { error: updateError } = await supabase
+        .from('medical_intake')
+        .update(dbData)
+        .eq('patient_id', patientId);
+
+      if (updateError) {
+        console.error('Error updating medical intake:', updateError);
+        return { success: false, message: 'Failed to update medical intake' };
+      }
+    } else {
+      // Create new medical intake record
+      const { error: insertError } = await supabase
+        .from('medical_intake')
+        .insert([{ patient_id: patientId, ...dbData }]);
+
+      if (insertError) {
+        console.error('Error creating medical intake:', insertError);
+        return { success: false, message: 'Failed to create medical intake' };
+      }
+    }
+
+    return { success: true, message: 'Medical intake updated successfully' };
+  } catch (error) {
+    console.error('Exception updating medical intake:', error);
+    return { success: false, message: 'Exception updating medical intake' };
+  }
+}
+
+// ─────────────────────────────────────────
+// 2E. AUTO-UPDATE PAST APPOINTMENTS
 // ─────────────────────────────────────────
 export async function updatePastAppointmentsToNoShow(
   appointments: any[]
@@ -127,8 +243,9 @@ export async function updatePastAppointmentsToNoShow(
   for (const appt of appointments) {
     const apptDate = new Date(appt.appointment_date);
     
-    // If appointment is in the past and status is not already no-show or completed
-    if (apptDate < now && appt.status !== 'no-show' && appt.status !== 'completed') {
+    // If appointment is in the past and status is not already no-show, completed, or cancelled
+    // IMPORTANT: Don't override cancelled appointments - preserve their status
+    if (apptDate < now && appt.status !== 'no-show' && appt.status !== 'completed' && appt.status !== 'cancelled') {
       await updateAppointmentStatus(appt.id, 'no-show');
     }
   }
@@ -300,57 +417,7 @@ export async function updatePatientProfile(
 }
 
 // ─────────────────────────────────────────
-// 6. UPDATE PATIENT MEDICAL INTAKE
-// ─────────────────────────────────────────
-export async function updatePatientMedicalIntake(
-  patientId: string,
-  intake: MedicalIntake
-): Promise<{ success: boolean; message: string }> {
-  // Map camelCase to snake_case for database
-  const dbIntake = {
-    patient_id: patientId,
-    date_of_birth: intake.dateOfBirth,
-    gender: intake.gender,
-    phone: intake.phone,
-    address: intake.address,
-    emergency_contact_name: intake.emergencyContactName,
-    emergency_contact_phone: intake.emergencyContactPhone,
-    allergies: intake.allergies,
-    current_medications: intake.currentMedications,
-    medical_conditions: intake.medicalConditions,
-    past_surgeries: intake.pastSurgeries,
-    smoking_status: intake.smokingStatus,
-    pregnancy_status: intake.pregnancyStatus,
-    updated_at: new Date().toISOString(),
-  };
-
-  // Try to update first
-  const { error: updateError, data: updateData } = await supabase
-    .from('medical_intake')
-    .update(dbIntake)
-    .eq('patient_id', patientId)
-    .select();
-
-  // If no rows were updated, insert new record
-  if (!updateError && updateData && updateData.length === 0) {
-    const { error: insertError } = await supabase
-      .from('medical_intake')
-      .insert([dbIntake]);
-
-    if (insertError) {
-      console.error('Error creating medical intake:', insertError);
-      return { success: false, message: 'Failed to save medical intake' };
-    }
-  } else if (updateError) {
-    console.error('Error updating medical intake:', updateError);
-    return { success: false, message: 'Failed to update medical intake' };
-  }
-
-  return { success: true, message: 'Medical intake updated successfully' };
-}
-
-// ─────────────────────────────────────────
-// 7. SEARCH PATIENTS BY NAME OR EMAIL
+// 6. SEARCH PATIENTS BY NAME OR EMAIL
 // ─────────────────────────────────────────
 export async function searchPatients(
   query: string

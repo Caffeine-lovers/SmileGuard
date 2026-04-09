@@ -10,9 +10,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getPatientMedicalIntake, getPatientAppointments, updatePastAppointmentsToNoShow } from "../../lib/profilesPatients";
+import { getPatientMedicalIntake, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalIntake } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
+import AppointmentEdit from "../appointments/appointmentEdit";
+import PatientDetailsEdit from "./PatientDetailsEdit";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth } from "../../lib/dateFormatters";
 
@@ -30,11 +32,23 @@ export type AppointmentType = {
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
   status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show'; // Appointment status
+  // Medical intake fields
+  dateOfBirth?: string;
+  address?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  allergies?: string;
+  currentMedications?: string;
+  medicalConditions?: string;
+  pastSurgeries?: string;
+  smokingStatus?: "never" | "former" | "current" | "";
+  pregnancyStatus?: "yes" | "no" | "na" | "";
 };
 
 interface PatientDetailsViewProps {
   visible: boolean;
   patient: AppointmentType | null;
+  doctorId?: string;
   onClose: () => void;
   onEdit?: () => void;
 }
@@ -72,12 +86,16 @@ const categorizeAppointments = (appointments: any[]) => {
   return { past, current, future };
 };
 
-export default function PatientDetailsView({ visible, patient, onClose, onEdit }: PatientDetailsViewProps) {
+export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const [isEditingPatient, setIsEditingPatient] = useState(false);
+  const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (visible && patient?.id) {
@@ -101,17 +119,27 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
 
       // Update medical intake
       setMedicalIntake(intake);
-      console.log('Loaded medical intake:', intake);
+      console.log('✅ Loaded medical intake:', intake);
 
       // Auto-update past appointments to no-show status
       await updatePastAppointmentsToNoShow(appts);
 
       // Reload appointments to get updated statuses
       const updatedAppts = await getPatientAppointments(patientId);
+      
+      // Log appointments breakdown
+      const statusBreakdown = {
+        scheduled: updatedAppts.filter(a => a.status === 'scheduled').length,
+        completed: updatedAppts.filter(a => a.status === 'completed').length,
+        cancelled: updatedAppts.filter(a => a.status === 'cancelled').length,
+        'no-show': updatedAppts.filter(a => a.status === 'no-show').length,
+      };
+      console.log(`✅ Loaded ${updatedAppts.length} appointments. Breakdown:`, statusBreakdown);
+      console.log('📋 Filtered cancelled:', updatedAppts.filter(a => a.status === 'cancelled'));
+      
       setAppointments(updatedAppts);
-      console.log('Loaded appointments:', updatedAppts.length);
     } catch (error) {
-      console.error('Error loading patient data:', error);
+      console.error('❌ Error loading patient data:', error);
     } finally {
       setLoading(false);
     }
@@ -143,6 +171,19 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
       console.log('Loaded appointments:', updatedAppts.length);
     } catch (error) {
       console.error('Error loading appointments:', error);
+    }
+  };
+
+  const handleEditAppointment = (appointment: any) => {
+    console.log('🔧 Opening appointment edit modal for:', appointment.id);
+    setEditingAppointment(appointment);
+    setShowEditModal(true);
+  };
+
+  const handleSaveAppointment = async () => {
+    console.log('✅ Appointment saved, refreshing appointments...');
+    if (patient?.id) {
+      await loadAppointments(patient.id);
     }
   };
 
@@ -269,30 +310,46 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
                 <Text style={styles.noDataText}>No appointments found</Text>
               ) : (
                 <>
-                  {/* Show cancelled appointments first if they exist */}
-                  {appointments.filter((appt: any) => appt.status === 'cancelled').map((appt: any) => (
-                    <AppointmentRow key={appt.id} appointment={appt} />
-                  ))}
-                  
-                  {/* Show other appointments (max 3) */}
-                  {appointments
-                    .filter((appt: any) => appt.status !== 'cancelled')
-                    .slice(0, 3)
-                    .map((appt: any) => (
-                      <AppointmentRow key={appt.id} appointment={appt} />
-                    ))}
-                  
-                  {/* See More Button */}
-                  {appointments.length > 3 && (
-                    <TouchableOpacity 
-                      style={styles.seeMoreButton}
-                      onPress={() => setShowAppointmentHistory(true)}
-                    >
-                      <Text style={styles.seeMoreText}>
-                        See All ({appointments.length}) →
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  {(() => {
+                    const cancelledAppts = appointments.filter((appt: any) => appt.status === 'cancelled');
+                    const otherAppts = appointments.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
+                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other`);
+                    
+                    return (
+                      <>
+                        {/* Show cancelled appointments first if they exist */}
+                        {cancelledAppts.length > 0 && (
+                          <>
+                            {cancelledAppts.map((appt: any) => (
+                              <AppointmentRow key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Show other appointments (max 3) */}
+                        {otherAppts.length > 0 && (
+                          <>
+                            {cancelledAppts.length > 0 && <Text style={{ fontSize: 11, color: '#999', marginBottom: 8, marginTop: 12 }}>Other Appointments:</Text>}
+                            {otherAppts.map((appt: any) => (
+                              <AppointmentRow key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* See More Button */}
+                        {appointments.length > 3 && (
+                          <TouchableOpacity 
+                            style={styles.seeMoreButton}
+                            onPress={() => setShowAppointmentHistory(true)}
+                          >
+                            <Text style={styles.seeMoreText}>
+                              See All ({appointments.length}) →
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    );
+                  })()}
                 </>
               )}
             </View>
@@ -311,19 +368,34 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
         {/* Footer */}
         <View style={styles.footer}>
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            {onEdit && (
-              <TouchableOpacity 
-                style={[styles.closeButtonFull, { backgroundColor: '#0b7fab', flex: 1 }]} 
-                onPress={() => {
-                  onEdit();
-                  onClose();
-                }}
-              >
-                <Text style={styles.closeButtonText}>Edit</Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity 
-              style={[styles.closeButtonFull, { backgroundColor: '#999', flex: onEdit ? 1 : undefined }]} 
+              style={[styles.closeButtonFull, { backgroundColor: '#0b7fab', flex: 1 }]} 
+              onPress={() => {
+                // Merge fresh medicalIntake data with patient to get the latest data
+                const patientWithFreshData: AppointmentType = {
+                  ...patient,
+                  dateOfBirth: medicalIntake?.dateOfBirth || patient.dateOfBirth,
+                  gender: medicalIntake?.gender || patient.gender,
+                  contact: medicalIntake?.phone || patient.contact,
+                  address: medicalIntake?.address || patient.address,
+                  emergencyContactName: medicalIntake?.emergencyContactName || patient.emergencyContactName,
+                  emergencyContactPhone: medicalIntake?.emergencyContactPhone || patient.emergencyContactPhone,
+                  allergies: medicalIntake?.allergies || patient.allergies,
+                  currentMedications: medicalIntake?.currentMedications || patient.currentMedications,
+                  medicalConditions: medicalIntake?.medicalConditions || patient.medicalConditions,
+                  pastSurgeries: medicalIntake?.pastSurgeries || patient.pastSurgeries,
+                  smokingStatus: medicalIntake?.smokingStatus || patient.smokingStatus,
+                  pregnancyStatus: medicalIntake?.pregnancyStatus || patient.pregnancyStatus,
+                };
+                setEditedPatient(patientWithFreshData);
+                setIsEditingPatient(true);
+                if (onEdit) onEdit();
+              }}
+            >
+              <Text style={styles.closeButtonText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.closeButtonFull, { backgroundColor: '#999', flex: 1 }]} 
               onPress={onClose}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -342,9 +414,78 @@ export default function PatientDetailsView({ visible, patient, onClose, onEdit }
           <AppointmentHistory
             patientId={patient.id}
             patientName={patient.name}
+            doctorId={doctorId || ''}
             onBack={() => setShowAppointmentHistory(false)}
           />
         </Modal>
+      )}
+
+      {/* Edit Patient Modal */}
+      {editedPatient && (
+        <PatientDetailsEdit
+          visible={isEditingPatient}
+          patient={editedPatient}
+          onClose={() => {
+            setIsEditingPatient(false);
+            setEditedPatient(null);
+          }}
+          onSave={async (updatedPatient) => {
+            // Update to Supabase
+            const result = await updatePatientMedicalIntake(patient?.id || '', {
+              dateOfBirth: updatedPatient.dateOfBirth,
+              gender: updatedPatient.gender,
+              phone: updatedPatient.contact,
+              address: updatedPatient.address,
+              emergencyContactName: updatedPatient.emergencyContactName,
+              emergencyContactPhone: updatedPatient.emergencyContactPhone,
+              allergies: updatedPatient.allergies,
+              currentMedications: updatedPatient.currentMedications,
+              medicalConditions: updatedPatient.medicalConditions,
+              pastSurgeries: updatedPatient.pastSurgeries,
+              smokingStatus: updatedPatient.smokingStatus,
+              pregnancyStatus: updatedPatient.pregnancyStatus,
+            });
+
+            if (result.success) {
+              // Reload data from Supabase
+              if (patient?.id) {
+                await loadMedicalIntake(patient.id);
+                // After loading, rebuild editedPatient with fresh data
+                const freshIntake = await getPatientMedicalIntake(patient.id);
+                const freshPatientData: AppointmentType = {
+                  ...patient,
+                  dateOfBirth: freshIntake?.dateOfBirth || '',
+                  gender: freshIntake?.gender || patient.gender,
+                  contact: freshIntake?.phone || patient.contact,
+                  address: freshIntake?.address || '',
+                  emergencyContactName: freshIntake?.emergencyContactName || '',
+                  emergencyContactPhone: freshIntake?.emergencyContactPhone || '',
+                  allergies: freshIntake?.allergies || '',
+                  currentMedications: freshIntake?.currentMedications || '',
+                  medicalConditions: freshIntake?.medicalConditions || '',
+                  pastSurgeries: freshIntake?.pastSurgeries || '',
+                  smokingStatus: freshIntake?.smokingStatus || '',
+                  pregnancyStatus: freshIntake?.pregnancyStatus || '',
+                };
+                setEditedPatient(freshPatientData);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* AppointmentEdit Modal */}
+      {editingAppointment && doctorId && (
+        <AppointmentEdit
+          visible={showEditModal}
+          appointment={editingAppointment}
+          doctorId={doctorId}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingAppointment(null);
+          }}
+          onSave={handleSaveAppointment}
+        />
       )}
     </Modal>
   );
@@ -361,7 +502,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 // Helper Component for Appointment Rows
-function AppointmentRow({ appointment }: { appointment: any }) {
+function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (appt: any) => void }) {
   const apptDate = new Date(appointment.appointment_date);
   const formattedDate = apptDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   
@@ -372,17 +513,40 @@ function AppointmentRow({ appointment }: { appointment: any }) {
     'no-show': '#9C27B0',
   };
 
-  const statusColor = statusColors[appointment.status || 'scheduled'] || '#666';
+  // Ensure status has a default value and handle null/undefined cases
+  const appointmentStatus = appointment.status || 'scheduled';
+  const statusColor = statusColors[appointmentStatus] || '#666';
+  
+  // Format status text: capitalize first letter, handle no-show properly
+  const getStatusText = (status: string): string => {
+    if (status === 'no-show') return 'No Show';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
 
   return (
-    <View style={[styles.appointmentRow, { borderLeftColor: statusColor }]}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.appointmentService}>{appointment.service || 'General'}</Text>
-        <Text style={styles.appointmentDate}>{formattedDate}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={[styles.appointmentRow, { borderLeftColor: statusColor, flex: 1 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.appointmentService}>{appointment.service || 'General'}</Text>
+          <Text style={styles.appointmentDate}>{formattedDate}</Text>
+        </View>
+        <Text style={[styles.appointmentStatus, { color: statusColor }]}>
+          {getStatusText(appointmentStatus)}
+        </Text>
       </View>
-      <Text style={[styles.appointmentStatus, { color: statusColor }]}>
-        {appointment.status?.charAt(0).toUpperCase() + appointment.status?.slice(1) || 'Scheduled'}
-      </Text>
+      {onEdit && (
+        <TouchableOpacity
+          onPress={() => onEdit(appointment)}
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            backgroundColor: '#4CAF50',
+            borderRadius: 6,
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>Edit</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
