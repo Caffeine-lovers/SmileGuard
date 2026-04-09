@@ -84,7 +84,7 @@ export default function LoginPage() {
           </Link>
         </p>
         <p className="text-sm text-text-secondary mt-2">
-          <Link href="/reset-password" className="text-text-link hover:underline">
+          <Link href="/forgot-password" className="text-text-link hover:underline">
             Forgot password?
           </Link>
         </p>

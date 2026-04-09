@@ -83,7 +83,7 @@ export default function AnalysisPage() {
         },
         body: JSON.stringify({
           image_b64: image_b64,
-          conf: 0.30,
+          conf: 0.10, // Lowered confidence to pick up more bounding boxes
         }),
       });
 
