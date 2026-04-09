@@ -58,12 +58,6 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                 Dashboard
               </Link>
               <Link 
-                href="/appointments" 
-                className={`font-medium transition hover:text-brand-primary ${pathname === '/appointments' ? 'text-brand-primary' : 'text-text-primary'}`}
-              >
-                Appointments
-              </Link>
-              <Link 
                 href="/billing" 
                 className={`font-medium transition hover:text-brand-primary ${pathname === '/billing' ? 'text-brand-primary' : 'text-text-primary'}`}
               >
@@ -90,6 +84,12 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </nav>
           </div>
           <div className="flex items-center gap-4">
+            <Link 
+              href="/appointments" 
+              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-lg transition font-medium text-sm hidden md:block"
+            >
+              Book an Appointment
+            </Link>
             <span className="text-sm text-text-secondary hidden md:block">
               {currentUser.name}
             </span>

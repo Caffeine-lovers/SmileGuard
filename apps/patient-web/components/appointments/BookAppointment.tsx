@@ -77,7 +77,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       try {
         if (!currentUser) return;
         const appointments = await getPatientAppointments(currentUser.id);
-        setUserAppointments(appointments);
+        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
+        setUserAppointments(scheduledAppointments);
       } catch (err) {
         console.error('Error fetching user appointments:', err);
       } finally {
