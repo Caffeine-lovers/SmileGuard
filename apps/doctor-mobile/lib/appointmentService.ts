@@ -1,145 +1,333 @@
-import { supabase } from './supabase.ts';
-
-export let TOTAL_SLOTS_PER_DAY = 14; // matches TIME_SLOTS.length in BookAppointment
-
-export function setTotalSlotsPerDay(total: number): void {
-  TOTAL_SLOTS_PER_DAY = total;
-}
-
-// ─────────────────────────────────────────
-// 1. GET BOOKED SLOTS FOR A SINGLE DATE
-// ─────────────────────────────────────────
-export async function getBookedSlots(date: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('appointment_time')
-    .eq('appointment_date', date)          // DATE = 'YYYY-MM-DD' direct match
-    .neq('status', 'cancelled');
-
-  if (error) {
-    console.error('Error fetching booked slots:', error);
-    return [];
-  }
-
-  return data.map((a) => a.appointment_time);
-}
-
-// ─────────────────────────────────────────
-// 2. BOOK A SLOT
-// ─────────────────────────────────────────
-export async function bookSlot(
-  patientId: string,
-  dentistId: string,
-  service: string,
-  appointmentDate: string,
-  appointmentTime: string
-): Promise<{ success: boolean; message: string }> {
-  const { data: existing, error: checkError } = await supabase
-    .from('appointments')
-    .select('id')
-    .eq('appointment_date', appointmentDate)
-    .eq('appointment_time', appointmentTime)
-    .neq('status', 'cancelled');
-
-  if (checkError) return { success: false, message: 'Error checking availability.' };
-  if (existing && existing.length > 0) return { success: false, message: 'Sorry, this slot was just taken!' };
-
-  const { error: insertError } = await supabase
-    .from('appointments')
-    .insert({
-      patient_id: patientId,
-      dentist_id: dentistId || null,
-      service,
-      appointment_date: appointmentDate,
-      appointment_time: appointmentTime,
-      status: 'scheduled',
-    });
-
-  if (insertError) {
-    if (insertError.code === '23505') return { success: false, message: 'Slot was just taken by someone else!' };
-    console.error('Booking error:', insertError);
-    return { success: false, message: 'Booking failed. Please try again.' };
-  }
-
-  return { success: true, message: 'Appointment booked successfully!' };
-}
-
-// ─────────────────────────────────────────
-// 3. CHECK IF DAY IS FULLY BOOKED
-// ─────────────────────────────────────────
-export async function checkDayFull(date: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('id')
-    .eq('appointment_date', date)
-    .neq('status', 'cancelled');
-
-  if (error) {
-    console.error('Error checking day:', error);
-    return false;
-  }
-
-  return (data?.length ?? 0) >= TOTAL_SLOTS_PER_DAY;
-}
-
-// ─────────────────────────────────────────
-// 4. CANCEL AN APPOINTMENT
-// ─────────────────────────────────────────
+import { supabase } from './supabase';
 export async function cancelAppointment(
   appointmentId: string
 ): Promise<{ success: boolean; message: string }> {
-  const { error } = await supabase
-    .from('appointments')
-    .update({ status: 'cancelled' })
-    .eq('id', appointmentId);
+  try {
+    // Use RPC function to bypass RLS (same as update_appointment_status)
+    const { data, error } = await supabase.rpc('update_appointment_status', {
+      p_appointment_id: appointmentId,
+      p_new_status: 'cancelled'
+    });
 
-  if (error) {
-    console.error('Cancellation error:', error);
+    if (error) {
+      return { success: false, message: 'Cancellation failed. Please try again.' };
+    }
+
+    return { success: true, message: 'Appointment cancelled successfully.' };
+  } catch (err) {
     return { success: false, message: 'Cancellation failed. Please try again.' };
   }
+}
 
-  return { success: true, message: 'Appointment cancelled successfully.' };
+// ═══════════════════════════════════════════════════════════════════════════════
+// DOCTOR DASHBOARD SPECIFIC TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface DoctorAppointment {
+  id: string;
+  patient_id: string;
+  dentist_id: string | null;
+  service: string;
+  appointment_date: string; // YYYY-MM-DD
+  appointment_time: string;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+  patient_name?: string; // Patient name from profiles table
+  patient_avatar?: string; // Patient avatar URL from profiles table
 }
 
 // ─────────────────────────────────────────
-// 5. GET ALL BLOCKED SLOTS (date + time pairs)
-//    NOTE: No profiles join — avoids silent failures
-//    if the FK relationship isn't registered in Supabase.
-// ─────────────────────────────────────────
-export interface BlockedSlot {
-  date: string;
-  time: string;
-  patientId: string;
-  service?: string;
-}
+export async function getDoctorAppointments(
+  dentistId: string | null,
+  startDate?: string,
+  endDate?: string
+): Promise<DoctorAppointment[]> {
+  try {
+    // IMPORTANT: Use RPC function to bypass RLS policy that filters out cancelled appointments
+    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
+      p_start_date: startDate || null,
+      p_end_date: endDate || null,
+      p_dentist_id: dentistId || null
+    });
 
-export async function getAllBlockedSlots(): Promise<BlockedSlot[]> {
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('appointment_date, appointment_time, patient_id, service')
-    .neq('status', 'cancelled')
-    .order('appointment_date', { ascending: true });
+    if (rpcError) {
+      // Fallback: Try direct query anyway
+      return fallbackGetDoctorAppointments(dentistId, startDate, endDate);
+    }
 
-  if (error) {
-    console.error('Error fetching blocked slots:', error);
+    if (!appointmentsData) {
+      return [];
+    }
+
+    if (appointmentsData.length === 0) {
+      return [];
+    }
+
+    // Step 2: Get unique patient IDs
+    const patientIds = [...new Set((appointmentsData as any[]).map((apt: any) => apt.patient_id))];
+
+    // Step 3: Fetch profiles for all patients
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', patientIds);
+
+    if (profilesError) {
+      // Continue anyway with available data
+    }
+
+    // Step 3b: Fetch medical intake data for all patients
+    const { data: medicalIntakeData, error: medicalIntakeError } = await supabase
+      .from('medical_intake')
+      .select('*')
+      .in('patient_id', patientIds);
+
+    if (medicalIntakeError) {
+      // Continue anyway with available data
+    }
+
+    // Step 4: Create a map of patient ID -> profile
+    const profileMap = new Map();
+    (profilesData || []).forEach(profile => {
+      profileMap.set(profile.id, profile);
+    });
+
+    // Step 4b: Create a map of patient ID -> medical intake
+    const medicalIntakeMap = new Map();
+    (medicalIntakeData || []).forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
+    });
+
+    // Step 5: Transform appointments with patient names and avatars
+    const transformedData = appointmentsData.map((apt: any) => {
+      const profile = profileMap.get(apt.patient_id);
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+
+      return {
+        ...apt,
+        patient_name: patientName,
+        patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
+      };
+    });
+
+    return transformedData || [];
+  } catch (err: any) {
     return [];
   }
-
-  return data.map((a: any) => ({
-    date: a.appointment_date,       // 'YYYY-MM-DD'
-    time: a.appointment_time,       // 'HH:MM'
-    patientId: a.patient_id,
-    service: a.service,
-  }));
 }
 
 // ─────────────────────────────────────────
-// 6. CHECK IF SPECIFIC DATE+TIME IS TAKEN
+// FALLBACK: Direct query if RPC fails
 // ─────────────────────────────────────────
-export function isSlotTaken(
-  blockedSlots: BlockedSlot[],
-  date: string,
-  time: string
-): boolean {
-  return blockedSlots.some((slot) => slot.date === date && slot.time === time);
+async function fallbackGetDoctorAppointments(
+  dentistId: string | null,
+  startDate?: string,
+  endDate?: string
+): Promise<DoctorAppointment[]> {
+  try {
+    let query = supabase
+      .from('appointments')
+      .select('*');
+
+    if (dentistId && dentistId !== 'null') {
+      query = query.eq('dentist_id', dentistId);
+    } else {
+      // If no dentistId provided, return empty (don't show null appointments)
+      return [];
+    }
+
+    if (startDate) {
+      query = query.gte('appointment_date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('appointment_date', endDate);
+    }
+
+    const { data: appointmentsData, error: appointmentsError } = await query
+      .order('appointment_date', { ascending: false })
+      .order('appointment_time', { ascending: false });
+
+    if (appointmentsError) {
+      return [];
+    }
+
+    if (!appointmentsData || appointmentsData.length === 0) {
+      return [];
+    }
+
+    // Get unique patient IDs and fetch profiles
+    const patientIds = [...new Set(appointmentsData.map(apt => apt.patient_id))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', patientIds);
+
+    const profileMap = new Map();
+    (profilesData || []).forEach(profile => {
+      profileMap.set(profile.id, profile);
+    });
+
+    // Transform and return
+    return appointmentsData.map((apt: any) => {
+      const profile = profileMap.get(apt.patient_id);
+      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+
+      return {
+        ...apt,
+        patient_name: patientName,
+        patient_avatar: patientAvatar,
+      };
+    });
+  } catch (err: any) {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────
+// GET APPOINTMENTS FOR A SPECIFIC DATE
+// ─────────────────────────────────────────
+export async function getDoctorAppointmentsByDate(
+  dentistId: string | null,
+  date: string
+): Promise<DoctorAppointment[]> {
+  try {
+    // IMPORTANT: Use RPC function to bypass RLS policy that filters out cancelled appointments
+    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_by_date', {
+      p_date: date,
+      p_dentist_id: dentistId || null
+    });
+
+    if (rpcError) {
+      // Fallback: Try direct query anyway
+      return fallbackGetAppointmentsByDate(dentistId, date);
+    }
+
+    if (!appointmentsData) {
+      return [];
+    }
+
+    if (appointmentsData.length === 0) {
+      return [];
+    }
+
+    // Step 2: Get unique patient IDs
+    const patientIds = [...new Set(appointmentsData.map((apt: any) => apt.patient_id))];
+
+    // Step 3: Fetch profiles for all patients
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', patientIds);
+
+    if (profilesError) {
+      // Continue anyway with available data
+    }
+
+    // Step 4: Create a map of patient ID -> profile
+    const profileMap = new Map();
+    (profilesData || []).forEach(profile => {
+      profileMap.set(profile.id, profile);
+    });
+
+    // Step 5: Transform appointments with patient names and avatars
+    const transformedData = appointmentsData.map((apt: any) => {
+      const profile = profileMap.get(apt.patient_id);
+      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+
+      return {
+        ...apt,
+        patient_name: patientName,
+        patient_avatar: patientAvatar,
+      };
+    });
+
+    return transformedData || [];
+  } catch (err: any) {
+    return fallbackGetAppointmentsByDate(dentistId, date);
+  }
+}
+
+// ─────────────────────────────────────────
+// FALLBACK: Direct query (if RPC fails)
+// ─────────────────────────────────────────
+async function fallbackGetAppointmentsByDate(
+  dentistId: string | null,
+  date: string
+): Promise<DoctorAppointment[]> {
+  try {
+    let query = supabase
+      .from('appointments')
+      .select('*')
+      .eq('appointment_date', date);
+
+    const { data: appointmentsData, error } = await query
+      .order('appointment_time', { ascending: true });
+
+    if (error) {
+      return [];
+    }
+
+    if (!appointmentsData || appointmentsData.length === 0) {
+      return [];
+    }
+
+    // Fetch profiles
+    const patientIds = [...new Set(appointmentsData.map((apt: any) => apt.patient_id))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', patientIds);
+
+    const profileMap = new Map();
+    (profilesData || []).forEach(profile => {
+      profileMap.set(profile.id, profile);
+    });
+
+    return appointmentsData.map((apt: any) => {
+      const profile = profileMap.get(apt.patient_id);
+      return {
+        ...apt,
+        patient_name: profile?.full_name || profile?.name || profile?.user_name || apt.patient_id,
+        patient_avatar: profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null,
+      };
+    });
+  } catch (err: any) {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────
+// UPDATE APPOINTMENT STATUS (for doctor dashboard)
+// ─────────────────────────────────────────
+export async function updateDoctorAppointmentStatus(
+  appointmentId: string,
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+  doctorId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Use RPC function to bypass RLS policies (same as AppointmentsTab)
+    const { data, error } = await supabase.rpc('update_appointment_status', {
+      p_appointment_id: appointmentId,
+      p_new_status: status
+    });
+
+    if (error) {
+      console.error('❌ RPC Error updating appointment status:', error);
+      return { success: false, message: `Failed to update: ${error.message}` };
+    }
+
+    console.log('✅ Appointment status updated via RPC:', { appointmentId, status });
+    return { success: true, message: 'Appointment status updated successfully' };
+  } catch (err) {
+    console.error('❌ Exception updating appointment status:', err);
+    return { success: false, message: `Exception: ${err}` };
+  }
 }

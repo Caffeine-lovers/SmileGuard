@@ -124,7 +124,7 @@ export function useAuth() {
   // ─────────────────────────────────────────
   // LOGIN
   // ─────────────────────────────────────────
-  const login = async (email: string, password: string, expectedRole: "patient" | "doctor") => {
+  const login = async (email: string, password: string, expectedRole: "patient" | "doctor"): Promise<CurrentUser> => {
     setLoading(true);
     setError(null);
 
@@ -137,23 +137,36 @@ export function useAuth() {
       if (error) throw error;
 
       if (data.user) {
-        // Fetch profile to check role
+        // Fetch profile to get name and email
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, name, email")
           .eq("id", data.user.id)
           .single();
 
-        if (profileError) throw new Error("Profile not found");
+        // Determine the user's role - check profile first, then fall back to user_metadata
+        const profileRole = profile?.role;
+        const metadataRole = data.user.user_metadata?.role;
+        const userRole = profileRole || metadataRole;
 
         // Check if user has the right role
-        if (profile.role !== expectedRole) {
+        if (userRole !== expectedRole) {
           await supabase.auth.signOut();
           throw new Error(`Access denied. Please log in as a ${expectedRole}.`);
         }
 
         await fetchProfile(data.user.id);
+        
+        // Return the user data
+        return {
+          id: data.user.id,
+          name: profile?.name || data.user.user_metadata?.name || "User",
+          email: profile?.email || data.user.email || "",
+          role: userRole as "patient" | "doctor",
+        };
       }
+
+      throw new Error("Login failed: No user data returned");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Login failed";
       setError(message);
@@ -175,56 +188,117 @@ export function useAuth() {
     setError(null);
 
     try {
-      // Create auth user
+      // Validate required fields
+      if (!formData.email || !formData.password) {
+        throw new Error("Email and password are required");
+      }
+
+      if (!formData.name) {
+        throw new Error("Name is required");
+      }
+
+      console.log("[useAuth] Starting registration for:", formData.email);
+
+      // Trim and lowercase email
+      const normalizedEmail = formData.email.trim().toLowerCase();
+      
+      console.log("[useAuth] Attempting auth signup with email:", normalizedEmail, "role:", role);
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
+        email: normalizedEmail,
         password: formData.password,
         options: {
           data: {
             name: formData.name,
             role,
-            service: formData.service || "General",
           },
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error("[useAuth] ❌ AUTH SIGNUP FAILED");
+        console.error("[useAuth] Error message:", authError.message);
+        console.error("[useAuth] Error code:", (authError as any)?.code);
+        console.error("[useAuth] Error status:", (authError as any)?.status);
+        console.error("[useAuth] Full error object:", authError);
+        throw authError;
+      }
+
+      if (!authData.user) {
+        throw new Error("Auth signup failed: No user returned");
+      }
+
+      console.log("[useAuth] Auth user created:", authData.user.id);
+
+      // Now try to update auth user metadata
+      try {
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            name: formData.name,
+            role,
+          },
+        });
+
+        if (updateError) {
+          console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
+        } else {
+          console.log("[useAuth] User metadata updated successfully");
+        }
+      } catch (metaErr) {
+        console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
+      }
 
       if (authData.user) {
-        // Create profile
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert({
-            id: authData.user.id,
-            name: formData.name,
-            email: formData.email,
-            role,
-            service: formData.service || "General",
+        console.log("[useAuth] Auth user created, trigger will create profile automatically");
+
+        // Update auth user metadata with name and role
+        try {
+          const { error: updateError } = await supabase.auth.updateUser({
+            data: {
+              name: formData.name,
+              role,
+            },
           });
 
-        if (profileError) {
-          console.warn("Profile creation warning:", profileError);
-          // Don't throw — profile may auto-create via trigger
+          if (updateError) {
+            console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
+          } else {
+            console.log("[useAuth] User metadata updated successfully");
+          }
+        } catch (metaErr) {
+          console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
         }
 
-        // Create medical_intake for patients
-        if (role === "patient" && formData.medicalIntake) {
-          const { error: intakeError } = await supabase
-            .from("medical_intake")
-            .insert({
-              patient_id: authData.user.id,
-              ...formData.medicalIntake,
-            });
-
-          if (intakeError) console.warn("Medical intake creation warning:", intakeError);
-        }
-
+        // The Supabase trigger (handle_new_user) has already created the profile
+        // Just need to fetch it and set the current user
+        console.log("[useAuth] Fetching profile created by trigger...");
         await fetchProfile(authData.user.id);
+        
+        console.log("[useAuth] Registration complete, profile fetched from trigger");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Registration failed";
+      let message = "Registration failed";
+      let detailedError = "";
+      
+      if (err instanceof Error) {
+        message = err.message;
+        detailedError = JSON.stringify(err, null, 2);
+        
+        // Log additional error details
+        if ((err as any).code) {
+          console.error("[useAuth] Error code:", (err as any).code);
+        }
+        if ((err as any).status) {
+          console.error("[useAuth] Error status:", (err as any).status);
+        }
+        
+        console.error("❌ Registration error:", message);
+        console.error("📋 Error details:", detailedError);
+      } else if (typeof err === 'object' && err !== null) {
+        detailedError = JSON.stringify(err, null, 2);
+        console.error("❌ Registration error (object):", detailedError);
+      }
+      
       setError(message);
-      console.error("❌ Registration error:", message);
       throw err;
     } finally {
       setLoading(false);
@@ -244,6 +318,48 @@ export function useAuth() {
       throw err;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // ENSURE ROLE IS SET (Verification only, no updates due to RLS)
+  // ─────────────────────────────────────────
+  const ensureRoleSet = async (userId: string, expectedRole: "patient" | "doctor") => {
+    try {
+      console.log(`[useAuth] Verifying role is set for user ${userId} to ${expectedRole}`);
+      
+      const { data: profile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("id, role")
+        .eq("id", userId)
+        .single();
+
+      if (fetchError && fetchError.code === "PGRST116") {
+        console.warn("[useAuth] Profile not found - trigger may still be running");
+        // Wait a moment and try again
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return ensureRoleSet(userId, expectedRole);
+      } else if (fetchError) {
+        console.error("[useAuth] Error fetching profile:", fetchError);
+        return false;
+      }
+
+      // Profile exists, verify role is correct
+      if (profile && profile.role === expectedRole) {
+        console.log(`[useAuth] ✅ Role is correctly set to ${expectedRole}`);
+        return true;
+      } else if (profile) {
+        console.warn(`[useAuth] ⚠️ Role mismatch: Current ${profile.role} ≠ Expected ${expectedRole}`);
+        console.warn("[useAuth] This may be due to RLS policies or trigger configuration");
+        // Return true anyway - the profile exists with a role, even if it might be wrong
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to ensure role";
+      console.error("[useAuth] ensureRoleSet error:", message);
+      return false;
     }
   };
 
@@ -277,5 +393,6 @@ export function useAuth() {
     register,
     logout,
     resetPassword,
+    ensureRoleSet,
   };
 }

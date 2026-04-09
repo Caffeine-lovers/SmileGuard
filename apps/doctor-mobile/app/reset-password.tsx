@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from "react";
 import {
   View, Text, TextInput,
@@ -15,32 +14,22 @@ export default function ResetPassword() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    console.log("🔄 Reset password component mounted");
-    
     // Try to get hash parameters from URL (web only)
     if (typeof globalThis !== "undefined" && "location" in globalThis) {
       const hash = ((globalThis as unknown) as { location: { hash: string } }).location.hash;
-      console.log("📍 Current hash:", hash);
       
       if (hash && hash.includes("access_token")) {
-        console.log("✅ Found access_token in hash, parsing...");
         const params = new URLSearchParams(hash.substring(1));
         const accessToken = params.get("access_token");
         const refreshToken = params.get("refresh_token");
-        const type = params.get("type");
-        
-        console.log("📋 Parsed recovery params:", { hasAccessToken: !!accessToken, type, hasRefreshToken: !!refreshToken });
         
         if (accessToken) {
-          console.log("🔐 Setting session from recovery token...");
           supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || "",
           }).then(() => {
-            console.log("✅ Session set, verifying...");
             verifySession();
           }).catch((error) => {
-            console.error("❌ Error setting session:", error);
             setMessage(`Error: ${error.message}`);
             setReady(true);
           });
@@ -54,27 +43,16 @@ export default function ResetPassword() {
   }, []);
 
   const verifySession = async () => {
-    console.log("🔍 Verifying session...");
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       
-      console.log("📊 Session status:", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        email: session?.user?.email,
-        error: error?.message,
-      });
-      
       if (session?.user) {
-        console.log("✅ Valid session found, ready to reset password");
         setReady(true);
       } else {
-        console.warn("❌ No session found!");
         setMessage("This reset link is invalid or has expired. Please request a new one.");
         setReady(true);
       }
     } catch (error) {
-      console.error("❌ Error verifying session:", error);
       setMessage("Error retrieving session. Please try again.");
       setReady(true);
     }

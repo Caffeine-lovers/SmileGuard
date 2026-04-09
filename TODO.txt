@@ -58,10 +58,11 @@ add npm install @react-navigation/drawer
 
 📌 ##FOR DENTIST##
 
-- [] Dentist Profile Setup 
-- [] Clinic Set up 
+- [x] Sign In / Sign Up
+- [x] Dentist Profile Setup
+- [] Clinic Set up
 - [] Set Appointment Rules
-    - [] Appointment Page 
+    - [] Appointment Page
     - [] Cancellation Settings Policy 
         - [] Cancellation Window 
         - [] Fee Amount 
@@ -71,7 +72,7 @@ add npm install @react-navigation/drawer
     - [] Reschedule Rules 
     - [] No-Show Penalty
 - [] Review Dentist and Clinic Information
-- [] “Your Schedule” Page 
+- [] “Your Schedule” Page
     - [] Daily Time Block 
     - [] Schedule Overview 
     - [] Add Slot
@@ -87,19 +88,18 @@ add npm install @react-navigation/drawer
     - [] Daily or Weekly Schedule
 
 - [] Clinic Homepage Dashboard FOR DENTIST
-    - [] Patients Module
-        - [] Add New Patient  
-    - [] Filter
-        - [] Name A-Z, Z-A 
-        - [] Treatment Type
-        - [] Status
-    - [] View Record Button //directs to Patient Profile
-        - [] Patient Profile Page 
-            -[] Patient Name
-            -[] Show Status 
-            - [] Overview tab 
-                - [] Appointments Lists 
-                - [] Notes Displays 
+    - [x] All Patients Record
+        - [x] Filter
+            - [x] Name A-Z, Z-A 
+            - [x] Treatment Type
+            - [x] Status
+        - [x] View Record Button //directs to Patient Profile
+            - [x] Patient Profile Page 
+                -[x] Patient Name
+                -[x] Show Status 
+                -[x] Overview tab 
+                    - [x] Appointments Lists 
+                    - [x] Notes Displays 
         - [] Treatment Overview Page 
             - [] Ongoing Treatments 
             - [] Completed Procedures 
@@ -115,25 +115,23 @@ add npm install @react-navigation/drawer
         - [] Generate Referral Code //if no existing account
             //mark code as used/expired
         
-    - [] Appointment Module
+    - [x] Appointment Module
         - [] Notification Page
         - [] Add Appointment Schedule 
-        - [] Sorting Date 
-        - [] Show Upcoming Appointed Schedule 
-        - [] Show Future Appointed Schedule 
+        - [x] Sorting Date 
+        - [x] Show Upcoming Appointed Schedule 
+        - [x] Show Future Appointed Schedule 
 
     - [] Analyze Module
     - [] Settings Module
-
-
  
-- [] Appointments Page
-    - [] Today’s Appointments
-    - [] Upcoming Slots
-    - [] Add Appointment Schedule 
-    - [] Calendar View
-    - [] Search Patient 
-    - [] Update Appointment Status
+- [x] Appointments Page
+    - [x] Today’s Appointments
+    - [x] Upcoming Slots
+    - [x] Add Appointment Schedule
+    - [x] Calendar View
+    - [x] Search Patient 
+    - [x] Update Appointment Status
 - [] Image Analyzer Page
     - [] Action Buttons
         - [] Upload Image

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@smileguard/supabase-client";
-import { CurrentUser } from "../types/index.ts";
+import { CurrentUser } from "../types/index";
 
 export function useCurrentUser(): CurrentUser | null {
   const [user, setUser] = useState<CurrentUser | null>(null);

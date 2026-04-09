@@ -4,9 +4,12 @@
   "description": "Shared Supabase client initialization",
   "main": "index.ts",
   "types": "index.ts",
-  "files": ["index.ts"],
+  "files": [
+    "index.ts"
+  ],
   "dependencies": {
-    "@supabase/supabase-js": "^2.95.3"
+    "@supabase/supabase-js": "^2.95.3",
+    "react-native-screens": "4.20.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"

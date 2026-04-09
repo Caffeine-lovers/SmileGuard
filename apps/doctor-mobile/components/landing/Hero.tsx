@@ -2,24 +2,24 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 interface HeroProps {
-  onOpenPortal: (role: "patient" | "doctor") => void;
+  onOpenPortal: () => void;
 }
 
 export default function Hero({ onOpenPortal }: HeroProps) {
   return (
     <View style={styles.hero}>
       <View style={styles.heroContent}>
-        <Text style={styles.h1}>Smile-Guard Dental Portal:</Text>
+        <Text style={styles.h1}>Smile-Guard Doctor Dashboard:</Text>
         <Text style={styles.p}>
-          Secure, AI-Enhanced Patient Intake & Provider Dashboard
+          AI-Enhanced Dental Diagnostics & Patient Provider Dashboard
         </Text>
         <TouchableOpacity
           style={[styles.btn, styles.primaryBtn]}
-          onPress={() => onOpenPortal("patient")}
-          accessibilityLabel="Start secure patient intake"
+          onPress={onOpenPortal}
+          accessibilityLabel="Access doctor dashboard"
           accessibilityRole="button"
         >
-          <Text style={styles.btnText}>Start Secure Intake</Text>
+          <Text style={styles.btnText}>Access Dashboard</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -2,18 +2,16 @@ import React, { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import Navigation from "../components/landing/Nav-Bar.tsx";
-import Hero from "../components/landing/Hero.tsx";
-import HowItWorks from "../components/landing/HowItWorks.tsx";
-import Footer from "../components/landing/Footer.tsx";
-import AuthModal from "../components/auth/AuthModal.tsx";
+import Navigation from "../components/landing/Nav-Bar";
+import Hero from "../components/landing/Hero";
+import HowItWorks from "../components/landing/HowItWorks";
+import Footer from "../components/landing/Footer";
+import AuthModal from "../components/auth/AuthModal";
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authRole, setAuthRole] = useState<"patient" | "doctor">("patient");
 
-  const openPortal = (role: "patient" | "doctor") => {
-    setAuthRole(role);
+  const openPortal = () => {
     setShowAuthModal(true);
   };
 
@@ -21,7 +19,7 @@ export default function LandingPage() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView stickyHeaderIndices={[0]} showsVerticalScrollIndicator={false}>
         <Navigation onOpenPortal={openPortal} />
-        <Hero onOpenPortal={() => openPortal("patient")} />
+        <Hero onOpenPortal={openPortal} />
         <View style={styles.content}>
           <HowItWorks />
         </View>
@@ -30,7 +28,6 @@ export default function LandingPage() {
 
       <AuthModal
         visible={showAuthModal}
-        role={authRole}
         onClose={() => setShowAuthModal(false)}
         onSuccess={() => setShowAuthModal(false)} // root layout handles redirect
       />

@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "smileguard",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "sdkVersion": "54.0.0",
     "platforms": ["ios", "android"],
     "ios": {
