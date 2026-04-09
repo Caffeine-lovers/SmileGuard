@@ -283,7 +283,7 @@ export default function BillingPayment({
             <label className="block text-sm font-semibold text-text-primary mb-3">
               Apply Discount (Optional)
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {[
                 { value: 'none' as const, label: 'None' },
                 { value: 'pwd' as const, label: '👴 PWD (10%)' },
@@ -293,9 +293,9 @@ export default function BillingPayment({
                   type="button"
                   key={option.value}
                   onClick={() => handleDiscountSelect(option.value)}
-                  className={`p-3 rounded-lg border-2 font-semibold transition ${
+                  className={`p-3 rounded-lg border-2 font-semibold transition outline-none ${
                     discountType === option.value
-                      ? 'border-brand-primary bg-brand-primary/5 text-brand-primary'
+                      ? 'border-brand-primary bg-brand-primary/5 text-brand-primary ring-2 ring-brand-primary/30'
                       : 'border-border-card hover:border-brand-primary/50 text-text-primary'
                   }`}
                 >
@@ -306,18 +306,33 @@ export default function BillingPayment({
           </div>
 
           {/* Proof Upload for Discounts */}
-          {showProofUpload && discountType !== 'none' && (
-            <div className="p-4 bg-bg-notes border border-border-card rounded-lg">
+          {showProofUpload && discountType === 'pwd' && (
+            <div className="p-6 bg-bg-notes border-2 border-dashed border-border-card rounded-lg text-center transition-colors hover:border-brand-primary/50">
               <label className="block text-sm font-semibold text-text-primary mb-3">
-                📄 Upload Proof of ID
+                📄 Drop your PWD ID here, or click to upload
               </label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleProofUpload}
-                className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-text-on-avatar hover:file:bg-brand-primary/90"
+                className="block mx-auto w-full max-w-xs text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-white file:font-semibold file:cursor-pointer hover:file:bg-brand-primary/90 cursor-pointer"
               />
-              {discountProof && <p className="text-sm text-green-600 mt-2">✓ {discountProof}</p>}
+              {discountProof && <p className="text-sm font-bold text-green-600 mt-4">✓ {discountProof} uploaded</p>}
+            </div>
+          )}
+
+          {showProofUpload && discountType === 'senior' && (
+            <div className="p-6 bg-bg-notes border-2 border-dashed border-border-card rounded-lg text-center transition-colors hover:border-brand-primary/50">
+              <label className="block text-sm font-semibold text-text-primary mb-3">
+                📄 Drop your Senior Citizen ID here, or click to upload
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProofUpload}
+                className="block mx-auto w-full max-w-xs text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-white file:font-semibold file:cursor-pointer hover:file:bg-brand-primary/90 cursor-pointer"
+              />
+              {discountProof && <p className="text-sm font-bold text-green-600 mt-4">✓ {discountProof} uploaded</p>}
             </div>
           )}
 
