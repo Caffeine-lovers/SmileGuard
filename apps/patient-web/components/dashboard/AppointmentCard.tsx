@@ -2,11 +2,12 @@ interface AppointmentCardProps {
   name: string;
   service: string;
   time: string;
+  date?: string;
   onClick?: () => void;
   isSelected?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, onClick, isSelected }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, onClick, isSelected }: AppointmentCardProps) {
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   return (
     <div
@@ -24,7 +25,10 @@ export default function AppointmentCard({ name, service, time, onClick, isSelect
         <p className="font-semibold text-base text-text-primary">{name}</p>
         <p className="text-sm text-text-secondary">{service}</p>
       </div>
-      <span className="text-base font-bold text-brand-danger">{time}</span>
+      <div className="text-right flex flex-col items-end">
+        {date && <span className="text-xs font-medium text-text-secondary mb-0.5">{date}</span>}
+        <span className="text-sm font-bold text-brand-danger">{time}</span>
+      </div>
     </div>
   );
 }
