@@ -16,6 +16,7 @@ import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
 import { supabase } from "../../lib/supabase";
 import AppointmentEdit from "../appointments/appointmentEdit";
+import AppointmentAdd from "../appointments/appointmentAdd";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -52,6 +53,7 @@ export default function AppointmentsTab({
   const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentType[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [doctorId, setDoctorId] = useState<string>('');
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
@@ -455,6 +457,33 @@ export default function AppointmentsTab({
     }
   };
 
+  // Handler for when a new appointment is added
+  const handleAddAppointmentSaved = async () => {
+    console.log('✅ New appointment created, refreshing appointments...');
+    // Refresh current day appointments
+    const dayAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+    if (dayAppointments.length > 0) {
+      const transformed = dayAppointments.map(transformBackendAppointment);
+      setFetchedAppointments(transformed);
+    } else {
+      setFetchedAppointments([]);
+    }
+    
+    // Also refresh entire month appointments for calendar
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = formatDate(firstDay);
+    const endDate = formatDate(lastDay);
+    
+    const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+    if (monthAppointments.length > 0) {
+      const transformed = monthAppointments.map(transformBackendAppointment);
+      setAllMonthAppointments(transformed);
+    }
+  };
+
   // Filter appointments - only use real Supabase data (no fallback to sample data)
   const appointmentsToDisplay = fetchedAppointments;
   const filteredAppointments = appointmentsToDisplay.filter((apt) => {
@@ -506,35 +535,52 @@ export default function AppointmentsTab({
 
         {/* Header Section with Search and Filters */}
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          {/* Refresh Button */}
-          <TouchableOpacity
-            onPress={handleRefreshAppointments}
-            disabled={loading}
-            style={{
-              alignSelf: 'flex-end',
-              marginBottom: 12,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 8,
-              backgroundColor: loading ? '#ccc' : '#0b7fab',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </Text>
-            <Image
-              source={require('../../assets/images/icon/refresh.png')}
+          {/* Action Buttons */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => setShowAddModal(true)}
+              disabled={loading}
               style={{
-                width: 18,
-                height: 18,
-                resizeMode: 'contain',
-                opacity: loading ? 0.6 : 1,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: loading ? '#ccc' : '#4CAF50',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
               }}
-            />
-          </TouchableOpacity>
+            >
+              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>+ Add</Text>
+            </TouchableOpacity>
+
+            {/* Refresh Button */}
+            <TouchableOpacity
+              onPress={handleRefreshAppointments}
+              disabled={loading}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: loading ? '#ccc' : '#0b7fab',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </Text>
+              <Image
+                source={require('../../assets/images/icon/refresh.png')}
+                style={{
+                  width: 18,
+                  height: 18,
+                  resizeMode: 'contain',
+                  opacity: loading ? 0.6 : 1,
+                }}
+              />
+            </TouchableOpacity>
+          </View>
           
           <TextInput
             style={{
@@ -804,6 +850,14 @@ export default function AppointmentsTab({
           onSave={handleSaveAppointment}
         />
       )}
+
+      {/* AppointmentAdd Modal */}
+      <AppointmentAdd
+        visible={showAddModal}
+        doctorId={doctorId}
+        onClose={() => setShowAddModal(false)}
+        onSave={handleAddAppointmentSaved}
+      />
     </SafeAreaView>
   );
 }

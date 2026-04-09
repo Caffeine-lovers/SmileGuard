@@ -101,14 +101,25 @@ export default function AppointmentEdit({
 
   if (!appointment) return null;
 
-  const apptDate = new Date(appointment.appointment_date);
-  const formattedDate = apptDate.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  // Use separate date and time fields if available
+  const formattedDate = appointment.date && appointment.time 
+    ? (() => {
+        const dateObj = new Date(appointment.date);
+        const dateFormatted = dateObj.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        return `${dateFormatted} ${appointment.time}`;
+      })()
+    : new Date(appointment.appointment_date).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -189,16 +200,16 @@ export default function AppointmentEdit({
             {/* Status Descriptions */}
             <View style={styles.descriptionBox}>
               {selectedStatus === 'scheduled' && (
-                <Text style={styles.descriptionText}>📅 Appointment is scheduled</Text>
+                <Text style={styles.descriptionText}>Appointment is scheduled</Text>
               )}
               {selectedStatus === 'completed' && (
-                <Text style={styles.descriptionText}>✅ Appointment has been completed</Text>
+                <Text style={styles.descriptionText}>Appointment has been completed</Text>
               )}
               {selectedStatus === 'cancelled' && (
-                <Text style={styles.descriptionText}>❌ Appointment has been cancelled</Text>
+                <Text style={styles.descriptionText}>Appointment has been cancelled</Text>
               )}
               {selectedStatus === 'no-show' && (
-                <Text style={styles.descriptionText}>⏭️ Patient did not show up</Text>
+                <Text style={styles.descriptionText}>Patient did not show up</Text>
               )}
             </View>
           </View>
