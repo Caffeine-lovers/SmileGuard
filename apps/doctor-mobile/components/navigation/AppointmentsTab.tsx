@@ -721,7 +721,7 @@ export default function AppointmentsTab({
           {selectedDate && (
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0b7fab', paddingBottom: 8 }}>
-                {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} ({filteredAppointments.length} appointments)
+                {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
               </Text>
             </View>
           )}

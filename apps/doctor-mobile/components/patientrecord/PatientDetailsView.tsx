@@ -297,7 +297,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             <Text style={styles.sectionTitle}>Notes</Text>
             <View style={[styles.infoContainer, { minHeight: 80 }]}>
               <Text style={styles.notesText}>
-                {patient.notes || "No notes available"}
+                {medicalIntake?.notes || patient.notes || "No notes available"}
               </Text>
             </View>
           </View>
@@ -386,6 +386,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                   pastSurgeries: medicalIntake?.pastSurgeries || patient.pastSurgeries,
                   smokingStatus: medicalIntake?.smokingStatus || patient.smokingStatus,
                   pregnancyStatus: medicalIntake?.pregnancyStatus || patient.pregnancyStatus,
+                  notes: medicalIntake?.notes || patient.notes,
                 };
                 setEditedPatient(patientWithFreshData);
                 setIsEditingPatient(true);
@@ -444,31 +445,17 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
               pastSurgeries: updatedPatient.pastSurgeries,
               smokingStatus: updatedPatient.smokingStatus,
               pregnancyStatus: updatedPatient.pregnancyStatus,
+              notes: updatedPatient.notes,
             });
 
             if (result.success) {
               // Reload data from Supabase
               if (patient?.id) {
                 await loadMedicalIntake(patient.id);
-                // After loading, rebuild editedPatient with fresh data
-                const freshIntake = await getPatientMedicalIntake(patient.id);
-                const freshPatientData: AppointmentType = {
-                  ...patient,
-                  dateOfBirth: freshIntake?.dateOfBirth || '',
-                  gender: freshIntake?.gender || patient.gender,
-                  contact: freshIntake?.phone || patient.contact,
-                  address: freshIntake?.address || '',
-                  emergencyContactName: freshIntake?.emergencyContactName || '',
-                  emergencyContactPhone: freshIntake?.emergencyContactPhone || '',
-                  allergies: freshIntake?.allergies || '',
-                  currentMedications: freshIntake?.currentMedications || '',
-                  medicalConditions: freshIntake?.medicalConditions || '',
-                  pastSurgeries: freshIntake?.pastSurgeries || '',
-                  smokingStatus: freshIntake?.smokingStatus || '',
-                  pregnancyStatus: freshIntake?.pregnancyStatus || '',
-                };
-                setEditedPatient(freshPatientData);
               }
+              // Close the modal
+              setIsEditingPatient(false);
+              setEditedPatient(null);
             }
           }}
         />

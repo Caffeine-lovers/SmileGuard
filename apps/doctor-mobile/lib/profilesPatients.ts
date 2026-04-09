@@ -66,6 +66,7 @@ export async function getPatientMedicalIntake(
     pastSurgeries: record.past_surgeries || '',
     smokingStatus: record.smoking_status || '',
     pregnancyStatus: record.pregnancy_status || '',
+    notes: record.notes || '',
   };
 }
 
@@ -189,6 +190,7 @@ export async function updatePatientMedicalIntake(
     if (medicalData.pastSurgeries !== undefined) dbData.past_surgeries = medicalData.pastSurgeries;
     if (medicalData.smokingStatus !== undefined) dbData.smoking_status = medicalData.smokingStatus;
     if (medicalData.pregnancyStatus !== undefined) dbData.pregnancy_status = medicalData.pregnancyStatus;
+    if (medicalData.notes !== undefined) dbData.notes = medicalData.notes;
 
     // First, check if medical_intake record exists for this patient
     const { data: existingData, error: checkError } = await supabase

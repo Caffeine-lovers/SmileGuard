@@ -352,7 +352,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
           {/* Version & Footer */}
           <View style={{ alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
             <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>SmileGuard v1.0.0</Text>
-            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6 }}>© 2024 Your Clinic. All rights reserved.</Text>
+            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6 }}>© 2026 Your Clinic. All rights reserved.</Text>
           </View>
         </View>
       </ScrollView>

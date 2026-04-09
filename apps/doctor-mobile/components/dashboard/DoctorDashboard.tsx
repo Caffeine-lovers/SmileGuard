@@ -233,6 +233,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             pastSurgeries: apt.patient_profile.past_surgeries || '',
             smokingStatus: apt.patient_profile.smoking_status || '',
             pregnancyStatus: apt.patient_profile.pregnancy_status || '',
+            notes: apt.patient_profile.notes || '',
           } : null,
         }));
         setAppointments(transformedAppointments);
@@ -372,6 +373,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         pastSurgeries: editedPatient.medicalIntake?.pastSurgeries,
         smokingStatus: editedPatient.medicalIntake?.smokingStatus,
         pregnancyStatus: editedPatient.medicalIntake?.pregnancyStatus,
+        notes: editedPatient.notes,
       });
 
       if (!result.success) {

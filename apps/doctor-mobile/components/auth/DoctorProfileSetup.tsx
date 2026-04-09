@@ -591,9 +591,10 @@ export default function DoctorRegistrationForm({
                 }))
               }
             >
-              <Text style={styles.passwordToggleText}>
-                {credentials.showPassword ? "👁️" : "👁️‍🗨️"}
-              </Text>
+              <Image
+                source={require("../../assets/images/icon/view.png")}
+                style={styles.passwordToggleIcon}
+              />
             </TouchableOpacity>
           </View>
 
@@ -636,9 +637,10 @@ export default function DoctorRegistrationForm({
                 }))
               }
             >
-              <Text style={styles.passwordToggleText}>
-                {credentials.showConfirmPassword ? "👁️" : "👁️‍🗨️"}
-              </Text>
+              <Image
+                source={require("../../assets/images/icon/view.png")}
+                style={styles.passwordToggleIcon}
+              />
             </TouchableOpacity>
           </View>
 
@@ -767,6 +769,11 @@ const styles = StyleSheet.create({
   },
   passwordToggleText: {
     fontSize: 16,
+  },
+  passwordToggleIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: "contain",
   },
   matchStatus: {
     fontSize: 12,

@@ -10,6 +10,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from "react-native";
 import { useAuth } from "@smileguard/shared-hooks";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -348,9 +349,10 @@ export default function AuthModal({
                             accessibilityLabel={showPassword ? "Hide password" : "Show password"}
                             accessibilityRole="button"
                           >
-                            <Text style={styles.passwordToggleText}>
-                              {showPassword ? "👁️" : "👁️‍🗨️"}
-                            </Text>
+                            <Image
+                              source={require("../../assets/images/icon/view.png")}
+                              style={styles.passwordToggleIcon}
+                            />
                           </TouchableOpacity>
                         </View>
                         
@@ -678,6 +680,11 @@ const styles = StyleSheet.create({
   },
   passwordToggleText: {
     fontSize: 18,
+  },
+  passwordToggleIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: "contain",
   },
   multilineInput: {
     minHeight: 70,

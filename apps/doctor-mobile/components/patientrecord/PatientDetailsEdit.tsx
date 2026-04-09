@@ -384,6 +384,19 @@ export default function PatientDetailsEdit({
               </View>
             </View>
           )}
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Notes:</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 80, textAlignVertical: "top" }, getFieldStyle('notes')]}
+              value={editedPatient.notes || ""}
+              onChangeText={(text) =>
+                setEditedPatient({ ...editedPatient, notes: text })
+              }
+              placeholder="Enter notes"
+              multiline
+            />
+          </View>
         </ScrollView>
 
         {/* Footer */}
