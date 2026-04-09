@@ -59,62 +59,65 @@ export default function TreatmentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">Treatment History</h1>
-        <p className="text-gray-600 mb-8">Track your dental appointments and treatments</p>
+    <div className="min-h-screen bg-bg-screen">
+      <div className="max-w-2xl mx-auto p-4 md:p-6 md:pt-10">
+        <h1 className="text-2xl md:text-3xl font-bold text-text-primary mb-1">Treatment History</h1>
+        <p className="text-sm text-text-secondary mb-8">Track your dental appointments and treatments</p>
 
-        <div className="space-y-4">
+        <div className="bg-bg-surface rounded-xl shadow-sm border border-border-card overflow-hidden">
           {appointments.length > 0 ? (
-            appointments.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition border-l-4 border-blue-500"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-800">{appointment.service}</h3>
-                    <p className="text-gray-600">Appointment</p>
+            <div className="divide-y divide-border-card">
+              {appointments.map((appointment) => (
+                <div
+                  key={appointment.id}
+                  className="p-5 hover:bg-slate-50 transition-colors flex flex-col gap-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`mt-1 w-2 h-10 rounded-full flex-shrink-0 ${
+                      appointment.status === 'completed' ? 'bg-green-500' : 
+                      appointment.status === 'scheduled' ? 'bg-blue-500' : 
+                      appointment.status === 'no-show' ? 'bg-red-500' : 'bg-gray-400'
+                    }`}></div>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <h3 className="text-lg font-bold text-text-primary">{appointment.service}</h3>
+                        <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${statusColors[appointment.status]}`}>
+                          {getStatusIcon(appointment.status)} {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-text-secondary mt-2">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Date:</span>
+                          <span className="text-text-primary">
+                            {new Date(appointment.appointment_date).toLocaleDateString('en-PH', {
+                              month: 'short', day: 'numeric', year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                        <div className="hidden sm:block w-1 h-1 rounded-full bg-border-active"></div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Time:</span> 
+                          <span className="text-text-primary">{appointment.appointment_time || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${statusColors[appointment.status]}`}>
-                    {getStatusIcon(appointment.status)} {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Date</p>
-                    <p className="font-medium text-gray-800">
-                      {new Date(appointment.appointment_date).toLocaleDateString('en-PH', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Time</p>
-                    <p className="font-medium text-gray-800">{appointment.appointment_time || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Service Type</p>
-                    <p className="font-medium text-gray-800">{appointment.service}</p>
-                  </div>
+                  {appointment.notes && (
+                    <div className="ml-6 bg-gray-50/80 rounded-md p-3 border border-blue-50/50">
+                      <p className="text-[11px] text-text-secondary font-bold uppercase mb-1 tracking-wide">Doctor's Notes</p>
+                      <p className="text-sm text-text-primary leading-relaxed">{appointment.notes}</p>
+                    </div>
+                  )}
                 </div>
-
-                {appointment.notes && (
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-600 font-semibold mb-1">Notes</p>
-                    <p className="text-sm text-gray-700">{appointment.notes}</p>
-                  </div>
-                )}
-              </div>
-            ))
+              ))}
+            </div>
           ) : (
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-              <p className="text-4xl mb-3">📋</p>
-              <p className="text-gray-500 mb-4">No treatment history yet</p>
-              <Link href="/appointments" className="text-blue-600 hover:text-blue-700 font-medium">
+            <div className="p-8 text-center">
+              <p className="text-3xl mb-2">📋</p>
+              <p className="text-sm text-text-secondary mb-3">No treatment history yet</p>
+              <Link href="/appointments" className="text-brand-primary text-sm font-medium hover:underline">
                 Book your first appointment →
               </Link>
             </div>
@@ -122,9 +125,9 @@ export default function TreatmentsPage() {
         </div>
 
         {/* Back Link */}
-        <div className="mt-8">
-          <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 font-medium">
-            ← Back to Dashboard
+        <div className="mt-6">
+          <Link href="/dashboard" className="text-brand-primary text-sm font-medium hover:underline flex items-center gap-1">
+            <span>←</span> Back to Dashboard
           </Link>
         </div>
       </div>
