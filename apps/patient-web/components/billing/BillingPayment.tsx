@@ -84,6 +84,11 @@ export default function BillingPayment({
   };
 
   const handleDiscountSelect = (type: Billing['discount_type']) => {
+    // Only clear the proof if the discount type changes
+    if (discountType !== type) {
+      setDiscountProof(null);
+    }
+    
     setDiscountType(type);
     applyDiscount(amount, type);
 
@@ -98,7 +103,6 @@ export default function BillingPayment({
     const file = e.target.files?.[0];
     if (file) {
       setDiscountProof(file.name);
-      setShowProofUpload(false);
     }
   };
 
