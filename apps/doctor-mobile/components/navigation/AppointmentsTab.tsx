@@ -21,6 +21,13 @@ import AppointmentAdd from "../appointments/appointmentAdd";
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
 
+// Extended appointment type with account type info and additional fields from DoctorAppointment
+type AppointmentWithAccountType = AppointmentType & { 
+  accountType?: 'Patient' | 'Dummy',
+  patient_avatar?: string,
+  dummy_account_id?: string
+};
+
 interface AppointmentsTabProps {
   appointments: AppointmentType[];
   onUpdateAppointmentStatus: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard?: boolean) => Promise<void>;
@@ -49,8 +56,8 @@ export default function AppointmentsTab({
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayFormatted());
   const [loading, setLoading] = useState(false);
-  const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentType[]>([]);
-  const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentType[]>([]);
+  const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentWithAccountType[]>([]);
+  const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -75,7 +82,10 @@ export default function AppointmentsTab({
   }, [providedDoctorId]);
 
   // Transform backend appointments to match UI format
-  const transformBackendAppointment = (apt: DoctorAppointment): AppointmentType => {
+  const transformBackendAppointment = (apt: DoctorAppointment): AppointmentWithAccountType => {
+    // Determine account type based on which ID is set
+    const accountType = apt.dummy_account_id ? 'Dummy' : 'Patient';
+    
     return {
       id: apt.id,
       name: apt.patient_name || 'Unknown Patient',
@@ -89,6 +99,7 @@ export default function AppointmentsTab({
       notes: apt.notes || '',
       imageUrl: 'https://via.placeholder.com/50', // Placeholder
       status: apt.status as any,
+      accountType: accountType,
     };
   };
 
@@ -789,8 +800,8 @@ export default function AppointmentsTab({
               <View style={{ flexDirection: 'row', alignItems: 'center'}}>
                 <Image
                   source={
-                    (appointment as any).patient_avatar
-                      ? { uri: (appointment as any).patient_avatar }
+                    appointment.patient_avatar
+                      ? { uri: appointment.patient_avatar }
                       : require('../../assets/images/user.png')
                   }
                   style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
@@ -798,6 +809,7 @@ export default function AppointmentsTab({
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 8 }}>
                     <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{appointment.name}</Text>
+                    {/* Status Badge */}
                     <View
                       style={{
                         paddingHorizontal: 8,
@@ -812,6 +824,23 @@ export default function AppointmentsTab({
                          appointment.status === 'cancelled' ? 'Cancelled' : 'No-show'}
                       </Text>
                     </View>
+                  </View>
+                  {/* Account Type Badge Below Name */}
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      backgroundColor: appointment.accountType === 'Dummy' ? '#fff3e0' : '#e3f2fd',
+                      borderWidth: 1,
+                      borderColor: appointment.accountType === 'Dummy' ? '#f57c00' : '#0b7fab',
+                      alignSelf: 'flex-start',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Text style={{ fontSize: 9, color: appointment.accountType === 'Dummy' ? '#f57c00' : '#0b7fab', fontWeight: '600' }}>
+                      {appointment.accountType === 'Dummy' ? 'Dummy Account' : 'Patient'}
+                    </Text>
                   </View>
                   <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
                   <Text style={{ fontSize: 11, color: '#999' }}>

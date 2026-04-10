@@ -26,6 +26,7 @@ export async function cancelAppointment(
 export interface DoctorAppointment {
   id: string;
   patient_id: string;
+  dummy_account_id?: string; // For test/dummy accounts
   dentist_id: string | null;
   service: string;
   appointment_date: string; // YYYY-MM-DD
@@ -34,8 +35,8 @@ export interface DoctorAppointment {
   notes?: string;
   created_at?: string;
   updated_at?: string;
-  patient_name?: string; // Patient name from profiles table
-  patient_avatar?: string; // Patient avatar URL from profiles table
+  patient_name?: string; // Patient name from profiles table or dummy_accounts table
+  patient_avatar?: string; // Patient avatar URL from profiles table or dummy_accounts table
 }
 
 // ─────────────────────────────────────────
@@ -65,47 +66,81 @@ export async function getDoctorAppointments(
       return [];
     }
 
-    // Step 2: Get unique patient IDs
-    const patientIds = [...new Set((appointmentsData as any[]).map((apt: any) => apt.patient_id))];
+    // Step 2: Separate patients and dummy accounts
+    const patientIds = [...new Set((appointmentsData as any[]).filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const dummyAccountIds = [...new Set((appointmentsData as any[]).filter((apt: any) => apt.dummy_account_id).map((apt: any) => apt.dummy_account_id))];
 
-    // Step 3: Fetch profiles for all patients
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', patientIds);
-
-    if (profilesError) {
-      // Continue anyway with available data
+    // Step 3: Fetch profiles for real patients
+    let profilesData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', patientIds);
+      if (!profilesError) {
+        profilesData = data || [];
+      }
     }
 
-    // Step 3b: Fetch medical intake data for all patients
-    const { data: medicalIntakeData, error: medicalIntakeError } = await supabase
-      .from('medical_intake')
-      .select('*')
-      .in('patient_id', patientIds);
-
-    if (medicalIntakeError) {
-      // Continue anyway with available data
+    // Step 3b: Fetch dummy accounts
+    let dummyAccountsData: any[] = [];
+    if (dummyAccountIds.length > 0) {
+      const { data, error: dummyError } = await supabase
+        .from('dummy_accounts')
+        .select('*')
+        .in('id', dummyAccountIds);
+      if (!dummyError) {
+        dummyAccountsData = data || [];
+      }
     }
 
-    // Step 4: Create a map of patient ID -> profile
+    // Step 3c: Fetch medical intake data for all patients
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
+
+    // Step 4: Create maps
     const profileMap = new Map();
-    (profilesData || []).forEach(profile => {
+    profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
-    // Step 4b: Create a map of patient ID -> medical intake
+    const dummyAccountMap = new Map();
+    dummyAccountsData.forEach(dummy => {
+      dummyAccountMap.set(dummy.id, dummy);
+    });
+
     const medicalIntakeMap = new Map();
-    (medicalIntakeData || []).forEach(intake => {
+    medicalIntakeData.forEach(intake => {
       medicalIntakeMap.set(intake.patient_id, intake);
     });
 
     // Step 5: Transform appointments with patient names and avatars
     const transformedData = appointmentsData.map((apt: any) => {
-      const profile = profileMap.get(apt.patient_id);
+      let patientName = 'Unknown Patient';
+      let patientAvatar = null;
+      let profile = null;
+
+      if (apt.dummy_account_id) {
+        // Fetch from dummy_accounts
+        const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
+        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientAvatar = dummyAccount?.avatar_url || null;
+      } else if (apt.patient_id) {
+        // Fetch from profiles
+        profile = profileMap.get(apt.patient_id);
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      }
+
       const medicalIntake = medicalIntakeMap.get(apt.patient_id);
-      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
 
       return {
         ...apt,
@@ -161,23 +196,58 @@ async function fallbackGetDoctorAppointments(
       return [];
     }
 
-    // Get unique patient IDs and fetch profiles
-    const patientIds = [...new Set(appointmentsData.map(apt => apt.patient_id))];
-    const { data: profilesData } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', patientIds);
+    // Separate patients and dummy accounts
+    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const dummyAccountIds = [...new Set(appointmentsData.filter((apt: any) => apt.dummy_account_id).map((apt: any) => apt.dummy_account_id))];
+
+    // Fetch profiles for real patients
+    let profilesData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', patientIds);
+      profilesData = data || [];
+    }
+
+    // Fetch dummy accounts
+    let dummyAccountsData: any[] = [];
+    if (dummyAccountIds.length > 0) {
+      const { data, error } = await supabase
+        .from('dummy_accounts')
+        .select('*')
+        .in('id', dummyAccountIds);
+      if (error) {
+        console.error('❌ [fallbackGetDoctorAppointments] Error fetching dummy accounts:', error);
+      } else {
+        dummyAccountsData = data || [];
+      }
+    }
 
     const profileMap = new Map();
-    (profilesData || []).forEach(profile => {
+    profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
+    });
+
+    const dummyAccountMap = new Map();
+    dummyAccountsData.forEach(dummy => {
+      dummyAccountMap.set(dummy.id, dummy);
     });
 
     // Transform and return
     return appointmentsData.map((apt: any) => {
-      const profile = profileMap.get(apt.patient_id);
-      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      let patientName = 'Unknown Patient';
+      let patientAvatar = null;
+
+      if (apt.dummy_account_id) {
+        const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
+        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientAvatar = dummyAccount?.avatar_url || null;
+      } else if (apt.patient_id) {
+        const profile = profileMap.get(apt.patient_id);
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      }
 
       return {
         ...apt,
@@ -217,30 +287,59 @@ export async function getDoctorAppointmentsByDate(
       return [];
     }
 
-    // Step 2: Get unique patient IDs
-    const patientIds = [...new Set(appointmentsData.map((apt: any) => apt.patient_id))];
+    // Step 2: Separate patients and dummy accounts
+    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const dummyAccountIds = [...new Set(appointmentsData.filter((apt: any) => apt.dummy_account_id).map((apt: any) => apt.dummy_account_id))];
 
-    // Step 3: Fetch profiles for all patients
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', patientIds);
-
-    if (profilesError) {
-      // Continue anyway with available data
+    // Step 3: Fetch profiles for real patients
+    let profilesData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', patientIds);
+      profilesData = data || [];
     }
 
-    // Step 4: Create a map of patient ID -> profile
+    // Step 3b: Fetch dummy accounts
+    let dummyAccountsData: any[] = [];
+    if (dummyAccountIds.length > 0) {
+      const { data, error } = await supabase
+        .from('dummy_accounts')
+        .select('*')
+        .in('id', dummyAccountIds);
+      if (error) {
+        console.error('❌ [getDoctorAppointmentsByDate] Error fetching dummy accounts:', error);
+      } else {
+        dummyAccountsData = data || [];
+      }
+    }
+
+    // Step 4: Create maps
     const profileMap = new Map();
-    (profilesData || []).forEach(profile => {
+    profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
+    });
+
+    const dummyAccountMap = new Map();
+    dummyAccountsData.forEach(dummy => {
+      dummyAccountMap.set(dummy.id, dummy);
     });
 
     // Step 5: Transform appointments with patient names and avatars
     const transformedData = appointmentsData.map((apt: any) => {
-      const profile = profileMap.get(apt.patient_id);
-      const patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-      const patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      let patientName = 'Unknown Patient';
+      let patientAvatar = null;
+
+      if (apt.dummy_account_id) {
+        const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
+        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientAvatar = dummyAccount?.avatar_url || null;
+      } else if (apt.patient_id) {
+        const profile = profileMap.get(apt.patient_id);
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      }
 
       return {
         ...apt,
@@ -279,24 +378,62 @@ async function fallbackGetAppointmentsByDate(
       return [];
     }
 
-    // Fetch profiles
-    const patientIds = [...new Set(appointmentsData.map((apt: any) => apt.patient_id))];
-    const { data: profilesData } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', patientIds);
+    // Separate patients and dummy accounts
+    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const dummyAccountIds = [...new Set(appointmentsData.filter((apt: any) => apt.dummy_account_id).map((apt: any) => apt.dummy_account_id))];
+
+    // Fetch profiles for real patients
+    let profilesData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', patientIds);
+      profilesData = data || [];
+    }
+
+    // Fetch dummy accounts
+    let dummyAccountsData: any[] = [];
+    if (dummyAccountIds.length > 0) {
+      const { data, error } = await supabase
+        .from('dummy_accounts')
+        .select('*')
+        .in('id', dummyAccountIds);
+      if (error) {
+        console.error('❌ [fallbackGetAppointmentsByDate] Error fetching dummy accounts:', error);
+      } else {
+        dummyAccountsData = data || [];
+      }
+    }
 
     const profileMap = new Map();
-    (profilesData || []).forEach(profile => {
+    profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
+    const dummyAccountMap = new Map();
+    dummyAccountsData.forEach(dummy => {
+      dummyAccountMap.set(dummy.id, dummy);
+    });
+
     return appointmentsData.map((apt: any) => {
-      const profile = profileMap.get(apt.patient_id);
+      let patientName = 'Unknown Patient';
+      let patientAvatar = null;
+
+      if (apt.dummy_account_id) {
+        const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
+        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientAvatar = dummyAccount?.avatar_url || null;
+      } else if (apt.patient_id) {
+        const profile = profileMap.get(apt.patient_id);
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      }
+
       return {
         ...apt,
-        patient_name: profile?.full_name || profile?.name || profile?.user_name || apt.patient_id,
-        patient_avatar: profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null,
+        patient_name: patientName,
+        patient_avatar: patientAvatar,
       };
     });
   } catch (err: any) {

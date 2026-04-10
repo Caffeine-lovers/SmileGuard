@@ -33,6 +33,8 @@ interface RecordsTabProps {
   styles: any;
 }
 
+type AccountTab = 'all' | 'dummy' | 'existing';
+
 export default function RecordsTab({
   patients,
   quickSearchQuery,
@@ -52,6 +54,8 @@ export default function RecordsTab({
   const [dummyPatients, setDummyPatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
   const [loadingDummy, setLoadingDummy] = useState(true);
+  const [activeTab, setActiveTab] = useState<AccountTab>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch profiles patients on initial load
   useEffect(() => {
@@ -131,6 +135,58 @@ export default function RecordsTab({
       fetchDummyPatients();
     }, [])
   );
+
+  // Refresh function to refetch both patient sources
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Fetch Supabase patients
+      const supabaseData = await getAllPatients();
+      const mappedSupabase: AppointmentType[] = supabaseData.map((patient) => ({
+        id: patient.patient_id,
+        name: patient.name || 'Unknown Patient',
+        email: patient.email || '',
+        service: patient.service || 'General',
+        contact: patient.phone || '',
+        time: '',
+        date: patient.created_at,
+        age: 0,
+        gender: patient.gender || '',
+        notes: '',
+        imageUrl: require('../../assets/images/user.png'),
+        status: 'scheduled' as const,
+      }));
+      setSupabasePatients(mappedSupabase);
+
+      // Fetch dummy patients
+      const { data: dummyData, error } = await supabase
+        .from("dummy_accounts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && dummyData) {
+        const mappedDummy: AppointmentType[] = dummyData.map((patient) => ({
+          id: patient.id,
+          name: patient.patient_name || "Unknown Patient",
+          email: patient.email || "",
+          service: patient.service || "General",
+          contact: patient.phone || "",
+          time: "",
+          date: patient.created_at,
+          age: 0,
+          gender: patient.gender || "",
+          notes: patient.notes || "",
+          imageUrl: require("../../assets/images/user.png"),
+          status: "scheduled" as const,
+        }));
+        setDummyPatients(mappedDummy);
+      }
+    } catch (error) {
+      console.error('Error refreshing patients:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
       {/* Header with Current User Name */}
@@ -138,21 +194,43 @@ export default function RecordsTab({
         <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#0b7fab', marginBottom: 4 }}>
           Patient Records
         </Text>
-        <TouchableOpacity
-          onPress={() => router.push('/(doctor)/add-patient')}
-          style={{
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            backgroundColor: '#0b7fab',
-            borderRadius: 8,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          <Text style={{ fontSize: 18, color: '#fff', fontWeight: 'bold' }}>+</Text>
-          <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Add Patient</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            disabled={isRefreshing}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Image
+                source={require('../../assets/images/icon/refresh.png')}
+                style={{ width: 25, height: 25}}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/(doctor)/add-patient')}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              backgroundColor: '#0b7fab',
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Add Patient</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
         <TextInput
@@ -172,6 +250,48 @@ export default function RecordsTab({
           value={quickSearchQuery}
           onChangeText={setQuickSearchQuery}
         />
+        {/* Account Type Tabs */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          <TouchableOpacity
+            onPress={() => setActiveTab('all')}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: activeTab === 'all' ? '#0b7fab' : '#e0e0e0',
+              borderWidth: 1,
+              borderColor: activeTab === 'all' ? '#0b7fab' : '#ccc',
+            }}
+          >
+            <Text style={{ fontSize: 12, color: activeTab === 'all' ? '#fff' : '#333', fontWeight: '600' }}>All</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab('dummy')}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: activeTab === 'dummy' ? '#4CAF50' : '#e0e0e0',
+              borderWidth: 1,
+              borderColor: activeTab === 'dummy' ? '#4CAF50' : '#ccc',
+            }}
+          >
+            <Text style={{ fontSize: 12, color: activeTab === 'dummy' ? '#fff' : '#333', fontWeight: '600' }}>Dummy Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab('existing')}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: activeTab === 'existing' ? '#0b7fab' : '#e0e0e0',
+              borderWidth: 1,
+              borderColor: activeTab === 'existing' ? '#0b7fab' : '#ccc',
+            }}
+          >
+            <Text style={{ fontSize: 12, color: activeTab === 'existing' ? '#fff' : '#333', fontWeight: '600' }}>Existing Profile</Text>
+          </TouchableOpacity>
+        </View>
         <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap', marginBottom: 7 }}>
           <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666', alignSelf: 'center' }}>Sort by:</Text>
           <TouchableOpacity
@@ -198,7 +318,7 @@ export default function RecordsTab({
               borderColor: patientSortBy === 'date' ? '#0b7fab' : '#ccc',
             }}
           >
-            <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date</Text>
+            <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date Created</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setPatientSortOrder(patientSortOrder === 'asc' ? 'desc' : 'asc')}
@@ -225,12 +345,14 @@ export default function RecordsTab({
           </View>
         ) : (
           <>
-            {/* Dummy Accounts Patients Section */}
-            {!loadingDummy && dummyPatients.length > 0 && (
+            {/* Dummy Accounts Section - Show on "All" and "Dummy" tabs */}
+            {(activeTab === 'all' || activeTab === 'dummy') && !loadingDummy && dummyPatients.length > 0 && (
               <>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 8 }}>
-                  Dummy Accounts
-                </Text>
+                {activeTab === 'all' && (
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 8 }}>
+                    Dummy Accounts
+                  </Text>
+                )}
                 {sortPatients(
                   dummyPatients.filter((patient) =>
                     patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
@@ -267,12 +389,14 @@ export default function RecordsTab({
               </>
             )}
 
-            {/* Profiles Patients Section */}
-            {!loadingSupabase && supabasePatients.length > 0 && (
+            {/* Profiles Patients Section - Show on "All" and "Existing" tabs */}
+            {(activeTab === 'all' || activeTab === 'existing') && !loadingSupabase && supabasePatients.length > 0 && (
               <>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 16 }}>
-                  Existing Patients
-                </Text>
+                {activeTab === 'all' && (
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 16 }}>
+                    Existing Patients
+                  </Text>
+                )}
                 {sortPatients(
                   supabasePatients.filter((patient) =>
                     patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
@@ -310,20 +434,38 @@ export default function RecordsTab({
             )}
 
             {/* No patients message */}
-            {!loadingDummy && !loadingSupabase && dummyPatients.length === 0 && supabasePatients.length === 0 && (
+            {!loadingDummy && !loadingSupabase && 
+             ((activeTab === 'dummy' && dummyPatients.length === 0) ||
+              (activeTab === 'existing' && supabasePatients.length === 0) ||
+              (activeTab === 'all' && dummyPatients.length === 0 && supabasePatients.length === 0)) && (
               <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
                 No patients found
               </Text>
             )}
 
             {/* No results matching search */}
-            {!loadingDummy && !loadingSupabase && 
-             dummyPatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 &&
-             supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 &&
-             quickSearchQuery && (
-              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                No patients found matching "{quickSearchQuery}"
-              </Text>
+            {!loadingDummy && !loadingSupabase && quickSearchQuery && (
+              <>
+                {activeTab === 'all' && 
+                 dummyPatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 &&
+                 supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
+                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                    No patients found matching "{quickSearchQuery}"
+                  </Text>
+                )}
+                {activeTab === 'dummy' && 
+                 dummyPatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
+                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                    No dummy accounts found matching "{quickSearchQuery}"
+                  </Text>
+                )}
+                {activeTab === 'existing' && 
+                 supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
+                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                    No existing patients found matching "{quickSearchQuery}"
+                  </Text>
+                )}
+              </>
             )}
           </>
         )}

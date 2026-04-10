@@ -165,7 +165,7 @@ export default function DoctorProfileView({
             style={styles.editBtn}
             onPress={() => setIsEditing(true)}
           >
-            <Text style={styles.editBtnText}>✎ Edit</Text>
+            <Text style={styles.editBtnText}>Edit</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -185,7 +185,10 @@ export default function DoctorProfileView({
             />
           ) : (
             <View style={styles.profileImagePlaceholder}>
-              <Text style={styles.profileImagePlaceholderText}>👨‍⚕️</Text>
+              <Image
+                source={require("../../assets/images/user.png")}
+                style={styles.profileImagePlaceholderIcon}
+              />
             </View>
           )}
           {uploadingImage && (
@@ -195,7 +198,10 @@ export default function DoctorProfileView({
           )}
           {!uploadingImage && (
             <View style={styles.cameraIconContainer}>
-              <Text style={styles.cameraIcon}>📷</Text>
+              <Image
+                source={require("../../assets/images/icon/camera.png")}
+                style={styles.cameraIcon}
+              />
             </View>
           )}
         </TouchableOpacity>
@@ -286,7 +292,7 @@ export default function DoctorProfileView({
                   },
                 ]}
               >
-                {tempIsAvailable ? "✓ Available" : "✗ Not Available"}
+                {tempIsAvailable ? "Available" : "Not Available"}
               </Text>
               {hasAvailabilityChanged && (
                 <Text style={styles.changedIndicator}>●</Text>
@@ -302,7 +308,7 @@ export default function DoctorProfileView({
 
         {/* Additional Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ℹ️ Additional Information</Text>
+          <Text style={styles.sectionTitle}>Additional Information</Text>
 
           {doctor.created_at && (
             <View style={styles.infoRow}>
@@ -323,14 +329,6 @@ export default function DoctorProfileView({
           )}
         </View>
       </View>
-
-      {/* Edit Button (Floating) */}
-      <TouchableOpacity
-        style={styles.floatingEditBtn}
-        onPress={() => setIsEditing(true)}
-      >
-        <Text style={styles.floatingEditBtnText}>✎ Edit Profile</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -418,8 +416,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
   },
-  profileImagePlaceholderText: {
-    fontSize: 40,
+  profileImagePlaceholderIcon: {
+    width: 60,
+    height: 60,
+    resizeMode: "contain",
   },
   cameraIconContainer: {
     position: "absolute",
@@ -435,7 +435,9 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
   },
   cameraIcon: {
-    fontSize: 16,
+    width: 18,
+    height: 18,
+    resizeMode: "contain",
   },
   uploadingOverlay: {
     position: "absolute",

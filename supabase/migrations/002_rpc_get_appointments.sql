@@ -6,6 +6,10 @@
 -- ║  https://supabase.com/dashboard → your project → SQL Editor      ║
 -- ╚══════════════════════════════════════════════════════════════════╝
 
+-- Drop existing functions first (to change return type)
+DROP FUNCTION IF EXISTS get_appointments_by_date(DATE, UUID);
+DROP FUNCTION IF EXISTS get_appointments_range(DATE, DATE, UUID);
+
 -- ─────────────────────────────────────────────────────────────────
 -- RPC Function 1: Get appointments for a specific date (including cancelled)
 -- ─────────────────────────────────────────────────────────────────
@@ -16,6 +20,7 @@ CREATE OR REPLACE FUNCTION get_appointments_by_date(
 RETURNS TABLE (
   id UUID,
   patient_id UUID,
+  dummy_account_id UUID,
   dentist_id UUID,
   service TEXT,
   appointment_date DATE,
@@ -30,6 +35,7 @@ BEGIN
   SELECT 
     a.id,
     a.patient_id,
+    a.dummy_account_id,
     a.dentist_id,
     a.service,
     a.appointment_date,
@@ -56,6 +62,7 @@ CREATE OR REPLACE FUNCTION get_appointments_range(
 RETURNS TABLE (
   id UUID,
   patient_id UUID,
+  dummy_account_id UUID,
   dentist_id UUID,
   service TEXT,
   appointment_date DATE,
@@ -70,6 +77,7 @@ BEGIN
   SELECT 
     a.id,
     a.patient_id,
+    a.dummy_account_id,
     a.dentist_id,
     a.service,
     a.appointment_date,

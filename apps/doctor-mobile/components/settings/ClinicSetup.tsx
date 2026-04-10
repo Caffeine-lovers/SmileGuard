@@ -55,6 +55,11 @@ const defaultSchedule: Schedule = {
   sunday: { isOpen: false, hours: 'Closed' },
 };
 
+const PREDEFINED_SERVICES = [
+  "Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
+    "X-Ray", "Checkup"
+];
+
 export default function ClinicSetup({
   onClose,
   onSave,
@@ -338,7 +343,7 @@ export default function ClinicSetup({
 
           {/* Clinic Logo Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>🏢 Clinic Logo</Text>
+            <Text style={localStyles.sectionTitle}>Clinic Logo</Text>
             <View style={localStyles.card}>
               <View style={localStyles.logoContainer}>
                 <Image
@@ -356,7 +361,7 @@ export default function ClinicSetup({
 
           {/* Address Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>📍 Address</Text>
+            <Text style={localStyles.sectionTitle}>Address</Text>
             <View style={localStyles.card}>
               <TextInput
                 style={localStyles.input}
@@ -391,7 +396,7 @@ export default function ClinicSetup({
 
           {/* Clinic Gallery Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>🖼️ Clinic Pictures</Text>
+            <Text style={localStyles.sectionTitle}>Clinic Pictures</Text>
             <View style={localStyles.card}>
               <View style={localStyles.galleryContainer}>
                 {clinicData.gallery_images?.map((image, index) => (
@@ -410,23 +415,61 @@ export default function ClinicSetup({
 
           {/* Services Offered Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>🦷 Services Offered</Text>
+            <Text style={localStyles.sectionTitle}>Services Offered</Text>
             <View style={localStyles.card}>
-              {clinicData.services.map((service) => (
-                <View key={service.id} style={localStyles.serviceItem}>
-                  <Text style={localStyles.serviceText}>{service.name}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleRemoveService(service.id)}
-                  >
-                    <Text style={localStyles.removeButton}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {/* Added Services */}
+              {clinicData.services.length > 0 && (
+                <>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Added Services:</Text>
+                  {clinicData.services.map((service) => (
+                    <View key={service.id} style={localStyles.serviceItem}>
+                      <Text style={localStyles.serviceText}>{service.name}</Text>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveService(service.id)}
+                      >
+                        <Text style={localStyles.removeButton}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <View style={{ height: 1, backgroundColor: '#e0e0e0', marginVertical: 12 }} />
+                </>
+              )}
 
+              {/* Predefined Services */}
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Available Services:</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {PREDEFINED_SERVICES.map((service) => (
+                  <View
+                    key={service}
+                    style={{
+                      backgroundColor: '#f5f5f5',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: '#ddd',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '500',
+                        color: '#333',
+                      }}
+                    >
+                      {service}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Custom Service Input */}
+              <View style={{ height: 1, backgroundColor: '#e0e0e0', marginVertical: 12 }} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Add Custom Service:</Text>
               <View style={localStyles.addServiceContainer}>
                 <TextInput
                   style={localStyles.addServiceInput}
-                  placeholder="Add a service..."
+                  placeholder="Enter custom service..."
                   value={newService}
                   onChangeText={setNewService}
                   placeholderTextColor="#999"
@@ -443,7 +486,7 @@ export default function ClinicSetup({
 
           {/* Schedule Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>📅 Schedule</Text>
+            <Text style={localStyles.sectionTitle}>Schedule</Text>
             <View style={localStyles.card}>
               {(Object.entries(clinicData.schedule) as Array<[keyof Schedule, Schedule[keyof Schedule]]>).map(
                 ([day, hours]) => (

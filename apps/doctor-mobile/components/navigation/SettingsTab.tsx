@@ -164,7 +164,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
         <View style={{ paddingHorizontal: 16 }}>
           {/* Header */}
           <View style={{ marginBottom: 32, marginTop: 24, paddingBottom: 20, borderBottomWidth: 2, borderBottomColor: BORDER_COLOR }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, marginTop: 30 }}>
               <Image
                 source={require('../../assets/images/icon/settings.png')}
                 style={{ width: 28, height: 28, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
@@ -248,29 +248,6 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
             </View>
           </View>
 
-          {/* Appointment Categories */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Services</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['Cleaning', 'Root Canal', 'Extraction', 'Orthodontics', 'Whitening', 'Implants'].map((service) => (
-                <TouchableOpacity
-                  key={service}
-                  style={{
-                    backgroundColor: '#f5f5f5',
-                    paddingHorizontal: 14,
-                    paddingVertical: 8,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: BORDER_COLOR,
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT_PRIMARY }}>{service}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           {/* Font Size Selection */}
           <View style={{ marginBottom: 28 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Text Size</Text>
@@ -351,8 +328,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
 
           {/* Version & Footer */}
           <View style={{ alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
-            <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>SmileGuard v1.0.0</Text>
-            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6 }}>© 2026 Your Clinic. All rights reserved.</Text>
+            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6 }}>© 2026 SmileGuard Dental. All rights reserved.</Text>
           </View>
         </View>
       </ScrollView>

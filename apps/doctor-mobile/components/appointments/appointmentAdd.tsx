@@ -25,21 +25,12 @@ interface Patient {
   id: string;
   name: string;
   email: string;
+  accountType: 'Patient' | 'Dummy';
 }
 
 const SERVICES = [
-  'General Check-up',
-  'Cleaning',
-  'Whitening',
-  'Cavity Filling',
-  'Root Canal',
-  'Extraction',
-  'Aligners',
-  'Crown',
-  'Bridge',
-  'Implant',
-  'Orthodontics',
-  'Emergency',
+  "Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
+    "X-Ray", "Checkup"
 ];
 
 const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
@@ -67,11 +58,9 @@ export default function AppointmentAdd({
 }: AppointmentAddProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string>('');
-  const [appointmentDate, setAppointmentDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [appointmentTime, setAppointmentTime] = useState<string>('10:00');
-  const [selectedService, setSelectedService] = useState<string>('General Check-up');
+  const [appointmentDate, setAppointmentDate] = useState<string>('');
+  const [appointmentTime, setAppointmentTime] = useState<string>('');
+  const [selectedService, setSelectedService] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show'>('scheduled');
   const [notes, setNotes] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -85,26 +74,26 @@ export default function AppointmentAdd({
   const [selectedDay, setSelectedDay] = useState(new Date().getDate());
   const [selectedHour, setSelectedHour] = useState(10);
   const [selectedMinute, setSelectedMinute] = useState(0);
+  const [dayAppointmentCounts, setDayAppointmentCounts] = useState<{ [key: string]: number }>({});
 
   // Fetch patients on mount or when modal becomes visible
   useEffect(() => {
     if (visible) {
       fetchPatients();
-      // Initialize date picker with current appointment date
-      if (appointmentDate) {
-        const [year, month, day] = appointmentDate.split('-').map(Number);
-        setSelectedYear(year);
-        setSelectedMonth(month);
-        // Ensure selected day doesn't exceed max days in that month
-        const maxDays = new Date(year, month, 0).getDate();
-        setSelectedDay(Math.min(day, maxDays));
-      }
-      // Initialize time picker with current appointment time
-      if (appointmentTime) {
-        const [hour, minute] = appointmentTime.split(':').map(Number);
-        setSelectedHour(hour);
-        setSelectedMinute(minute);
-      }
+      // Reset form fields when modal opens
+      setSelectedPatient('');
+      setAppointmentDate('');
+      setAppointmentTime('');
+      setSelectedService('');
+      setSelectedStatus('scheduled');
+      setNotes('');
+      // Initialize date picker with current date as default
+      const today = new Date();
+      setSelectedYear(today.getFullYear());
+      setSelectedMonth(today.getMonth() + 1);
+      setSelectedDay(today.getDate());
+      setSelectedHour(10);
+      setSelectedMinute(0);
     }
   }, [visible]);
 
@@ -131,25 +120,101 @@ export default function AppointmentAdd({
     }
   }, [selectedYear, selectedMonth]);
 
+  // Load appointment counts for the selected month
+  useEffect(() => {
+    const loadAppointmentCounts = async () => {
+      if (!showDatePicker) return;
+
+      try {
+        console.log('📅 Loading appointment counts for', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`);
+
+        // OPTIMIZATION: Fetch ALL appointments for the month in ONE query
+        const startDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+        const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
+        const endDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+        const { data: allMonthAppointments, error } = await supabase
+          .from('appointments')
+          .select('appointment_date')
+          .gte('appointment_date', startDate)
+          .lte('appointment_date', endDate);
+
+        if (error) {
+          console.error('❌ Error fetching month appointments:', error);
+          return;
+        }
+
+        // Now calculate counts locally (no more database queries!)
+        const counts: { [key: string]: number } = {};
+        
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dateKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const count = (allMonthAppointments || []).filter(apt => apt.appointment_date === dateKey).length;
+          counts[dateKey] = count;
+        }
+
+        console.log('✅ Appointment counts loaded (1 query for all days):', counts);
+        setDayAppointmentCounts(counts);
+      } catch (error) {
+        console.error('❌ Exception loading appointment counts:', error);
+      }
+    };
+
+    loadAppointmentCounts();
+  }, [showDatePicker, selectedYear, selectedMonth]);
+
   const fetchPatients = async () => {
     try {
       setFetchingPatients(true);
-      const { data, error } = await supabase
+      
+      // Fetch from profiles table
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email')
         .eq('role', 'patient')
         .order('name', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching patients:', error);
-        Alert.alert('Error', 'Failed to fetch patients');
-        return;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
       }
 
-      setPatients(data || []);
-      if (data && data.length > 0) {
-        setSelectedPatient(data[0].id);
+      // Fetch from dummy_accounts table
+      const { data: dummyData, error: dummyError } = await supabase
+        .from('dummy_accounts')
+        .select('id, patient_name, email')
+        .order('patient_name', { ascending: true });
+
+      if (dummyError) {
+        console.error('Error fetching dummy accounts:', dummyError);
       }
+
+      // Combine and label the data
+      const patients: Patient[] = [];
+      
+      if (profilesData) {
+        patients.push(
+          ...profilesData.map((p) => ({
+            ...p,
+            accountType: 'Patient' as const,
+          }))
+        );
+      }
+      
+      if (dummyData) {
+        patients.push(
+          ...dummyData.map((d) => ({
+            id: d.id,
+            name: d.patient_name,
+            email: d.email,
+            accountType: 'Dummy' as const,
+          }))
+        );
+      }
+
+      // Sort combined list by name
+      patients.sort((a, b) => a.name.localeCompare(b.name));
+
+      setPatients(patients);
     } catch (error) {
       console.error('Exception fetching patients:', error);
       Alert.alert('Error', 'Failed to load patients');
@@ -222,6 +287,32 @@ export default function AppointmentAdd({
     return dayOfWeek === 0 || dayOfWeek === 2;
   };
 
+  const getDayAppointmentCount = async (year: number, month: number, day: number): Promise<number> => {
+    try {
+      const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      // Count ALL appointments on this day (clinic-wide, all doctors)
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('id, status, dentist_id')
+        .eq('appointment_date', dateString);
+
+      if (error) {
+        console.error(`❌ Error fetching appointment count for ${dateString}:`, error);
+        return 0;
+      }
+
+      const count = data?.length || 0;
+      if (count >= 3) {
+        console.log(`🔴 ${dateString}: ${count} appointments - FULL (clinic-wide)`, data?.map(a => a.status));
+      }
+      return count;
+    } catch (error) {
+      console.error('Exception fetching appointment count:', error);
+      return 0;
+    }
+  };
+
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month, 0).getDate();
   };
@@ -250,10 +341,10 @@ export default function AppointmentAdd({
   };
 
   const resetForm = () => {
-    setSelectedPatient(patients.length > 0 ? patients[0].id : '');
-    setAppointmentDate(new Date().toISOString().split('T')[0]);
-    setAppointmentTime('10:00');
-    setSelectedService('General Check-up');
+    setSelectedPatient('');
+    setAppointmentDate('');
+    setAppointmentTime('');
+    setSelectedService('');
     setSelectedStatus('scheduled');
     setNotes('');
   };
@@ -266,8 +357,10 @@ export default function AppointmentAdd({
     try {
       setLoading(true);
 
-      const appointmentData = {
-        patient_id: selectedPatient,
+      const selectedPatientData = patients.find(p => p.id === selectedPatient);
+      const isDummyAccount = selectedPatientData?.accountType === 'Dummy';
+
+      const appointmentData: any = {
         dentist_id: doctorId,
         service: selectedService,
         appointment_date: appointmentDate,
@@ -275,6 +368,15 @@ export default function AppointmentAdd({
         status: selectedStatus,
         notes: notes || null,
       };
+
+      // Use appropriate column based on account type
+      if (isDummyAccount) {
+        appointmentData.patient_id = null;
+        appointmentData.dummy_account_id = selectedPatient;
+      } else {
+        appointmentData.patient_id = selectedPatient;
+        appointmentData.dummy_account_id = null;
+      }
 
       console.log('📝 Creating appointment:', appointmentData);
 
@@ -334,44 +436,72 @@ export default function AppointmentAdd({
                   style={styles.dropdown}
                   onPress={() => setShowPatientPicker(!showPatientPicker)}
                 >
-                  <Text style={styles.dropdownText}>
-                    👤 {getPatientName(selectedPatient)}
+                  <Text style={[styles.dropdownText, { color: selectedPatient ? '#333' : '#999' }]}>
+                    {selectedPatient ? getPatientName(selectedPatient) : 'Select Patient'}
                   </Text>
                   <Text style={{ color: '#0b7fab' }}>▼</Text>
                 </TouchableOpacity>
-
-                {showPatientPicker && (
-                  <View style={styles.pickerContainer}>
-                    {patients.length === 0 ? (
-                      <Text style={styles.emptyText}>No patients found</Text>
-                    ) : (
-                      patients.map((patient) => (
-                        <TouchableOpacity
-                          key={patient.id}
-                          style={[
-                            styles.pickerItem,
-                            selectedPatient === patient.id && styles.pickerItemSelected,
-                          ]}
-                          onPress={() => {
-                            setSelectedPatient(patient.id);
-                            setShowPatientPicker(false);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.pickerItemText,
-                              selectedPatient === patient.id && styles.pickerItemTextSelected,
-                            ]}
-                          >
-                            {patient.name}
-                          </Text>
-                          <Text style={styles.pickerItemSubText}>{patient.email}</Text>
-                        </TouchableOpacity>
-                      ))
-                    )}
-                  </View>
-                )}
               </View>
+
+              {/* Patient Picker Modal */}
+              {showPatientPicker && (
+                <Modal transparent={true} animationType="fade" visible={showPatientPicker}>
+                  <View style={styles.datePickerOverlay}>
+                    <View style={[styles.datePickerContainer, { flex: 1, maxHeight: '80%' }]}>
+                      <View style={styles.datePickerHeader}>
+                        <TouchableOpacity onPress={() => setShowPatientPicker(false)}>
+                          <Text style={styles.datePickerCancel}>Cancel</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.datePickerTitle}>Select Patient</Text>
+                        <View style={{ width: 50 }} />
+                      </View>
+
+                      <ScrollView style={{ flex: 1 }} scrollEnabled={true}>
+                        {patients.length === 0 ? (
+                          <Text style={styles.emptyText}>No patients found</Text>
+                        ) : (
+                          patients.map((patient) => (
+                            <TouchableOpacity
+                              key={patient.id}
+                              style={[
+                                styles.pickerItem,
+                                selectedPatient === patient.id && styles.pickerItemSelected,
+                              ]}
+                              onPress={() => {
+                                setSelectedPatient(patient.id);
+                                setShowPatientPicker(false);
+                              }}
+                            >
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                <Text
+                                  style={[
+                                    styles.pickerItemText,
+                                    selectedPatient === patient.id && styles.pickerItemTextSelected,
+                                    { flex: 1 }
+                                  ]}
+                                  numberOfLines={1}
+                                  ellipsizeMode="tail"
+                                >
+                                  {patient.name}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.accountTypeLabel,
+                                    patient.accountType === 'Dummy' ? styles.dummyLabel : styles.patientLabel,
+                                  ]}
+                                >
+                                  {patient.accountType}
+                                </Text>
+                              </View>
+                              <Text style={styles.pickerItemSubText}>{patient.email}</Text>
+                            </TouchableOpacity>
+                          ))
+                        )}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </Modal>
+              )}
 
               {/* Date & Time Selection */}
               <View style={styles.section}>
@@ -383,7 +513,7 @@ export default function AppointmentAdd({
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Text style={{ color: appointmentDate ? '#333' : '#999', fontSize: 14 }}>
-                    📅 {appointmentDate || 'Select date'}
+                    {appointmentDate || 'Select Date'}
                   </Text>
                 </TouchableOpacity>
 
@@ -392,8 +522,8 @@ export default function AppointmentAdd({
                   style={[styles.dropdown, { marginTop: 12 }]}
                   onPress={() => setShowTimePicker(true)}
                 >
-                  <Text style={{ color: appointmentTime ? '#333' : '#999', fontSize: 14 }}>
-                    ⏰ {appointmentTime || 'Select time'}
+                  <Text style={{ color: '#333', fontSize: 14 }}>
+                    {appointmentTime || 'Select Time'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -406,37 +536,54 @@ export default function AppointmentAdd({
                   style={styles.dropdown}
                   onPress={() => setShowServicePicker(!showServicePicker)}
                 >
-                  <Text style={styles.dropdownText}>🔧 {selectedService}</Text>
+                  <Text style={[styles.dropdownText, { color: selectedService ? '#333' : '#999' }]}>
+                    {selectedService || 'Select Service'}
+                  </Text>
                   <Text style={{ color: '#0b7fab' }}>▼</Text>
                 </TouchableOpacity>
-
-                {showServicePicker && (
-                  <View style={styles.pickerContainer}>
-                    {SERVICES.map((service) => (
-                      <TouchableOpacity
-                        key={service}
-                        style={[
-                          styles.pickerItem,
-                          selectedService === service && styles.pickerItemSelected,
-                        ]}
-                        onPress={() => {
-                          setSelectedService(service);
-                          setShowServicePicker(false);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.pickerItemText,
-                            selectedService === service && styles.pickerItemTextSelected,
-                          ]}
-                        >
-                          {service}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
               </View>
+
+              {/* Service Picker Modal */}
+              {showServicePicker && (
+                <Modal transparent={true} animationType="fade" visible={showServicePicker}>
+                  <View style={styles.datePickerOverlay}>
+                    <View style={[styles.datePickerContainer, { flex: 1, maxHeight: '80%' }]}>
+                      <View style={styles.datePickerHeader}>
+                        <TouchableOpacity onPress={() => setShowServicePicker(false)}>
+                          <Text style={styles.datePickerCancel}>Cancel</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.datePickerTitle}>Select Service</Text>
+                        <View style={{ width: 50 }} />
+                      </View>
+
+                      <ScrollView style={{ flex: 1 }} scrollEnabled={true}>
+                        {SERVICES.map((service) => (
+                          <TouchableOpacity
+                            key={service}
+                            style={[
+                              styles.pickerItem,
+                              selectedService === service && styles.pickerItemSelected,
+                            ]}
+                            onPress={() => {
+                              setSelectedService(service);
+                              setShowServicePicker(false);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.pickerItemText,
+                                selectedService === service && styles.pickerItemTextSelected,
+                              ]}
+                            >
+                              {service}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </Modal>
+              )}
 
               {/* Status Selection */}
               <View style={styles.section}>
@@ -584,28 +731,40 @@ export default function AppointmentAdd({
                         })
                         .map((day) => {
                           const isUnavailable = isUnavailableDay(selectedYear, selectedMonth, day);
+                          const dateKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                          const appointmentCount = dayAppointmentCounts[dateKey] || 0;
+                          const isFull = appointmentCount >= 3;
+                          const isDisabled = isUnavailable || isFull;
+
+                          if (day === 10 && selectedMonth === 4) {
+                            console.log(`April 10 - Count: ${appointmentCount}, isFull: ${isFull}, isDisabled: ${isDisabled}`);
+                          }
+
                           return (
                             <TouchableOpacity
                               key={day}
                               style={[
                                 styles.pickerItem,
                                 selectedDay === day && styles.pickerItemSelected,
-                                isUnavailable && styles.pickerItemDisabled,
+                                isDisabled && styles.pickerItemDisabled,
                               ]}
-                              onPress={() => !isUnavailable && setSelectedDay(day)}
-                              disabled={isUnavailable}
+                              onPress={() => !isDisabled && setSelectedDay(day)}
+                              disabled={isDisabled}
                             >
                               <Text
                                 style={[
                                   styles.pickerItemText,
                                   selectedDay === day && styles.pickerItemTextSelected,
-                                  isUnavailable && styles.pickerItemTextDisabled,
+                                  isDisabled && styles.pickerItemTextDisabled,
                                 ]}
                               >
                                 {String(day).padStart(2, '0')}
                               </Text>
                               {isUnavailable && (
                                 <Text style={styles.closedLabel}>CLOSED</Text>
+                              )}
+                              {isFull && (
+                                <Text style={styles.fullLabel}>FULL</Text>
                               )}
                             </TouchableOpacity>
                           );
@@ -944,6 +1103,27 @@ const styles = StyleSheet.create({
     color: '#ff6b6b',
     fontWeight: '700',
     marginTop: 2,
+  },
+  fullLabel: {
+    fontSize: 10,
+    color: '#ff9800',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  accountTypeLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  patientLabel: {
+    backgroundColor: '#e3f2fd',
+    color: '#0b7fab',
+  },
+  dummyLabel: {
+    backgroundColor: '#fff3e0',
+    color: '#f57c00',
   },
 });
 

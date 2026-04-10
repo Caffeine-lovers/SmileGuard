@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -27,6 +28,8 @@ export default function AddPatient() {
   const router = useRouter();
   const currentUser = useCurrentUser();
   const [loading, setLoading] = useState(false);
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showServicePicker, setShowServicePicker] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
@@ -35,6 +38,10 @@ export default function AddPatient() {
     service: "",
     notes: "",
   });
+
+  const genderOptions = ["Male", "Female", "Other"];
+  const serviceOptions = ["Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
+    "X-Ray", "Checkup"];
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({
@@ -175,30 +182,98 @@ export default function AddPatient() {
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
               Gender
             </Text>
-            <TextInput
-              style={[styles.input, { borderColor: "#0b7fab" }]}
-              placeholder="e.g., Male, Female, Other"
-              placeholderTextColor="#999"
-              value={formData.gender}
-              onChangeText={(value) => handleInputChange("gender", value)}
-              editable={!loading}
-            />
+            <TouchableOpacity
+              style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+              onPress={() => setShowGenderPicker(true)}
+              disabled={loading}
+            >
+              <Text style={{ fontSize: 14, color: formData.gender ? "#333" : "#999" }}>
+                {formData.gender || "Select gender"}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Gender Picker Modal */}
+          <Modal
+            visible={showGenderPicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowGenderPicker(false)}
+          >
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+              <View style={{ backgroundColor: '#fff', paddingBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Gender</Text>
+                  <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
+                    <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                {genderOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}
+                    onPress={() => {
+                      handleInputChange('gender', option);
+                      setShowGenderPicker(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, color: formData.gender === option ? '#0b7fab' : '#333', fontWeight: formData.gender === option ? '600' : '400' }}>
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </Modal>
 
           {/* Service */}
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
               Service Type
             </Text>
-            <TextInput
-              style={[styles.input, { borderColor: "#0b7fab" }]}
-              placeholder="e.g., General, Orthodontics, Cosmetic"
-              placeholderTextColor="#999"
-              value={formData.service}
-              onChangeText={(value) => handleInputChange("service", value)}
-              editable={!loading}
-            />
+            <TouchableOpacity
+              style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+              onPress={() => setShowServicePicker(true)}
+              disabled={loading}
+            >
+              <Text style={{ fontSize: 14, color: formData.service ? "#333" : "#999" }}>
+                {formData.service || "Select service type"}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Service Picker Modal */}
+          <Modal
+            visible={showServicePicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowServicePicker(false)}
+          >
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+              <View style={{ backgroundColor: '#fff', paddingBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Service Type</Text>
+                  <TouchableOpacity onPress={() => setShowServicePicker(false)}>
+                    <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                {serviceOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}
+                    onPress={() => {
+                      handleInputChange('service', option);
+                      setShowServicePicker(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, color: formData.service === option ? '#0b7fab' : '#333', fontWeight: formData.service === option ? '600' : '400' }}>
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </Modal>
 
           {/* Notes */}
           <View style={{ marginBottom: 24 }}>
@@ -255,9 +330,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
     fontSize: 14,
     color: "#333",
+    borderColor: "#0b7fab",
   },
   button: {
     flex: 1,
