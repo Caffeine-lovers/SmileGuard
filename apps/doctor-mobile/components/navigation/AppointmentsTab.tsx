@@ -33,6 +33,8 @@ interface AppointmentsTabProps {
   onUpdateAppointmentStatus: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard?: boolean) => Promise<void>;
   styles: any;
   doctorId?: string;
+  onAppointmentCreated?: (patientName: string, service: string, time: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
 export default function AppointmentsTab({
@@ -40,6 +42,8 @@ export default function AppointmentsTab({
   onUpdateAppointmentStatus,
   styles,
   doctorId: providedDoctorId,
+  onAppointmentCreated,
+  onAppointmentStatusUpdated,
 }: AppointmentsTabProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show'>('all');
@@ -877,6 +881,7 @@ export default function AppointmentsTab({
             setEditingAppointment(null);
           }}
           onSave={handleSaveAppointment}
+          onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
 
@@ -886,6 +891,7 @@ export default function AppointmentsTab({
         doctorId={doctorId}
         onClose={() => setShowAddModal(false)}
         onSave={handleAddAppointmentSaved}
+        onAppointmentCreated={onAppointmentCreated}
       />
     </SafeAreaView>
   );

@@ -51,6 +51,8 @@ interface PatientDetailsViewProps {
   doctorId?: string;
   onClose: () => void;
   onEdit?: () => void;
+  onMedicalIntakeUpdated?: (patientName: string, patientId: string) => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
 const formatDate = (dateStr: string): string => {
@@ -86,7 +88,7 @@ const categorizeAppointments = (appointments: any[]) => {
   return { past, current, future };
 };
 
-export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit }: PatientDetailsViewProps) {
+export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit,onMedicalIntakeUpdated, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -449,6 +451,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             });
 
             if (result.success) {
+              // Send notification about medical intake update
+              if (onMedicalIntakeUpdated) {
+                onMedicalIntakeUpdated(patient?.name || 'Patient', patient?.id || '');
+              }
               // Reload data from Supabase
               if (patient?.id) {
                 await loadMedicalIntake(patient.id);
@@ -472,6 +478,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             setEditingAppointment(null);
           }}
           onSave={handleSaveAppointment}
+          onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
     </Modal>

@@ -20,6 +20,7 @@ interface SettingsTabProps {
   user: CurrentUser;
   onUpdateProfile?: (updatedUser: Partial<CurrentUser>) => void;
   styles: any;
+  onProfileUpdated?: (doctorName: string, doctorId: string) => void;
 }
 
 type Theme = 'light' | 'dark';
@@ -32,7 +33,7 @@ interface AppSettings {
   fontSize: FontSize;
 }
 
-export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsTabProps) {
+export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUpdated }: SettingsTabProps) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
@@ -109,6 +110,11 @@ export default function SettingsTab({ user, onUpdateProfile, styles }: SettingsT
         console.log('✅ Profile updated in Supabase:', result);
         // Update local state with the returned data
         setDoctorData(result);
+        
+        // Trigger notification callback if provided
+        if (onProfileUpdated && result.id) {
+          onProfileUpdated(result.doctor_name || 'Doctor', result.id);
+        }
         // Don't close modal - keep it open for more edits
       } else {
         console.error('❌ Failed to update profile in Supabase');

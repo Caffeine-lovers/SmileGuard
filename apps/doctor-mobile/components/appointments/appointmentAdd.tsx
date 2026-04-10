@@ -19,6 +19,7 @@ interface AppointmentAddProps {
   doctorId: string;
   onClose: () => void;
   onSave: () => void;
+  onAppointmentCreated?: (patientName: string, service: string, time: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
 interface Patient {
@@ -55,6 +56,7 @@ export default function AppointmentAdd({
   doctorId,
   onClose,
   onSave,
+  onAppointmentCreated,
 }: AppointmentAddProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string>('');
@@ -392,6 +394,22 @@ export default function AppointmentAdd({
       }
 
       console.log('✅ Appointment created successfully:', data);
+      
+      // Trigger notification callback if provided
+      if (onAppointmentCreated && data && data.length > 0) {
+        const appointment = data[0];
+        const patientName = selectedPatientData?.name || 'Patient';
+        const patientId = selectedPatient;
+        onAppointmentCreated(
+          patientName,
+          selectedService,
+          appointmentTime,
+          appointment.id,
+          patientId,
+          doctorId
+        );
+      }
+      
       Alert.alert('Success', 'Appointment created successfully');
       onSave();
       resetForm();
@@ -428,18 +446,40 @@ export default function AppointmentAdd({
             </View>
           ) : (
             <>
+              {/* Step Indicator */}
+              <View style={styles.stepIndicator}>
+                <Text style={styles.stepText}>Fill in order to proceed</Text>
+                <View style={styles.stepProgress}>
+                  <View style={[styles.stepDot, selectedPatient && styles.stepDotActive]}>
+                    <Text style={[styles.stepNumber, selectedPatient && styles.stepNumberActive]}>1</Text>
+                  </View>
+                  <View style={[styles.stepDot, appointmentDate && styles.stepDotActive]}>
+                    <Text style={[styles.stepNumber, appointmentDate && styles.stepNumberActive]}>2</Text>
+                  </View>
+                  <View style={[styles.stepDot, appointmentTime && styles.stepDotActive]}>
+                    <Text style={[styles.stepNumber, appointmentTime && styles.stepNumberActive]}>3</Text>
+                  </View>
+                  <View style={[styles.stepDot, selectedService && styles.stepDotActive]}>
+                    <Text style={[styles.stepNumber, selectedService && styles.stepNumberActive]}>4</Text>
+                  </View>
+                </View>
+              </View>
+
               {/* Patient Selection */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Patient Information</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.stepBadge}>1</Text>
+                  <Text style={styles.sectionTitle}>Patient Information</Text>
+                </View>
 
                 <TouchableOpacity
-                  style={styles.dropdown}
+                  style={[styles.dropdown, selectedPatient && styles.dropdownSelected]}
                   onPress={() => setShowPatientPicker(!showPatientPicker)}
                 >
-                  <Text style={[styles.dropdownText, { color: selectedPatient ? '#333' : '#999' }]}>
+                  <Text style={[styles.dropdownText, selectedPatient && styles.dropdownTextSelected, { color: selectedPatient ? '#0b7fab' : '#999' }]}>
                     {selectedPatient ? getPatientName(selectedPatient) : 'Select Patient'}
                   </Text>
-                  <Text style={{ color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ color: selectedPatient ? '#0b7fab' : '#999' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -505,24 +545,38 @@ export default function AppointmentAdd({
 
               {/* Date & Time Selection */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Appointment Time</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.stepBadge, !selectedPatient && styles.stepBadgeDisabled]}>2</Text>
+                  <Text style={[styles.sectionTitle, !selectedPatient && styles.sectionTitleDisabled]}>Appointment Time</Text>
+                </View>
 
                 {/* Date Picker Button */}
                 <TouchableOpacity
-                  style={styles.dropdown}
-                  onPress={() => setShowDatePicker(true)}
+                  style={[
+                    styles.dropdown,
+                    appointmentDate && styles.dropdownSelected,
+                    !selectedPatient && styles.dropdownDisabled,
+                  ]}
+                  onPress={() => selectedPatient && setShowDatePicker(true)}
+                  disabled={!selectedPatient}
                 >
-                  <Text style={{ color: appointmentDate ? '#333' : '#999', fontSize: 14 }}>
+                  <Text style={[styles.dropdownText, appointmentDate && styles.dropdownTextSelected, { color: appointmentDate ? '#0b7fab' : !selectedPatient ? '#ccc' : '#999' }]}>
                     {appointmentDate || 'Select Date'}
                   </Text>
                 </TouchableOpacity>
 
                 {/* Time Picker Button */}
                 <TouchableOpacity
-                  style={[styles.dropdown, { marginTop: 12 }]}
-                  onPress={() => setShowTimePicker(true)}
+                  style={[
+                    styles.dropdown,
+                    { marginTop: 12 },
+                    appointmentTime && styles.dropdownSelected,
+                    !appointmentDate && styles.dropdownDisabled,
+                  ]}
+                  onPress={() => appointmentDate && setShowTimePicker(true)}
+                  disabled={!appointmentDate}
                 >
-                  <Text style={{ color: '#333', fontSize: 14 }}>
+                  <Text style={[styles.dropdownText, appointmentTime && styles.dropdownTextSelected, { color: appointmentTime ? '#0b7fab' : !appointmentDate ? '#ccc' : '#999' }]}>
                     {appointmentTime || 'Select Time'}
                   </Text>
                 </TouchableOpacity>
@@ -530,16 +584,24 @@ export default function AppointmentAdd({
 
               {/* Service Selection */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Service</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.stepBadge, !appointmentTime && styles.stepBadgeDisabled]}>3</Text>
+                  <Text style={[styles.sectionTitle, !appointmentTime && styles.sectionTitleDisabled]}>Service</Text>
+                </View>
 
                 <TouchableOpacity
-                  style={styles.dropdown}
-                  onPress={() => setShowServicePicker(!showServicePicker)}
+                  style={[
+                    styles.dropdown,
+                    selectedService && styles.dropdownSelected,
+                    !appointmentTime && styles.dropdownDisabled,
+                  ]}
+                  onPress={() => appointmentTime && setShowServicePicker(!showServicePicker)}
+                  disabled={!appointmentTime}
                 >
-                  <Text style={[styles.dropdownText, { color: selectedService ? '#333' : '#999' }]}>
+                  <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }]}>
                     {selectedService || 'Select Service'}
                   </Text>
-                  <Text style={{ color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -587,22 +649,28 @@ export default function AppointmentAdd({
 
               {/* Status Selection */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Status</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.stepBadge, !selectedService && styles.stepBadgeDisabled]}>4</Text>
+                  <Text style={[styles.sectionTitle, !selectedService && styles.sectionTitleDisabled]}>Status</Text>
+                </View>
 
-                <View style={styles.statusContainer}>
+                <View style={[styles.statusContainer, !selectedService && styles.statusContainerDisabled]}>
                   {STATUS_OPTIONS.map((status) => (
                     <TouchableOpacity
                       key={status}
                       style={[
                         styles.statusButton,
                         selectedStatus === status && styles.statusButtonSelected,
+                        !selectedService && styles.statusButtonDisabled,
                       ]}
-                      onPress={() => setSelectedStatus(status)}
+                      onPress={() => selectedService && setSelectedStatus(status)}
+                      disabled={!selectedService}
                     >
                       <Text
                         style={[
                           styles.statusButtonText,
                           selectedStatus === status && styles.statusButtonTextSelected,
+                          !selectedService && styles.statusButtonTextDisabled,
                         ]}
                       >
                         {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -614,9 +682,13 @@ export default function AppointmentAdd({
 
               {/* Notes */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Notes (Optional)</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.stepBadge, styles.stepBadgeOptional]}>5</Text>
+                  <Text style={[styles.sectionTitle]}>Notes</Text>
+                  <Text style={styles.optionalLabel}>(Optional)</Text>
+                </View>
                 <TextInput
-                  style={styles.notesInput}
+                  style={[styles.notesInput, !selectedService && styles.notesInputDisabled]}
                   placeholder="Add any notes or special instructions..."
                   placeholderTextColor="#999"
                   value={notes}
@@ -624,6 +696,7 @@ export default function AppointmentAdd({
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  editable={selectedService !== ''}
                 />
               </View>
             </>
@@ -864,14 +937,88 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
+  stepIndicator: {
+    backgroundColor: '#f0f8ff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#0b7fab',
+  },
+  stepText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0b7fab',
+    marginBottom: 8,
+  },
+  stepProgress: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  stepDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepDotActive: {
+    backgroundColor: '#0b7fab',
+  },
+  stepNumber: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#999',
+  },
+  stepNumberActive: {
+    color: '#fff',
+  },
   section: {
     marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  stepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#0b7fab',
+    justifyContent: 'center',
+    alignItems: 'center',
+    fontWeight: '700',
+    color: '#fff',
+    fontSize: 12,
+    textAlignVertical: 'center',
+    textAlign: 'center',
+  },
+  stepBadgeDisabled: {
+    backgroundColor: '#ccc',
+    color: '#999',
+  },
+  stepBadgeOptional: {
+    backgroundColor: '#ff9800',
+  },
+  optionalLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ff9800',
+    marginLeft: 'auto',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#0b7fab',
-    marginBottom: 12,
+    flex: 1,
+  },
+  sectionTitleDisabled: {
+    color: '#ccc',
   },
   dropdown: {
     backgroundColor: '#fff',
@@ -884,11 +1031,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  dropdownSelected: {
+    backgroundColor: '#e3f2fd',
+    borderColor: '#0b7fab',
+    borderWidth: 2,
+  },
+  dropdownDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+    opacity: 0.6,
+  },
   dropdownText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
     flex: 1,
+  },
+  dropdownTextSelected: {
+    color: '#0b7fab',
+    fontWeight: '700',
   },
   dropdownIcon: {
     width: 20,
@@ -966,6 +1127,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  statusContainerDisabled: {
+    opacity: 0.6,
+  },
   statusButton: {
     flex: 1,
     minWidth: '48%',
@@ -981,6 +1145,10 @@ const styles = StyleSheet.create({
     borderColor: '#0b7fab',
     backgroundColor: '#e3f2fd',
   },
+  statusButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+  },
   statusButtonText: {
     fontSize: 12,
     fontWeight: '600',
@@ -988,6 +1156,9 @@ const styles = StyleSheet.create({
   },
   statusButtonTextSelected: {
     color: '#0b7fab',
+  },
+  statusButtonTextDisabled: {
+    color: '#ccc',
   },
   notesInput: {
     backgroundColor: '#fff',
@@ -999,6 +1170,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     minHeight: 100,
+  },
+  notesInputDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+    color: '#ccc',
+    opacity: 0.6,
   },
   footer: {
     paddingHorizontal: 16,

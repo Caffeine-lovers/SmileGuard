@@ -97,8 +97,10 @@ export async function getPatientAppointments(
     });
 
     if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient
-      const patientAppointments = appointmentsData.filter((apt: any) => apt.patient_id === patientId);
+      // Filter for this specific patient (check both patient_id for real patients and dummy_account_id for dummy accounts)
+      const patientAppointments = appointmentsData.filter((apt: any) => 
+        apt.patient_id === patientId || apt.dummy_account_id === patientId
+      );
       
       if (patientAppointments.length > 0) {
         const statusBreakdown = {
@@ -112,12 +114,12 @@ export async function getPatientAppointments(
       }
     }
 
-    // Fallback: Direct query with explicit select
+    // Fallback: Direct query with explicit select (check both regular and dummy account appointments)
     console.log('⚠️ RPC returned no data, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
-      .eq('patient_id', patientId)
+      .select('id, patient_id, dummy_account_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
+      .or(`patient_id.eq.${patientId},dummy_account_id.eq.${patientId}`)
       .order('appointment_date', { ascending: false });
 
     if (error) {

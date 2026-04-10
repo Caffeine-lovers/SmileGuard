@@ -18,6 +18,7 @@ interface AppointmentEditProps {
   doctorId: string;
   onClose: () => void;
   onSave: () => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
 const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show'> = [
@@ -40,6 +41,7 @@ export default function AppointmentEdit({
   doctorId,
   onClose,
   onSave,
+  onAppointmentStatusUpdated,
 }: AppointmentEditProps) {
   const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show'>('scheduled');
   const [loading, setLoading] = useState(false);
@@ -84,6 +86,18 @@ export default function AppointmentEdit({
       
       if (result.success) {
         console.log('✅ Appointment status updated successfully');
+        
+        // Trigger notification callback if status changed and callback is provided
+        if (selectedStatus !== 'scheduled' && onAppointmentStatusUpdated) {
+          onAppointmentStatusUpdated(
+            selectedStatus,
+            appointment.name || appointment.patient_name || 'Patient',
+            appointmentId,
+            appointment.patient_id || '',
+            doctorId
+          );
+        }
+        
         Alert.alert('Success', `Appointment status updated to ${selectedStatus}`);
         onSave();
         onClose();

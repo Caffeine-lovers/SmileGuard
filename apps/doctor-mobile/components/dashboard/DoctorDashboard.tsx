@@ -17,6 +17,8 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AppointmentCard from "./AppointmentCard";
 import StatCard from "./StatCard";
+import NotificationBell from "./NotificationBell";
+import NotificationCenter from "./NotificationCenter";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
@@ -25,8 +27,16 @@ import { updateDoctorAppointmentStatus, getDoctorAppointments } from "../../lib/
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
 import { updatePatientMedicalIntake } from "../../lib/profilesPatients";
+import { 
+  notifyAppointmentStatusChanged,
+  notifyMedicalIntakeUpdated,
+  notifyAppointmentCreated,
+  notifyDoctorProfileUpdated,
+  createManualNotification,
+} from "../../lib/notificationService";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
+import { useNotifications } from "../../hooks/useNotifications";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
   SERVICE_OPTIONS,
@@ -62,6 +72,12 @@ interface DoctorDashboardProps {
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   const insets = useSafeAreaInsets();
+  
+  // ─────────────────────────────────────────
+  // NOTIFICATION SYSTEM
+  // ─────────────────────────────────────────
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+  const notificationState = useNotifications(user?.id, true);
   
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
@@ -381,6 +397,20 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         return;
       }
 
+      // Add notification for patient update
+      const medicalUpdateNotification = createManualNotification(
+        'medical-intake-updated',
+        'Medical Intake Updated',
+        `${editedPatient.name} medical records have been updated`,
+        {
+          patientId: editedPatient.patient_id,
+          tableName: 'medical_intake',
+          recordId: editedPatient.patient_id,
+          action: 'UPDATE',
+        }
+      );
+      notificationState.actions.addNotification(medicalUpdateNotification);
+
       setPatients((prev) =>
         prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
       );
@@ -429,11 +459,28 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         return;
       }
       
+      // Update local state
       setAppointments((prev) =>
         prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
       );
+
+      // Trigger manual notification for status change
+      if (status !== 'scheduled') {
+        const appointment = appointments.find(apt => apt.id === appointmentId);
+        if (appointment) {
+          const notification = notifyAppointmentStatusChanged(
+            status,
+            appointment.name,
+            appointmentId,
+            appointment.patient_id || '',
+            user.id
+          );
+          notificationState.actions.addNotification(notification);
+        }
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to update appointment status');
+      console.error('Error updating appointment status:', error);
     }
   };
 
@@ -472,33 +519,40 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     <Text style={[styles.header, { marginBottom: 0 }]}>
                       Welcome, {doctorProfile.doctor_name || doctorProfile.name}
                     </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setIsRefreshing(true);
-                        refreshDashboardData();
-                      }}
-                      disabled={isRefreshing}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 8,
-                        backgroundColor: '#E3F2FD',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        borderWidth: 1,
-                        borderColor: '#0b7fab',
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      {isRefreshing ? (
-                        <ActivityIndicator size="small" color="#0b7fab" />
-                      ) : (
-                        <Image
-                          source={require('../../assets/images/icon/refresh.png')}
-                          style={{ width: 24, height: 24, resizeMode: 'contain' }}
-                        />
-                      )}
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                      <NotificationBell
+                        unreadCount={notificationState.unreadCount}
+                        onPress={() => setShowNotificationCenter(true)}
+                        animateOnNewNotification={true}
+                      />
+                      <TouchableOpacity
+                        onPress={() => {
+                          setIsRefreshing(true);
+                          refreshDashboardData();
+                        }}
+                        disabled={isRefreshing}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 8,
+                          backgroundColor: '#E3F2FD',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          borderWidth: 1,
+                          borderColor: '#0b7fab',
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        {isRefreshing ? (
+                          <ActivityIndicator size="small" color="#0b7fab" />
+                        ) : (
+                          <Image
+                            source={require('../../assets/images/icon/refresh.png')}
+                            style={{ width: 24, height: 24, resizeMode: 'contain' }}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {/* Stats Panel - from Supabase */}
@@ -848,9 +902,41 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
                 styles={styles}
                 doctorId={user.id}
+                onAppointmentCreated={(patientName, service, time, appointmentId, patientId, doctorId) => {
+                  // Trigger notification when appointment is created
+                  const notification = notifyAppointmentCreated(
+                    patientName,
+                    service,
+                    time,
+                    appointmentId,
+                    patientId,
+                    doctorId
+                  );
+                  notificationState.actions.addNotification(notification);
+                }}
+                onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
+                  // Trigger notification when appointment status is updated
+                  const notification = notifyAppointmentStatusChanged(
+                    status,
+                    patientName,
+                    appointmentId,
+                    patientId,
+                    doctorId
+                  );
+                  notificationState.actions.addNotification(notification);
+                }}
               />
             ) : (
-              <SettingsTab user={doctorProfile} onUpdateProfile={handleUpdateProfile} styles={styles} />
+              <SettingsTab 
+                user={doctorProfile} 
+                onUpdateProfile={handleUpdateProfile} 
+                styles={styles}
+                onProfileUpdated={(doctorName, doctorId) => {
+                  // Trigger notification when doctor profile is updated
+                  const notification = notifyDoctorProfileUpdated(doctorName, doctorId);
+                  notificationState.actions.addNotification(notification);
+                }}
+              />
             )}
           </View>
 
@@ -869,6 +955,26 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 setEditedPatient({ ...viewingPatient });
                 setIsEditingPatient(true);
               }
+            }}
+            onMedicalIntakeUpdated={(patientName, patientId) => {
+              // Trigger notification when medical intake is updated
+              const notification = notifyMedicalIntakeUpdated(
+                patientName,
+                patientId,
+                patientId
+              );
+              notificationState.actions.addNotification(notification);
+            }}
+            onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
+              // Trigger notification when appointment status is updated
+              const notification = notifyAppointmentStatusChanged(
+                status,
+                patientName,
+                appointmentId,
+                patientId,
+                doctorId
+              );
+              notificationState.actions.addNotification(notification);
             }}
           />
 
@@ -985,6 +1091,59 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 14, fontWeight: '600' }}>Loading...</Text>
             </View>
           )}
+
+          {/* Notification Center Modal */}
+          <Modal
+            visible={showNotificationCenter}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setShowNotificationCenter(false)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+              <View style={{ flex: 1 }}>
+                {/* Modal Header */}
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  backgroundColor: '#fff',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e0e0e0',
+                }}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>
+                    Notifications
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowNotificationCenter(false)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      backgroundColor: '#f0f0f0',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 18, color: '#666' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Notification List */}
+                <NotificationCenter
+                  notifications={notificationState.notifications}
+                  unreadCount={notificationState.unreadCount}
+                  isLoading={notificationState.isLoading}
+                  error={notificationState.error}
+                  onMarkAsRead={notificationState.actions.markAsRead}
+                  onMarkAllAsRead={notificationState.actions.markAllAsRead}
+                  onDeleteNotification={notificationState.actions.deleteNotification}
+                  onClearAll={notificationState.actions.clearAll}
+                />
+              </View>
+            </SafeAreaView>
+          </Modal>
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -1123,6 +1282,7 @@ const styles = StyleSheet.create({
 
   contentArea: {
     flex: 1,
+    marginTop: 35,
   },
 
   scrollContent: {
