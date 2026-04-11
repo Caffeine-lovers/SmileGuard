@@ -60,7 +60,7 @@ export interface DashboardAppointment {
   notes: string;
   imageUrl: string | number;
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
@@ -130,13 +130,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [patients, setPatients] = useState<DashboardAppointment[]>([]);
   const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
 
-  // Filter today's appointments - exclude completed and cancelled ones
+  // Filter today's appointments - exclude completed, cancelled, no-show, and declined ones
   const todayAppointments = appointments
     .filter(apt => 
       apt.date === today && 
       apt.status !== 'completed' && 
       apt.status !== 'cancelled' && 
-      apt.status !== 'no-show'
+      apt.status !== 'no-show' &&
+      apt.status !== 'declined'
     )
     .sort((a, b) => {
       // Convert time strings (e.g., "09:30 AM" or "2:30 PM") to comparable format
@@ -171,10 +172,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   // Update selectedPatient whenever todayAppointments changes
   useEffect(() => {
-    if (todayAppointments.length > 0 && !selectedPatient) {
+    if (todayAppointments.length > 0) {
       setSelectedPatient(todayAppointments[0]);
+    } else {
+      // If no today's appointments, clear selection
+      setSelectedPatient(null);
     }
-  }, [todayAppointments, selectedPatient]);
+  }, [todayAppointments]);
 
   // Auto-show patient details when a patient is selected
   useEffect(() => {
@@ -234,7 +238,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           email: apt.profiles?.email || '',
           notes: apt.notes || '',
           imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
           patient_id: apt.patient_id,
           dentist_id: apt.dentist_id,
           medicalIntake: apt.patient_profile ? {
@@ -274,7 +278,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           email: apt.profiles?.email || '',
           notes: apt.notes || '',
           imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
           patient_id: apt.patient_id,
           dentist_id: apt.dentist_id,
           medicalIntake: apt.patient_profile ? {
@@ -295,13 +299,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         }));
         setAppointments(transformedAppointments);
         
-        // Calculate stats from the actual appointments data - COUNT ALL REGARDLESS OF STATUS
+        // Calculate stats excluding declined appointments
+        const appointmentsExcludingDeclined = transformedAppointments.filter(apt => apt.status !== 'declined');
         const calculatedStats = {
-          total: transformedAppointments.length,
-          scheduled: transformedAppointments.filter(a => a.status === 'scheduled').length,
-          completed: transformedAppointments.filter(a => a.status === 'completed').length,
-          cancelled: transformedAppointments.filter(a => a.status === 'cancelled').length,
-          noShow: transformedAppointments.filter(a => a.status === 'no-show').length,
+          total: appointmentsExcludingDeclined.length,
+          scheduled: appointmentsExcludingDeclined.filter(a => a.status === 'scheduled').length,
+          completed: appointmentsExcludingDeclined.filter(a => a.status === 'completed').length,
+          cancelled: appointmentsExcludingDeclined.filter(a => a.status === 'cancelled').length,
+          noShow: appointmentsExcludingDeclined.filter(a => a.status === 'no-show').length,
         };
         setStats(calculatedStats);
 
@@ -386,46 +391,59 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   };
 
   const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
-    try {
-      if (!user?.id) {
-        Alert.alert('Error', 'Doctor ID not found');
-        return;
-      }
-
-      // Update the appointment with the current doctor's ID
-      const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', user.id, {
-        dentist_id: user.id
-      });
-      
-      if (!result.success) {
-        Alert.alert('Error', result.message);
-        return;
-      }
-
-      // Remove from requests list
-      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-
-      // Add to appointments list
-      setAppointments((prev) => [...prev, { ...request, dentist_id: user.id }]);
-
-      // Trigger manual notification for accepting request
-      const notification = createManualNotification(
-        'appointment-updated',
-        'Appointment Accepted',
-        `You accepted the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
+    Alert.alert(
+      'Accept Request',
+      `Accept this appointment request with ${request.name} for ${formatAppointmentDate(request.date)}?`,
+      [
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
         {
-          appointmentId: request.id,
-          patientId: request.patient_id,
-          action: 'UPDATE',
-        }
-      );
-      notificationState.actions.addNotification(notification);
+          text: 'Accept',
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Error', 'Doctor ID not found');
+                return;
+              }
 
-      Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to accept appointment request');
-      console.error('Error accepting appointment request:', error);
-    }
+              // Update the appointment with the current doctor's ID
+              const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', user.id, {
+                dentist_id: user.id
+              });
+      
+              if (!result.success) {
+                Alert.alert('Error', result.message);
+                return;
+              }
+
+              // Remove from requests list
+              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              // Add to appointments list
+              setAppointments((prev) => [...prev, { ...request, dentist_id: user.id }]);
+
+              // Trigger manual notification for accepting request
+              const notification = createManualNotification(
+                'appointment-updated',
+                'Appointment Accepted',
+                `You accepted the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
+                {
+                  appointmentId: request.id,
+                  patientId: request.patient_id,
+                  action: 'UPDATE',
+                }
+              );
+              notificationState.actions.addNotification(notification);
+
+              Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to accept appointment request');
+              console.error('Error accepting appointment request:', error);
+            }
+          },
+          style: 'default',
+        },
+      ]
+    );
   };
 
   const handleDeclineAppointmentRequest = async (request: DashboardAppointment) => {
@@ -436,8 +454,42 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         { text: 'Keep', onPress: () => {}, style: 'cancel' },
         {
           text: 'Decline',
-          onPress: () => {
-            setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Error', 'Doctor ID not found');
+                return;
+              }
+
+              // Update the appointment status to 'declined'
+              const result = await updateDoctorAppointmentStatus(request.id, 'declined', user.id);
+
+              if (!result?.success) {
+                Alert.alert('Error', result?.message || 'Failed to decline appointment');
+                return;
+              }
+
+              // Remove from requests list
+              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              // Trigger notification for declining request
+              const notification = createManualNotification(
+                'appointment-declined',
+                'Appointment Declined',
+                `You declined the appointment request with ${request.name}`,
+                {
+                  appointmentId: request.id,
+                  patientId: request.patient_id,
+                  action: 'UPDATE',
+                }
+              );
+              notificationState.actions.addNotification(notification);
+
+              Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to decline appointment request');
+              console.error('Error declining appointment request:', error);
+            }
           },
           style: 'destructive',
         },
@@ -476,67 +528,96 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const handleSavePatient = async () => {
     if (editedPatient) {
-      // Save to Supabase first
-      const result = await updatePatientMedicalIntake(editedPatient.patient_id || '', {
-        gender: editedPatient.gender,
-        phone: editedPatient.contact,
-        address: editedPatient.medicalIntake?.address,
-        dateOfBirth: editedPatient.medicalIntake?.dateOfBirth,
-        emergencyContactName: editedPatient.medicalIntake?.emergencyContactName,
-        emergencyContactPhone: editedPatient.medicalIntake?.emergencyContactPhone,
-        allergies: editedPatient.medicalIntake?.allergies,
-        currentMedications: editedPatient.medicalIntake?.currentMedications,
-        medicalConditions: editedPatient.medicalIntake?.medicalConditions,
-        pastSurgeries: editedPatient.medicalIntake?.pastSurgeries,
-        smokingStatus: editedPatient.medicalIntake?.smokingStatus,
-        pregnancyStatus: editedPatient.medicalIntake?.pregnancyStatus,
-        notes: editedPatient.notes,
-      });
-
-      if (!result.success) {
-        Alert.alert('Error', result.message);
-        return;
-      }
-
-      // Add notification for patient update
-      const medicalUpdateNotification = createManualNotification(
-        'medical-intake-updated',
-        'Medical Intake Updated',
-        `${editedPatient.name} medical records have been updated`,
-        {
-          patientId: editedPatient.patient_id,
-          tableName: 'medical_intake',
-          recordId: editedPatient.patient_id,
-          action: 'UPDATE',
-        }
-      );
-      notificationState.actions.addNotification(medicalUpdateNotification);
-
-      setPatients((prev) =>
-        prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
-      );
-      
-      if (editedPatient.status !== 'scheduled' && editedPatient.date === today) {
-        const updatedAppointments = appointments.filter(apt => apt.id !== editedPatient.id);
-        setAppointments(updatedAppointments);
+      try {
+        // Check if status was changed
+        const statusChanged = originalPatient && originalPatient.status !== editedPatient.status;
         
-        const remainingTodayAppointments = updatedAppointments.filter(apt => apt.date === today);
-        if (remainingTodayAppointments.length > 0) {
-          setSelectedPatient(remainingTodayAppointments[0]);
-        } else {
-          setSelectedPatient(updatedAppointments.length > 0 ? updatedAppointments[0] : null);
+        // Update medical intake information
+        const result = await updatePatientMedicalIntake(editedPatient.patient_id || '', {
+          gender: editedPatient.gender,
+          phone: editedPatient.contact,
+          address: editedPatient.medicalIntake?.address,
+          dateOfBirth: editedPatient.medicalIntake?.dateOfBirth,
+          emergencyContactName: editedPatient.medicalIntake?.emergencyContactName,
+          emergencyContactPhone: editedPatient.medicalIntake?.emergencyContactPhone,
+          allergies: editedPatient.medicalIntake?.allergies,
+          currentMedications: editedPatient.medicalIntake?.currentMedications,
+          medicalConditions: editedPatient.medicalIntake?.medicalConditions,
+          pastSurgeries: editedPatient.medicalIntake?.pastSurgeries,
+          smokingStatus: editedPatient.medicalIntake?.smokingStatus,
+          pregnancyStatus: editedPatient.medicalIntake?.pregnancyStatus,
+          notes: editedPatient.notes,
+        });
+
+        if (!result.success) {
+          Alert.alert('Error', result.message);
+          return;
         }
-      } else {
-        setAppointments((prev) =>
-          prev.map((apt) => (apt.id === editedPatient.id ? editedPatient : apt))
+
+        // If status changed, also update the appointment status in Supabase
+        if (statusChanged && user?.id) {
+          const statusUpdateResult = await updateDoctorAppointmentStatus(
+            editedPatient.id,
+            editedPatient.status || 'scheduled',
+            user.id
+          );
+
+          if (!statusUpdateResult.success) {
+            Alert.alert('Error', `Failed to update appointment status: ${statusUpdateResult.message}`);
+            return;
+          }
+
+          // Trigger notification if status changed to non-scheduled
+          if (editedPatient.status && editedPatient.status !== 'scheduled' && editedPatient.status !== 'declined') {
+            const notification = notifyAppointmentStatusChanged(
+              editedPatient.status as 'completed' | 'cancelled' | 'no-show',
+              editedPatient.name,
+              editedPatient.id,
+              editedPatient.patient_id || '',
+              user.id
+            );
+            notificationState.actions.addNotification(notification);
+          }
+        }
+
+        // Add notification for patient update
+        const medicalUpdateNotification = createManualNotification(
+          'medical-intake-updated',
+          'Medical Intake Updated',
+          `${editedPatient.name} medical records have been updated`,
+          {
+            patientId: editedPatient.patient_id,
+            tableName: 'medical_intake',
+            recordId: editedPatient.patient_id,
+            action: 'UPDATE',
+          }
         );
-        setSelectedPatient(editedPatient);
+        notificationState.actions.addNotification(medicalUpdateNotification);
+
+        setPatients((prev) =>
+          prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
+        );
+        
+        if (statusChanged && editedPatient.status !== 'scheduled') {
+          // Remove from appointments if status changed to non-scheduled
+          const updatedAppointments = appointments.filter(apt => apt.id !== editedPatient.id);
+          setAppointments(updatedAppointments);
+          // Let the useEffect set selectedPatient to the first remaining today's appointment
+        } else {
+          // Status unchanged or changed to 'scheduled', keep/update in appointments
+          setAppointments((prev) =>
+            prev.map((apt) => (apt.id === editedPatient.id ? editedPatient : apt))
+          );
+        }
+        
+        setIsEditingPatient(false);
+        setEditedPatient(null);
+        setOriginalPatient(null);
+        Alert.alert("Success", "Patient information and appointment status updated successfully.");
+      } catch (error) {
+        console.error('Error saving patient:', error);
+        Alert.alert("Error", "Failed to save patient information. Please try again.");
       }
-      
-      setIsEditingPatient(false);
-      setEditedPatient(null);
-      setOriginalPatient(null);
-      Alert.alert("Success", "Patient information updated successfully.");
     }
   };
 
@@ -546,7 +627,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setOriginalPatient(null);
   };
 
-  const handleUpdateAppointmentStatus = async (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
+  const handleUpdateAppointmentStatus = async (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined') => {
     try {
       if (!user?.id) {
         Alert.alert('Error', 'Doctor ID not found');
@@ -565,12 +646,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
       );
 
-      // Trigger manual notification for status change
-      if (status !== 'scheduled') {
+      // Trigger manual notification for status change (only for supported statuses)
+      if (status !== 'scheduled' && status !== 'declined') {
         const appointment = appointments.find(apt => apt.id === appointmentId);
         if (appointment) {
           const notification = notifyAppointmentStatusChanged(
-            status,
+            status as 'completed' | 'cancelled' | 'no-show',
             appointment.name,
             appointmentId,
             appointment.patient_id || '',
@@ -1111,13 +1192,27 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 }}
                 onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
                   // Trigger notification when appointment status is updated
-                  const notification = notifyAppointmentStatusChanged(
-                    status,
-                    patientName,
-                    appointmentId,
-                    patientId,
-                    doctorId
-                  );
+                  let notification;
+                  if (status === 'declined') {
+                    notification = createManualNotification(
+                      'appointment-declined',
+                      'Appointment Declined',
+                      `${patientName}'s appointment has been declined`,
+                      {
+                        appointmentId,
+                        patientId,
+                        action: 'UPDATE',
+                      }
+                    );
+                  } else {
+                    notification = notifyAppointmentStatusChanged(
+                      status as 'completed' | 'cancelled' | 'no-show',
+                      patientName,
+                      appointmentId,
+                      patientId,
+                      doctorId
+                    );
+                  }
                   notificationState.actions.addNotification(notification);
                 }}
               />
@@ -1175,13 +1270,27 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             }}
             onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
               // Trigger notification when appointment status is updated
-              const notification = notifyAppointmentStatusChanged(
-                status,
-                patientName,
-                appointmentId,
-                patientId,
-                doctorId
-              );
+              let notification;
+              if (status === 'declined') {
+                notification = createManualNotification(
+                  'appointment-declined',
+                  'Appointment Declined',
+                  `${patientName}'s appointment has been declined`,
+                  {
+                    appointmentId,
+                    patientId,
+                    action: 'UPDATE',
+                  }
+                );
+              } else {
+                notification = notifyAppointmentStatusChanged(
+                  status as 'completed' | 'cancelled' | 'no-show',
+                  patientName,
+                  appointmentId,
+                  patientId,
+                  doctorId
+                );
+              }
               notificationState.actions.addNotification(notification);
             }}
           />

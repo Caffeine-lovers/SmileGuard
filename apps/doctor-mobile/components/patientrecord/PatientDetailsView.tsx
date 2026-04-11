@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getPatientMedicalIntake, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalIntake } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -31,7 +31,7 @@ export type AppointmentType = {
   notes: string;
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show'; // Appointment status
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'; // Appointment status
   // Medical intake fields
   dateOfBirth?: string;
   address?: string;
@@ -52,7 +52,7 @@ interface PatientDetailsViewProps {
   onClose: () => void;
   onEdit?: () => void;
   onMedicalIntakeUpdated?: (patientName: string, patientId: string) => void;
-  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
 const formatDate = (dateStr: string): string => {
@@ -115,7 +115,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
     try {
       // Load both in parallel
       const [intake, appts] = await Promise.all([
-        getPatientMedicalIntake(patientId),
+        getPatientMedicalInfo(patientId),
         getPatientAppointments(patientId),
       ]);
 
@@ -150,7 +150,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const loadMedicalIntake = async (patientId: string) => {
     setLoading(true);
     try {
-      const intake = await getPatientMedicalIntake(patientId);
+      const intake = await getPatientMedicalInfo(patientId);
       setMedicalIntake(intake);
       console.log('Loaded medical intake:', intake);
     } catch (error) {
@@ -433,8 +433,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             setEditedPatient(null);
           }}
           onSave={async (updatedPatient) => {
-            // Update to Supabase
-            const result = await updatePatientMedicalIntake(patient?.id || '', {
+            // Update to Supabase (automatically handles dummy accounts vs existing profiles)
+            const result = await updatePatientMedicalInfo(patient?.id || '', {
               dateOfBirth: updatedPatient.dateOfBirth,
               gender: updatedPatient.gender,
               phone: updatedPatient.contact,
@@ -497,14 +497,23 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 // Helper Component for Appointment Rows
 function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (appt: any) => void }) {
-  const apptDate = new Date(appointment.appointment_date);
-  const formattedDate = apptDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formattedDate = appointment.appointment_date && appointment.appointment_time
+    ? (() => {
+        const dateStr = appointment.appointment_date; // YYYY-MM-DD
+        const timeStr = appointment.appointment_time; // HH:MM
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hour, minute] = timeStr.split(':').map(Number);
+        const date = new Date(year, month - 1, day, hour, minute);
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+      })()
+    : 'Invalid date';
   
   const statusColors: { [key: string]: string } = {
     scheduled: '#FFC107',
     completed: '#4CAF50',
     cancelled: '#F44336',
     'no-show': '#9C27B0',
+    declined: '#FF6F00',
   };
 
   // Ensure status has a default value and handle null/undefined cases

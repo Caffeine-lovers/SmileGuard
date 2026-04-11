@@ -18,14 +18,15 @@ interface AppointmentEditProps {
   doctorId: string;
   onClose: () => void;
   onSave: () => void;
-  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
-const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show'> = [
+const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'> = [
   'scheduled',
   'completed',
   'cancelled',
   'no-show',
+  'declined',
 ];
 
 const STATUS_COLORS: { [key: string]: string } = {
@@ -33,6 +34,7 @@ const STATUS_COLORS: { [key: string]: string } = {
   completed: '#4CAF50',
   cancelled: '#F44336',
   'no-show': '#9C27B0',
+  declined: '#FF6F00',
 };
 
 export default function AppointmentEdit({
@@ -43,7 +45,7 @@ export default function AppointmentEdit({
   onSave,
   onAppointmentStatusUpdated,
 }: AppointmentEditProps) {
-  const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show'>('scheduled');
+  const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('scheduled');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -116,17 +118,14 @@ export default function AppointmentEdit({
   if (!appointment) return null;
 
   // Use separate date and time fields if available
-  const formattedDate = appointment.date && appointment.time 
-    ? (() => {
-        const dateObj = new Date(appointment.date);
-        const dateFormatted = dateObj.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        return `${dateFormatted} ${appointment.time}`;
-      })()
-    : new Date(appointment.appointment_date).toLocaleString('en-US', {
+  const formattedDate = (() => {
+    if (appointment.appointment_date && appointment.appointment_time) {
+      const dateStr = appointment.appointment_date; // YYYY-MM-DD
+      const timeStr = appointment.appointment_time; // HH:MM
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const [hour, minute] = timeStr.split(':').map(Number);
+      const date = new Date(year, month - 1, day, hour, minute);
+      return date.toLocaleString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -134,6 +133,9 @@ export default function AppointmentEdit({
         minute: '2-digit',
         hour12: true,
       });
+    }
+    return 'Invalid date';
+  })();
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -224,6 +226,9 @@ export default function AppointmentEdit({
               )}
               {selectedStatus === 'no-show' && (
                 <Text style={styles.descriptionText}>Patient did not show up</Text>
+              )}
+              {selectedStatus === 'declined' && (
+                <Text style={styles.descriptionText}>Appointment has been declined</Text>
               )}
             </View>
           </View>

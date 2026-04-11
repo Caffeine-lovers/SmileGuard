@@ -8,6 +8,7 @@ export type NotificationType =
   | 'appointment-updated'
   | 'appointment-cancelled'
   | 'appointment-completed'
+  | 'appointment-declined'
   | 'patient-updated'
   | 'medical-intake-updated'
   | 'doctor-profile-updated'

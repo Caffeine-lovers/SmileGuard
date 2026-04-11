@@ -24,6 +24,17 @@ export interface DummyAccount {
   created_at?: string;
   updated_at?: string;
   last_used_at?: string;
+  // Medical fields
+  date_of_birth?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  allergies?: string;
+  current_medications?: string;
+  medical_conditions?: string;
+  past_surgeries?: string;
+  smoking_status?: string;
+  pregnancy_status?: string;
 }
 
 /**

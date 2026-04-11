@@ -34,7 +34,7 @@ interface AppointmentsTabProps {
   styles: any;
   doctorId?: string;
   onAppointmentCreated?: (patientName: string, service: string, time: string, appointmentId: string, patientId: string, doctorId: string) => void;
-  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
 export default function AppointmentsTab({
@@ -131,15 +131,17 @@ export default function AppointmentsTab({
         
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
+          // Filter out declined appointments before storing
+          const filtered = transformed.filter(apt => apt.status !== 'declined');
           
           // Log breakdown by status
           const statusBreakdown = {
-            scheduled: transformed.filter(apt => apt.status === 'scheduled').length,
-            completed: transformed.filter(apt => apt.status === 'completed').length,
-            cancelled: transformed.filter(apt => apt.status === 'cancelled').length,
-            'no-show': transformed.filter(apt => apt.status === 'no-show').length,
+            scheduled: filtered.filter(apt => apt.status === 'scheduled').length,
+            completed: filtered.filter(apt => apt.status === 'completed').length,
+            cancelled: filtered.filter(apt => apt.status === 'cancelled').length,
+            'no-show': filtered.filter(apt => apt.status === 'no-show').length,
           };
-          setAllMonthAppointments(transformed);
+          setAllMonthAppointments(filtered);
         } else {
           setAllMonthAppointments([]);
         }
@@ -219,11 +221,12 @@ export default function AppointmentsTab({
   const getAppointmentCountForDate = (dateStr: string) => {
     // Use all month appointments for calendar counts
     const appointmentsToUse = allMonthAppointments;
-    let appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
+    // Exclude declined appointments from calendar counts
+    let appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr && apt.status !== 'declined');
     
     // Apply the active filter to calendar counts
     if (appointmentFilterBy === 'all') {
-      // Show all appointments including cancelled
+      // Show all appointments excluding declined
       const count = appointmentsForDate.length;
       console.log(`✅ Calendar count for ${dateStr}: ${count} (filter: all, total appointments: ${appointmentsForDate.map(a => a.status).join(', ') || 'none'})`);
       return count;
@@ -362,17 +365,19 @@ export default function AppointmentsTab({
                 const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
                 if (monthAppointments.length > 0) {
                   const transformed = monthAppointments.map(transformBackendAppointment);
+                  // Filter out declined appointments before storing
+                  const filtered = transformed.filter(apt => apt.status !== 'declined');
                   
                   // Log breakdown by status to verify cancelled appointments are included
                   const statusBreakdown = {
-                    scheduled: transformed.filter(apt => apt.status === 'scheduled').length,
-                    completed: transformed.filter(apt => apt.status === 'completed').length,
-                    cancelled: transformed.filter(apt => apt.status === 'cancelled').length,
-                    'no-show': transformed.filter(apt => apt.status === 'no-show').length,
+                    scheduled: filtered.filter(apt => apt.status === 'scheduled').length,
+                    completed: filtered.filter(apt => apt.status === 'completed').length,
+                    cancelled: filtered.filter(apt => apt.status === 'cancelled').length,
+                    'no-show': filtered.filter(apt => apt.status === 'no-show').length,
                   };
                   console.log('📊 Status breakdown after cancellation:', statusBreakdown);
                   
-                  setAllMonthAppointments(transformed);
+                  setAllMonthAppointments(filtered);
                 } else {
                   setAllMonthAppointments([]);
                 }
@@ -455,17 +460,19 @@ export default function AppointmentsTab({
       const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
       if (monthAppointments.length > 0) {
         const transformed = monthAppointments.map(transformBackendAppointment);
+        // Filter out declined appointments before storing
+        const filtered = transformed.filter(apt => apt.status !== 'declined');
         
         // Log breakdown by status
         const statusBreakdown = {
-          scheduled: transformed.filter(apt => apt.status === 'scheduled').length,
-          completed: transformed.filter(apt => apt.status === 'completed').length,
-          cancelled: transformed.filter(apt => apt.status === 'cancelled').length,
-          'no-show': transformed.filter(apt => apt.status === 'no-show').length,
+          scheduled: filtered.filter(apt => apt.status === 'scheduled').length,
+          completed: filtered.filter(apt => apt.status === 'completed').length,
+          cancelled: filtered.filter(apt => apt.status === 'cancelled').length,
+          'no-show': filtered.filter(apt => apt.status === 'no-show').length,
         };
         console.log('📊 Status breakdown on refresh:', statusBreakdown);
         
-        setAllMonthAppointments(transformed);
+        setAllMonthAppointments(filtered);
       } else {
         setAllMonthAppointments([]);
       }
@@ -522,6 +529,11 @@ export default function AppointmentsTab({
   // Filter appointments - only use real Supabase data (no fallback to sample data)
   const appointmentsToDisplay = fetchedAppointments;
   const filteredAppointments = appointmentsToDisplay.filter((apt) => {
+    // Exclude declined appointments from display
+    if (apt.status === 'declined') {
+      return false;
+    }
+
     const matchesSearch =
       apt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       apt.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -585,7 +597,7 @@ export default function AppointmentsTab({
                 gap: 6,
               }}
             >
-              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>+ Add</Text>
+              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>Add</Text>
             </TouchableOpacity>
 
             {/* Refresh Button */}

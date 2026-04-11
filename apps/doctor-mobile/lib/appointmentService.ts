@@ -13,7 +13,14 @@ export async function cancelAppointment(
       return { success: false, message: 'Cancellation failed. Please try again.' };
     }
 
-    return { success: true, message: 'Appointment cancelled successfully.' };
+    // RPC returns TABLE type, so data is an array
+    const result = Array.isArray(data) && data.length > 0 ? data[0] : data;
+    
+    if (result?.success) {
+      return { success: true, message: 'Appointment cancelled successfully.' };
+    } else {
+      return { success: false, message: 'Cancellation failed. Please try again.' };
+    }
   } catch (err) {
     return { success: false, message: 'Cancellation failed. Please try again.' };
   }
@@ -31,7 +38,7 @@ export interface DoctorAppointment {
   service: string;
   appointment_date: string; // YYYY-MM-DD
   appointment_time: string;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -241,7 +248,7 @@ async function fallbackGetDoctorAppointments(
 
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
-        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientName = dummyAccount?.full_name || apt.dummy_account_id;
         patientAvatar = dummyAccount?.avatar_url || null;
       } else if (apt.patient_id) {
         const profile = profileMap.get(apt.patient_id);
@@ -457,7 +464,7 @@ async function fallbackGetAppointmentsByDate(
 // ─────────────────────────────────────────
 export async function updateDoctorAppointmentStatus(
   appointmentId: string,
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
   doctorId: string,
   additionalUpdates?: { dentist_id?: string }
 ): Promise<{ success: boolean; message: string }> {
@@ -476,6 +483,14 @@ export async function updateDoctorAppointmentStatus(
     if (error) {
       console.error('❌ Error updating appointment status with dentist_id:', error);
       return { success: false, message: `Failed to update: ${error.message}` };
+    }
+
+    // RPC returns TABLE type, so data is an array
+    const result = Array.isArray(data) && data.length > 0 ? data[0] : data;
+    
+    if (!result || !result.success) {
+      console.error('❌ RPC returned failure:', result);
+      return { success: false, message: result?.message || 'Failed to update appointment' };
     }
 
     console.log('✅ Appointment status and dentist_id updated via RPC:', { appointmentId, status, dentist_id: currentUserId });
@@ -574,7 +589,7 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
 
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
-        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientName = dummyAccount?.full_name || apt.dummy_account_id;
         patientAvatar = dummyAccount?.avatar_url || null;
       } else if (apt.patient_id) {
         profile = profileMap.get(apt.patient_id);

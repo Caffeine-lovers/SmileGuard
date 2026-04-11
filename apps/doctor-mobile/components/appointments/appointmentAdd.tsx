@@ -110,11 +110,12 @@ export default function AppointmentAdd({
       setSelectedService('');
       setSelectedStatus('scheduled');
       setNotes('');
-      // Initialize date picker with current date as default
-      const today = new Date();
-      setSelectedYear(today.getFullYear());
-      setSelectedMonth(today.getMonth() + 1);
-      setSelectedDay(today.getDate());
+      // Initialize date picker with tomorrow as default (1 day advance)
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setSelectedYear(tomorrow.getFullYear());
+      setSelectedMonth(tomorrow.getMonth() + 1);
+      setSelectedDay(tomorrow.getDate());
       setSelectedHour(10);
       setSelectedMinute(0);
     }
@@ -153,18 +154,20 @@ export default function AppointmentAdd({
 
   // Adjust selectedMonth and selectedDay based on selected year and month
   useEffect(() => {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const currentDay = new Date().getDate();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowYear = tomorrow.getFullYear();
+    const tomorrowMonth = tomorrow.getMonth() + 1;
+    const tomorrowDay = tomorrow.getDate();
 
-    // If selected year is current year and selected month is before current month, reset to current month
-    if (selectedYear === currentYear && selectedMonth < currentMonth) {
-      setSelectedMonth(currentMonth);
+    // If selected year is current year and selected month is before tomorrow's month, reset to tomorrow's month
+    if (selectedYear === tomorrowYear && selectedMonth < tomorrowMonth) {
+      setSelectedMonth(tomorrowMonth);
     }
 
-    // If selected year and month are current year/month and selected day is before today, reset to today
-    if (selectedYear === currentYear && selectedMonth === currentMonth && selectedDay < currentDay) {
-      setSelectedDay(currentDay);
+    // If selected year and month are tomorrow's year/month and selected day is before tomorrow, reset to tomorrow
+    if (selectedYear === tomorrowYear && selectedMonth === tomorrowMonth && selectedDay < tomorrowDay) {
+      setSelectedDay(tomorrowDay);
     }
 
     // Adjust selectedDay if it exceeds max days in the selected month
@@ -355,9 +358,11 @@ export default function AppointmentAdd({
   };
 
   const handleDatePickerConfirm = () => {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const currentDay = new Date().getDate();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowYear = tomorrow.getFullYear();
+    const tomorrowMonth = tomorrow.getMonth() + 1;
+    const tomorrowDay = tomorrow.getDate();
 
     if (isUnavailableDay(selectedYear, selectedMonth, selectedDay)) {
       Alert.alert('Clinic Closed', 'The clinic is closed on Sundays and Tuesdays. Please select another day.');
@@ -366,17 +371,17 @@ export default function AppointmentAdd({
 
     // Ensure month is valid for selected year
     let validMonth = selectedMonth;
-    if (selectedYear === currentYear && validMonth < currentMonth) {
-      validMonth = currentMonth;
+    if (selectedYear === tomorrowYear && validMonth < tomorrowMonth) {
+      validMonth = tomorrowMonth;
     }
 
     // Ensure day is valid for the selected month
     const maxDays = getDaysInMonth(selectedYear, validMonth);
     let validDay = Math.min(selectedDay, maxDays);
 
-    // Ensure day is not in the past for current year/month
-    if (selectedYear === currentYear && validMonth === currentMonth && validDay < currentDay) {
-      validDay = currentDay;
+    // Ensure day is not in the past for tomorrow's year/month (1 day advance)
+    if (selectedYear === tomorrowYear && validMonth === tomorrowMonth && validDay < tomorrowDay) {
+      validDay = tomorrowDay;
     }
 
     const dateString = `${selectedYear}-${String(validMonth).padStart(2, '0')}-${String(validDay).padStart(2, '0')}`;
@@ -922,11 +927,13 @@ export default function AppointmentAdd({
                     <ScrollView style={styles.pickerScroll}>
                       {Array.from({ length: 12 }, (_, i) => i + 1)
                         .filter((month) => {
-                          const currentYear = new Date().getFullYear();
-                          const currentMonth = new Date().getMonth() + 1;
-                          // If selected year is current year, only show months from now onwards
-                          if (selectedYear === currentYear) {
-                            return month >= currentMonth;
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          const tomorrowYear = tomorrow.getFullYear();
+                          const tomorrowMonth = tomorrow.getMonth() + 1;
+                          // If selected year is tomorrow's year, only show months from tomorrow onwards
+                          if (selectedYear === tomorrowYear) {
+                            return month >= tomorrowMonth;
                           }
                           // If selected year is in the future, show all months
                           return true;
@@ -951,12 +958,14 @@ export default function AppointmentAdd({
                     <ScrollView style={styles.pickerScroll}>
                       {Array.from({ length: getDaysInMonth(selectedYear, selectedMonth) }, (_, i) => i + 1)
                         .filter((day) => {
-                          const currentYear = new Date().getFullYear();
-                          const currentMonth = new Date().getMonth() + 1;
-                          const currentDay = new Date().getDate();
-                          // If selected year is current year and selected month is current month, only show days from today onwards
-                          if (selectedYear === currentYear && selectedMonth === currentMonth) {
-                            return day >= currentDay;
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          const tomorrowYear = tomorrow.getFullYear();
+                          const tomorrowMonth = tomorrow.getMonth() + 1;
+                          const tomorrowDay = tomorrow.getDate();
+                          // If selected year is tomorrow's year and selected month is tomorrow's month, only show days from tomorrow onwards
+                          if (selectedYear === tomorrowYear && selectedMonth === tomorrowMonth) {
+                            return day >= tomorrowDay;
                           }
                           // Otherwise show all days in that month
                           return true;

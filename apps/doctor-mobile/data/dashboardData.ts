@@ -7,7 +7,7 @@
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
 
 export interface Appointment {
   id: string;

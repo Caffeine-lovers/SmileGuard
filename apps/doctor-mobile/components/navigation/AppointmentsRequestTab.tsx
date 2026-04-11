@@ -91,51 +91,64 @@ export default function AppointmentsRequestTab({
   );
 
   const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
-    try {
-      if (!userId) {
-        Alert.alert('Error', 'Doctor ID not found');
-        return;
-      }
-
-      // Update the appointment with the current doctor's ID
-      const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', userId, {
-        dentist_id: userId,
-      });
-
-      if (!result.success) {
-        Alert.alert('Error', result.message);
-        return;
-      }
-
-      // Remove from requests list
-      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-
-      // Trigger manual notification for accepting request
-      const notification = createManualNotification(
-        'appointment-updated',
-        'Appointment Accepted',
-        `You accepted the appointment with ${request.name} for ${request.date}`,
+    Alert.alert(
+      'Accept Request',
+      `Accept this appointment request with ${request.name}?`,
+      [
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
         {
-          appointmentId: request.id,
-          patientId: request.patient_id,
-          action: 'UPDATE',
-        }
-      );
+          text: 'Accept',
+          onPress: async () => {
+            try {
+              if (!userId) {
+                Alert.alert('Error', 'Doctor ID not found');
+                return;
+              }
 
-      // Call the callback to add notification to DoctorDashboard
-      if (onRequestAcceptedWithNotification) {
-        onRequestAcceptedWithNotification(notification);
-      }
+              // Update the appointment with the current doctor's ID
+              const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', userId, {
+                dentist_id: userId,
+              });
 
-      if (onRequestAccepted) {
-        onRequestAccepted();
-      }
+              if (!result?.success) {
+                Alert.alert('Error', result?.message || 'Failed to accept appointment');
+                return;
+              }
 
-      Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to accept appointment request');
-      console.error('Error accepting appointment request:', error);
-    }
+              // Remove from requests list
+              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              // Trigger manual notification for accepting request
+              const notification = createManualNotification(
+                'appointment-updated',
+                'Appointment Accepted',
+                `You accepted the appointment with ${request.name} for ${request.date}`,
+                {
+                  appointmentId: request.id,
+                  patientId: request.patient_id,
+                  action: 'UPDATE',
+                }
+              );
+
+              // Call the callback to add notification to DoctorDashboard
+              if (onRequestAcceptedWithNotification) {
+                onRequestAcceptedWithNotification(notification);
+              }
+
+              if (onRequestAccepted) {
+                onRequestAccepted();
+              }
+
+              Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to accept appointment request');
+              console.error('Error accepting appointment request:', error);
+            }
+          },
+          style: 'default',
+        },
+      ]
+    );
   };
 
   const handleDeclineAppointmentRequest = async (request: DashboardAppointment) => {
@@ -146,8 +159,29 @@ export default function AppointmentsRequestTab({
         { text: 'Keep', onPress: () => {}, style: 'cancel' },
         {
           text: 'Decline',
-          onPress: () => {
-            setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+          onPress: async () => {
+            try {
+              if (!userId) {
+                Alert.alert('Error', 'Doctor ID not found');
+                return;
+              }
+
+              // Update the appointment status to 'declined'
+              const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId);
+
+              if (!result?.success) {
+                Alert.alert('Error', result?.message || 'Failed to decline appointment');
+                return;
+              }
+
+              // Remove from requests list
+              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to decline appointment request');
+              console.error('Error declining appointment request:', error);
+            }
           },
           style: 'destructive',
         },

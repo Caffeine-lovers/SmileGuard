@@ -54,6 +54,11 @@ const notificationConfig: Record<
     color: '#4CAF50',
     label: 'Appointment Completed',
   },
+  'appointment-declined': {
+    icon: require('../../assets/images/notification_icon/appointment-cancelled.png'),
+    color: '#FF6F00',
+    label: 'Appointment Declined',
+  },
   'patient-updated': {
     icon: require('../../assets/images/notification_icon/patient-updated.png'),
     color: '#FF9800',

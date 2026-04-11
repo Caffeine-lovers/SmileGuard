@@ -22,6 +22,16 @@ interface FormData {
   phone: string;
   gender: string;
   notes: string;
+  dateOfBirth: string;
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  allergies: string;
+  currentMedications: string;
+  medicalConditions: string;
+  pastSurgeries: string;
+  smokingStatus: string;
+  pregnancyStatus: string;
 }
 
 interface AddPatientProps {
@@ -34,15 +44,87 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
   const currentUser = useCurrentUser();
   const [loading, setLoading] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedDay, setSelectedDay] = useState(new Date().getDate());
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     phone: "",
     gender: "",
     notes: "",
+    dateOfBirth: "",
+    address: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    allergies: "",
+    currentMedications: "",
+    medicalConditions: "",
+    pastSurgeries: "",
+    smokingStatus: "",
+    pregnancyStatus: "",
   });
 
   const genderOptions = ["Male", "Female", "Other"];
+
+  // Helper function to get the number of days in a month
+  const getDaysInMonth = (month: number, year: number): number => {
+    if ([1, 3, 5, 7, 8, 10, 12].includes(month)) return 31; // Jan, Mar, May, Jul, Aug, Oct, Dec
+    if ([4, 6, 9, 11].includes(month)) return 30; // Apr, Jun, Sep, Nov
+    // February
+    if (month === 2) {
+      return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 29 : 28;
+    }
+    return 30;
+  };
+
+  // Get valid days for the selected month/year
+  const getValidDays = (): number[] => {
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  };
+
+  // Ensure selected day is valid for the current month
+  const getValidDay = (): number => {
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    return Math.min(selectedDay, daysInMonth);
+  };
+
+  // Get valid months based on selected year
+  const getValidMonths = (): number[] => {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 1-indexed
+
+    if (selectedYear === currentYear) {
+      return Array.from({ length: currentMonth }, (_, i) => i + 1);
+    }
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  };
+
+  // Get valid days based on selected year and month
+  const getValidDaysWithLimit = (): number[] => {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentDay = currentDate.getDate();
+
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    const maxDays = 
+      selectedYear === currentYear && selectedMonth === currentMonth
+        ? currentDay
+        : daysInMonth;
+
+    return Array.from({ length: maxDays }, (_, i) => i + 1);
+  };
+
+  const handleDatePickerConfirm = () => {
+    const validDay = getValidDay();
+    const dateString = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(validDay).padStart(2, "0")}`;
+    handleInputChange("dateOfBirth", dateString);
+    setShowDatePicker(false);
+  };
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     // Normalize email to lowercase
@@ -110,12 +192,24 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
         .from("dummy_accounts")
         .insert([
           {
-            patient_name: formData.name,
+            username: formData.email.trim().toLowerCase(),
             email: formData.email.trim().toLowerCase(),
+            account_type: "patient",
+            status: "active",
+            patient_name: formData.name,
             phone: formData.phone,
-            gender: formData.gender || "",
             notes: formData.notes || "",
             created_by: currentUser?.name || currentUser?.email || "Unknown Doctor",
+            date_of_birth: formData.dateOfBirth || null,
+            address: formData.address || null,
+            emergency_contact_name: formData.emergencyContactName || null,
+            emergency_contact_phone: formData.emergencyContactPhone || null,
+            allergies: formData.allergies || null,
+            current_medications: formData.currentMedications || null,
+            medical_conditions: formData.medicalConditions || null,
+            past_surgeries: formData.pastSurgeries || null,
+            smoking_status: formData.smokingStatus || null,
+            pregnancy_status: formData.pregnancyStatus || null,
           },
         ])
         .select()
@@ -311,6 +405,185 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
             </View>
           </Modal>
 
+          {/* Medical Information Section */}
+          <View style={{ borderTopWidth: 1, borderTopColor: "#ddd", paddingTop: 16, marginBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#0b7fab", marginBottom: 12 }}>
+              Medical Information
+            </Text>
+
+            {/* Date of Birth */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Date of Birth
+              </Text>
+              <TouchableOpacity
+                style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+                onPress={() => {
+                  // Initialize date picker with current formData value if available
+                  if (formData.dateOfBirth) {
+                    const [year, month, day] = formData.dateOfBirth.split("-").map(Number);
+                    setSelectedYear(year);
+                    setSelectedMonth(month);
+                    setSelectedDay(day);
+                  }
+                  setShowDatePicker(true);
+                }}
+                disabled={loading}
+              >
+                <Text style={{ fontSize: 14, color: formData.dateOfBirth ? "#333" : "#999" }}>
+                  {formData.dateOfBirth || "Select date"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Address */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Address
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab" }]}
+                placeholder="Enter address"
+                placeholderTextColor="#999"
+                value={formData.address}
+                onChangeText={(value) => handleInputChange("address", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Emergency Contact Name */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Emergency Contact Name
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab" }]}
+                placeholder="Enter name"
+                placeholderTextColor="#999"
+                value={formData.emergencyContactName}
+                onChangeText={(value) => handleInputChange("emergencyContactName", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Emergency Contact Phone */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Emergency Contact Phone
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab" }]}
+                placeholder="Enter phone number"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+                value={formData.emergencyContactPhone}
+                onChangeText={(value) => handleInputChange("emergencyContactPhone", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Allergies */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Allergies
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                placeholder="List any allergies (comma separated)"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={3}
+                value={formData.allergies}
+                onChangeText={(value) => handleInputChange("allergies", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Current Medications */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Current Medications
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                placeholder="List current medications"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={3}
+                value={formData.currentMedications}
+                onChangeText={(value) => handleInputChange("currentMedications", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Medical Conditions */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Medical Conditions
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                placeholder="List any medical conditions"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={3}
+                value={formData.medicalConditions}
+                onChangeText={(value) => handleInputChange("medicalConditions", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Past Surgeries */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Past Surgeries
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                placeholder="List any past surgeries"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={3}
+                value={formData.pastSurgeries}
+                onChangeText={(value) => handleInputChange("pastSurgeries", value)}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Smoking Status */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                Smoking Status
+              </Text>
+              <TouchableOpacity
+                style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+                onPress={() => setShowGenderPicker(true)}
+                disabled={loading}
+              >
+                <Text style={{ fontSize: 14, color: formData.smokingStatus ? "#333" : "#999" }}>
+                  {formData.smokingStatus || "Select status"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Pregnancy Status (only if not male) */}
+            {formData.gender?.toLowerCase() !== 'male' && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
+                  Pregnancy Status
+                </Text>
+                <TouchableOpacity
+                  style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+                  disabled={loading}
+                >
+                  <Text style={{ fontSize: 14, color: formData.pregnancyStatus ? "#333" : "#999" }}>
+                    {formData.pregnancyStatus || "Select status"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
           {/* Notes */}
           <View style={{ marginBottom: 24 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
@@ -362,6 +635,90 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <Modal transparent={true} animationType="slide" visible={showDatePicker}>
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text style={{ fontSize: 14, color: '#0b7fab', fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Date of Birth</Text>
+                <TouchableOpacity onPress={handleDatePickerConfirm}>
+                  <Text style={{ fontSize: 14, color: '#0b7fab', fontWeight: '600' }}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Picker Body */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12, paddingHorizontal: 8 }}>
+                {/* Year Picker */}
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#666', marginBottom: 8 }}>Year</Text>
+                  <ScrollView style={{ height: 150 }} showsVerticalScrollIndicator={false}>
+                    {Array.from({ length: 121 }, (_, i) => new Date().getFullYear() - 120 + i).map((year) => (
+                      <TouchableOpacity
+                        key={year}
+                        style={{ paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => setSelectedYear(year)}
+                      >
+                        <Text style={{ fontSize: 16, color: selectedYear === year ? '#0b7fab' : '#999', fontWeight: selectedYear === year ? '600' : '400' }}>
+                          {year}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Month Picker */}
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#666', marginBottom: 8 }}>Month</Text>
+                  <ScrollView style={{ height: 150 }} showsVerticalScrollIndicator={false}>
+                    {getValidMonths().map((month) => (
+                      <TouchableOpacity
+                        key={month}
+                        style={{ paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => {
+                          setSelectedMonth(month);
+                          // Adjust day if it exceeds the days in the new month
+                          const daysInMonth = getDaysInMonth(month, selectedYear);
+                          if (selectedDay > daysInMonth) {
+                            setSelectedDay(daysInMonth);
+                          }
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, color: selectedMonth === month ? '#0b7fab' : '#999', fontWeight: selectedMonth === month ? '600' : '400' }}>
+                          {String(month).padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Day Picker */}
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#666', marginBottom: 8 }}>Day</Text>
+                  <ScrollView style={{ height: 150 }} showsVerticalScrollIndicator={false}>
+                    {getValidDaysWithLimit().map((day) => (
+                      <TouchableOpacity
+                        key={day}
+                        style={{ paddingVertical: 10, alignItems: 'center' }}
+                        onPress={() => setSelectedDay(day)}
+                      >
+                        <Text style={{ fontSize: 16, color: selectedDay === day ? '#0b7fab' : '#999', fontWeight: selectedDay === day ? '600' : '400' }}>
+                          {String(day).padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }

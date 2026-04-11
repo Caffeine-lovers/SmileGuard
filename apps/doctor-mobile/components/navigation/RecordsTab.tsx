@@ -138,6 +138,16 @@ export default function RecordsTab({
             notes: patient.notes || "",
             imageUrl: require("../../assets/images/user.png"),
             status: "scheduled" as const,
+            dateOfBirth: patient.date_of_birth || "",
+            address: patient.address || "",
+            emergencyContactName: patient.emergency_contact_name || "",
+            emergencyContactPhone: patient.emergency_contact_phone || "",
+            allergies: patient.allergies || "",
+            currentMedications: patient.current_medications || "",
+            medicalConditions: patient.medical_conditions || "",
+            pastSurgeries: patient.past_surgeries || "",
+            smokingStatus: patient.smoking_status || "",
+            pregnancyStatus: patient.pregnancy_status || "",
           }));
 
           console.log("RecordsTab - Dummy patients:", mapped);
@@ -195,6 +205,16 @@ export default function RecordsTab({
           notes: patient.notes || "",
           imageUrl: require("../../assets/images/user.png"),
           status: "scheduled" as const,
+          dateOfBirth: patient.date_of_birth || "",
+          address: patient.address || "",
+          emergencyContactName: patient.emergency_contact_name || "",
+          emergencyContactPhone: patient.emergency_contact_phone || "",
+          allergies: patient.allergies || "",
+          currentMedications: patient.current_medications || "",
+          medicalConditions: patient.medical_conditions || "",
+          pastSurgeries: patient.past_surgeries || "",
+          smokingStatus: patient.smoking_status || "",
+          pregnancyStatus: patient.pregnancy_status || "",
         }));
         setDummyPatients(mappedDummy);
       }
