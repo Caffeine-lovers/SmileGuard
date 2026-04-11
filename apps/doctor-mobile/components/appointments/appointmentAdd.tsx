@@ -10,9 +10,13 @@ import {
   Image,
   TextInput,
   ActivityIndicator,
+  SectionList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
+import AddPatient from '../patientrecord/AddPatient';
 
 interface AppointmentAddProps {
   visible: boolean;
@@ -58,6 +62,7 @@ export default function AppointmentAdd({
   onSave,
   onAppointmentCreated,
 }: AppointmentAddProps) {
+  const router = useRouter();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string>('');
   const [appointmentDate, setAppointmentDate] = useState<string>('');
@@ -71,12 +76,28 @@ export default function AppointmentAdd({
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState(new Date().getDate());
   const [selectedHour, setSelectedHour] = useState(10);
   const [selectedMinute, setSelectedMinute] = useState(0);
   const [dayAppointmentCounts, setDayAppointmentCounts] = useState<{ [key: string]: number }>({});
+  const [currentScrollSection, setCurrentScrollSection] = useState<string>('A');
+  const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+
+  // Organize patients by first letter
+  const groupPatientsByLetter = () => {
+    const grouped: { [key: string]: Patient[] } = {};
+    patients.forEach((patient) => {
+      const firstLetter = patient.name.charAt(0).toUpperCase();
+      if (!grouped[firstLetter]) {
+        grouped[firstLetter] = [];
+      }
+      grouped[firstLetter].push(patient);
+    });
+    return Object.keys(grouped).sort();
+  };
 
   // Fetch patients on mount or when modal becomes visible
   useEffect(() => {
@@ -98,6 +119,37 @@ export default function AppointmentAdd({
       setSelectedMinute(0);
     }
   }, [visible]);
+
+  // Handle return from AddPatient modal
+  useEffect(() => {
+    const handleNewPatientCreated = async () => {
+      if (!visible || showAddPatientModal) return;
+
+      try {
+        // Check if a new patient was added
+        const newPatientId = await AsyncStorage.getItem('newlyAddedPatientId');
+        
+        if (newPatientId) {
+          console.log('📱 New patient detected, ID:', newPatientId);
+          // Refresh the patient list
+          await fetchPatients(() => {
+            // Auto-select the newly added patient
+            setSelectedPatient(newPatientId);
+            console.log('✅ Auto-selected new patient:', newPatientId);
+            // Close the patient picker modal after selection
+            setShowPatientPicker(false);
+          });
+          
+          // Clear the stored ID
+          await AsyncStorage.removeItem('newlyAddedPatientId');
+        }
+      } catch (error) {
+        console.error('Error handling new patient creation:', error);
+      }
+    };
+
+    handleNewPatientCreated();
+  }, [visible, showAddPatientModal]);
 
   // Adjust selectedMonth and selectedDay based on selected year and month
   useEffect(() => {
@@ -165,7 +217,63 @@ export default function AppointmentAdd({
     loadAppointmentCounts();
   }, [showDatePicker, selectedYear, selectedMonth]);
 
-  const fetchPatients = async () => {
+  // Load booked times for the selected date
+  useEffect(() => {
+    const loadBookedTimes = async () => {
+      if (!showTimePicker || !appointmentDate) {
+        setBookedTimes([]);
+        return;
+      }
+
+      try {
+        console.log('⏰ Loading booked times for', appointmentDate);
+
+        const { data: appointments, error } = await supabase
+          .from('appointments')
+          .select('appointment_time')
+          .eq('appointment_date', appointmentDate);
+
+        if (error) {
+          console.error('❌ Error fetching booked times:', error);
+          return;
+        }
+
+        const times = (appointments || []).map(apt => apt.appointment_time);
+        console.log('✅ Booked times:', times);
+        setBookedTimes(times);
+      } catch (error) {
+        console.error('❌ Exception loading booked times:', error);
+      }
+    };
+
+    loadBookedTimes();
+  }, [showTimePicker, appointmentDate]);
+
+  // Auto-adjust minute when hour changes (pick first available slot)
+  useEffect(() => {
+    if (!showTimePicker) return;
+    
+    // If hour is 15, only :00 is allowed (business hours limit)
+    if (selectedHour === 15) {
+      setSelectedMinute(0);
+      return;
+    }
+    
+    const slot00 = bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:00`);
+    const slot30 = bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:30`);
+    
+    // If both slots are booked, don't adjust
+    if (slot00 && slot30) return;
+    
+    // If minute 0 is available, select it; otherwise select 30
+    if (!slot00) {
+      setSelectedMinute(0);
+    } else if (!slot30) {
+      setSelectedMinute(30);
+    }
+  }, [selectedHour, bookedTimes, showTimePicker]);
+
+  const fetchPatients = async (onComplete?: () => void) => {
     try {
       setFetchingPatients(true);
       
@@ -217,6 +325,11 @@ export default function AppointmentAdd({
       patients.sort((a, b) => a.name.localeCompare(b.name));
 
       setPatients(patients);
+      
+      // Call the callback if provided (e.g., to select newly added patient)
+      if (onComplete) {
+        onComplete();
+      }
     } catch (error) {
       console.error('Exception fetching patients:', error);
       Alert.alert('Error', 'Failed to load patients');
@@ -496,48 +609,94 @@ export default function AppointmentAdd({
                         <View style={{ width: 50 }} />
                       </View>
 
-                      <ScrollView style={{ flex: 1 }} scrollEnabled={true}>
-                        {patients.length === 0 ? (
-                          <Text style={styles.emptyText}>No patients found</Text>
-                        ) : (
-                          patients.map((patient) => (
-                            <TouchableOpacity
-                              key={patient.id}
-                              style={[
-                                styles.pickerItem,
-                                selectedPatient === patient.id && styles.pickerItemSelected,
-                              ]}
-                              onPress={() => {
-                                setSelectedPatient(patient.id);
-                                setShowPatientPicker(false);
-                              }}
-                            >
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                                <Text
-                                  style={[
-                                    styles.pickerItemText,
-                                    selectedPatient === patient.id && styles.pickerItemTextSelected,
-                                    { flex: 1 }
-                                  ]}
-                                  numberOfLines={1}
-                                  ellipsizeMode="tail"
-                                >
-                                  {patient.name}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.accountTypeLabel,
-                                    patient.accountType === 'Dummy' ? styles.dummyLabel : styles.patientLabel,
-                                  ]}
-                                >
-                                  {patient.accountType}
-                                </Text>
-                              </View>
-                              <Text style={styles.pickerItemSubText}>{patient.email}</Text>
-                            </TouchableOpacity>
-                          ))
-                        )}
-                      </ScrollView>
+                      <View style={{ flex: 1, flexDirection: 'row' }}>
+                        <ScrollView 
+                          style={{ flex: 1 }} 
+                          scrollEnabled={true}
+                          onScroll={(event) => {
+                            const offsetY = event.nativeEvent.contentOffset.y;
+                            const itemHeight = 70; // approximate height of each item
+                            const index = Math.max(0, Math.floor(offsetY / itemHeight));
+                            
+                            // Get the letter of the current patient
+                            if (patients[index]) {
+                              const letter = patients[index].name.charAt(0).toUpperCase();
+                              setCurrentScrollSection(letter);
+                            }
+                          }}
+                          scrollEventThrottle={16}
+                        >
+                          {patients.length === 0 ? (
+                            <Text style={styles.emptyText}>No patients found</Text>
+                          ) : (
+                            patients.map((patient) => (
+                              <TouchableOpacity
+                                key={patient.id}
+                                style={[
+                                  styles.pickerItem,
+                                  selectedPatient === patient.id && styles.pickerItemSelected,
+                                ]}
+                                onPress={() => {
+                                  setSelectedPatient(patient.id);
+                                  setShowPatientPicker(false);
+                                }}
+                              >
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                  <Text
+                                    style={[
+                                      styles.pickerItemText,
+                                      selectedPatient === patient.id && styles.pickerItemTextSelected,
+                                      { flex: 1 }
+                                    ]}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                  >
+                                    {patient.name}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.accountTypeLabel,
+                                      patient.accountType === 'Dummy' ? styles.dummyLabel : styles.patientLabel,
+                                    ]}
+                                  >
+                                    {patient.accountType}
+                                  </Text>
+                                </View>
+                                <Text style={styles.pickerItemSubText}>{patient.email}</Text>
+                              </TouchableOpacity>
+                            ))
+                          )}
+                        </ScrollView>
+
+                        {/* Letter Index */}
+                        <View style={styles.letterIndex}>
+                          {groupPatientsByLetter().map((letter) => (
+                            <View key={letter} style={styles.letterIndexItem}>
+                              <Text style={[styles.letterIndexText, letter === currentScrollSection && styles.letterIndexTextActive]}>
+                                {letter}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Add Patient Button */}
+                      <View style={{ borderTopWidth: 1, borderTopColor: '#e0e0e0', paddingHorizontal: 16, paddingVertical: 12 }}>
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: '#0b7fab',
+                            paddingVertical: 12,
+                            borderRadius: 8,
+                            alignItems: 'center',
+                          }}
+                          onPress={() => {
+                            console.log('🔽 Opening AddPatient modal...');
+                            setShowAddPatientModal(true);
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Add New Patient</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 </Modal>
@@ -870,17 +1029,40 @@ export default function AppointmentAdd({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Hour</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {Array.from({ length: 6 }, (_, i) => 10 + i).map((hour) => (
-                        <TouchableOpacity
-                          key={hour}
-                          style={[styles.pickerItem, selectedHour === hour && styles.pickerItemSelected]}
-                          onPress={() => setSelectedHour(hour)}
-                        >
-                          <Text style={[styles.pickerItemText, selectedHour === hour && styles.pickerItemTextSelected]}>
-                            {String(hour).padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                      {Array.from({ length: 6 }, (_, i) => 10 + i).map((hour) => {
+                        const slot00 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:00`);
+                        const slot30 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:30`);
+                        // For hour 15, only :00 is available (business hours limit), so check only slot00
+                        const isHourFull = hour === 15 ? slot00 : (slot00 && slot30);
+                        
+                        return (
+                          <TouchableOpacity
+                            key={hour}
+                            style={[
+                              styles.pickerItem,
+                              selectedHour === hour && styles.pickerItemSelected,
+                              isHourFull && styles.pickerItemDisabled,
+                            ]}
+                            onPress={() => !isHourFull && setSelectedHour(hour)}
+                            disabled={isHourFull}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text
+                                style={[
+                                  styles.pickerItemText,
+                                  selectedHour === hour && styles.pickerItemTextSelected,
+                                  isHourFull && styles.pickerItemTextDisabled,
+                                ]}
+                              >
+                                {String(hour).padStart(2, '0')}
+                              </Text>
+                              {isHourFull && (
+                                <Text style={{ fontSize: 10, color: '#ff6b6b', fontWeight: '700' }}>FULL</Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </ScrollView>
                   </View>
 
@@ -888,22 +1070,68 @@ export default function AppointmentAdd({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Minute</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
-                        <TouchableOpacity
-                          key={minute}
-                          style={[styles.pickerItem, selectedMinute === minute && styles.pickerItemSelected]}
-                          onPress={() => setSelectedMinute(minute)}
-                        >
-                          <Text style={[styles.pickerItemText, selectedMinute === minute && styles.pickerItemTextSelected]}>
-                            {String(minute).padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                      {[0, 30].map((minute) => {
+                        const timeString = `${String(selectedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                        const isBooked = bookedTimes.includes(timeString);
+                        const isAfterLimit = selectedHour === 15 && minute === 30; // 15:30 is not allowed, limit is 15:00
+                        const isDisabled = isBooked || isAfterLimit;
+                        
+                        return (
+                          <TouchableOpacity
+                            key={minute}
+                            style={[
+                              styles.pickerItem,
+                              selectedMinute === minute && styles.pickerItemSelected,
+                              isDisabled && styles.pickerItemDisabled,
+                            ]}
+                            onPress={() => !isDisabled && setSelectedMinute(minute)}
+                            disabled={isDisabled}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text
+                                style={[
+                                  styles.pickerItemText,
+                                  selectedMinute === minute && styles.pickerItemTextSelected,
+                                  isDisabled && styles.pickerItemTextDisabled,
+                                ]}
+                              >
+                                {String(minute).padStart(2, '0')}
+                              </Text>
+                              {isBooked && (
+                                <Text style={{ fontSize: 10, color: '#ff6b6b', fontWeight: '700' }}>BOOKED</Text>
+                              )}
+                              {isAfterLimit && (
+                                <Text style={{ fontSize: 10, color: '#999', fontWeight: '700' }}>LIMIT</Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </ScrollView>
                   </View>
                 </View>
               </View>
             </View>
+          </Modal>
+        )}
+
+        {/* Add Patient Modal */}
+        {showAddPatientModal && (
+          <Modal visible={showAddPatientModal} transparent={false} animationType="slide">
+            <AddPatient 
+              onPatientAdded={(patientId) => {
+                if (patientId === '') {
+                  // User cancelled
+                  console.log('❌ Add patient cancelled');
+                  setShowAddPatientModal(false);
+                } else {
+                  // Patient was successfully added
+                  console.log('👤 Patient added successfully:', patientId);
+                  setShowAddPatientModal(false);
+                  // The useEffect hook will detect and handle the newly added patient
+                }
+              }}
+            />
           </Modal>
         )}
       </SafeAreaView>
@@ -1301,6 +1529,30 @@ const styles = StyleSheet.create({
   dummyLabel: {
     backgroundColor: '#fff3e0',
     color: '#f57c00',
+  },
+  letterIndex: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
+    minWidth: 30,
+    backgroundColor: '#f9f9f9',
+    borderLeftWidth: 1,
+    borderLeftColor: '#e0e0e0',
+  },
+  letterIndexItem: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 2,
+    minHeight: 22,
+  },
+  letterIndexText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#999',
+  },
+  letterIndexTextActive: {
+    color: '#0b7fab',
+    fontWeight: '700',
   },
 });
 

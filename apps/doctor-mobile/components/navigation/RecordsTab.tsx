@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,10 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  Alert,
+  PanResponder,
+  Animated,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +19,8 @@ import { Appointment } from "../../data/dashboardData";
 import { getAllPatients } from "../../lib/profilesPatients";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "../../lib/supabase";
+import AddPatient from "../patientrecord/AddPatient";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -56,6 +62,9 @@ export default function RecordsTab({
   const [loadingDummy, setLoadingDummy] = useState(true);
   const [activeTab, setActiveTab] = useState<AccountTab>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+  const [swipedDummyId, setSwipedDummyId] = useState<string | null>(null);
+  const swipePositions = useRef<{ [key: string]: Animated.Value }>({});
 
   // Fetch profiles patients on initial load
   useEffect(() => {
@@ -98,6 +107,14 @@ export default function RecordsTab({
       const fetchDummyPatients = async () => {
         setLoadingDummy(true);
         try {
+          // Check if a new patient was added
+          const newPatientId = await AsyncStorage.getItem('newlyAddedPatientId');
+          
+          if (newPatientId && !showAddPatientModal) {
+            console.log('📱 New patient detected in RecordsTab, ID:', newPatientId);
+            await AsyncStorage.removeItem('newlyAddedPatientId');
+          }
+
           const { data, error } = await supabase
             .from("dummy_accounts")
             .select("*")
@@ -112,7 +129,7 @@ export default function RecordsTab({
             id: patient.id,
             name: patient.patient_name || "Unknown Patient",
             email: patient.email || "",
-            service: patient.service || "General",
+            service: "General",
             contact: patient.phone || "",
             time: "",
             date: patient.created_at,
@@ -133,7 +150,7 @@ export default function RecordsTab({
       };
 
       fetchDummyPatients();
-    }, [])
+    }, [showAddPatientModal])
   );
 
   // Refresh function to refetch both patient sources
@@ -169,7 +186,7 @@ export default function RecordsTab({
           id: patient.id,
           name: patient.patient_name || "Unknown Patient",
           email: patient.email || "",
-          service: patient.service || "General",
+          service: "General",
           contact: patient.phone || "",
           time: "",
           date: patient.created_at,
@@ -190,7 +207,7 @@ export default function RecordsTab({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
       {/* Header with Current User Name */}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#0b7fab', marginBottom: 4 }}>
           Patient Records
         </Text>
@@ -217,7 +234,7 @@ export default function RecordsTab({
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => router.push('/(doctor)/add-patient')}
+            onPress={() => setShowAddPatientModal(true)}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 8,
@@ -356,7 +373,6 @@ export default function RecordsTab({
                 {sortPatients(
                   dummyPatients.filter((patient) =>
                     patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                    patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
                     patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
                     patient.contact.includes(quickSearchQuery)
                   )
@@ -470,6 +486,26 @@ export default function RecordsTab({
           </>
         )}
       </ScrollView>
+
+      {/* Add Patient Modal */}
+      {showAddPatientModal && (
+        <Modal visible={showAddPatientModal} transparent={false} animationType="slide">
+          <AddPatient 
+            onPatientAdded={(patientId) => {
+              if (patientId === '') {
+                // User cancelled
+                console.log('❌ Add patient cancelled');
+                setShowAddPatientModal(false);
+              } else {
+                // Patient was successfully added
+                console.log('👤 Patient added successfully:', patientId);
+                setShowAddPatientModal(false);
+                // The useFocusEffect hook will detect and refresh the dummy patients list
+              }
+            }}
+          />
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }

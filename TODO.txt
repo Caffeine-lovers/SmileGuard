@@ -116,7 +116,7 @@ add npm install @react-navigation/drawer
             //mark code as used/expired
         
     - [x] Appointment Module
-        - [] Notification Page
+        - [x] Notification Page (but only on doctor side)
         - [x] Add Appointment Schedule 
         - [x] Sorting Date 
         - [x] Show Upcoming Appointed Schedule 

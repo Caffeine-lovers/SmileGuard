@@ -58,6 +58,12 @@ export default function AppointmentsTab({
     return `${year}-${month}-${day}`;
   };
 
+  // Helper to format date as "February 14, 2026"
+  const formatDateDisplay = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
   const [selectedDate, setSelectedDate] = useState<string>(getTodayFormatted());
   const [loading, setLoading] = useState(false);
   const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentWithAccountType[]>([]);
@@ -120,8 +126,8 @@ export default function AppointmentsTab({
         const startDate = formatDate(firstDay);
         const endDate = formatDate(lastDay);
         
-        // Fetch all appointments for the month with date range
-        const doctorAppointments = await getDoctorAppointments(null, startDate, endDate);
+        // Fetch appointments for the current doctor (dentist_id must match)
+        const doctorAppointments = await getDoctorAppointments(doctorId || null, startDate, endDate);
         
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
@@ -142,15 +148,17 @@ export default function AppointmentsTab({
       }
     };
 
-    fetchMonthAppointments();
-  }, [currentMonth]);
+    if (doctorId) {
+      fetchMonthAppointments();
+    }
+  }, [currentMonth, doctorId]);
 
   // Fetch appointments for the selected date from backend
   useEffect(() => {
     const fetchAppointmentsForDate = async () => {
       try {
         setLoading(true);
-        const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+        const doctorAppointments = await getDoctorAppointmentsByDate(doctorId || null, selectedDate);
         
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
@@ -165,10 +173,10 @@ export default function AppointmentsTab({
       }
     };
 
-    if (selectedDate) {
+    if (selectedDate && doctorId) {
       fetchAppointmentsForDate();
     }
-  }, [selectedDate]);
+  }, [selectedDate, doctorId]);
 
   // Calendar format helper (used throughout component)
   const formatDate = (date: Date): string => {
@@ -259,6 +267,8 @@ export default function AppointmentsTab({
   // Refresh appointments whenever this tab comes into focus
   useFocusEffect(
     useCallback(() => {
+      if (!doctorId) return;
+      
       console.log('🔄 AppointmentsTab focused - refreshing all data...');
       setLoading(true);
       
@@ -281,7 +291,7 @@ export default function AppointmentsTab({
       };
       
       // Fetch month appointments
-      getDoctorAppointments(null, startDate, endDate).then(doctorAppointments => {
+      getDoctorAppointments(doctorId, startDate, endDate).then(doctorAppointments => {
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setAllMonthAppointments(transformed);
@@ -294,7 +304,7 @@ export default function AppointmentsTab({
       });
       
       // Fetch daily appointments
-      getDoctorAppointmentsByDate(null, selectedDate).then(doctorAppointments => {
+      getDoctorAppointmentsByDate(doctorId, selectedDate).then(doctorAppointments => {
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
@@ -305,7 +315,7 @@ export default function AppointmentsTab({
         dayFetched = true;
         checkBothComplete();
       });
-    }, [currentMonth, selectedDate])
+    }, [currentMonth, selectedDate, doctorId])
   );
 
   // Handler to cancel appointment using backend service
@@ -329,9 +339,10 @@ export default function AppointmentsTab({
                 
                 // Refresh appointments after cancellation
                 console.log('🔄 Refreshing appointments after cancellation...');
+                if (!doctorId) return;
                 
                 // Refresh current day appointments
-                const doctorAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+                const doctorAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
                 if (doctorAppointments.length > 0) {
                   const transformed = doctorAppointments.map(transformBackendAppointment);
                   setFetchedAppointments(transformed);
@@ -348,7 +359,7 @@ export default function AppointmentsTab({
                 const startDate = formatDate(firstDay);
                 const endDate = formatDate(lastDay);
                 
-                const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+                const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
                 if (monthAppointments.length > 0) {
                   const transformed = monthAppointments.map(transformBackendAppointment);
                   
@@ -396,8 +407,10 @@ export default function AppointmentsTab({
   // Handler after appointment is saved in edit modal
   const handleSaveAppointment = async () => {
     console.log('✅ Appointment saved, refreshing appointments...');
+    if (!doctorId) return;
+    
     // Reload appointments for the selected date
-    const dayAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+    const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
     if (dayAppointments.length > 0) {
       const transformed = dayAppointments.map(transformBackendAppointment);
       setFetchedAppointments(transformed);
@@ -413,7 +426,7 @@ export default function AppointmentsTab({
     const startDate = formatDate(firstDay);
     const endDate = formatDate(lastDay);
     
-    const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+    const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
     if (monthAppointments.length > 0) {
       const transformed = monthAppointments.map(transformBackendAppointment);
       setAllMonthAppointments(transformed);
@@ -423,6 +436,11 @@ export default function AppointmentsTab({
   // Refresh button handler - fetches latest appointments from Supabase
   const handleRefreshAppointments = async () => {
     try {
+      if (!doctorId) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
+      
       setLoading(true);
       console.log('🔄 Refreshing appointments...');
       
@@ -434,7 +452,7 @@ export default function AppointmentsTab({
       const startDate = formatDate(firstDay);
       const endDate = formatDate(lastDay);
       
-      const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+      const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
       if (monthAppointments.length > 0) {
         const transformed = monthAppointments.map(transformBackendAppointment);
         
@@ -454,7 +472,7 @@ export default function AppointmentsTab({
       console.log(`✅ Month appointments refreshed: ${monthAppointments.length} appointments found`);
       
       // Refresh daily appointments for selected date
-      const dayAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+      const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
       if (dayAppointments.length > 0) {
         const transformed = dayAppointments.map(transformBackendAppointment);
         setFetchedAppointments(transformed);
@@ -475,8 +493,10 @@ export default function AppointmentsTab({
   // Handler for when a new appointment is added
   const handleAddAppointmentSaved = async () => {
     console.log('✅ New appointment created, refreshing appointments...');
+    if (!doctorId) return;
+    
     // Refresh current day appointments
-    const dayAppointments = await getDoctorAppointmentsByDate(null, selectedDate);
+    const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
     if (dayAppointments.length > 0) {
       const transformed = dayAppointments.map(transformBackendAppointment);
       setFetchedAppointments(transformed);
@@ -492,7 +512,7 @@ export default function AppointmentsTab({
     const startDate = formatDate(firstDay);
     const endDate = formatDate(lastDay);
     
-    const monthAppointments = await getDoctorAppointments(null, startDate, endDate);
+    const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
     if (monthAppointments.length > 0) {
       const transformed = monthAppointments.map(transformBackendAppointment);
       setAllMonthAppointments(transformed);
@@ -782,7 +802,7 @@ export default function AppointmentsTab({
           {selectedDate && (
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0b7fab', paddingBottom: 8 }}>
-                {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
               </Text>
             </View>
           )}
@@ -848,7 +868,7 @@ export default function AppointmentsTab({
                   </View>
                   <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
                   <Text style={{ fontSize: 11, color: '#999' }}>
-                    {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at {appointment.time}
+                    {formatDateDisplay(selectedDate)} at {appointment.time}
                   </Text>
                 </View>
                 <TouchableOpacity

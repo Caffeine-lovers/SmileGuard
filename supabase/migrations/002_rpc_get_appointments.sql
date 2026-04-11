@@ -46,7 +46,7 @@ BEGIN
     a.updated_at
   FROM appointments a
   WHERE a.appointment_date = p_date
-    AND (p_dentist_id IS NULL OR a.dentist_id = p_dentist_id OR a.dentist_id IS NULL)
+    AND a.dentist_id IS NOT NULL
   ORDER BY a.appointment_time ASC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -89,6 +89,7 @@ BEGIN
   FROM appointments a
   WHERE (p_start_date IS NULL OR a.appointment_date >= p_start_date)
     AND (p_end_date IS NULL OR a.appointment_date <= p_end_date)
+    AND a.dentist_id IS NOT NULL
   ORDER BY a.appointment_date DESC, a.appointment_time DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -99,3 +100,71 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --   - Return ALL appointments including cancelled
 --   - Accept optional date range and dentist filters
 --   - Are called from TypeScript via supabase.rpc()
+
+-- ─────────────────────────────────────────────────────────────────
+-- RPC Function 3: Update appointment status (with dentist_id support)
+-- ─────────────────────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS update_appointment_status(UUID, TEXT);
+
+CREATE OR REPLACE FUNCTION update_appointment_status(
+  p_appointment_id UUID,
+  p_new_status TEXT
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  message TEXT
+) AS $$
+DECLARE
+  v_updated_count INTEGER;
+BEGIN
+  -- Update appointment status
+  UPDATE appointments
+  SET 
+    status = p_new_status,
+    updated_at = NOW()
+  WHERE id = p_appointment_id;
+
+  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+  IF v_updated_count > 0 THEN
+    RETURN QUERY SELECT TRUE, 'Appointment status updated successfully';
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Appointment not found';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ─────────────────────────────────────────────────────────────────
+-- RPC Function 4: Update appointment status and dentist_id
+-- ─────────────────────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS update_appointment_status_with_dentist(UUID, TEXT, UUID);
+
+CREATE OR REPLACE FUNCTION update_appointment_status_with_dentist(
+  p_appointment_id UUID,
+  p_new_status TEXT,
+  p_dentist_id UUID
+)
+RETURNS TABLE (
+  success BOOLEAN,
+  message TEXT
+) AS $$
+DECLARE
+  v_updated_count INTEGER;
+BEGIN
+  -- Update appointment status and dentist_id
+  UPDATE appointments
+  SET 
+    status = p_new_status,
+    dentist_id = p_dentist_id,
+    updated_at = NOW()
+  WHERE id = p_appointment_id;
+
+  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+  IF v_updated_count > 0 THEN
+    RETURN QUERY SELECT TRUE, 'Appointment status and dentist updated successfully';
+  ELSE
+    RETURN QUERY SELECT FALSE, 'Appointment not found';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

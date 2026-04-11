@@ -11,7 +11,8 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from "../../lib/supabase";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 
@@ -20,30 +21,34 @@ interface FormData {
   email: string;
   phone: string;
   gender: string;
-  service: string;
   notes: string;
 }
 
-export default function AddPatient() {
+interface AddPatientProps {
+  onPatientAdded?: (patientId: string) => void;
+}
+
+export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const currentUser = useCurrentUser();
   const [loading, setLoading] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
-  const [showServicePicker, setShowServicePicker] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     phone: "",
     gender: "",
-    service: "",
     notes: "",
   });
 
   const genderOptions = ["Male", "Female", "Other"];
-  const serviceOptions = ["Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
-    "X-Ray", "Checkup"];
 
   const handleInputChange = (field: keyof FormData, value: string) => {
+    // Normalize email to lowercase
+    if (field === 'email') {
+      value = value.toLowerCase().trim();
+    }
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -65,18 +70,50 @@ export default function AddPatient() {
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return;
+    }
+
     setLoading(true);
     try {
+      // Check if email already exists in dummy_accounts
+      const { data: existingDummyAccount, error: checkDummyError } = await supabase
+        .from("dummy_accounts")
+        .select("id")
+        .eq("email", formData.email.trim().toLowerCase())
+        .single();
+
+      if (existingDummyAccount) {
+        Alert.alert("Error", "This email is already registered as a dummy patient");
+        setLoading(false);
+        return;
+      }
+
+      // Check if email already exists in profiles
+      const { data: existingProfile, error: checkProfileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", formData.email.trim().toLowerCase())
+        .single();
+
+      if (existingProfile) {
+        Alert.alert("Error", "This email is already registered as a patient");
+        setLoading(false);
+        return;
+      }
+
       // Create patient in dummy_accounts table with new schema
       const { data: dummyData, error: dummyError } = await supabase
         .from("dummy_accounts")
         .insert([
           {
             patient_name: formData.name,
-            email: formData.email,
+            email: formData.email.trim().toLowerCase(),
             phone: formData.phone,
             gender: formData.gender || "",
-            service: formData.service || "General",
             notes: formData.notes || "",
             created_by: currentUser?.name || currentUser?.email || "Unknown Doctor",
           },
@@ -85,20 +122,60 @@ export default function AddPatient() {
         .single();
 
       if (dummyError) {
-        throw new Error(`Failed to create patient in dummy accounts: ${dummyError.message}`);
+        if (dummyError.message.includes("duplicate")) {
+          Alert.alert("Error", "This email is already registered. Please use a different email.");
+        } else {
+          throw new Error(`Failed to create patient in dummy accounts: ${dummyError.message}`);
+        }
+        return;
       }
 
       if (!dummyData) {
         throw new Error("Failed to create patient in dummy accounts");
       }
 
-      Alert.alert("Success", "Patient added successfully to dummy accounts", [
+      // Get the source to determine where to navigate back to
+      const source = (params?.source as string) || 'records';
+      console.log('📱 Patient created, source:', source, 'Patient ID:', dummyData.id);
+
+      // If used as modal within appointmentAdd
+      if (onPatientAdded) {
+        console.log('📤 Patient added via modal callback');
+        try {
+          await AsyncStorage.setItem('newlyAddedPatientId', dummyData.id);
+          console.log('💾 Stored newly added patient ID:', dummyData.id);
+        } catch (error) {
+          console.error('Error storing newly added patient ID:', error);
+        }
+        
+        // Call the callback to close the modal
+        onPatientAdded(dummyData.id);
+        return;
+      }
+
+      // Otherwise, use traditional navigation flow
+      Alert.alert("Success", "Patient added successfully", [
         {
           text: "OK",
-          onPress: () => {
+          onPress: async () => {
+            if (source === 'appointment') {
+              // Store the newly added patient ID in AsyncStorage for appointmentAdd to pick up
+              try {
+                await AsyncStorage.setItem('newlyAddedPatientId', dummyData.id);
+                console.log('💾 Stored newly added patient ID:', dummyData.id);
+              } catch (error) {
+                console.error('Error storing newly added patient ID:', error);
+              }
+            }
+            
             router.back();
-            // Pass a parameter to the dashboard to show records tab
-            router.setParams({ activeTab: 'records' });
+
+            // If returning to records tab, set the active tab param
+            if (source !== 'appointment') {
+              setTimeout(() => {
+                router.setParams({ activeTab: 'records' });
+              }, 100);
+            }
           },
         },
       ]);
@@ -122,7 +199,13 @@ export default function AddPatient() {
             <Text style={{ fontSize: 25, fontWeight: "bold", color: "#0b7fab", marginBottom: 4 }}>
               Add New Patient
             </Text>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => {
+              if (onPatientAdded) {
+                onPatientAdded('');  // Pass empty string to indicate cancel
+              } else {
+                router.back();
+              }
+            }}>
               <Text style={{ fontSize: 18, color: "#0b7fab", fontWeight: "600" }}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -155,6 +238,8 @@ export default function AddPatient() {
               placeholder="Enter patient's email"
               placeholderTextColor="#999"
               keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
               value={formData.email}
               onChangeText={(value) => handleInputChange("email", value)}
               editable={!loading}
@@ -226,55 +311,6 @@ export default function AddPatient() {
             </View>
           </Modal>
 
-          {/* Service */}
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-              Service Type
-            </Text>
-            <TouchableOpacity
-              style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
-              onPress={() => setShowServicePicker(true)}
-              disabled={loading}
-            >
-              <Text style={{ fontSize: 14, color: formData.service ? "#333" : "#999" }}>
-                {formData.service || "Select service type"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Service Picker Modal */}
-          <Modal
-            visible={showServicePicker}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setShowServicePicker(false)}
-          >
-            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-              <View style={{ backgroundColor: '#fff', paddingBottom: 20 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Service Type</Text>
-                  <TouchableOpacity onPress={() => setShowServicePicker(false)}>
-                    <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                {serviceOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}
-                    onPress={() => {
-                      handleInputChange('service', option);
-                      setShowServicePicker(false);
-                    }}
-                  >
-                    <Text style={{ fontSize: 14, color: formData.service === option ? '#0b7fab' : '#333', fontWeight: formData.service === option ? '600' : '400' }}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </Modal>
-
           {/* Notes */}
           <View style={{ marginBottom: 24 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
@@ -296,7 +332,13 @@ export default function AddPatient() {
           <View style={{ flexDirection: "row", gap: 12 }}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
-              onPress={() => router.back()}
+              onPress={() => {
+                if (onPatientAdded) {
+                  onPatientAdded('');  // Pass empty string to indicate cancel
+                } else {
+                  router.back();
+                }
+              }}
               disabled={loading}
             >
               {loading ? (
