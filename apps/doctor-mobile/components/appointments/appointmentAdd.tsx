@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@smileguard/supabase-client';
 import AddPatient from '../patientrecord/AddPatient';
 
 interface AppointmentAddProps {

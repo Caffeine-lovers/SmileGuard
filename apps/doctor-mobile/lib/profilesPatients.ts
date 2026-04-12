@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '@smileguard/supabase-client';
 import { CurrentUser, MedicalIntake } from '../types/index';
 
 // ─────────────────────────────────────────
