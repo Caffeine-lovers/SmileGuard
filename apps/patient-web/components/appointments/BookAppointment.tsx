@@ -6,15 +6,15 @@ import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments } fro
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
-  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '🪥' },
-  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '✨' },
+  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
+  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
   { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '🦷' },
-  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '⚕️' },
-  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '🔧' },
-  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '😁' },
-  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '🏥' },
-  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '📡' },
-  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '🩺' },
+  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '' },
+  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '' },
+  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '' },
+  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '' },
+  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '' },
+  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '' },
 ];
 
 const TIME_SLOTS = [

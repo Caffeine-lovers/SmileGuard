@@ -338,7 +338,7 @@ export default function ClinicSetup({
 
           {/* Clinic Logo Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>🏢 Clinic Logo</Text>
+            <Text style={localStyles.sectionTitle}> Clinic Logo</Text>
             <View style={localStyles.card}>
               <View style={localStyles.logoContainer}>
                 <Image
@@ -356,7 +356,7 @@ export default function ClinicSetup({
 
           {/* Address Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>📍 Address</Text>
+            <Text style={localStyles.sectionTitle}> Address</Text>
             <View style={localStyles.card}>
               <TextInput
                 style={localStyles.input}
@@ -391,7 +391,7 @@ export default function ClinicSetup({
 
           {/* Clinic Gallery Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>🖼️ Clinic Pictures</Text>
+            <Text style={localStyles.sectionTitle}>️ Clinic Pictures</Text>
             <View style={localStyles.card}>
               <View style={localStyles.galleryContainer}>
                 {clinicData.gallery_images?.map((image, index) => (
@@ -443,7 +443,7 @@ export default function ClinicSetup({
 
           {/* Schedule Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>📅 Schedule</Text>
+            <Text style={localStyles.sectionTitle}> Schedule</Text>
             <View style={localStyles.card}>
               {(Object.entries(clinicData.schedule) as Array<[keyof Schedule, Schedule[keyof Schedule]]>).map(
                 ([day, hours]) => (
