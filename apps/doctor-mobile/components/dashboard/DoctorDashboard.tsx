@@ -28,6 +28,7 @@ import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentReq
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
 import { updatePatientMedicalIntake } from "../../lib/profilesPatients";
+import { supabase } from '@smileguard/supabase-client';
 import { 
   notifyAppointmentStatusChanged,
   notifyMedicalIntakeUpdated,
@@ -226,37 +227,65 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       // Fetch appointment requests (dentist_id IS NULL)
       const appointmentRequestsData = await getAppointmentRequests();
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        const transformedRequests = appointmentRequestsData.map((apt: any) => ({
-          id: apt.id || '',
-          name: apt.patient_name || 'Patient',
-          service: apt.service || '',
-          time: apt.appointment_time || '',
-          date: apt.appointment_date || '',
-          age: 0,
-          gender: apt.patient_profile?.gender || '',
-          contact: apt.patient_profile?.phone || '',
-          email: apt.profiles?.email || '',
-          notes: apt.notes || '',
-          imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
-          patient_id: apt.patient_id,
-          dentist_id: apt.dentist_id,
-          medicalIntake: apt.patient_profile ? {
-            gender: apt.patient_profile.gender || '',
-            phone: apt.patient_profile.phone || '',
-            address: apt.patient_profile.address || '',
-            dateOfBirth: apt.patient_profile.date_of_birth || '',
-            emergencyContactName: apt.patient_profile.emergency_contact_name || '',
-            emergencyContactPhone: apt.patient_profile.emergency_contact_phone || '',
-            allergies: apt.patient_profile.allergies || '',
-            currentMedications: apt.patient_profile.current_medications || '',
-            medicalConditions: apt.patient_profile.medical_conditions || '',
-            pastSurgeries: apt.patient_profile.past_surgeries || '',
-            smokingStatus: apt.patient_profile.smoking_status || '',
-            pregnancyStatus: apt.patient_profile.pregnancy_status || '',
-            notes: apt.patient_profile.notes || '',
-          } : null,
-        }));
+        // Fetch all dummy account details for requests
+        let dummyAccountsMapRequests: { [key: string]: any } = {};
+        const dummyRequestIds = appointmentRequestsData
+          .filter((apt: any) => apt.dummy_account_id)
+          .map((apt: any) => apt.dummy_account_id);
+        
+        if (dummyRequestIds.length > 0) {
+          const { data: dummyDetails } = await supabase
+            .from('dummy_accounts')
+            .select('*')
+            .in('id', dummyRequestIds);
+          
+          if (dummyDetails) {
+            dummyDetails.forEach((dummy: any) => {
+              dummyAccountsMapRequests[dummy.id] = dummy;
+            });
+          }
+        }
+        
+        const transformedRequests = appointmentRequestsData.map((apt: any) => {
+          // Use dummy account data if available, otherwise use patient profile
+          const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
+            ? dummyAccountsMapRequests[apt.dummy_account_id]
+            : apt.patient_profile;
+          
+          const medicalIntake = medicalData ? {
+            gender: medicalData.gender || '',
+            phone: medicalData.phone || '',
+            address: medicalData.address || '',
+            dateOfBirth: medicalData.date_of_birth || '',
+            emergencyContactName: medicalData.emergency_contact_name || '',
+            emergencyContactPhone: medicalData.emergency_contact_phone || '',
+            allergies: medicalData.alergies || medicalData.allergies || '',
+            currentMedications: medicalData.current_medications || '',
+            medicalConditions: medicalData.medical_conditions || '',
+            pastSurgeries: medicalData.past_surgeries || '',
+            smokingStatus: medicalData.smoking_status || '',
+            pregnancyStatus: medicalData.pregnancy_status || '',
+            notes: medicalData.notes || '',
+          } : null;
+          
+          return {
+            id: apt.id || '',
+            name: apt.patient_name || 'Patient',
+            service: apt.service || '',
+            time: apt.appointment_time || '',
+            date: apt.appointment_date || '',
+            age: 0,
+            gender: medicalData?.gender || '',
+            contact: medicalData?.phone || '',
+            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+            notes: apt.notes || '',
+            imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+            patient_id: apt.patient_id,
+            dentist_id: apt.dentist_id,
+            medicalIntake: medicalIntake,
+          };
+        });
         setAppointmentRequests(transformedRequests);
       } else {
         setAppointmentRequests([]);
@@ -267,12 +296,58 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       console.log('🎯 [DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);
+        
+        // Fetch all dummy account details to populate medical intake
+        let dummyAccountsMap: { [key: string]: any } = {};
+        const dummyAccountIds = rpcAppointments
+          .filter((apt: any) => apt.dummy_account_id)
+          .map((apt: any) => apt.dummy_account_id);
+        
+        if (dummyAccountIds.length > 0) {
+          const { data: allDummyAccounts, error: dummyError } = await supabase.rpc('get_all_dummy_accounts');
+          if (!dummyError && allDummyAccounts) {
+            // Need to fetch full details for each dummy account
+            const { data: dummyDetails } = await supabase
+              .from('dummy_accounts')
+              .select('*')
+              .in('id', dummyAccountIds);
+            
+            if (dummyDetails) {
+              dummyDetails.forEach((dummy: any) => {
+                dummyAccountsMap[dummy.id] = dummy;
+              });
+            }
+          }
+        }
+        
         const transformedAppointments = rpcAppointments.map((apt: any) => {
           console.log(`📐 Transforming appointment ${apt.id}:`, {
             patient_name: apt.patient_name,
             dummy_account_id: apt.dummy_account_id,
             patient_id: apt.patient_id,
           });
+          
+          // Use dummy account data if available, otherwise use patient profile
+          const medicalData = apt.dummy_account_id && dummyAccountsMap[apt.dummy_account_id]
+            ? dummyAccountsMap[apt.dummy_account_id]
+            : apt.patient_profile;
+          
+          const medicalIntake = medicalData ? {
+            gender: medicalData.gender || '',
+            phone: medicalData.phone || '',
+            address: medicalData.address || '',
+            dateOfBirth: medicalData.date_of_birth || '',
+            emergencyContactName: medicalData.emergency_contact_name || '',
+            emergencyContactPhone: medicalData.emergency_contact_phone || '',
+            allergies: medicalData.alergies || medicalData.allergies || '',
+            currentMedications: medicalData.current_medications || '',
+            medicalConditions: medicalData.medical_conditions || '',
+            pastSurgeries: medicalData.past_surgeries || '',
+            smokingStatus: medicalData.smoking_status || '',
+            pregnancyStatus: medicalData.pregnancy_status || '',
+            notes: medicalData.notes || '',
+          } : null;
+          
           return {
             id: apt.id || '',
             name: apt.patient_name || 'Patient',
@@ -280,29 +355,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             time: apt.appointment_time || '',
             date: apt.appointment_date || '',
             age: 0,
-            gender: apt.patient_profile?.gender || '',
-            contact: apt.patient_profile?.phone || '',
-            email: apt.profiles?.email || '',
+            gender: medicalData?.gender || '',
+            contact: medicalData?.phone || '',
+            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
             status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
-            medicalIntake: apt.patient_profile ? {
-              gender: apt.patient_profile.gender || '',
-              phone: apt.patient_profile.phone || '',
-              address: apt.patient_profile.address || '',
-              dateOfBirth: apt.patient_profile.date_of_birth || '',
-              emergencyContactName: apt.patient_profile.emergency_contact_name || '',
-              emergencyContactPhone: apt.patient_profile.emergency_contact_phone || '',
-              allergies: apt.patient_profile.allergies || '',
-              currentMedications: apt.patient_profile.current_medications || '',
-              medicalConditions: apt.patient_profile.medical_conditions || '',
-              pastSurgeries: apt.patient_profile.past_surgeries || '',
-              smokingStatus: apt.patient_profile.smoking_status || '',
-              pregnancyStatus: apt.patient_profile.pregnancy_status || '',
-              notes: apt.patient_profile.notes || '',
-            } : null,
+            medicalIntake: medicalIntake,
           };
         });
         setAppointments(transformedAppointments);
