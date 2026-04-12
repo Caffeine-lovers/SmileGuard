@@ -143,7 +143,7 @@ export default function AppointmentsTab({
           .select('schedule, user_id')
           .eq('user_id', doctorId);
         
-        console.log('📊 Query result - status:', status, 'data:', data, 'error:', error);
+        console.log('📊 [CLINIC_SETUP] Query result - status:', status, 'data.length:', data?.length, 'error:', error?.message, 'error.code:', error?.code);
         
         if (error) {
           console.error('❌ Error loading clinic schedule:', error.message, error.code);
@@ -156,28 +156,32 @@ export default function AppointmentsTab({
           console.log('💡 Checking if RLS policies need adjustment...');
           
           // Try alternative: query all and filter client-side
-          console.log('📋 Attempting fallback: query all records...');
+          console.log('📋 [CLINIC_SETUP] Attempting fallback: query all records...');
           const { data: allData, error: allError } = await supabase
             .from('clinic_setup')
             .select('schedule, user_id');
           
-          console.log('📊 Fallback query - data count:', allData?.length, 'error:', allError?.message);
+          console.log('📊 [CLINIC_SETUP] Fallback query - data.length:', allData?.length, 'error:', allError?.message);
           
           if (allData && allData.length > 0) {
-            console.log('📋 Available records:');
+            console.log('📋 [CLINIC_SETUP] Available records:');
             allData.forEach((record: any) => {
-              console.log(`  - user_id: ${record.user_id}`);
+              console.log(`   - user_id: ${record.user_id}`);
             });
             
             const userRecord = allData.find((r: any) => r.user_id === doctorId);
             if (userRecord) {
-              console.log('✅ Found user record in fallback query!');
+              console.log('🟢 [CLINIC_SETUP] ✅ Found user record in fallback query!');
               if (userRecord.schedule) {
-                console.log('✅ Loaded clinic schedule:', JSON.stringify(userRecord.schedule, null, 2));
+                console.log('✅ Loaded clinic schedule from fallback:', JSON.stringify(userRecord.schedule, null, 2));
                 setClinicSchedule(userRecord.schedule);
               }
               return;
+            } else {
+              console.warn('❌ [CLINIC_SETUP] doctorId not found in fallback results');
             }
+          } else {
+            console.error('❌ [CLINIC_SETUP] Fallback query also returned empty. RLS may be blocking all reads.');
           }
           
           console.warn('⚠️ No clinic_setup record found for user:', doctorId);
@@ -493,6 +497,8 @@ export default function AppointmentsTab({
             .from('clinic_setup')
             .select('schedule')
             .eq('user_id', doctorId);
+          
+          console.log('📊 [CLINIC_SETUP] useFocusEffect query - data.length:', data?.length, 'error:', error?.message, 'error.code:', error?.code);
           
           if (error) {
             console.error('❌ Error loading clinic schedule:', error.message);
