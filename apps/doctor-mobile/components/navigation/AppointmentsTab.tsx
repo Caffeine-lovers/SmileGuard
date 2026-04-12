@@ -45,6 +45,8 @@ export default function AppointmentsTab({
   onAppointmentCreated,
   onAppointmentStatusUpdated,
 }: AppointmentsTabProps) {
+  console.log('🎯 AppointmentsTab rendered. providedDoctorId:', providedDoctorId);
+  
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show'>('all');
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -72,24 +74,167 @@ export default function AppointmentsTab({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [doctorId, setDoctorId] = useState<string>('');
+  const [clinicSchedule, setClinicSchedule] = useState<any>(null);
+  const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
+
+  // Log whenever blockoutDates changes
+  useEffect(() => {
+    if (blockoutDates && blockoutDates.length > 0) {
+      console.log('📌 ========== BLOCKOUT DATES UPDATED ==========');
+      console.log(`🔴 Total Blocked Dates: ${blockoutDates.length}`);
+      blockoutDates.forEach((b, i) => {
+        console.log(`   [${i+1}] ${b.blockout_date} - is_blocked: ${b.is_blocked} - reason: ${b.reason}`);
+      });
+      console.log('🔴 ==========================================');
+    } else {
+      console.log('⚠️ No blockout dates loaded');
+    }
+  }, [blockoutDates]);
+
+  // Log whenever doctorId changes
+  useEffect(() => {
+    console.log('📌 doctorId state changed:', doctorId);
+  }, [doctorId]);
+
+  // Helper to get day name from date (e.g., "monday", "tuesday")
+  const getDayName = (date: Date): string => {
+    const dayIndex = date.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    return dayNames[dayIndex];
+  };
 
   // Initialize doctor ID from prop or auth
   useEffect(() => {
     if (providedDoctorId) {
+      console.log('👨‍⚕️ Setting doctorId from props:', providedDoctorId);
       setDoctorId(providedDoctorId);
     } else {
       // Try to get from Supabase auth
       const getCurrentUser = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          console.log('👨‍⚕️ Setting doctorId from auth:', user.id);
           setDoctorId(user.id);
         }
       };
       getCurrentUser();
     }
   }, [providedDoctorId]);
+
+  // Load clinic schedule from clinic_setup table
+  useEffect(() => {
+    console.log('⏸️  Clinic schedule useEffect triggered. doctorId:', doctorId);
+    
+    const loadClinicSchedule = async () => {
+      try {
+        if (!doctorId) {
+          console.warn('⚠️ Cannot load schedule: doctorId is empty');
+          return;
+        }
+        
+        console.log('🔄 Loading clinic schedule for doctorId:', doctorId);
+        
+        // First try: query with filter
+        console.log('📋 Attempting query with .eq(user_id)...');
+        const { data, error, status } = await supabase
+          .from('clinic_setup')
+          .select('schedule, user_id')
+          .eq('user_id', doctorId);
+        
+        console.log('📊 Query result - status:', status, 'data:', data, 'error:', error);
+        
+        if (error) {
+          console.error('❌ Error loading clinic schedule:', error.message, error.code);
+          console.log('💡 This may be an RLS policy issue');
+          return;
+        }
+        
+        if (!data || data.length === 0) {
+          console.warn('⚠️ Query returned empty results for user:', doctorId);
+          console.log('💡 Checking if RLS policies need adjustment...');
+          
+          // Try alternative: query all and filter client-side
+          console.log('📋 Attempting fallback: query all records...');
+          const { data: allData, error: allError } = await supabase
+            .from('clinic_setup')
+            .select('schedule, user_id');
+          
+          console.log('📊 Fallback query - data count:', allData?.length, 'error:', allError?.message);
+          
+          if (allData && allData.length > 0) {
+            console.log('📋 Available records:');
+            allData.forEach((record: any) => {
+              console.log(`  - user_id: ${record.user_id}`);
+            });
+            
+            const userRecord = allData.find((r: any) => r.user_id === doctorId);
+            if (userRecord) {
+              console.log('✅ Found user record in fallback query!');
+              if (userRecord.schedule) {
+                console.log('✅ Loaded clinic schedule:', JSON.stringify(userRecord.schedule, null, 2));
+                setClinicSchedule(userRecord.schedule);
+              }
+              return;
+            }
+          }
+          
+          console.warn('⚠️ No clinic_setup record found for user:', doctorId);
+          return;
+        }
+
+        const clinicData = data[0];
+        if (clinicData.schedule) {
+          console.log('✅ Loaded clinic schedule:', JSON.stringify(clinicData.schedule, null, 2));
+          console.log('Schedule keys:', Object.keys(clinicData.schedule));
+          // Check each day
+          Object.entries(clinicData.schedule).forEach(([day, dayData]: [string, any]) => {
+            console.log(`  ${day}: isOpen = ${dayData?.isOpen}`);
+          });
+          setClinicSchedule(clinicData.schedule);
+        } else {
+          console.warn('⚠️ Schedule field is null/empty in clinic_setup for this user');
+        }
+        
+        // Load blockout dates for this doctor
+        console.log('� [BLOCKOUT] Starting to load blockout dates...');
+        // Get current authenticated user to ensure RLS policy passes
+        const authUserId = doctorId;
+        console.log('🔴 [BLOCKOUT] authUserId:', authUserId, 'doctorId:', doctorId);
+        
+        if (authUserId) {
+          console.log('🔴 [BLOCKOUT] Querying blockout_dates with user_id =', authUserId);
+          const { data: blockoutData, error: blockoutError, status: blockoutStatus } = await supabase
+            .from('clinic_blockout_dates')
+            .select('*')
+            .eq('user_id', authUserId); // Query by authenticated user ID (required for RLS)
+          
+          console.log('🔴 [BLOCKOUT] Query result - status:', blockoutStatus, 'error:', blockoutError?.message, 'data.length:', blockoutData?.length);
+          
+          if (blockoutError) {
+            console.error('❌ [BLOCKOUT] Error loading blockout dates:', blockoutError.message, blockoutError.code, 'Status:', blockoutStatus);
+          } else if (blockoutData) {
+            console.log('🟢 [BLOCKOUT] ✅ Setting', blockoutData.length, 'blockout dates');
+            setBlockoutDates(blockoutData);
+            blockoutData.forEach(b => {
+              console.log(`   🔴 [BLOCKOUT] ${b.blockout_date} - is_blocked: ${b.is_blocked} - reason: ${b.reason}`);
+            });
+          } else {
+            console.warn('🔴 [BLOCKOUT] blockoutData is null');
+          }
+        } else {
+          console.error('🔴 [BLOCKOUT] ❌ Cannot load blockout dates - authUserId is not set');
+        }
+      } catch (error) {
+        console.error('❌ Error loading clinic schedule:', error);
+      }
+    };
+    
+    if (doctorId) {
+      loadClinicSchedule();
+    }
+  }, [doctorId]);
 
   // Transform backend appointments to match UI format
   const transformBackendAppointment = (apt: DoctorAppointment): AppointmentWithAccountType => {
@@ -126,6 +271,44 @@ export default function AppointmentsTab({
         const startDate = formatDate(firstDay);
         const endDate = formatDate(lastDay);
         
+        // Also reload blockout dates for the current month
+        if (doctorId) {
+          console.log('� [BLOCKOUT] Reloading blockout dates for month view... doctorId:', doctorId);
+          try {
+            // Get current authenticated user to ensure RLS policy passes
+            const authUserId = doctorId;
+            console.log('🔴 [BLOCKOUT] Auth user ID:', authUserId, 'Doctor ID:', doctorId);
+            
+            if (authUserId) {
+              console.log('🔴 [BLOCKOUT] Querying blockout_dates (month view)...');
+              const { data: blockoutData, error: blockoutError, status } = await supabase
+                .from('clinic_blockout_dates')
+                .select('*')
+                .eq('user_id', authUserId); // Query by authenticated user ID (required for RLS)
+              
+              console.log('🔴 [BLOCKOUT] Month view query - status:', status, 'error:', blockoutError?.message, 'data.length:', blockoutData?.length);
+              
+              if (blockoutError) {
+                console.error('❌ [BLOCKOUT] Error fetching blockout dates:', blockoutError.message, blockoutError.code, 'Status:', status);
+              } else {
+                console.log('🟢 [BLOCKOUT] ✅ Setting', blockoutData?.length || 0, 'blockout dates (month view)');
+                if (blockoutData) {
+                  setBlockoutDates(blockoutData);
+                  blockoutData.forEach(b => {
+                    console.log(`   🔴 [BLOCKOUT] ${b.blockout_date} - is_blocked: ${b.is_blocked} - reason: ${b.reason}`);
+                  });
+                }
+              }
+            } else {
+              console.error('🔴 [BLOCKOUT] ❌ authUserId is not set (month view)');
+            }
+          } catch (queryError) {
+            console.error('❌ [BLOCKOUT] Exception fetching blockout dates:', queryError);
+          }
+        } else {
+          console.warn('⚠️ Cannot fetch blockout dates - doctorId is not set');
+        }
+        
         // Fetch appointments for the current doctor (dentist_id must match)
         const doctorAppointments = await getDoctorAppointments(doctorId || null, startDate, endDate);
         
@@ -146,6 +329,7 @@ export default function AppointmentsTab({
           setAllMonthAppointments([]);
         }
       } catch (error) {
+        console.error('❌ Error in fetchMonthAppointments:', error);
         setAllMonthAppointments([]);
       }
     };
@@ -248,9 +432,35 @@ export default function AppointmentsTab({
   };
 
   const isUnavailableDay = (date: Date) => {
-    const dayOfWeek = date.getDay();
-    // 0 = Sunday, 2 = Tuesday
-    return dayOfWeek === 0 || dayOfWeek === 2;
+    const dateStr = formatDate(date);
+    
+    // 1. Check specific blockout dates first (highest priority)
+    console.log(`🔍 [isUnavailableDay] Checking ${dateStr}... blockoutDates.length = ${blockoutDates.length}`);
+    const blockout = blockoutDates.find(b => b.blockout_date === dateStr);
+    
+    if (blockout) {
+      if (blockout.is_blocked) {
+        console.log(`🔴 BLOCKED: ${dateStr} (reason: ${blockout.reason})`);
+        return true;
+      } else {
+        console.log(`✅ AVAILABLE: ${dateStr} (override)`);
+        return false;
+      }
+    }
+    
+    // 2. Check weekly schedule - if day is closed, block all instances of that day
+    if (clinicSchedule) {
+      const dayName = getDayName(date);
+      const daySchedule = clinicSchedule[dayName];
+      
+      // If the day is marked as closed, it's unavailable
+      if (daySchedule && daySchedule.isOpen === false) {
+        console.log(`🚫 ${dayName} (${dateStr}) is CLOSED`);
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   const goToPreviousMonth = () => {
@@ -274,6 +484,62 @@ export default function AppointmentsTab({
       
       console.log('🔄 AppointmentsTab focused - refreshing all data...');
       setLoading(true);
+      
+      // Load clinic schedule and blockout dates
+      const loadSchedule = async () => {
+        try {
+          console.log('📅 Loading clinic schedule...');
+          const { data, error } = await supabase
+            .from('clinic_setup')
+            .select('schedule')
+            .eq('user_id', doctorId);
+          
+          if (error) {
+            console.error('❌ Error loading clinic schedule:', error.message);
+            return;
+          }
+          
+          if (data && data.length > 0 && data[0].schedule) {
+            console.log('✅ Schedule loaded from useFocusEffect');
+            setClinicSchedule(data[0].schedule);
+          } else {
+            console.warn('⚠️ No schedule found in clinic_setup');
+          }
+          
+          // Load blockout dates
+          console.log('� [BLOCKOUT] Loading blockout dates from useFocusEffect...');
+          // Load blockout dates - use doctorId directly
+          const authUserId = doctorId;
+          
+          if (authUserId) {
+            console.log('🔴 [BLOCKOUT] Querying blockout_dates (useFocusEffect)...');
+            const { data: blockoutData, error: blockoutError, status: blockoutStatus } = await supabase
+              .from('clinic_blockout_dates')
+              .select('*')
+              .eq('user_id', authUserId); // Query by authenticated user ID (required for RLS)
+            
+            console.log('🔴 [BLOCKOUT] useFocusEffect query - status:', blockoutStatus, 'error:', blockoutError?.message, 'data.length:', blockoutData?.length);
+            
+            if (blockoutError) {
+              console.error('❌ [BLOCKOUT] Error loading blockout dates:', blockoutError.message, blockoutError.code, 'Status:', blockoutStatus);
+            } else if (blockoutData) {
+              console.log('🟢 [BLOCKOUT] ✅ Setting', blockoutData.length, 'blockout dates (useFocusEffect)');
+              setBlockoutDates(blockoutData);
+              blockoutData.forEach(b => {
+                console.log(`   🔴 [BLOCKOUT] ${b.blockout_date} - is_blocked: ${b.is_blocked} - reason: ${b.reason}`);
+              });
+            } else {
+              console.warn('🔴 [BLOCKOUT] blockoutData is null (useFocusEffect)');
+            }
+          } else {
+            console.error('🔴 [BLOCKOUT] ❌ authUserId is not set (useFocusEffect)');
+          }
+        } catch (error) {
+          console.error('❌ Error in loadSchedule:', error);
+        }
+      };
+      
+      loadSchedule();
       
       // Refresh both month and daily appointments
       const year = currentMonth.getFullYear();
@@ -742,9 +1008,17 @@ export default function AppointmentsTab({
             {/* Weekday Headers */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 }}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
-                const isUnavailable = index === 0 || index === 2; // Sunday or Tuesday
+                // Check if this day is closed based on clinic schedule
+                let isClosed = false;
+                if (clinicSchedule) {
+                  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                  const dayName = dayNames[index];
+                  const daySchedule = clinicSchedule[dayName];
+                  isClosed = daySchedule && daySchedule.isOpen === false;
+                }
+                
                 return (
-                  <Text key={day} style={{ fontSize: 11, fontWeight: 'bold', color: isUnavailable ? '#ff6b6b' : '#666', width: '14.28%', textAlign: 'center', opacity: isUnavailable ? 0.7 : 1 }}>
+                  <Text key={day} style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', width: '14.28%', textAlign: 'center', opacity: isClosed ? 0.7 : 1 }}>
                     {day}
                   </Text>
                 );
@@ -763,7 +1037,17 @@ export default function AppointmentsTab({
                 const appointmentCount = getAppointmentCountForDate(dateStr);
                 const isSelected = selectedDate === dateStr;
                 const isToday = dateStr === formatDate(new Date());
+                
+                // Debug log for specific dates
+                if (dateStr === '2026-04-18' || dateStr === '2026-04-24') {
+                  console.log(`📍 [RENDER] Checking ${dateStr} - blockoutDates.length: ${blockoutDates?.length}`);
+                }
+                
                 const isUnavailable = isUnavailableDay(date);
+                
+                // Check if this date is specifically blocked (not just closed by schedule)
+                const blockoutEntry = blockoutDates.find(b => b.blockout_date === dateStr && b.is_blocked);
+                const isBlockedSpecific = !!blockoutEntry;
 
                 return (
                   <TouchableOpacity
@@ -776,15 +1060,20 @@ export default function AppointmentsTab({
                       justifyContent: 'center',
                       alignItems: 'center',
                       borderRadius: 6,
-                      backgroundColor: isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : '#f9f9f9',
-                      borderWidth: isUnavailable ? 1 : isToday ? 2 : 0,
-                      borderColor: isUnavailable ? '#ddd' : isToday ? '#0b7fab' : 'transparent',
-                      opacity: isUnavailable ? 0.5 : 1,
+                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : '#f9f9f9',
+                      borderWidth: isBlockedSpecific ? 2 : isUnavailable ? 1 : isToday ? 2 : 0,
+                      borderColor: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ddd' : isToday ? '#0b7fab' : 'transparent',
+                      opacity: isUnavailable ? 0.6 : 1,
                     }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
+                    <Text style={{ fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
                       {day}
                     </Text>
+                    {isBlockedSpecific && (
+                      <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#d32f2f', marginTop: 1 }}>
+                        🔒
+                      </Text>
+                    )}
                     {!isUnavailable && appointmentCount > 0 && (
                       <View
                         style={{

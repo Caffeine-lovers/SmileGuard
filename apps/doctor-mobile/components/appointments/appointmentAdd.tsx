@@ -33,6 +33,18 @@ interface Patient {
   accountType: 'Patient' | 'Dummy';
 }
 
+interface Schedule {
+  sunday: { isOpen: boolean; opening_time: string; closing_time: string };
+  monday: { isOpen: boolean; opening_time: string; closing_time: string };
+  tuesday: { isOpen: boolean; opening_time: string; closing_time: string };
+  wednesday: { isOpen: boolean; opening_time: string; closing_time: string };
+  thursday: { isOpen: boolean; opening_time: string; closing_time: string };
+  friday: { isOpen: boolean; opening_time: string; closing_time: string };
+  saturday: { isOpen: boolean; opening_time: string; closing_time: string };
+}
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
 const SERVICES = [
   "Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
     "X-Ray", "Checkup"
@@ -85,6 +97,8 @@ export default function AppointmentAdd({
   const [dayAppointmentCounts, setDayAppointmentCounts] = useState<{ [key: string]: number }>({});
   const [currentScrollSection, setCurrentScrollSection] = useState<string>('A');
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [clinicSchedule, setClinicSchedule] = useState<Schedule | null>(null);
+  const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
 
   // Organize patients by first letter
   const groupPatientsByLetter = () => {
@@ -118,8 +132,85 @@ export default function AppointmentAdd({
       setSelectedDay(tomorrow.getDate());
       setSelectedHour(10);
       setSelectedMinute(0);
+      
+      // Load clinic schedule and blockout dates
+      loadClinicSchedule();
+      loadBlockoutDates();
     }
   }, [visible]);
+
+  // Load clinic schedule from clinic_setup table
+  const loadClinicSchedule = async () => {
+    try {
+      if (!doctorId) {
+        console.warn('⚠️ Cannot load clinic schedule: doctorId is empty');
+        return;
+      }
+      
+      console.log('🔄 Loading clinic schedule for doctorId:', doctorId);
+      
+      const { data, error } = await supabase
+        .from('clinic_setup')
+        .select('schedule')
+        .eq('user_id', doctorId);
+      
+      if (error) {
+        console.error('❌ Error loading clinic schedule:', error.message);
+        return;
+      }
+      
+      console.log('📊 Schedule query result - data:', data, 'error:', error);
+      
+      if (data && data.length > 0 && data[0].schedule) {
+        console.log('✅ Loaded clinic schedule:', JSON.stringify(data[0].schedule, null, 2));
+        setClinicSchedule(data[0].schedule);
+      } else {
+        console.warn('⚠️ No clinic schedule found, data length:', data?.length);
+        // Log each day to see what we're getting
+        if (data && data.length > 0) {
+          console.log('📋 Full record:', JSON.stringify(data[0], null, 2));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading clinic schedule:', error);
+    }
+  };
+
+  // Load blockout dates from clinic_blockout_dates table
+  const loadBlockoutDates = async () => {
+    try {
+      console.log('📅 Loading blockout dates...');
+      
+      // Get current authenticated user to ensure RLS policy passes
+      const { data: { user } } = await supabase.auth.getUser();
+      const authUserId = user?.id;
+      
+      if (!authUserId) {
+        console.warn('⚠️ Cannot load blockout dates: user not authenticated');
+        return;
+      }
+      
+      const { data: blockoutData, error: blockoutError } = await supabase
+        .from('clinic_blockout_dates')
+        .select('*')
+        .eq('user_id', authUserId);
+      
+      if (blockoutError) {
+        console.error('❌ Error loading blockout dates:', blockoutError.message);
+        return;
+      }
+      
+      if (blockoutData) {
+        setBlockoutDates(blockoutData);
+        console.log('✅ Loaded', blockoutData.length, 'blockout dates');
+        blockoutData.forEach(b => {
+          console.log(`   📌 Blockout: ${b.blockout_date} - is_blocked: ${b.is_blocked}`);
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error loading blockout dates:', error);
+    }
+  };
 
   // Handle return from AddPatient modal
   useEffect(() => {
@@ -184,6 +275,9 @@ export default function AppointmentAdd({
 
       try {
         console.log('📅 Loading appointment counts for', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`);
+
+        // Also reload blockout dates for the selected month
+        await loadBlockoutDates();
 
         // OPTIMIZATION: Fetch ALL appointments for the month in ONE query
         const startDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
@@ -256,25 +350,37 @@ export default function AppointmentAdd({
   useEffect(() => {
     if (!showTimePicker) return;
     
-    // If hour is 15, only :00 is allowed (business hours limit)
-    if (selectedHour === 15) {
+    const slot00Available = !bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:00`) && isTimeAvailable(selectedHour, 0);
+    const slot30Available = !bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:30`) && isTimeAvailable(selectedHour, 30);
+    
+    // If both slots are unavailable, don't adjust
+    if (!slot00Available && !slot30Available) return;
+    
+    // If minute 0 is available, select it; otherwise select 30
+    if (slot00Available) {
       setSelectedMinute(0);
+    } else if (slot30Available) {
+      setSelectedMinute(30);
+    }
+  }, [selectedHour, bookedTimes, showTimePicker, clinicSchedule]);
+
+  // Validate selected hour when date changes (ensure it's within clinic hours for that date)
+  useEffect(() => {
+    if (!showTimePicker) return;
+    
+    const availableHours = getAvailableHours();
+    if (availableHours.length === 0) {
+      console.warn('⚠️ No available hours on selected date');
       return;
     }
     
-    const slot00 = bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:00`);
-    const slot30 = bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:30`);
-    
-    // If both slots are booked, don't adjust
-    if (slot00 && slot30) return;
-    
-    // If minute 0 is available, select it; otherwise select 30
-    if (!slot00) {
+    // If selected hour is not in available hours, reset to first available hour
+    if (!availableHours.includes(selectedHour)) {
+      console.log(`🔄 Selected hour ${selectedHour} not available. Resetting to ${availableHours[0]}`);
+      setSelectedHour(availableHours[0]);
       setSelectedMinute(0);
-    } else if (!slot30) {
-      setSelectedMinute(30);
     }
-  }, [selectedHour, bookedTimes, showTimePicker]);
+  }, [selectedYear, selectedMonth, selectedDay, showTimePicker, clinicSchedule]);
 
   const fetchPatients = async (onComplete?: () => void) => {
     try {
@@ -400,11 +506,42 @@ export default function AppointmentAdd({
     return patient?.name || 'Select Patient';
   };
 
-  const isUnavailableDay = (year: number, month: number, day: number): boolean => {
+  // Get day abbreviation from date
+  const getDayAbbreviation = (year: number, month: number, day: number): string => {
     const date = new Date(year, month - 1, day);
     const dayOfWeek = date.getDay();
-    // 0 = Sunday, 2 = Tuesday (clinic closed)
-    return dayOfWeek === 0 || dayOfWeek === 2;
+    const dayAbbreviations = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return dayAbbreviations[dayOfWeek];
+  };
+
+  const isUnavailableDay = (year: number, month: number, day: number): boolean => {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    // 1. Check specific blockout dates first (highest priority)
+    const blockout = blockoutDates.find(b => b.blockout_date === dateStr);
+    if (blockout) {
+      if (blockout.is_blocked) {
+        console.log(`📅 Date ${dateStr} is BLOCKED (specific blockout)`);
+        return true;
+      } else {
+        console.log(`📅 Date ${dateStr} is AVAILABLE (blockout override)`);
+        return false;
+      }
+    }
+    
+    // 2. Check clinic schedule
+    if (clinicSchedule) {
+      const date = new Date(year, month - 1, day);
+      const dayOfWeek = date.getDay();
+      const dayName = DAY_NAMES[dayOfWeek];
+      const daySchedule = clinicSchedule[dayName as keyof Schedule];
+      
+      if (daySchedule && daySchedule.isOpen === false) {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   const getDayAppointmentCount = async (year: number, month: number, day: number): Promise<number> => {
@@ -435,6 +572,142 @@ export default function AppointmentAdd({
 
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month, 0).getDate();
+  };
+
+  // Parse time in 12-hour format (e.g., "10:00 AM" or "3:00 PM") to 24-hour format
+  const parse12HourTime = (timeString: string): { hour: number; minute: number } => {
+    console.log(`🔄 Parsing time string: "${timeString}"`);
+    
+    // Match format like "10:00 AM" or "3:00 PM"
+    const match = timeString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    
+    if (!match) {
+      console.error(`❌ Invalid time format: "${timeString}". Expected format: "HH:MM AM/PM"`);
+      return { hour: 10, minute: 0 }; // Fallback
+    }
+    
+    let hour = parseInt(match[1], 10);
+    const minute = parseInt(match[2], 10);
+    const period = match[3].toUpperCase();
+    
+    // Convert 12-hour to 24-hour format
+    if (period === 'PM' && hour !== 12) {
+      hour += 12; // 1 PM = 13, 2 PM = 14, etc.
+    } else if (period === 'AM' && hour === 12) {
+      hour = 0; // 12 AM = 00:00
+    }
+    
+    console.log(`✅ Converted "${timeString}" to ${hour}:${String(minute).padStart(2, '0')} (24-hour format)`);
+    
+    return { hour, minute };
+  };
+
+  // Get clinic hours for a specific date
+  const getClinicHoursForDate = (year: number, month: number, day: number) => {
+    if (!clinicSchedule) {
+      console.warn('⚠️ clinicSchedule is null/undefined');
+      return null;
+    }
+    
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    const dayName = DAY_NAMES[dayOfWeek];
+    
+    console.log(`📅 Getting hours for ${dayName} (date: ${year}-${month}-${day})`, {
+      dayOfWeek,
+      dayName,
+      availableDays: Object.keys(clinicSchedule),
+      schedule: clinicSchedule[dayName as keyof Schedule],
+    });
+    
+    const daySchedule = clinicSchedule[dayName as keyof Schedule];
+    if (!daySchedule) {
+      console.warn(`⚠️ No schedule entry for ${dayName}`);
+      return null;
+    }
+    
+    if (!daySchedule.isOpen) {
+      console.log(`🚫 ${dayName} is closed (isOpen = false)`);
+      return null;
+    }
+    
+    // Parse opening and closing times (format: "HH:MM")
+    console.log(`⏰ ${dayName} times - opening: ${daySchedule.opening_time}, closing: ${daySchedule.closing_time}`);
+    const openingTime = parse12HourTime(daySchedule.opening_time);
+    const closingTime = parse12HourTime(daySchedule.closing_time);
+    const openHour = openingTime.hour;
+    const openMin = openingTime.minute;
+    const closeHour = closingTime.hour;
+    const closeMin = closingTime.minute;
+    
+    console.log(`✅ Parsed hours - open: ${openHour}:${String(openMin).padStart(2, '0')}, close: ${closeHour}:${String(closeMin).padStart(2, '0')}`);
+    
+    return { openHour, openMin, closeHour, closeMin };
+  };
+
+  // Check if a specific hour is available on the selected date
+  const isHourAvailable = (hour: number): boolean => {
+    const clinicHours = getClinicHoursForDate(selectedYear, selectedMonth, selectedDay);
+    if (!clinicHours) {
+      console.warn(`⚠️ Hour ${hour} unavailable - no clinic hours found`);
+      return false; // Clinic is closed
+    }
+    
+    const { openHour, closeHour } = clinicHours;
+    // Allow hours from opening up to one hour before closing
+    const isAvailable = hour >= openHour && hour < closeHour;
+    
+    console.log(`🕐 Hour ${hour} check: openHour=${openHour}, closeHour=${closeHour}, available=${isAvailable}`);
+    
+    return isAvailable;
+  };
+
+  // Check if a specific time is available on the selected date
+  const isTimeAvailable = (hour: number, minute: number): boolean => {
+    const clinicHours = getClinicHoursForDate(selectedYear, selectedMonth, selectedDay);
+    if (!clinicHours) {
+      console.warn(`⚠️ Time ${hour}:${minute} unavailable - no clinic hours found`);
+      return false; // Clinic is closed
+    }
+    
+    const { openHour, openMin, closeHour, closeMin } = clinicHours;
+    
+    // Create comparable time values
+    const selectedTime = hour * 60 + minute;
+    const openTime = openHour * 60 + openMin;
+    // Allow times up to one hour before closing
+    const closeTime = (closeHour - 1) * 60 + closeMin;
+    
+    const isAvailable = selectedTime >= openTime && selectedTime <= closeTime;
+    
+    console.log(`⏱️ Time ${hour}:${String(minute).padStart(2, '0')} check:`, {
+      selectedTime,
+      openTime: `${openHour}:${String(openMin).padStart(2, '0')}`,
+      closeTime: `${closeHour}:${String(closeMin).padStart(2, '0')}`,
+      available: isAvailable,
+    });
+    
+    return isAvailable;
+  };
+
+  // Get available hours for the selected date based on clinic schedule
+  const getAvailableHours = (): number[] => {
+    const clinicHours = getClinicHoursForDate(selectedYear, selectedMonth, selectedDay);
+    if (!clinicHours) {
+      console.warn('⚠️ No clinic hours available for selected date');
+      return []; // No hours available
+    }
+    
+    const { openHour, closeHour } = clinicHours;
+    const hours: number[] = [];
+    
+    // Generate all hours from opening to one hour before closing
+    for (let hour = openHour; hour < closeHour; hour++) {
+      hours.push(hour);
+    }
+    
+    console.log(`📊 Available hours: ${hours.join(', ')} (open: ${openHour}, close: ${closeHour})`);
+    return hours;
   };
 
   const validateForm = (): boolean => {
@@ -999,7 +1272,7 @@ export default function AppointmentAdd({
                                   isDisabled && styles.pickerItemTextDisabled,
                                 ]}
                               >
-                                {String(day).padStart(2, '0')}
+                                {String(day).padStart(2, '0')} {getDayAbbreviation(selectedYear, selectedMonth, day)}
                               </Text>
                               {isUnavailable && (
                                 <Text style={styles.closedLabel}>CLOSED</Text>
@@ -1038,11 +1311,14 @@ export default function AppointmentAdd({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Hour</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {Array.from({ length: 6 }, (_, i) => 10 + i).map((hour) => {
+                      {getAvailableHours().map((hour) => {
                         const slot00 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:00`);
                         const slot30 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:30`);
-                        // For hour 15, only :00 is available (business hours limit), so check only slot00
-                        const isHourFull = hour === 15 ? slot00 : (slot00 && slot30);
+                        const isHourFull = slot00 && slot30;
+                        
+                        // Check if hour is within clinic operating hours
+                        const withinClinicHours = isHourAvailable(hour);
+                        const isDisabled = !withinClinicHours || isHourFull;
                         
                         return (
                           <TouchableOpacity
@@ -1050,22 +1326,25 @@ export default function AppointmentAdd({
                             style={[
                               styles.pickerItem,
                               selectedHour === hour && styles.pickerItemSelected,
-                              isHourFull && styles.pickerItemDisabled,
+                              isDisabled && styles.pickerItemDisabled,
                             ]}
-                            onPress={() => !isHourFull && setSelectedHour(hour)}
-                            disabled={isHourFull}
+                            onPress={() => !isDisabled && setSelectedHour(hour)}
+                            disabled={isDisabled}
                           >
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                               <Text
                                 style={[
                                   styles.pickerItemText,
                                   selectedHour === hour && styles.pickerItemTextSelected,
-                                  isHourFull && styles.pickerItemTextDisabled,
+                                  isDisabled && styles.pickerItemTextDisabled,
                                 ]}
                               >
                                 {String(hour).padStart(2, '0')}
                               </Text>
-                              {isHourFull && (
+                              {!withinClinicHours && (
+                                <Text style={{ fontSize: 10, color: '#999', fontWeight: '700' }}>CLOSED</Text>
+                              )}
+                              {isHourFull && withinClinicHours && (
                                 <Text style={{ fontSize: 10, color: '#ff6b6b', fontWeight: '700' }}>FULL</Text>
                               )}
                             </View>
@@ -1082,8 +1361,10 @@ export default function AppointmentAdd({
                       {[0, 30].map((minute) => {
                         const timeString = `${String(selectedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
                         const isBooked = bookedTimes.includes(timeString);
-                        const isAfterLimit = selectedHour === 15 && minute === 30; // 15:30 is not allowed, limit is 15:00
-                        const isDisabled = isBooked || isAfterLimit;
+                        
+                        // Check if this time is within clinic operating hours
+                        const withinClinicHours = isTimeAvailable(selectedHour, minute);
+                        const isDisabled = isBooked || !withinClinicHours;
                         
                         return (
                           <TouchableOpacity
@@ -1109,8 +1390,8 @@ export default function AppointmentAdd({
                               {isBooked && (
                                 <Text style={{ fontSize: 10, color: '#ff6b6b', fontWeight: '700' }}>BOOKED</Text>
                               )}
-                              {isAfterLimit && (
-                                <Text style={{ fontSize: 10, color: '#999', fontWeight: '700' }}>LIMIT</Text>
+                              {!withinClinicHours && (
+                                <Text style={{ fontSize: 10, color: '#999', fontWeight: '700' }}>CLOSED</Text>
                               )}
                             </View>
                           </TouchableOpacity>

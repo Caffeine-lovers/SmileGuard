@@ -64,6 +64,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [userAppointments, setUserAppointments]       = useState<Appointment[]>([]);
   const [loadingUserData, setLoadingUserData]         = useState(true);
 
+  console.log('🔴 [DIAGNOSTIC] BookAppointment component RENDERED');
+  console.log('🔴 [DIAGNOSTIC] currentUser:', currentUser);
+
   const step1Complete = selectedService !== null;
   const step2Complete = step1Complete && selectedDate !== '';
   const step3Complete = step2Complete && selectedTime !== '';
@@ -88,19 +91,26 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   }, [currentUser?.id]);
 
   const fetchAllBlockedSlots = async () => {
+    console.log('📞 [BookAppointment] fetchAllBlockedSlots called');
     setLoadingBlockedSlots(true);
     try {
       const slots = await getAllBlockedSlots();
+      console.log('📦 [BookAppointment] Slots returned from getAllBlockedSlots:', slots.length, slots);
+      
       setBlockedSlots(slots);
+      
       const dateCounts: Record<string, number> = {};
       for (const slot of slots) {
         dateCounts[slot.date] = (dateCounts[slot.date] ?? 0) + 1;
       }
+      console.log('📊 [BookAppointment] Date counts:', dateCounts);
+      
       const full = new Set(
         Object.entries(dateCounts)
           .filter(([, count]) => count >= TIME_SLOTS.length)
           .map(([date]) => date)
       );
+      console.log('🚫 [BookAppointment] Fully booked dates:', Array.from(full));
       setFullyBookedDates(full);
     } catch (error) {
       console.error('Error fetching blocked slots:', error);
@@ -110,7 +120,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
   };
 
-  const isSlotDisabled = (date: string, time: string) => isSlotTaken(blockedSlots, date, time);
+  const isSlotDisabled = (date: string, time: string) => {
+    const taken = isSlotTaken(blockedSlots, date, time);
+    if (taken) {
+      console.log(`🔒 Slot disabled: ${date} @ ${time}`);
+    }
+    return taken;
+  };
 
   const handleBooking = async () => {
     if (!selectedService || !selectedDate || !selectedTime || !currentUser) {
@@ -295,6 +311,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             {TIME_SLOTS.map((time) => {
               const disabled = isSlotDisabled(selectedDate, time);
               const active   = selectedTime === time;
+              console.log(`⏰ Time ${time} for ${selectedDate}: disabled=${disabled}`);
               return (
                 <button
                   type="button"

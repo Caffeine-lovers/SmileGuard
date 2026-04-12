@@ -312,17 +312,19 @@ export default function AuthModal({
     <Modal visible={visible} animationType="slide">
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 40}
       >
-        <SafeAreaView style={styles.modalFull}>
-          <View style={styles.bordercard}>
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.stepContent}>
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={true}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.container}>
+              <View style={styles.innerContainer}>
+                <View style={styles.stepContent}>
                 {/* ════════════ Step 0: Portal Entry Choice ════════════ */}
                 {step === 0 && (
                   <View style={{ alignItems: "center" }}>
@@ -873,7 +875,7 @@ export default function AuthModal({
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
+                </View>
               {/* Close button */}
               {step < 5 && (
                 <TouchableOpacity
@@ -885,13 +887,12 @@ export default function AuthModal({
                   accessibilityLabel="Close authentication modal"
                   accessibilityRole="button"
                 >
-                  
                   <Text style={styles.closeBtnText}>Exit</Text>
                 </TouchableOpacity>
               )}
-              
+              </View>
+              </View>
             </ScrollView>
-          </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
     </Modal>
@@ -903,26 +904,23 @@ export default function AuthModal({
 // ══════════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
-  modalFull: {
+  container: {
     flex: 1,
-    padding: 30,
+    padding: 20,
   },
-  bordercard: {
+  innerContainer: {
     flex: 1,
+    justifyContent: "center",
     maxWidth: 540,
     alignSelf: "center",
     width: "100%",
   },
-  scrollContent: {
-    flexGrow: 1,P
-    justifyContent: "center",
-  },
   stepContent: {
-    marginTop: 20,
     borderColor: "#2bf1ff7d",
     borderWidth: 1,
     borderRadius: 45,
     padding: 24,
+    backgroundColor: "#fff",
   },
   h2: {
     fontSize: 24,
