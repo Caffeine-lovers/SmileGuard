@@ -671,12 +671,16 @@ export default function AppointmentsTab({
   // Handler to open AppointmentEdit modal
   const handleEditAppointment = (appointment: any) => {
     console.log('🔧 Opening appointment edit modal for:', appointment.id);
-    // Ensure appointment has appointment_date field (mapped from date for AppointmentEdit compatibility)
+    // Ensure appointment has appointment_date and appointment_time fields for AppointmentEdit component
+    // (these were mapped to 'date' and 'time' during transformation)
     const appointmentForModal = {
       ...appointment,
-      appointment_date: appointment.date, // Restore appointment_date field for AppointmentEdit component
+      appointment_date: appointment.date, // Restore appointment_date field from 'date'
+      appointment_time: appointment.time, // Restore appointment_time field from 'time'
     };
     console.log('📋 Appointment data for modal:', appointmentForModal);
+    console.log('📋 appointment_date:', appointmentForModal.appointment_date);
+    console.log('📋 appointment_time:', appointmentForModal.appointment_time);
     setEditingAppointment(appointmentForModal);
     setShowEditModal(true);
   };
