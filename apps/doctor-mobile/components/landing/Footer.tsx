@@ -7,9 +7,9 @@ const Footer: React.FC = () => {
       <View style={styles.footerRow}>
         <View style={styles.footerSection}>
           <Text style={styles.footerTitle}>Contact</Text>
-          <Text style={styles.footerText}>📍 123 Dental St., Malabon</Text>
-          <Text style={styles.footerText}>📞 (02) 1234-5678</Text>
-          <Text style={styles.footerText}>📧 info@smileguard.ph</Text>
+          <Text style={styles.footerText}> 123 Dental St., Malabon</Text>
+          <Text style={styles.footerText}> (02) 1234-5678</Text>
+          <Text style={styles.footerText}> info@smileguard.ph</Text>
         </View>
 
         <View style={styles.footerSection}>
@@ -21,15 +21,15 @@ const Footer: React.FC = () => {
 
         <View style={styles.footerSection}>
           <Text style={styles.footerTitle}>Hours</Text>
-          <Text style={styles.footerText}>🕗 Mon: 10:00 AM – 4:00 PM</Text>
-          <Text style={styles.footerText}>⌚ Tue: Closed</Text>
-          <Text style={styles.footerText}>🕗 Wed–Fri: 10:00 AM – 3:00 PM</Text>
-          <Text style={styles.footerText}>🕗 Sat: 10:00 AM – 3:00 PM</Text>
-          <Text style={styles.footerText}>⌚ Sun: Closed</Text>
+          <Text style={styles.footerText}> Mon: 10:00 AM – 4:00 PM</Text>
+          <Text style={styles.footerText}> Tue: Closed</Text>
+          <Text style={styles.footerText}> Wed–Fri: 10:00 AM – 3:00 PM</Text>
+          <Text style={styles.footerText}> Sat: 10:00 AM – 3:00 PM</Text>
+          <Text style={styles.footerText}> Sun: Closed</Text>
         </View>
       </View>
       <View style={styles.footerBottom}>
-        <Text style={styles.footerLegal}>© 2026 SmileGuard Dental</Text>
+        <Text style={styles.footerLegal}> 2026 SmileGuard Dental</Text>
         <Text style={styles.footerLegal}>Privacy Policy | Terms of Service</Text>
       </View>
     </View>

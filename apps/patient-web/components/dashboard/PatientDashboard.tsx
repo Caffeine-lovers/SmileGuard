@@ -48,10 +48,16 @@ export default function PatientDashboard() {
         console.log("[PatientDashboard] Data fetched successfully:", { appointmentsCount: appts.length, balance });
         
         // Filter only scheduled appointments and sort them by date (assuming they are returned in some order or need sorting)
-        const scheduledAppts = appts.filter(apt => apt.status === 'scheduled' || apt.status === 'Scheduled' || apt.status === 'confirmed');
+        const scheduledAppts = appts.filter(apt => 
+          apt.status === 'scheduled' || 
+          apt.status === 'Scheduled' || 
+          apt.status === 'confirmed' || 
+          apt.status === 'pending'
+        );
         // Sort by date (ascending)
         scheduledAppts.sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
-        
+
+        console.log("[PatientDashboard] Scheduled/Confirmed appointments:", scheduledAppts.length);
         setAppointments(scheduledAppts);
         setOutstandingBalance(balance);
       } catch (err) {

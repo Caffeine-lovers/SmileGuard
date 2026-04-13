@@ -104,7 +104,7 @@ export default function AnalysisPage() {
   return (
     <div className="min-h-screen bg-bg-screen">
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-brand-cyan mb-2">🔍 AI Oral Analysis</h1>
+        <h1 className="text-4xl font-bold text-brand-cyan mb-2"> AI Oral Analysis</h1>
         <p className="text-text-secondary mb-8">Upload a photo of your teeth for AI-powered analysis</p>
 
         <div className="bg-bg-surface rounded-card shadow-sm border border-border-card p-8">
@@ -239,7 +239,7 @@ export default function AnalysisPage() {
 
           {/* Info Box */}
           <div className="p-4 bg-brand-primary/5 border border-brand-primary/20 rounded-card text-sm text-text-primary">
-            <p className="font-semibold mb-2">💡 Tips for best results:</p>
+            <p className="font-semibold mb-2"> Tips for best results:</p>
             <ul className="list-disc pl-5 space-y-1 text-text-secondary">
               <li>Ensure good lighting and clear visibility of your teeth</li>
               <li>Take a straight-on photo of your front teeth</li>

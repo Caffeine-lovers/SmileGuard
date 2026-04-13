@@ -6,15 +6,15 @@ import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments } fro
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
-  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '🪥' },
-  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '✨' },
+  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
+  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
   { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '🦷' },
-  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '⚕️' },
-  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '🔧' },
-  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '😁' },
-  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '🏥' },
-  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '📡' },
-  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '🩺' },
+  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '' },
+  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '' },
+  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '' },
+  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '' },
+  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '' },
+  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '' },
 ];
 
 const TIME_SLOTS = [
@@ -44,7 +44,6 @@ function StepBadge({ n, done }: { n: number; done: boolean }) {
 function LockedOverlay({ message }: { message: string }) {
   return (
     <div className="absolute inset-0 rounded-2xl bg-white/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 z-10">
-      <span className="text-2xl">🔒</span>
       <p className="text-xs font-semibold text-text-secondary">{message}</p>
     </div>
   );
@@ -63,8 +62,28 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [fullyBookedDates, setFullyBookedDates]       = useState<Set<string>>(new Set());
   const [userAppointments, setUserAppointments]       = useState<Appointment[]>([]);
   const [loadingUserData, setLoadingUserData]         = useState(true);
+  const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
 
   const step1Complete = selectedService !== null;
+
+  const generateCalendarDays = () => {
+    const year = currentMonthView.getFullYear();
+    const month = currentMonthView.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+    return days;
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonthView(new Date(currentMonthView.getFullYear(), currentMonthView.getMonth() - 1, 1));
+  };
+  const handleNextMonth = () => {
+    setCurrentMonthView(new Date(currentMonthView.getFullYear(), currentMonthView.getMonth() + 1, 1));
+  };
   const step2Complete = step1Complete && selectedDate !== '';
   const step3Complete = step2Complete && selectedTime !== '';
 
@@ -160,7 +179,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   const formattedDate = selectedDate
     ? new Date(selectedDate + 'T00:00').toLocaleDateString('en-PH', {
-        weekday: 'short', month: 'short', day: 'numeric',
+        month: 'long', day: 'numeric', year: 'numeric',
       })
     : null;
 
@@ -228,8 +247,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             <div className="space-y-3">
               {[
                 { icon: selectedService?.icon ?? '—', label: 'Service', value: selectedService?.name ?? null },
-                { icon: '📅', label: 'Date',    value: formattedDate },
-                { icon: '🕐', label: 'Time',    value: selectedTime || null },
+                { icon: '', label: 'Date',    value: formattedDate },
+                { icon: '', label: 'Time',    value: selectedTime || null },
               ].map(({ icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <span className="text-lg mt-0.5">{icon}</span>
@@ -264,28 +283,86 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           )}
         </div>
 
-        {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+       {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6 flex flex-col">
           {!step1Complete && <LockedOverlay message="Pick a service first" />}
-          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
-            <StepBadge n={2} done={step2Complete} />
-            Select a Date
-          </p>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            disabled={!step1Complete || fullyBookedDates.has(selectedDate)}
-            className="w-full p-3 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-surface text-text-primary text-sm"
-          />
-          {fullyBookedDates.has(selectedDate) ? (
-            <p className="text-xs text-brand-danger mt-2 font-medium">⚠️ Fully booked — pick another date</p>
-          ) : step2Complete ? (
-            <p className="text-xs text-brand-primary mt-2 font-medium">✓ {formattedDate}</p>
-          ) : null}
+          
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-text-secondary flex items-center">
+              <StepBadge n={2} done={step2Complete} />
+              Select Date
+            </p>
+            <div className="grid grid-cols-[1fr_2fr_1fr] bg-bg-notes rounded-lg overflow-hidden border border-border-card w-[200px]">
+              <button 
+                type="button"
+                onClick={handlePrevMonth} 
+                disabled={!step1Complete}
+                className="py-1.5 text-text-secondary hover:text-brand-primary hover:bg-brand-primary/10 disabled:opacity-50 transition-colors flex items-center justify-center text-lg"
+              >
+                &larr;
+              </button>
+              <div className="py-1.5 text-[11px] font-bold text-text-primary flex items-center justify-center border-x border-border-card uppercase tracking-wider text-center">
+                {currentMonthView.toLocaleString('default', { month: 'short', year: 'numeric' })}
+              </div>
+              <button 
+                type="button"
+                onClick={handleNextMonth} 
+                disabled={!step1Complete}
+                className="py-1.5 text-text-secondary hover:text-brand-primary hover:bg-brand-primary/10 disabled:opacity-50 transition-colors flex items-center justify-center text-lg"
+              >
+                &rarr;
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, index) => (
+              <div key={`${d}-${index}`} className="text-[10px] font-bold text-center text-text-secondary/60">{d}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 flex-1">
+            {generateCalendarDays().map((date, i) => {
+              if (!date) return <div key={`empty-${i}`} className="aspect-square"></div>;
+              
+              const yyyy = date.getFullYear();
+              const mm = String(date.getMonth() + 1).padStart(2, '0');
+              const dd = String(date.getDate()).padStart(2, '0');
+              const dateString = `${yyyy}-${mm}-${dd}`;
+              
+              const isPast = date < new Date(new Date().setHours(0,0,0,0));
+              const isFullyBooked = fullyBookedDates.has(dateString);
+              const isSelected = selectedDate === dateString;
+              const isDisabled = isPast || isFullyBooked || !step1Complete;
+
+              let cellStyle = 'bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
+
+              if (isSelected) {
+                cellStyle = 'bg-brand-primary text-white shadow-md transform scale-105 z-10 border border-transparent font-bold';
+              } else if (isDisabled) {
+                if (isFullyBooked) {
+                  cellStyle = 'bg-brand-danger/10 text-brand-danger line-through opacity-70 cursor-not-allowed border border-transparent';
+                } else {
+                  cellStyle = 'bg-transparent text-text-secondary/30 cursor-not-allowed border border-transparent';
+                }
+              }
+
+              return (
+                <button
+                  type="button"
+                  key={dateString}
+                  onClick={() => setSelectedDate(dateString)}
+                  disabled={isDisabled}
+                  className={`aspect-square flex items-center justify-center rounded-xl text-xs font-semibold transition-all duration-200 ${cellStyle}`}
+                >
+                  {date.getDate()}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* ━━━━ CELL D: Time picker (col 6–12, row 2) ━━━━━━━━━━━━━━━━━━━━━━━ */}
+         {/* ━━━━ CELL D: Time picker (col 6–12, row 2) ━━━━━━━━━━━━━━━━━━━━━━━ */}
         <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
           {!step2Complete && <LockedOverlay message="Pick a date first" />}
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
