@@ -6,23 +6,36 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 1. Install dependencies
 
+   Make sure you have `pnpm` installed. If you are having issues with `corepack`, install pnpm globally:
    ```bash
-   npm install
-   npx expo install firebase
+   npm install -g pnpm@9.0.0
    ```
 
-2. Start the app
-
+   Then install the project dependencies:
    ```bash
-   npx expo start
+   pnpm install
    ```
 
-   TO RUN
+2. Start the dev servers
 
-```
-npx expo start --web
-npx expo start --android
-```
+   **For Patient Web (Next.js):**
+   ```bash
+   pnpm patient:dev
+   # Or directly if the above fails: pnpm -C apps/patient-web dev
+   ```
+
+   **For Doctor Mobile (Expo):**
+   ```bash
+   pnpm doctor:start
+   # Or directly: pnpm -C apps/doctor-mobile start
+   ```
+
+   To run Doctor Mobile explicitly on Web, Android, or iOS:
+   ```bash
+   pnpm doctor:start --web
+   pnpm doctor:android
+   pnpm doctor:ios
+   ```
 
 In the output, you'll find options to open the app in a
 
