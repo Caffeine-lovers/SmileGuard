@@ -34,6 +34,8 @@ export async function bookSlot(
   appointmentDate: string,
   appointmentTime: string
 ): Promise<{ success: boolean; message: string }> {
+  console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
+  
   const { data: existing, error: checkError } = await supabase
     .from('appointments')
     .select('id')
@@ -41,7 +43,10 @@ export async function bookSlot(
     .eq('appointment_time', appointmentTime)
     .neq('status', 'cancelled');
 
-  if (checkError) return { success: false, message: 'Error checking availability.' };
+  if (checkError) {
+    console.error('Check availability error:', checkError);
+    return { success: false, message: `Error checking availability: ${checkError.message}` };
+  }
   if (existing && existing.length > 0) return { success: false, message: 'Sorry, this slot was just taken!' };
 
   const { error: insertError } = await supabase
@@ -56,6 +61,7 @@ export async function bookSlot(
     });
 
   if (insertError) {
+    console.error('Insert Error Detail:', insertError);
     if (insertError.code === '23505') return { success: false, message: 'Slot was just taken by someone else!' };
     console.error('Booking error:', insertError);
     return { success: false, message: 'Booking failed. Please try again.' };

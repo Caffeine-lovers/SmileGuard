@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
-import { EMPTY_MEDICAL_INTAKE, checkPasswordStrength, isPasswordStrong } from '@smileguard/shared-types';
+import { EMPTY_MEDICAL_INTAKE, checkPasswordStrengthDetailed, isPasswordStrongDetailed } from '@smileguard/shared-types';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function SignupPage() {
 
   const handlePasswordChange = (newPassword: string) => {
     setFormData({ ...formData, password: newPassword });
-    setPasswordCheck(checkPasswordStrength(newPassword));
+    setPasswordCheck(checkPasswordStrengthDetailed(newPassword));
   };
 
   const handleNext = (e: React.FormEvent) => {
@@ -49,7 +49,7 @@ export default function SignupPage() {
         return;
       }
 
-      if (!isPasswordStrong(passwordCheck)) {
+      if (!isPasswordStrongDetailed(passwordCheck)) {
         setLocalError('Password does not meet strength requirements');
         return;
       }
