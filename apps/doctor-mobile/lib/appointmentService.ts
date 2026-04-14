@@ -77,6 +77,14 @@ export async function getDoctorAppointments(
     const patientIds = [...new Set((appointmentsData as any[]).filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
     const dummyAccountIds = [...new Set((appointmentsData as any[]).filter((apt: any) => apt.dummy_account_id).map((apt: any) => apt.dummy_account_id))];
 
+    console.log('🔍 [getDoctorAppointments] Debug Info:');
+    console.log('  Total appointments:', appointmentsData.length);
+    console.log('  Patient IDs to fetch:', patientIds);
+    console.log('  Dummy Account IDs to fetch:', dummyAccountIds);
+    appointmentsData.forEach((apt: any, i: number) => {
+      console.log(`    [${i}] patient_id: ${apt.patient_id}, dummy_account_id: ${apt.dummy_account_id}`);
+    });
+
     // Step 3: Fetch profiles for real patients
     let profilesData: any[] = [];
     if (patientIds.length > 0) {
@@ -89,16 +97,25 @@ export async function getDoctorAppointments(
       }
     }
 
-    // Step 3b: Fetch dummy accounts
+    // Step 3b: Fetch dummy accounts using RPC (bypasses RLS)
     let dummyAccountsData: any[] = [];
     if (dummyAccountIds.length > 0) {
-      const { data, error: dummyError } = await supabase
-        .from('dummy_accounts')
-        .select('*')
-        .in('id', dummyAccountIds);
-      if (!dummyError) {
-        dummyAccountsData = data || [];
+      console.log('  📞 Calling RPC get_all_dummy_accounts with IDs:', dummyAccountIds);
+      const { data, error: dummyError } = await supabase.rpc('get_all_dummy_accounts');
+      
+      if (!dummyError && data) {
+        // Filter to only the IDs we need (client-side filtering)
+        dummyAccountsData = data.filter((d: any) => dummyAccountIds.includes(d.id));
+        console.log('  ✅ Fetched total dummy accounts:', data.length, ', filtered to:', dummyAccountsData.length);
+        dummyAccountsData.forEach((d: any) => {
+          console.log(`    - ${d.id}: ${d.patient_name}`);
+        });
+      } else {
+        console.log('  ❌ Error fetching dummy accounts:', dummyError);
+        dummyAccountsData = [];
       }
+    } else {
+      console.log('  ℹ️ No dummy account IDs to fetch');
     }
 
     // Step 3c: Fetch medical intake data for all patients
@@ -124,6 +141,15 @@ export async function getDoctorAppointments(
       dummyAccountMap.set(dummy.id, dummy);
     });
 
+    console.log('  📊 Maps created:');
+    console.log(`    - profileMap size: ${profileMap.size}`);
+    console.log(`    - dummyAccountMap size: ${dummyAccountMap.size}`);
+    if (dummyAccountMap.size > 0) {
+      dummyAccountMap.forEach((val, key) => {
+        console.log(`      + ${key}: ${val.patient_name}`);
+      });
+    }
+
     const medicalIntakeMap = new Map();
     medicalIntakeData.forEach(intake => {
       medicalIntakeMap.set(intake.patient_id, intake);
@@ -142,7 +168,10 @@ export async function getDoctorAppointments(
       if (apt.dummy_account_id) {
         // Fetch from dummy_accounts
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
+        console.log(`  📝 Appointment ${apt.id}: checking dummy_account_id=${apt.dummy_account_id}`);
+        console.log(`      Found in map:`, dummyAccount);
         patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        console.log(`      Using patientName: ${patientName}`);
         patientAvatar = dummyAccount?.avatar_url || null;
       } else if (apt.patient_id) {
         // Fetch from profiles
@@ -207,6 +236,11 @@ async function fallbackGetDoctorAppointments(
     const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
     const dummyAccountIds = [...new Set(appointmentsData.filter((apt: any) => apt.dummy_account_id).map((apt: any) => apt.dummy_account_id))];
 
+    console.log('❗ [fallbackGetDoctorAppointments] RPC failed, using fallback:');
+    console.log('  Total appointments:', appointmentsData.length);
+    console.log('  Patient IDs:', patientIds);
+    console.log('  Dummy Account IDs:', dummyAccountIds);
+
     // Fetch profiles for real patients
     let profilesData: any[] = [];
     if (patientIds.length > 0) {
@@ -217,17 +251,16 @@ async function fallbackGetDoctorAppointments(
       profilesData = data || [];
     }
 
-    // Fetch dummy accounts
+    // Step 3b: Fetch dummy accounts using RPC (bypasses RLS)
     let dummyAccountsData: any[] = [];
     if (dummyAccountIds.length > 0) {
-      const { data, error } = await supabase
-        .from('dummy_accounts')
-        .select('*')
-        .in('id', dummyAccountIds);
-      if (error) {
-        console.error('❌ [fallbackGetDoctorAppointments] Error fetching dummy accounts:', error);
+      const { data, error } = await supabase.rpc('get_all_dummy_accounts');
+      
+      if (!error && data) {
+        // Filter to only the IDs we need (client-side filtering)
+        dummyAccountsData = data.filter((d: any) => dummyAccountIds.includes(d.id));
       } else {
-        dummyAccountsData = data || [];
+        console.error('❌ [getDoctorAppointmentsByDate] Error fetching dummy accounts:', error);
       }
     }
 
@@ -248,8 +281,8 @@ async function fallbackGetDoctorAppointments(
 
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
-        patientName = dummyAccount?.full_name || apt.dummy_account_id;
-        patientAvatar = dummyAccount?.avatar_url || null;
+        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientAvatar = null;
       } else if (apt.patient_id) {
         const profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
@@ -308,17 +341,25 @@ export async function getDoctorAppointmentsByDate(
       profilesData = data || [];
     }
 
-    // Step 3b: Fetch dummy accounts
+    // Step 3b: Fetch dummy accounts using RPC (bypasses RLS)
     let dummyAccountsData: any[] = [];
     if (dummyAccountIds.length > 0) {
-      const { data, error } = await supabase
-        .from('dummy_accounts')
-        .select('*')
-        .in('id', dummyAccountIds);
+      console.log('  📞 Calling RPC get_dummy_accounts_by_ids with IDs:', dummyAccountIds);
+      const { data, error } = await supabase.rpc('get_dummy_accounts_by_ids', {
+        p_ids: dummyAccountIds
+      });
+      console.log('  📊 RPC Response:');
+      console.log('    - Error:', error);
+      console.log('    - Data:', data);
       if (error) {
         console.error('❌ [getDoctorAppointmentsByDate] Error fetching dummy accounts:', error);
+        dummyAccountsData = [];
       } else {
         dummyAccountsData = data || [];
+        console.log('  ✅ Successfully fetched', dummyAccountsData.length, 'dummy accounts');
+        dummyAccountsData.forEach((d: any) => {
+          console.log(`    - ID: ${d.id}, patient_name: ${d.patient_name}`);
+        });
       }
     }
 
@@ -343,8 +384,18 @@ export async function getDoctorAppointmentsByDate(
 
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
-        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
-        patientAvatar = dummyAccount?.avatar_url || null;
+        console.log(`  🔍 Processing dummy account appointment: ${apt.id}`);
+        console.log(`    - dummy_account_id: ${apt.dummy_account_id}`);
+        console.log(`    - Found in map:`, dummyAccount);
+        if (dummyAccount) {
+          console.log(`    - patient_name from DB: ${dummyAccount.patient_name}`);
+          patientName = dummyAccount.patient_name || apt.dummy_account_id;
+        } else {
+          console.log('    - NOT FOUND IN MAP!');
+          patientName = apt.dummy_account_id;
+        }
+        console.log(`    - Final patientName: ${patientName}`);
+        patientAvatar = null;
       } else if (apt.patient_id) {
         const profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
@@ -405,17 +456,17 @@ async function fallbackGetAppointmentsByDate(
       profilesData = data || [];
     }
 
-    // Fetch dummy accounts
+    // Fetch dummy accounts using RPC (bypasses RLS)
     let dummyAccountsData: any[] = [];
     if (dummyAccountIds.length > 0) {
-      const { data, error } = await supabase
-        .from('dummy_accounts')
-        .select('*')
-        .in('id', dummyAccountIds);
+      const { data, error } = await supabase.rpc('get_all_dummy_accounts');
+      
       if (error) {
         console.error('❌ [fallbackGetAppointmentsByDate] Error fetching dummy accounts:', error);
+        dummyAccountsData = [];
       } else {
-        dummyAccountsData = data || [];
+        // Filter to only the IDs we need (client-side filtering)
+        dummyAccountsData = (data || []).filter((d: any) => dummyAccountIds.includes(d.id));
       }
     }
 
@@ -441,7 +492,7 @@ async function fallbackGetAppointmentsByDate(
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
         patientName = dummyAccount?.patient_name || apt.dummy_account_id;
-        patientAvatar = dummyAccount?.avatar_url || null;
+        patientAvatar = null;
       } else if (apt.patient_id) {
         const profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
@@ -537,17 +588,17 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
       profilesData = data || [];
     }
 
-    // Fetch dummy accounts
+    // Fetch dummy accounts using RPC (bypasses RLS)
     let dummyAccountsData: any[] = [];
     if (dummyAccountIds.length > 0) {
-      const { data, error } = await supabase
-        .from('dummy_accounts')
-        .select('*')
-        .in('id', dummyAccountIds);
+      const { data, error } = await supabase.rpc('get_all_dummy_accounts');
+      
       if (error) {
         console.error('❌ Error fetching dummy accounts for requests:', error);
+        dummyAccountsData = [];
       } else {
-        dummyAccountsData = data || [];
+        // Filter to only the IDs we need (client-side filtering)
+        dummyAccountsData = (data || []).filter((d: any) => dummyAccountIds.includes(d.id));
       }
     }
 
@@ -589,8 +640,8 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
 
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
-        patientName = dummyAccount?.full_name || apt.dummy_account_id;
-        patientAvatar = dummyAccount?.avatar_url || null;
+        patientName = dummyAccount?.patient_name || apt.dummy_account_id;
+        patientAvatar = null;
       } else if (apt.patient_id) {
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;

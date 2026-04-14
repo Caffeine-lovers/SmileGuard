@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from "../../lib/supabase";
+import { supabase } from '@smileguard/supabase-client';
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 interface FormData {
@@ -187,31 +187,31 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
         return;
       }
 
-      // Create patient in dummy_accounts table with new schema
+      // Create patient in dummy_accounts table with minimal required fields
+      const patientData: any = {
+        patient_name: formData.name,
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone,
+        created_by: currentUser?.name || currentUser?.email || "Unknown Doctor",
+      };
+
+      // Add optional fields only if they have values
+      if (formData.gender) patientData.gender = formData.gender;
+      if (formData.dateOfBirth) patientData.date_of_birth = formData.dateOfBirth;
+      if (formData.address) patientData.address = formData.address;
+      if (formData.emergencyContactName) patientData.emergency_contact_name = formData.emergencyContactName;
+      if (formData.emergencyContactPhone) patientData.emergency_contact_phone = formData.emergencyContactPhone;
+      if (formData.allergies) patientData.alergies = formData.allergies;
+      if (formData.currentMedications) patientData.current_medications = formData.currentMedications;
+      if (formData.medicalConditions) patientData.medical_conditions = formData.medicalConditions;
+      if (formData.pastSurgeries) patientData.past_surgeries = formData.pastSurgeries;
+      if (formData.smokingStatus) patientData.smoking_status = formData.smokingStatus;
+      if (formData.pregnancyStatus) patientData.pregnancy_status = formData.pregnancyStatus;
+      if (formData.notes) patientData.notes = formData.notes;
+
       const { data: dummyData, error: dummyError } = await supabase
         .from("dummy_accounts")
-        .insert([
-          {
-            username: formData.email.trim().toLowerCase(),
-            email: formData.email.trim().toLowerCase(),
-            account_type: "patient",
-            status: "active",
-            patient_name: formData.name,
-            phone: formData.phone,
-            notes: formData.notes || "",
-            created_by: currentUser?.name || currentUser?.email || "Unknown Doctor",
-            date_of_birth: formData.dateOfBirth || null,
-            address: formData.address || null,
-            emergency_contact_name: formData.emergencyContactName || null,
-            emergency_contact_phone: formData.emergencyContactPhone || null,
-            allergies: formData.allergies || null,
-            current_medications: formData.currentMedications || null,
-            medical_conditions: formData.medicalConditions || null,
-            past_surgeries: formData.pastSurgeries || null,
-            smoking_status: formData.smokingStatus || null,
-            pregnancy_status: formData.pregnancyStatus || null,
-          },
-        ])
+        .insert([patientData])
         .select()
         .single();
 

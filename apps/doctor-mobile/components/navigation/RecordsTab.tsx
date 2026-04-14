@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Appointment } from "../../data/dashboardData";
 import { getAllPatients } from "../../lib/profilesPatients";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@smileguard/supabase-client";
 import AddPatient from "../patientrecord/AddPatient";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -66,6 +66,10 @@ export default function RecordsTab({
   const [swipedDummyId, setSwipedDummyId] = useState<string | null>(null);
   const swipePositions = useRef<{ [key: string]: Animated.Value }>({});
 
+  // Note: Session restoration is no longer needed!
+  // RLS policies now use auth.role() = 'authenticated' which uses JWT tokens
+  // JWT tokens are sent with every request and work reliably in React Native
+
   // Fetch profiles patients on initial load
   useEffect(() => {
     const fetchSupabasePatients = async () => {
@@ -104,9 +108,36 @@ export default function RecordsTab({
   // Fetch dummy_accounts patients whenever screen is focused
   useFocusEffect(
     React.useCallback(() => {
+      // Only fetch if user is logged in and is a doctor
+      if (!currentUser?.id) {
+        console.log('⏸️ Skipping fetch - no currentUser yet');
+        setLoadingDummy(true);
+        setLoadingDummy(false);
+        return;
+      }
+
       const fetchDummyPatients = async () => {
         setLoadingDummy(true);
         try {
+          console.log('🔍 DEBUG: Starting fetchDummyPatients...');
+          
+          // Only fetch if user is logged in and is a doctor
+          if (!currentUser?.id) {
+            console.log('⏸️ Skipping fetch - no currentUser yet');
+            setLoadingDummy(false);
+            return;
+          }
+
+          console.log('📱 Current User:', currentUser.id, currentUser.email);
+          console.log('👨‍⚕️ User Role:', currentUser.role);
+
+          // Verify user has doctor role
+          if (currentUser.role !== 'doctor') {
+            console.error('❌ User is not a doctor. Role:', currentUser.role);
+            setLoadingDummy(false);
+            return;
+          }
+
           // Check if a new patient was added
           const newPatientId = await AsyncStorage.getItem('newlyAddedPatientId');
           
@@ -115,14 +146,20 @@ export default function RecordsTab({
             await AsyncStorage.removeItem('newlyAddedPatientId');
           }
 
+          console.log('✅ Fetching dummy accounts...');
+
           const { data, error } = await supabase
             .from("dummy_accounts")
             .select("*")
             .order("created_at", { ascending: false });
 
           if (error) {
-            console.error("Error fetching dummy accounts:", error);
+            console.error("❌ Error fetching dummy accounts:", error);
             return;
+          }
+
+          if (data && data.length > 0) {
+            console.log(`✅ Successfully fetched ${data.length} dummy accounts`);
           }
 
           const mapped: AppointmentType[] = (data || []).map((patient) => ({
@@ -160,13 +197,22 @@ export default function RecordsTab({
       };
 
       fetchDummyPatients();
-    }, [showAddPatientModal])
+    }, [showAddPatientModal, currentUser?.id])  // ← Add currentUser dependency
   );
 
   // Refresh function to refetch both patient sources
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      // Verify user is logged in via currentUser hook
+      if (!currentUser?.id) {
+        console.error('❌ No authenticated user for refresh');
+        setIsRefreshing(false);
+        return;
+      }
+
+      console.log('🔄 Refreshing patient data for user:', currentUser.id);
+
       // Fetch Supabase patients
       const supabaseData = await getAllPatients();
       const mappedSupabase: AppointmentType[] = supabaseData.map((patient) => ({

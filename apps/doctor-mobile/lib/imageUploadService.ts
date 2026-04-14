@@ -130,7 +130,7 @@ export const uploadProfileImage = async (
           console.error("   2. The bucket is not set to PUBLIC");
           console.error("   3. There's a CORS issue");
           throw new Error(
-            "Storage bucket error. Please verify:\n1. Bucket 'doctor-pictures' exists\n2. Bucket is set to PUBLIC\n3. Check Supabase dashboard"
+            "Storage bucket error. Please verify:\\n1. Bucket 'doctor-pictures' exists\\n2. Bucket is set to PUBLIC\\n3. Check Supabase dashboard"
           );
         }
         
