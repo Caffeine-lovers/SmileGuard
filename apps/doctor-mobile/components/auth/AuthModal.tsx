@@ -328,7 +328,7 @@ export default function AuthModal({
                   </View>
                 )}
 
-                {/* ════════════ Step 1: Login/Registration Form ════════════ */}
+                {/* ════════════ Step 1: Credentials ════════════ */}
                 {step === 1 && (
                   <View>
                     {/* App Logo/Name */}
@@ -515,7 +515,7 @@ export default function AuthModal({
                       onSuccess(userData);
                     }}
                     onCancel={() => {
-                      console.log("❌ User cancelled doctor registration");
+                      console.log(" User cancelled doctor registration");
                       setStep(0); // Go back to choice screen
                     }}
                   />
