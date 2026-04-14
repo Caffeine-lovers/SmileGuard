@@ -24,6 +24,17 @@ interface PatientDetailsEditProps {
   onSave: (updatedPatient: AppointmentType) => void;
 }
 
+// Helper function to get the number of days in a month
+const getDaysInMonth = (month: number, year: number): number => {
+  if ([1, 3, 5, 7, 8, 10, 12].includes(month)) return 31; // Jan, Mar, May, Jul, Aug, Oct, Dec
+  if ([4, 6, 9, 11].includes(month)) return 30; // Apr, Jun, Sep, Nov
+  // February
+  if (month === 2) {
+    return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 29 : 28;
+  }
+  return 30;
+};
+
 export default function PatientDetailsEdit({ 
   visible, 
   patient, 
@@ -83,8 +94,38 @@ export default function PatientDetailsEdit({
     }
   };
 
+  // Get valid months based on selected year
+  const getValidMonths = (): number[] => {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 1-indexed
+
+    if (selectedYear === currentYear) {
+      return Array.from({ length: currentMonth }, (_, i) => i + 1);
+    }
+    return Array.from({ length: 12 }, (_, i) => i + 1);
+  };
+
+  // Get valid days based on selected year and month
+  const getValidDaysWithLimit = (): number[] => {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentDay = currentDate.getDate();
+
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    const maxDays = 
+      selectedYear === currentYear && selectedMonth === currentMonth
+        ? currentDay
+        : daysInMonth;
+
+    return Array.from({ length: maxDays }, (_, i) => i + 1);
+  };
+
   const handleDatePickerConfirm = () => {
-    const dateString = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    const validDay = Math.min(selectedDay, daysInMonth);
+    const dateString = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(validDay).padStart(2, "0")}`;
     if (editedPatient) {
       setEditedPatient({ ...editedPatient, dateOfBirth: dateString });
     }
@@ -384,6 +425,19 @@ export default function PatientDetailsEdit({
               </View>
             </View>
           )}
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Notes:</Text>
+            <TextInput
+              style={[styles.input, { minHeight: 80, textAlignVertical: "top" }, getFieldStyle('notes')]}
+              value={editedPatient.notes || ""}
+              onChangeText={(text) =>
+                setEditedPatient({ ...editedPatient, notes: text })
+              }
+              placeholder="Enter notes"
+              multiline
+            />
+          </View>
         </ScrollView>
 
         {/* Footer */}
@@ -419,7 +473,7 @@ export default function PatientDetailsEdit({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Year</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - 50 + i).map((year) => (
+                      {Array.from({ length: 121 }, (_, i) => new Date().getFullYear() - 120 + i).map((year) => (
                         <TouchableOpacity
                           key={year}
                           style={[styles.pickerItem, selectedYear === year && styles.pickerItemSelected]}
@@ -437,11 +491,18 @@ export default function PatientDetailsEdit({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Month</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                      {getValidMonths().map((month) => (
                         <TouchableOpacity
                           key={month}
                           style={[styles.pickerItem, selectedMonth === month && styles.pickerItemSelected]}
-                          onPress={() => setSelectedMonth(month)}
+                          onPress={() => {
+                            setSelectedMonth(month);
+                            // Adjust day if it exceeds the days in the new month
+                            const daysInMonth = getDaysInMonth(month, selectedYear);
+                            if (selectedDay > daysInMonth) {
+                              setSelectedDay(daysInMonth);
+                            }
+                          }}
                         >
                           <Text style={[styles.pickerItemText, selectedMonth === month && styles.pickerItemTextSelected]}>
                             {String(month).padStart(2, "0")}
@@ -455,7 +516,7 @@ export default function PatientDetailsEdit({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Day</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                      {getValidDaysWithLimit().map((day) => (
                         <TouchableOpacity
                           key={day}
                           style={[styles.pickerItem, selectedDay === day && styles.pickerItemSelected]}

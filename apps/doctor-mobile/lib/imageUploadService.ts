@@ -36,7 +36,7 @@ export const pickImage = async (): Promise<ImagePickerResult | null> => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1], // Square for profile pictures
       quality: 0.7,
@@ -69,6 +69,7 @@ export const pickImage = async (): Promise<ImagePickerResult | null> => {
 
 /**
  * Upload image to Supabase Storage
+ * Uses direct binary upload to avoid unnecessary string conversions
  * @param image Image to upload
  * @param userId User ID for organizing storage
  * @returns URL of uploaded image
@@ -88,20 +89,25 @@ export const uploadProfileImage = async (
 
     console.log(" Uploading to path:", filename);
 
-    // Fetch the image as blob from the file URI
     try {
-      console.log(" Fetching image from URI...");
+      console.log("🔄 Reading image file as binary...");
       
+      // Use fetch to get binary data directly without string conversion
       const response = await fetch(image.uri);
+      
       if (!response.ok) {
-        throw new Error(`Fetch failed with status ${response.status}`);
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
       }
       
+      // Get blob directly - this avoids unnecessary string encoding
       const blob = await response.blob();
-      console.log(" Blob created, size:", blob.size, "bytes");
+      console.log("✅ Image blob retrieved, size:", blob.size, "bytes");
 
-      // Upload to Supabase Storage
-      console.log(" Uploading blob to Supabase...");
+      // Upload to Supabase Storage with binary blob
+      console.log("📤 Uploading to Supabase storage...");
+      console.log("📦 Bucket: doctor-pictures");
+      console.log("📦 Content-Type:", image.type || "image/jpeg");
+      
       const { data, error } = await supabase.storage
         .from("doctor-pictures")
         .upload(filename, blob, {
@@ -111,27 +117,54 @@ export const uploadProfileImage = async (
         });
 
       if (error) {
-        console.error(" Supabase upload error:", error);
+        console.error("❌ Supabase upload error details:");
+        console.error("  - Message:", error.message);
+        console.error("  - Name:", error.name);
+        console.error("  - Status:", (error as any).status);
+        console.error("  - Full Error:", JSON.stringify(error));
+        
+        // Provide more specific error messages
+        if (error.message.includes("Network request failed")) {
+          console.error("💡 This usually means:");
+          console.error("   1. The 'doctor-pictures' bucket doesn't exist");
+          console.error("   2. The bucket is not set to PUBLIC");
+          console.error("   3. There's a CORS issue");
+          throw new Error(
+            "Storage bucket error. Please verify:\\n1. Bucket 'doctor-pictures' exists\\n2. Bucket is set to PUBLIC\\n3. Check Supabase dashboard"
+          );
+        }
+        
+        if (error.message.includes("Failed to fetch")) {
+          throw new Error(
+            "Failed to reach Supabase. Check your internet and Supabase URL."
+          );
+        }
+        
         throw new Error(`Upload failed: ${error.message}`);
       }
 
       console.log(" Upload successful:", data);
 
       // Get public URL
-      console.log(" Getting public URL...");
+      console.log("🔗 Generating public URL...");
       const { data: publicUrl } = supabase.storage
         .from("doctor-pictures")
         .getPublicUrl(filename);
 
       if (!publicUrl?.publicUrl) {
-        throw new Error("Failed to get public URL");
+        throw new Error("Failed to generate public URL");
       }
 
-      console.log(" Public URL:", publicUrl.publicUrl);
+      console.log("✅ Public URL generated successfully");
       return publicUrl.publicUrl;
-    } catch (fetchError) {
-      console.error(" Failed to fetch or upload image:", fetchError);
-      throw new Error(`Failed to upload image: ${fetchError}`);
+      
+    } catch (uploadError) {
+      const errorMsg = uploadError instanceof Error 
+        ? uploadError.message 
+        : JSON.stringify(uploadError);
+      
+      console.error("❌ File processing or upload error:", errorMsg);
+      throw uploadError;
     }
   } catch (error) {
     const message =

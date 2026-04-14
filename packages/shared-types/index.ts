@@ -36,7 +36,7 @@ export interface Appointment {
   service: string;
   appointment_date: string; // YYYY-MM-DD
   appointment_time: string; // HH:MM
-  status: "scheduled" | "completed" | "cancelled" | "no-show";
+  status: "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
   notes?: string;
   created_at?: string;
   updated_at?: string;

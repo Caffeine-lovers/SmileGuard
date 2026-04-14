@@ -18,13 +18,15 @@ interface AppointmentEditProps {
   doctorId: string;
   onClose: () => void;
   onSave: () => void;
+  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
-const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show'> = [
+const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'> = [
   'scheduled',
   'completed',
   'cancelled',
   'no-show',
+  'declined',
 ];
 
 const STATUS_COLORS: { [key: string]: string } = {
@@ -32,6 +34,7 @@ const STATUS_COLORS: { [key: string]: string } = {
   completed: '#4CAF50',
   cancelled: '#F44336',
   'no-show': '#9C27B0',
+  declined: '#FF6F00',
 };
 
 export default function AppointmentEdit({
@@ -40,8 +43,9 @@ export default function AppointmentEdit({
   doctorId,
   onClose,
   onSave,
+  onAppointmentStatusUpdated,
 }: AppointmentEditProps) {
-  const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show'>('scheduled');
+  const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('scheduled');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -84,6 +88,18 @@ export default function AppointmentEdit({
       
       if (result.success) {
         console.log('✅ Appointment status updated successfully');
+        
+        // Trigger notification callback if status changed and callback is provided
+        if (selectedStatus !== 'scheduled' && onAppointmentStatusUpdated) {
+          onAppointmentStatusUpdated(
+            selectedStatus,
+            appointment.name || appointment.patient_name || 'Patient',
+            appointmentId,
+            appointment.patient_id || '',
+            doctorId
+          );
+        }
+        
         Alert.alert('Success', `Appointment status updated to ${selectedStatus}`);
         onSave();
         onClose();
@@ -101,14 +117,64 @@ export default function AppointmentEdit({
 
   if (!appointment) return null;
 
-  const apptDate = new Date(appointment.appointment_date);
-  const formattedDate = apptDate.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  // Use separate date and time fields if available
+  const formattedDate = (() => {
+    try {
+      if (appointment.appointment_date && appointment.appointment_time) {
+        const dateStr = String(appointment.appointment_date).trim(); // YYYY-MM-DD
+        const timeStr = String(appointment.appointment_time).trim(); // HH:MM
+        
+        // Parse date
+        const dateParts = dateStr.split('-').map(Number);
+        if (dateParts.length !== 3 || dateParts.some(isNaN)) {
+          console.warn('⚠️ Invalid date format:', appointment.appointment_date);
+          return 'Invalid date format';
+        }
+        
+        // Parse time
+        const timeParts = timeStr.split(':').map(Number);
+        if (timeParts.length < 2 || timeParts.some(isNaN)) {
+          console.warn('⚠️ Invalid time format:', appointment.appointment_time);
+          return 'Invalid time format';
+        }
+        
+        const [year, month, day] = dateParts;
+        const [hour, minute] = timeParts;
+        
+        // Validate date components
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+          console.warn('⚠️ Invalid date components:', { year, month, day });
+          return 'Invalid date';
+        }
+        
+        const date = new Date(year, month - 1, day, hour, minute);
+        
+        // Verify the date is valid
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Failed to create valid date:', { year, month, day, hour, minute });
+          return 'Invalid date';
+        }
+        
+        return date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      }
+      
+      console.warn('⚠️ Missing appointment date or time:', {
+        appointment_date: appointment.appointment_date,
+        appointment_time: appointment.appointment_time,
+      });
+      return 'Date/Time not available';
+    } catch (error) {
+      console.error('❌ Error formatting date:', error, { appointment });
+      return 'Error formatting date';
+    }
+  })();
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -189,16 +255,19 @@ export default function AppointmentEdit({
             {/* Status Descriptions */}
             <View style={styles.descriptionBox}>
               {selectedStatus === 'scheduled' && (
-                <Text style={styles.descriptionText}>📅 Appointment is scheduled</Text>
+                <Text style={styles.descriptionText}>Appointment is scheduled</Text>
               )}
               {selectedStatus === 'completed' && (
-                <Text style={styles.descriptionText}>✅ Appointment has been completed</Text>
+                <Text style={styles.descriptionText}>Appointment has been completed</Text>
               )}
               {selectedStatus === 'cancelled' && (
-                <Text style={styles.descriptionText}>❌ Appointment has been cancelled</Text>
+                <Text style={styles.descriptionText}>Appointment has been cancelled</Text>
               )}
               {selectedStatus === 'no-show' && (
-                <Text style={styles.descriptionText}>⏭️ Patient did not show up</Text>
+                <Text style={styles.descriptionText}>Patient did not show up</Text>
+              )}
+              {selectedStatus === 'declined' && (
+                <Text style={styles.descriptionText}>Appointment has been declined</Text>
               )}
             </View>
           </View>

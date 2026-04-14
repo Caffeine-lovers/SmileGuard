@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Suspense, lazy } from "react";
+import React, { useState, useMemo, Suspense, lazy, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Image,
+  Keyboard,
 } from "react-native";
 import { useAuth } from "@smileguard/shared-hooks";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -61,10 +63,11 @@ export default function AuthModal({
   // Use the auth hook directly to access login/register functions
   const { login, register, ensureRoleSet, currentUser } = useAuth();
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(1); // Start directly at login (skip step 0)
   const [mode, setMode] = useState<"register" | "login">("login");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     service: "General",
@@ -78,8 +81,10 @@ export default function AuthModal({
   // Reset state when modal re-opens
   React.useEffect(() => {
     if (visible) {
-      setStep(0); // Show choice screen first
+      setStep(1); // Start directly at login form
       setMode("login");
+      setShowPassword(false);
+      setRememberMe(false);
       setFormData({
         service: "General",
         name: "",
@@ -88,6 +93,9 @@ export default function AuthModal({
         medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
         doctorAccessCode: "",
       });
+    } else {
+      // Dismiss keyboard when modal closes to prevent shaking on Android
+      Keyboard.dismiss();
     }
   }, [visible]);
 
@@ -135,9 +143,18 @@ export default function AuthModal({
 
   // ── Navigation ───────────────────────────────────────────────────
 
-  const handleChoice = (selectedMode: "register" | "login") => {
+  const handleSwitchMode = (selectedMode: "register" | "login") => {
     setMode(selectedMode);
-    setStep(1); // Move to credentials screen
+    setShowPassword(false);
+    setRememberMe(false);
+    setFormData({
+      service: "General",
+      name: "",
+      email: "",
+      password: "",
+      medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
+      doctorAccessCode: "",
+    });
   };
 
   const handleNext = () => {
@@ -260,14 +277,15 @@ export default function AuthModal({
     <Modal visible={visible} animationType="slide">
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <SafeAreaView style={styles.modalFull}>
           <View style={styles.bordercard}>
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.stepContent}>
@@ -310,37 +328,51 @@ export default function AuthModal({
                   </View>
                 )}
 
-                {/* ════════════ Step 1: Credentials ════════════ */}
+                {/* ════════════ Step 1: Login/Registration Form ════════════ */}
                 {step === 1 && (
                   <View>
-                    <Text style={[styles.h2, {marginBottom: 20}]}>
-                      {mode === "login" ? "Welcome Back" : "Ready to register?"}
+                    {/* App Logo/Name */}
+                    <View style={styles.logoSection}>
+                      <Text style={styles.appName}>SmileGuard</Text>
+                    </View>
+
+                    {/* Heading */}
+                    <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>
+                      {mode === "login" ? "Welcome Back!" : "Create Account"}
                     </Text>
-                    {mode === "register" ? (
-                      // Show message for registration
+                    
+                    {/* Subheading */}
+                    <Text style={[styles.subtitle, { marginBottom: 24 }]}>
+                      {mode === "login" 
+                        ? "Ready to manage your patients? Log in now!" 
+                        : "Join SmileGuard and start your registration"}
+                    </Text>
+
+                    {/* === LOGIN FORM === */}
+                    {mode === "login" ? (
                       <>
-                        <Text style={[styles.p, {marginBottom: 30}]}>
-                          Click the button below to start your registration and fill in your professional details.
-                        </Text>
-                      </>
-                    ) : (
-                      // Show login form
-                      <>
+                        {/* Email Field */}
+                        <Text style={styles.fieldLabel}>Email</Text>
                         <TextInput
                           style={styles.input}
-                          placeholder="Email"
+                          placeholder="Enter your email"
                           autoCapitalize="none"
                           keyboardType="email-address"
                           value={formData.email}
                           onChangeText={(t) => setField("email", t)}
+                          placeholderTextColor="#9ca3af"
                         />
+
+                        {/* Password Field */}
+                        <Text style={styles.fieldLabel}>Password</Text>
                         <View style={styles.passwordContainer}>
                           <TextInput
                             style={styles.passwordInput}
-                            placeholder="Password"
+                            placeholder="Enter your password"
                             secureTextEntry={!showPassword}
                             value={formData.password}
                             onChangeText={(t) => setField("password", t)}
+                            placeholderTextColor="#9ca3af"
                           />
                           <TouchableOpacity
                             style={styles.passwordToggle}
@@ -348,56 +380,113 @@ export default function AuthModal({
                             accessibilityLabel={showPassword ? "Hide password" : "Show password"}
                             accessibilityRole="button"
                           >
-                            <Text style={styles.passwordToggleText}>
-                              {showPassword ? "️" : "️‍️"}
-                            </Text>
+                            <Image
+                              source={require("../../assets/images/icon/view.png")}
+                              style={styles.passwordToggleIcon}
+                            />
                           </TouchableOpacity>
                         </View>
-                        
+
+                        {/* Remember me & Forgot Password */}
+                        <View style={styles.rememberRow}>
+                          <TouchableOpacity
+                            style={styles.checkboxContainer}
+                            onPress={() => setRememberMe(!rememberMe)}
+                            activeOpacity={0.7}
+                          >
+                            <View
+                              style={[
+                                styles.customCheckbox,
+                                rememberMe && styles.customCheckboxChecked,
+                              ]}
+                            >
+                              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                            </View>
+                            <Text style={styles.rememberText}>Remember me</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => setStep(6)}>
+                            <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Login Button */}
                         <TouchableOpacity
-                          style={{ alignSelf: "flex-end", marginTop: -8, marginBottom: 12 }}
-                          onPress={() => setStep(6)}
+                          style={[styles.btn, styles.primaryBtn, { marginTop: 20 }]}
+                          onPress={async () => {
+                            try {
+                              setLoading(true);
+                              await handleFinalize();
+                              await performLogin();
+                            } catch (err) {
+                              const message = err instanceof Error ? err.message : "Login failed. Please try again.";
+                              Alert.alert("Login Error", message);
+                              console.error("Auth error:", err);
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                          disabled={loading}
                         >
-                          <Text style={{ color: "#0b7fab", fontSize: 13 }}>Forgot password?</Text>
+                          {loading ? (
+                            <ActivityIndicator color="#fff" />
+                          ) : (
+                            <Text style={styles.btnText}>Login</Text>
+                          )}
                         </TouchableOpacity>
+
+                        {/* Divider */}
+                        <View style={styles.dividerContainer}>
+                          <View style={styles.divider} />
+                          <Text style={styles.dividerText}>Or</Text>
+                          <View style={styles.divider} />
+                        </View>
+
+                        {/* Switch to Register */}
+                        <View style={styles.switchAuthContainer}>
+                          <Text style={styles.switchAuthText}>Don't have an account? </Text>
+                          <TouchableOpacity onPress={() => handleSwitchMode("register")}>
+                            <Text style={styles.switchAuthLink}>Sign Up</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      /* === REGISTRATION FORM === */
+                      <>
+                        <Text style={[styles.subtitle, { marginBottom: 24 }]}>
+                          Click the button below to start your registration and fill in your professional details.
+                        </Text>
+
+                        {/* Register Button */}
+                        <TouchableOpacity
+                          style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
+                          onPress={() => {
+                            setStep(3); // Go to full doctor profile setup
+                          }}
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <ActivityIndicator color="#fff" />
+                          ) : (
+                            <Text style={styles.btnText}>Start Registration</Text>
+                          )}
+                        </TouchableOpacity>
+
+                        {/* Divider */}
+                        <View style={styles.dividerContainer}>
+                          <View style={styles.divider} />
+                          <Text style={styles.dividerText}>Or</Text>
+                          <View style={styles.divider} />
+                        </View>
+
+                        {/* Switch to Login */}
+                        <View style={styles.switchAuthContainer}>
+                          <Text style={styles.switchAuthText}>Already have an account? </Text>
+                          <TouchableOpacity onPress={() => handleSwitchMode("login")}>
+                            <Text style={styles.switchAuthLink}>Login</Text>
+                          </TouchableOpacity>
+                        </View>
                       </>
                     )}
-
-                    {/* =======Login/Register button======== */}
-                    <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
-      
-                      onPress={async () => {
-                        try {
-                          if (mode === "register") {
-                            // For register, go to the unified registration form
-                            setStep(3);
-                          } else {
-                            // For login, validate and authenticate
-                            setLoading(true);
-                            await handleFinalize();
-                            await performLogin();
-                          }
-                        } catch (err) {
-                          const message = err instanceof Error ? err.message : "Authentication failed. Please try again.";
-                          Alert.alert(mode === "login" ? "Login Error" : "Registration Error", message);
-                          console.error("Auth error:", err);
-                        } finally {
-                          setLoading(false);
-                        }
-                      }}
-                      
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text style={styles.btnText}>
-                          {mode === "login" ? "Enter Portal": "Start Registration"}
-                          
-                        </Text>
-                      )}
-                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -426,7 +515,7 @@ export default function AuthModal({
                       onSuccess(userData);
                     }}
                     onCancel={() => {
-                      console.log(" User cancelled doctor registration");
+                      console.log("❌ User cancelled doctor registration");
                       setStep(0); // Go back to choice screen
                     }}
                   />
@@ -434,18 +523,20 @@ export default function AuthModal({
                 {/* ════════════ Step 6: Forgot Password ════════════ */}
                 {step === 6 && (
                   <View>
-                    <Text style={styles.h2}> Reset Password</Text>
-                    <Text style={[styles.p, { fontSize: 14 }]}>
+                    <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>🔐 Reset Password</Text>
+                    <Text style={[styles.subtitle, { marginBottom: 24 }]}>
                       Enter your email and we'll send you a reset link.
                     </Text>
 
+                    <Text style={styles.fieldLabel}>Email</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="Email"
+                      placeholder="Enter your email"
                       autoCapitalize="none"
                       keyboardType="email-address"
                       value={formData.email}
                       onChangeText={(t) => setField("email", t)}
+                      placeholderTextColor="#9ca3af"
                     />
 
                     <TouchableOpacity
@@ -481,7 +572,7 @@ export default function AuthModal({
 
                     <TouchableOpacity
                       style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
-                      onPress={() => setStep(4)}
+                      onPress={() => setStep(1)}
                     >
                       <Text style={styles.secondaryBtnText}>← Back to Login</Text>
                     </TouchableOpacity>
@@ -504,28 +595,13 @@ export default function AuthModal({
                     </Text>
                     <TouchableOpacity
                       style={[styles.btn, styles.primaryBtn]}
-                      onPress={() => setStep(4)}
+                      onPress={() => setStep(1)}
                     >
                       <Text style={styles.btnText}>Back to Login</Text>
                     </TouchableOpacity>
                   </View>
                 )}
               </View>
-              {/* Close button */}
-              {step !== 2 && step !== 3 && (
-                <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={async () => {
-                    await onClose();
-                    await setLoading(false);
-                  }}
-                  accessibilityLabel="Close authentication modal"
-                  accessibilityRole="button"
-                >
-                  
-                  <Text style={styles.closeBtnText}>Exit</Text>
-                </TouchableOpacity>
-              )}
               
             </ScrollView>
           </View>
@@ -561,11 +637,33 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     padding: 24,
   },
+  logoSection: {
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0b7fab",
+  },
   h2: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "800",
     marginBottom: 8,
     textAlign: "center",
+    color: "#0f172a",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    color: "#374151",
   },
   stepIndicator: {
     textAlign: "center",
@@ -616,9 +714,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-  modalbtn: {
-    marginTop: 50,
-  },
   primaryBtn: {
     backgroundColor: "#0b7fab",
     width: "100%",
@@ -632,52 +727,119 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontWeight: "600",
   },
-  choiceBtn: {
-    backgroundColor: "#0b7fab",
-    width: "100%",
-    marginBottom: 12,
-  },
-  choiceBtnText: {
-    color: "#fff",
-    fontWeight: "700",
-  },
-  outlineChoiceBtn: {
-    borderWidth: 2,
-    borderColor: "#0b7fab",
-    width: "100%",
-  },
-  outlineChoiceText: {
-    color: "#0b7fab",
-    fontWeight: "700",
-  },
   btnText: {
     color: "#fff",
     fontWeight: "700",
+    fontSize: 15,
   },
   input: {
     backgroundColor: "#f3f4f6",
-    padding: 16,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 10,
     marginBottom: 14,
+    fontSize: 15,
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 14,
     backgroundColor: "#f3f4f6",
-    borderRadius: 12,
+    borderRadius: 10,
     paddingRight: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   passwordInput: {
     flex: 1,
-    padding: 16,
-    fontSize: 16,
+    padding: 14,
+    fontSize: 15,
+    color: "#0f172a",
   },
   passwordToggle: {
     padding: 8,
   },
   passwordToggleText: {
     fontSize: 18,
+  },
+  passwordToggleIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: "contain",
+  },
+  rememberRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  customCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: "#d1d5db",
+    backgroundColor: "transparent",
+    marginRight: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  customCheckboxChecked: {
+    backgroundColor: "#0b7fab",
+    borderColor: "#0b7fab",
+  },
+  checkmark: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  rememberText: {
+    fontSize: 13,
+    color: "#374151",
+    marginLeft: 8,
+    fontWeight: "500",
+  },
+  forgotPasswordLink: {
+    fontSize: 13,
+    color: "#0b7fab",
+    fontWeight: "600",
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 18,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e5e7eb",
+  },
+  dividerText: {
+    fontSize: 13,
+    color: "#9ca3af",
+    marginHorizontal: 12,
+    fontWeight: "500",
+  },
+  switchAuthContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 8,
+  },
+  switchAuthText: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  switchAuthLink: {
+    fontSize: 13,
+    color: "#0b7fab",
+    fontWeight: "700",
   },
   multilineInput: {
     minHeight: 70,
