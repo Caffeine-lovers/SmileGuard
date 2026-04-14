@@ -21,6 +21,8 @@ export interface FormData {
   name: string;
   email: string;
   password: string;
+  phone?: string;
+  nationality?: string;
   medicalIntake: MedicalIntake;
   doctorAccessCode: string;
 }

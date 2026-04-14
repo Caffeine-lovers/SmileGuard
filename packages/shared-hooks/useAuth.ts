@@ -53,7 +53,7 @@ export function useAuth() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("name, email, role")
+        .select("name, email, role, phone_number, nationality")
         .eq("id", userId)
         .single();
 
@@ -80,6 +80,8 @@ export function useAuth() {
               email: user.email || "",
               role: userRole,
               service: user.user_metadata?.service || "General",
+              phone_number: `${user.user_metadata?.nationality || ''}${user.user_metadata?.phone || ''}`,
+              nationality: user.user_metadata?.nationality || '',
             })
             .select()
             .single();
@@ -137,10 +139,10 @@ export function useAuth() {
       if (error) throw error;
 
       if (data.user) {
-        // Fetch profile to get name and email
+        // Fetch profile to get name, email, and phone info
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role, name, email")
+          .select("role, name, email, phone_number, nationality")
           .eq("id", data.user.id)
           .single();
 
@@ -183,7 +185,7 @@ export function useAuth() {
   const register = async (
     formData: FormData,
     role: "patient" | "doctor"
-  ) => {
+  ): Promise<{ totpSecret?: string; qrCodeURI?: string; factorId?: string } | void> => {
     setLoading(true);
     setError(null);
 
@@ -210,7 +212,10 @@ export function useAuth() {
           data: {
             name: formData.name,
             role,
+            phone: formData.phone || '',
+            nationality: formData.nationality || '',
           },
+          emailRedirectTo: undefined,
         },
       });
 
@@ -248,14 +253,46 @@ export function useAuth() {
       }
 
       if (authData.user) {
-        console.log("[useAuth] Auth user created, trigger will create profile automatically");
+        console.log("[useAuth] Auth user created, proceeding with TOTP MFA enrollment");
 
-        // Update auth user metadata with name and role
+        // Enroll TOTP MFA
+        try {
+          console.log("[useAuth] Enrolling TOTP MFA factor...");
+          const { data: enrollData, error: enrollError } = await (supabase.auth.mfa as any).enrollFactors({
+            factorType: 'totp',
+          });
+
+          if (enrollError) {
+            console.warn("[useAuth] Failed to enroll TOTP (non-fatal):", enrollError);
+            // Continue anyway - MFA is optional
+          } else if (enrollData && enrollData.totp) {
+            console.log("[useAuth] TOTP factor enrolled successfully");
+            const totpSecret = enrollData.totp.secret;
+            const qrCodeURI = enrollData.totp.qr_code;
+            const factorId = enrollData.totp.id;
+            
+            console.log("[useAuth] TOTP Secret:", totpSecret);
+            console.log("[useAuth] Factor ID:", factorId);
+            
+            // Return MFA data to signup component
+            return {
+              totpSecret,
+              qrCodeURI,
+              factorId,
+            };
+          }
+        } catch (mfaErr) {
+          console.warn("[useAuth] Error during TOTP enrollment (continuing):", mfaErr);
+        }
+
+        // Update auth user metadata with name, role, phone, and nationality
         try {
           const { error: updateError } = await supabase.auth.updateUser({
             data: {
               name: formData.name,
               role,
+              phone: formData.phone || '',
+              nationality: formData.nationality || '',
             },
           });
 
@@ -273,7 +310,28 @@ export function useAuth() {
         console.log("[useAuth] Fetching profile created by trigger...");
         await fetchProfile(authData.user.id);
         
-        console.log("[useAuth] Registration complete, profile fetched from trigger");
+        // Now update the profile with phone and nationality
+        try {
+          const phoneNumber = `${formData.nationality || ''}${formData.phone || ''}`;
+          console.log("[useAuth] Updating profile with phone_number and nationality...");
+          const { error: updateProfileError } = await supabase
+            .from('profiles')
+            .update({
+              phone_number: phoneNumber,
+              nationality: formData.nationality || '',
+            })
+            .eq('id', authData.user.id);
+          
+          if (updateProfileError) {
+            console.warn("[useAuth] Failed to update profile phone/nationality (non-fatal):", updateProfileError);
+          } else {
+            console.log("[useAuth] Profile phone and nationality updated successfully");
+          }
+        } catch (profileErr) {
+          console.warn("[useAuth] Error updating profile (continuing anyway):", profileErr);
+        }
+        
+        console.log("[useAuth] Registration complete, profile fetched and updated");
       }
     } catch (err) {
       let message = "Registration failed";
@@ -299,6 +357,52 @@ export function useAuth() {
       }
       
       setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // VERIFY TOTP
+  // ─────────────────────────────────────────
+  const verifyTOTP = async (factorId: string, totpCode: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("[useAuth] Verifying TOTP code for factor:", factorId);
+      
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("No active session for TOTP verification");
+      }
+
+      // Verify the TOTP factor
+      const { data: verifyData, error: verifyError } = await (supabase.auth.mfa as any).verifyFactor({
+        factorId,
+        code: totpCode,
+      });
+
+      if (verifyError) {
+        console.error("[useAuth] TOTP verification failed:", verifyError);
+        throw verifyError;
+      }
+
+      console.log("[useAuth] TOTP verification successful", verifyData);
+      
+      // Fetch profile after successful verification
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await fetchProfile(user.id);
+      }
+
+      return verifyData;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "TOTP verification failed";
+      setError(message);
+      console.error("❌ TOTP verification error:", message);
       throw err;
     } finally {
       setLoading(false);
@@ -468,6 +572,45 @@ export function useAuth() {
     }
   };
 
+  const signInWithGoogle = async (redirectTo?: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("[useAuth] Initiating Google OAuth sign-in...");
+      
+      const appUrl = typeof window !== 'undefined' 
+        ? `${window.location.protocol}//${window.location.host}`
+        : 'http://localhost:3000';
+      
+      const redirectUrl = redirectTo ? `${appUrl}${redirectTo}` : `${appUrl}/auth/callback`;
+      
+      console.log("[useAuth] Google redirect URL:", redirectUrl);
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        console.error("[useAuth] Google OAuth failed:", error);
+        throw error;
+      }
+
+      console.log("[useAuth] Google OAuth redirect initiated");
+    } catch (err) {
+      console.error("[useAuth] Google sign-in error:", err);
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+      setLoading(false);
+    }
+  };
+
   return {
     currentUser,
     loading,
@@ -475,11 +618,13 @@ export function useAuth() {
     login,
     register,
     logout,
+    verifyTOTP,
     resetPassword,
     sendSignupOtp,
     verifyEmailOtp,
     updateUserPassword,
     updateProfileData,
     ensureRoleSet,
+    signInWithGoogle,
   };
 }

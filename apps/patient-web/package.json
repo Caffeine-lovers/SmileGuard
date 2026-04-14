@@ -14,6 +14,7 @@
     "@smileguard/shared-types": "workspace:*",
     "@smileguard/supabase-client": "workspace:*",
     "next": "^16.2.1",
+    "qrcode.react": "^1.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-native-screens": "4.20.0",
