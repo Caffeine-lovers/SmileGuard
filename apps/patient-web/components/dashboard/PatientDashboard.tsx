@@ -46,7 +46,19 @@ export default function PatientDashboard() {
           calculateOutstandingBalance(currentUser!.id),
         ]);
         console.log("[PatientDashboard] Data fetched successfully:", { appointmentsCount: appts.length, balance });
-        setAppointments(appts.slice(0, 5));
+        
+        // Filter only scheduled appointments and sort them by date (assuming they are returned in some order or need sorting)
+        const scheduledAppts = appts.filter(apt => 
+          apt.status === 'scheduled' || 
+          apt.status === 'Scheduled' || 
+          apt.status === 'confirmed' || 
+          apt.status === 'pending'
+        );
+        // Sort by date (ascending)
+        scheduledAppts.sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
+
+        console.log("[PatientDashboard] Scheduled/Confirmed appointments:", scheduledAppts.length);
+        setAppointments(scheduledAppts);
         setOutstandingBalance(balance);
       } catch (err) {
         console.error('[PatientDashboard] Error fetching dashboard data:', err);
@@ -98,23 +110,24 @@ export default function PatientDashboard() {
     
       <div className="bg-bg-surface rounded-2xl shadow-sm border border-border-card p-6 mb-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-bold text-text-primary">Upcoming Appointments</h2>
+          <h2 className="text-lg font-bold text-text-primary">Upcoming Scheduled Appointments</h2>
         </div>
         {appointments.length > 0 ? (
-          <div className="space-y-1">
+          <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
             {appointments.map((apt, index) => (
-              <div key={apt.id} className="flex gap-4 items-start">
+              <div key={apt.id} className="flex gap-4 items-stretch">
                 <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
                     {index + 1}
                   </div>
-                  {index < appointments.length - 1 && <div className="w-0.5 h-full bg-gray-100 mt-1" />}
+                  {index < appointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
                 </div>
-                <div className="flex-1 pb-4">
+                <div className="flex-1 pb-1">
                   <AppointmentCard
                     name="Your Doctor"
                     service={apt.service}
                     time={apt.appointment_time}
+                    date={formatDate(apt.appointment_date)}
                   />
                 </div>
               </div>
@@ -122,8 +135,10 @@ export default function PatientDashboard() {
           </div>
         ) : (
           <div className="text-center py-10">
-            <p className="text-text-secondary font-medium">No appointments yet</p>
-            <Link href="/appointments" className="text-text-link text-sm font-medium mt-2 inline-block hover:underline">Book your first appointment →</Link>
+            <p className="text-text-secondary font-medium">No upcoming appointments</p>
+            <Link href="/appointments" className="text-brand-primary text-sm font-medium mt-2 inline-block hover:underline">
+              Book your first appointment →
+            </Link>
           </div>
         )}
       </div>

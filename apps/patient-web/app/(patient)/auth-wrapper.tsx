@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
 import type { ReactNode } from 'react';
@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 export default function AuthWrapper({ children }: { children: ReactNode }) {
   const { currentUser, loading, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && (!currentUser || currentUser.role !== 'patient')) {
@@ -50,27 +51,45 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               SmileGuard
             </Link>
             <nav className="hidden md:flex gap-6">
-              <Link href="/dashboard" className="text-text-primary hover:text-brand-primary font-medium transition">
+              <Link 
+                href="/dashboard" 
+                className={`font-medium transition hover:text-brand-primary ${pathname === '/dashboard' ? 'text-brand-primary' : 'text-text-primary'}`}
+              >
                 Dashboard
               </Link>
-              <Link href="/appointments" className="text-text-primary hover:text-brand-primary font-medium transition">
-                Appointments
-              </Link>
-              <Link href="/billing" className="text-text-primary hover:text-brand-primary font-medium transition">
+              <Link 
+                href="/billing" 
+                className={`font-medium transition hover:text-brand-primary ${pathname === '/billing' ? 'text-brand-primary' : 'text-text-primary'}`}
+              >
                 Billing
               </Link>
-              <Link href="/analysis" className="text-text-primary hover:text-brand-primary font-medium transition">
+              <Link 
+                href="/analysis" 
+                className={`font-medium transition hover:text-brand-primary ${pathname === '/analysis' ? 'text-brand-primary' : 'text-text-primary'}`}
+              >
                 Analysis
               </Link>
-              <Link href="/treatments" className="text-text-primary hover:text-brand-primary font-medium transition">
+              <Link 
+                href="/treatments" 
+                className={`font-medium transition hover:text-brand-primary ${pathname === '/treatments' ? 'text-brand-primary' : 'text-text-primary'}`}
+              >
                 Treatments
               </Link>
-              <Link href="/documents" className="text-text-primary hover:text-brand-primary font-medium transition">
+              <Link 
+                href="/documents" 
+                className={`font-medium transition hover:text-brand-primary ${pathname === '/documents' ? 'text-brand-primary' : 'text-text-primary'}`}
+              >
                 Documents
               </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
+            <Link 
+              href="/appointments" 
+              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-lg transition font-medium text-sm hidden md:block"
+            >
+              Book an Appointment
+            </Link>
             <span className="text-sm text-text-secondary hidden md:block">
               {currentUser.name}
             </span>

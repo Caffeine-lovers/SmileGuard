@@ -20,7 +20,7 @@ export const requestMediaPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     return status === "granted";
   } catch (error) {
-    console.error("❌ Permission request failed:", error);
+    console.error(" Permission request failed:", error);
     return false;
   }
 };
@@ -62,7 +62,7 @@ export const pickImage = async (): Promise<ImagePickerResult | null> => {
       type: asset.mimeType || "image/jpeg",
     };
   } catch (error) {
-    console.error("❌ Image picker failed:", error);
+    console.error(" Image picker failed:", error);
     throw error;
   }
 };
@@ -79,15 +79,15 @@ export const uploadProfileImage = async (
   userId: string
 ): Promise<string> => {
   try {
-    console.log("📤 Starting image upload...");
-    console.log("📋 Image URI:", image.uri);
-    console.log("📋 Image type:", image.type);
+    console.log(" Starting image upload...");
+    console.log(" Image URI:", image.uri);
+    console.log(" Image type:", image.type);
 
     // Create unique filename
     const timestamp = Date.now();
     const filename = `doctor-profiles/${userId}/profile_${timestamp}`;
 
-    console.log("📁 Uploading to path:", filename);
+    console.log(" Uploading to path:", filename);
 
     try {
       console.log("🔄 Reading image file as binary...");
@@ -130,7 +130,7 @@ export const uploadProfileImage = async (
           console.error("   2. The bucket is not set to PUBLIC");
           console.error("   3. There's a CORS issue");
           throw new Error(
-            "Storage bucket error. Please verify:\n1. Bucket 'doctor-pictures' exists\n2. Bucket is set to PUBLIC\n3. Check Supabase dashboard"
+            "Storage bucket error. Please verify:\\n1. Bucket 'doctor-pictures' exists\\n2. Bucket is set to PUBLIC\\n3. Check Supabase dashboard"
           );
         }
         
@@ -143,7 +143,7 @@ export const uploadProfileImage = async (
         throw new Error(`Upload failed: ${error.message}`);
       }
 
-      console.log("✅ Upload successful:", data);
+      console.log(" Upload successful:", data);
 
       // Get public URL
       console.log("🔗 Generating public URL...");
@@ -169,7 +169,7 @@ export const uploadProfileImage = async (
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Image upload failed";
-    console.error("❌ Upload error:", message);
+    console.error(" Upload error:", message);
     throw error;
   }
 };
@@ -186,7 +186,7 @@ export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
     }
 
     const filePath = decodeURIComponent(urlParts[1]);
-    console.log("🗑️  Deleting image:", filePath);
+    console.log("️  Deleting image:", filePath);
 
     const { error } = await supabase.storage
       .from("doctor-pictures")
@@ -196,9 +196,9 @@ export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
       throw error;
     }
 
-    console.log("✅ Image deleted successfully");
+    console.log(" Image deleted successfully");
   } catch (error) {
-    console.error("❌ Delete failed:", error);
+    console.error(" Delete failed:", error);
     throw error;
   }
 };

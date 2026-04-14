@@ -22,7 +22,7 @@ export default function ResetPasswordScreen({ onDone }: { onDone: () => void }) 
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage("✅ Password updated!");
+      setMessage(" Password updated!");
       setTimeout(() => onDone(), 1500);
     }
     setLoading(false);
@@ -30,7 +30,7 @@ export default function ResetPasswordScreen({ onDone }: { onDone: () => void }) 
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🔐 Set New Password</Text>
+      <Text style={styles.title}> Set New Password</Text>
       <Text style={styles.sub}>Enter your new password below.</Text>
       <TextInput
         style={styles.input}

@@ -389,13 +389,96 @@ export function useAuth() {
   };
 
   // ─────────────────────────────────────────
+  // SIGNUP OTP
+  // ─────────────────────────────────────────
+  const sendSignupOtp = async (email: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send verification code";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUserPassword = async (password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update password";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfileData = async (userId: string, data: any) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.from('profiles').update(data).eq('id', userId);
+      if (error) throw error;
+      await fetchProfile(userId);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update profile";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // VERIFY OTP
+  // ─────────────────────────────────────────
+  const verifyEmailOtp = async (email: string, token: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // With signInWithOtp, the type is usually 'email' or 'magiclink'
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token,
+        type: "email",
+      });
+
+      if (error) throw error;
+
+      if (data.session?.user) {
+        await fetchProfile(data.session.user.id);
+      }
+      return { success: true, user: data.user };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Verification failed";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
   // RESET PASSWORD
   // ─────────────────────────────────────────
   const resetPassword = async (email: string) => {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/reset-password`,
+        redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/reset-password`,
       });
 
       if (error) throw error;
@@ -418,6 +501,10 @@ export function useAuth() {
     register,
     logout,
     resetPassword,
+    sendSignupOtp,
+    verifyEmailOtp,
+    updateUserPassword,
+    updateProfileData,
     ensureRoleSet,
   };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 
 const BookAppointment = dynamic(
   () => import('@/components/appointments/BookAppointment'),
@@ -8,6 +9,8 @@ const BookAppointment = dynamic(
 );
 
 export default function AppointmentsPage() {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen bg-bg-screen">
       <div className="px-4 py-8">
@@ -21,7 +24,7 @@ export default function AppointmentsPage() {
           {/* Book Appointment (Center) - Main Form */}
           <div className="lg:col-span-2">
             <div className="sticky top-8 shadow-lg rounded-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.4)]">
-              <BookAppointment />
+              <BookAppointment onSuccess={() => router.push('/dashboard')} />
             </div>
           </div>
 

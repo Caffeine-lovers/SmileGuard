@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 interface StatCardProps {
   number: number | string;
   label: string;
@@ -18,9 +20,10 @@ export default function StatCard({
   
   if (href) {
     return (
-      <a href={href}>
+      <Link href={href}>
         <div
           className={`bg-bg-surface rounded-card shadow-sm border border-border-card p-5 flex items-center gap-4 transition-all duration-300 hover:shadow-md hover:-translate-y-1 ${isClickable ? 'cursor-pointer' : ''}`}
+          onClick={onClick}
         >
           <div className="text-3xl">{icon}</div>
           <div>
@@ -28,7 +31,7 @@ export default function StatCard({
             <p className="text-sm text-text-secondary mt-0.5">{label}</p>
           </div>
         </div>
-      </a>
+      </Link>
     );
   }
 
