@@ -248,105 +248,62 @@ export function useAuth() {
 
       console.log("[useAuth] Auth user created:", authData.user.id);
 
-      // Now try to update auth user metadata
+      // Capture MFA enrollment result to return after all registration steps finish
+      let mfaResult: { totpSecret?: string; qrCodeURI?: string; factorId?: string } | undefined;
+
+      // Enroll TOTP MFA
       try {
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: {
-            name: formData.name,
-            role,
-          },
+        console.log("[useAuth] Enrolling TOTP MFA factor...");
+        const { data: enrollData, error: enrollError } = await (supabase.auth.mfa as any).enrollFactors({
+          factorType: 'totp',
         });
 
-        if (updateError) {
-          console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
+        if (enrollError) {
+          console.warn("[useAuth] Failed to enroll TOTP (non-fatal):", enrollError);
+          // Continue anyway - MFA is optional
+        } else if (enrollData && enrollData.totp) {
+          console.log("[useAuth] TOTP factor enrolled successfully, factor ID:", enrollData.totp.id);
+          mfaResult = {
+            totpSecret: enrollData.totp.secret,
+            qrCodeURI: enrollData.totp.qr_code,
+            factorId: enrollData.totp.id,
+          };
+        }
+      } catch (mfaErr) {
+        console.warn("[useAuth] Error during TOTP enrollment (continuing):", mfaErr);
+      }
+
+      // The Supabase trigger (handle_new_user) has already created the profile
+      // Just need to fetch it and set the current user
+      console.log("[useAuth] Fetching profile created by trigger...");
+      await fetchProfile(authData.user.id);
+
+      // Update the profile with phone and nationality
+      try {
+        const phoneNumber = formData.phone
+          ? (formData.nationality ? `${formData.nationality}${formData.phone}` : formData.phone)
+          : null;
+        const nationality = formData.nationality || null;
+        console.log("[useAuth] Updating profile with phone_number and nationality...");
+        const { error: updateProfileError } = await supabase
+          .from('profiles')
+          .update({
+            phone_number: phoneNumber,
+            nationality,
+          })
+          .eq('id', authData.user.id);
+
+        if (updateProfileError) {
+          console.warn("[useAuth] Failed to update profile phone/nationality (non-fatal):", updateProfileError);
         } else {
-          console.log("[useAuth] User metadata updated successfully");
+          console.log("[useAuth] Profile phone and nationality updated successfully");
         }
-      } catch (metaErr) {
-        console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
+      } catch (profileErr) {
+        console.warn("[useAuth] Error updating profile (continuing anyway):", profileErr);
       }
 
-      if (authData.user) {
-        console.log("[useAuth] Auth user created, proceeding with TOTP MFA enrollment");
-
-        // Enroll TOTP MFA
-        try {
-          console.log("[useAuth] Enrolling TOTP MFA factor...");
-          const { data: enrollData, error: enrollError } = await (supabase.auth.mfa as any).enrollFactors({
-            factorType: 'totp',
-          });
-
-          if (enrollError) {
-            console.warn("[useAuth] Failed to enroll TOTP (non-fatal):", enrollError);
-            // Continue anyway - MFA is optional
-          } else if (enrollData && enrollData.totp) {
-            console.log("[useAuth] TOTP factor enrolled successfully");
-            const totpSecret = enrollData.totp.secret;
-            const qrCodeURI = enrollData.totp.qr_code;
-            const factorId = enrollData.totp.id;
-            
-            console.log("[useAuth] TOTP Secret:", totpSecret);
-            console.log("[useAuth] Factor ID:", factorId);
-            
-            // Return MFA data to signup component
-            return {
-              totpSecret,
-              qrCodeURI,
-              factorId,
-            };
-          }
-        } catch (mfaErr) {
-          console.warn("[useAuth] Error during TOTP enrollment (continuing):", mfaErr);
-        }
-
-        // Update auth user metadata with name, role, phone, and nationality
-        try {
-          const { error: updateError } = await supabase.auth.updateUser({
-            data: {
-              name: formData.name,
-              role,
-              phone: formData.phone || '',
-              nationality: formData.nationality || '',
-            },
-          });
-
-          if (updateError) {
-            console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
-          } else {
-            console.log("[useAuth] User metadata updated successfully");
-          }
-        } catch (metaErr) {
-          console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
-        }
-
-        // The Supabase trigger (handle_new_user) has already created the profile
-        // Just need to fetch it and set the current user
-        console.log("[useAuth] Fetching profile created by trigger...");
-        await fetchProfile(authData.user.id);
-        
-        // Now update the profile with phone and nationality
-        try {
-          const phoneNumber = `${formData.nationality || ''}${formData.phone || ''}`;
-          console.log("[useAuth] Updating profile with phone_number and nationality...");
-          const { error: updateProfileError } = await supabase
-            .from('profiles')
-            .update({
-              phone_number: phoneNumber,
-              nationality: formData.nationality || '',
-            })
-            .eq('id', authData.user.id);
-          
-          if (updateProfileError) {
-            console.warn("[useAuth] Failed to update profile phone/nationality (non-fatal):", updateProfileError);
-          } else {
-            console.log("[useAuth] Profile phone and nationality updated successfully");
-          }
-        } catch (profileErr) {
-          console.warn("[useAuth] Error updating profile (continuing anyway):", profileErr);
-        }
-        
-        console.log("[useAuth] Registration complete, profile fetched and updated");
-      }
+      console.log("[useAuth] Registration complete, profile fetched and updated");
+      return mfaResult;
     } catch (err) {
       let message = "Registration failed";
       let detailedError = "";
