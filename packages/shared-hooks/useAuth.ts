@@ -53,11 +53,18 @@ export function useAuth() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("name, email, role, phone_number, nationality")
+        .select("name, email, role")
         .eq("id", userId)
         .single();
 
       if (error) {
+        console.error("[useAuth] Profile query error:", { 
+          code: error.code, 
+          message: error.message, 
+          details: error.details,
+          hint: error.hint 
+        });
+        
         if (error.code === "PGRST116") {
           console.warn("[useAuth] Profile not found, creating from user metadata...");
           const { data: { user } } = await supabase.auth.getUser();
@@ -80,14 +87,16 @@ export function useAuth() {
               email: user.email || "",
               role: userRole,
               service: user.user_metadata?.service || "General",
-              phone_number: `${user.user_metadata?.nationality || ''}${user.user_metadata?.phone || ''}`,
-              nationality: user.user_metadata?.nationality || '',
             })
             .select()
             .single();
 
           if (createError) {
-            console.error("[useAuth] Error creating profile:", createError);
+            console.error("[useAuth] Error creating profile:", { 
+              code: createError.code,
+              message: createError.message,
+              details: createError.details 
+            });
             setCurrentUser({
               id: userId,
               name: userName,
@@ -116,7 +125,12 @@ export function useAuth() {
         });
       }
     } catch (err) {
-      console.error("[useAuth] Error fetching profile:", err);
+      console.error("[useAuth] Error fetching profile:", {
+        error: err,
+        errorString: JSON.stringify(err),
+        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        errorStack: err instanceof Error ? err.stack : "No stack"
+      });
       setError(err instanceof Error ? err.message : "Failed to fetch profile");
     } finally {
       setLoading(false);
@@ -579,13 +593,28 @@ export function useAuth() {
     try {
       console.log("[useAuth] Initiating Google OAuth sign-in...");
       
-      const appUrl = typeof window !== 'undefined' 
-        ? `${window.location.protocol}//${window.location.host}`
-        : 'http://localhost:3000';
+      // Get the actual app URL from window for web, or use localhost for server
+      const isServer = typeof window === 'undefined';
+      let redirectUrl: string;
       
-      const redirectUrl = redirectTo ? `${appUrl}${redirectTo}` : `${appUrl}/auth/callback`;
+      if (!isServer) {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const basePath = redirectTo || '/auth/callback';
+        redirectUrl = `${protocol}//${host}${basePath}`;
+      } else {
+        redirectUrl = redirectTo 
+          ? `http://localhost:3000${redirectTo}`
+          : 'http://localhost:3000/auth/callback';
+      }
       
       console.log("[useAuth] Google redirect URL:", redirectUrl);
+      
+      // Ensure we're using HTTP for web, not a custom scheme
+      if (redirectUrl.includes('smileguard://')) {
+        console.warn("[useAuth] Redirect URL contains smileguard:// scheme, converting to http");
+        redirectUrl = redirectUrl.replace('smileguard://', 'http://localhost:3000/');
+      }
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -595,6 +624,7 @@ export function useAuth() {
             access_type: 'offline',
             prompt: 'consent',
           },
+          scopes: 'openid profile email',
         },
       });
 
@@ -603,7 +633,7 @@ export function useAuth() {
         throw error;
       }
 
-      console.log("[useAuth] Google OAuth redirect initiated");
+      console.log("[useAuth] Google OAuth redirect initiated to:", redirectUrl);
     } catch (err) {
       console.error("[useAuth] Google sign-in error:", err);
       setError(err instanceof Error ? err.message : 'Google sign-in failed');
