@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const GET = async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
+  const sensitiveParams = new Set(['code', 'state', 'access_token', 'refresh_token', 'token', 'id_token']);
+  const safeParamNames = Array.from(searchParams.keys()).filter(
+    (key, index, keys) => !sensitiveParams.has(key) && keys.indexOf(key) === index
+  );
   
   console.log('[API Auth Callback] Request received');
-  console.log('[API Auth Callback] Hash:', searchParams.toString());
+  if (process.env.NODE_ENV !== 'production' && safeParamNames.length > 0) {
+    console.log('[API Auth Callback] Query params:', safeParamNames.join(', '));
+  }
   
   // Check for error in the callback
   const error = searchParams.get('error');
