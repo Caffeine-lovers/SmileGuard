@@ -118,23 +118,86 @@ export interface BlockedSlot {
 }
 
 export async function getAllBlockedSlots(): Promise<BlockedSlot[]> {
-  const { data, error } = await supabase
+  console.log('🔍 [getAllBlockedSlots] Starting to fetch blocked slots...');
+  
+  // TEST: Try to fetch with very permissive query first
+  console.log('🧪 [TEST] Attempting to query clinic_blockout_dates...');
+  const { data: testData, error: testError, status } = await supabase
+    .from('clinic_blockout_dates')
+    .select('*');
+  
+  console.log('🧪 [TEST RESULT]', {
+    error: testError,
+    status,
+    count: testData?.length || 0,
+    data: testData
+  });
+
+  // ❌ PRIORITY 1: Fetch blockout dates FIRST (highest priority - overrides everything)
+  const { data: blockoutDates, error: blockoutError } = await supabase
+    .from('clinic_blockout_dates')
+    .select('blockout_date, is_blocked')
+    .eq('is_blocked', true);
+
+  if (blockoutError) {
+    console.error('❌ Error fetching blockout dates:', blockoutError);
+  } else {
+    console.log(`✅ [BLOCKOUT DATES] Found ${blockoutDates?.length || 0} specific blockout dates:`, blockoutDates);
+  }
+
+  // Convert blockout dates to blocked slots (block all time slots for those days)
+  const blockoutSlots: BlockedSlot[] = [];
+  const blockedDateSet = new Set<string>();
+  
+  if (blockoutDates && blockoutDates.length > 0) {
+    const TIME_SLOTS = [
+      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+      '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+    ];
+    
+    for (const blockout of blockoutDates) {
+      blockedDateSet.add(blockout.blockout_date);
+      console.log(`🚫 [BLOCKOUT] Blocking ALL TIME SLOTS for: ${blockout.blockout_date}`);
+      
+      for (const timeSlot of TIME_SLOTS) {
+        blockoutSlots.push({
+          date: blockout.blockout_date,
+          time: timeSlot,
+          patientId: 'system-blockout', // System-generated blockout
+          service: 'blocked',
+        });
+      }
+    }
+  }
+
+  // ✅ PRIORITY 2: Fetch booked appointments (only for dates NOT in blockout)
+  const { data: appointments, error: appointmentError } = await supabase
     .from('appointments')
     .select('appointment_date, appointment_time, patient_id, service')
     .neq('status', 'cancelled')
     .order('appointment_date', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching blocked slots:', error);
-    return [];
+  if (appointmentError) {
+    console.error('❌ Error fetching booked slots:', appointmentError);
+  } else {
+    console.log(`✅ [BOOKED APPOINTMENTS] Found ${appointments?.length || 0} booked appointments`);
   }
 
-  return data.map((a: any) => ({
-    date: a.appointment_date,
-    time: a.appointment_time,
-    patientId: a.patient_id,
-    service: a.service,
-  }));
+  // Only add booked appointments for dates that are NOT already blocked
+  const bookedSlots = (appointments || [])
+    .filter(a => !blockedDateSet.has(a.appointment_date)) // Skip blocked dates
+    .map((a: any) => ({
+      date: a.appointment_date,
+      time: a.appointment_time,
+      patientId: a.patient_id,
+      service: a.service,
+    }));
+
+  // Combine: blockout dates (high priority) + booked appointments
+  const combined = [...blockoutSlots, ...bookedSlots];
+  console.log(`📋 [RESULT] Total blocked slots: ${combined.length} (${blockoutSlots.length} blockout + ${bookedSlots.length} booked)`);
+  
+  return combined;
 }
 
 // ─────────────────────────────────────────

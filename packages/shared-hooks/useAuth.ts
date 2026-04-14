@@ -136,7 +136,32 @@ export function useAuth() {
 
       if (error) throw error;
 
-      if (data.user) {
+      if (data.user && data.session) {
+        console.log("[useAuth] ✅ Login successful");
+        console.log("[useAuth] Session received from signInWithPassword:");
+        console.log("  - User ID:", data.user.id);
+        console.log("  - Access Token exists:", !!data.session.access_token);
+        console.log("  - Refresh Token exists:", !!data.session.refresh_token);
+        console.log("  - Expires at:", new Date(data.session.expires_at! * 1000).toISOString());
+
+        // CRITICAL: Explicitly set the session to ensure it's persisted to AsyncStorage
+        console.log("[useAuth] 🔐 Explicitly setting session on client...");
+        const { error: setError } = await supabase.auth.setSession(data.session);
+        
+        if (setError) {
+          console.error("[useAuth] ❌ Error setting session:", setError);
+        } else {
+          console.log("[useAuth] ✅ Session explicitly set on Supabase client");
+        }
+
+        // Verify session was saved
+        const { data: { session: savedSession } } = await supabase.auth.getSession();
+        if (savedSession?.access_token) {
+          console.log("[useAuth] ✅ SESSION SAVED! Can retrieve from getSession()");
+        } else {
+          console.error("[useAuth] ❌ SESSION NOT SAVED - getSession() returns null");
+        }
+
         // Fetch profile to get name and email
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -364,6 +389,89 @@ export function useAuth() {
   };
 
   // ─────────────────────────────────────────
+  // SIGNUP OTP
+  // ─────────────────────────────────────────
+  const sendSignupOtp = async (email: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send verification code";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUserPassword = async (password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update password";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfileData = async (userId: string, data: any) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.from('profiles').update(data).eq('id', userId);
+      if (error) throw error;
+      await fetchProfile(userId);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update profile";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // VERIFY OTP
+  // ─────────────────────────────────────────
+  const verifyEmailOtp = async (email: string, token: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // With signInWithOtp, the type is usually 'email' or 'magiclink'
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token,
+        type: "email",
+      });
+
+      if (error) throw error;
+
+      if (data.session?.user) {
+        await fetchProfile(data.session.user.id);
+      }
+      return { success: true, user: data.user };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Verification failed";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
   // RESET PASSWORD
   // ─────────────────────────────────────────
   const resetPassword = async (email: string) => {
@@ -393,6 +501,10 @@ export function useAuth() {
     register,
     logout,
     resetPassword,
+    sendSignupOtp,
+    verifyEmailOtp,
+    updateUserPassword,
+    updateProfileData,
     ensureRoleSet,
   };
 }

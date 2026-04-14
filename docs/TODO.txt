@@ -48,10 +48,10 @@ add npm install @react-navigation/drawer
 - [x] How It Works Section > _HowItWorks //Splash Screen 
 - [x] Main App Layout > _layout
 - [x] SmileGuard Patient Dashboard > _patientDashboard
-- [] Welcome Page 
-    - [] Sign In //di pa kuan
-    - [] Sign Up //di pa kuan
-    - [] Verification Page 
+- [x] Welcome Page 
+    - [x] Sign In
+    - [x] Sign Up
+    - [x] Verification Page 
 - [] On-Boarding Wizard (Training Module)
 
 ===== F R O N T E N D =====
@@ -116,8 +116,8 @@ add npm install @react-navigation/drawer
             //mark code as used/expired
         
     - [x] Appointment Module
-        - [] Notification Page
-        - [] Add Appointment Schedule 
+        - [x] Notification Page (but only on doctor side)
+        - [x] Add Appointment Schedule 
         - [x] Sorting Date 
         - [x] Show Upcoming Appointed Schedule 
         - [x] Show Future Appointed Schedule 

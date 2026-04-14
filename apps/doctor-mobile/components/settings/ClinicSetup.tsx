@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   ActivityIndicator,
   StyleSheet,
   FlatList,
+  Modal,
 } from 'react-native';
+import { supabase } from '@smileguard/supabase-client';
+import { useAuth } from '../../hooks/useAuth';
 
 interface ClinicSetupProps {
   onClose?: () => void;
@@ -20,10 +23,9 @@ interface ClinicSetupProps {
 }
 
 interface ClinicData {
+  clinic_name: string;
   logo_url?: string;
   address: string;
-  city: string;
-  phone: string;
   gallery_images?: string[];
   services: Service[];
   schedule: Schedule;
@@ -36,34 +38,42 @@ interface Service {
 }
 
 interface Schedule {
-  monday: { isOpen: boolean; hours: string };
-  tuesday: { isOpen: boolean; hours: string };
-  wednesday: { isOpen: boolean; hours: string };
-  thursday: { isOpen: boolean; hours: string };
-  friday: { isOpen: boolean; hours: string };
-  saturday: { isOpen: boolean; hours: string };
-  sunday: { isOpen: boolean; hours: string };
+  sunday: { isOpen: boolean; opening_time: string; closing_time: string };
+  monday: { isOpen: boolean; opening_time: string; closing_time: string };
+  tuesday: { isOpen: boolean; opening_time: string; closing_time: string };
+  wednesday: { isOpen: boolean; opening_time: string; closing_time: string };
+  thursday: { isOpen: boolean; opening_time: string; closing_time: string };
+  friday: { isOpen: boolean; opening_time: string; closing_time: string };
+  saturday: { isOpen: boolean; opening_time: string; closing_time: string };
 }
 
+// Define the day order explicitly
+const DAY_ORDER: (keyof Schedule)[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
 const defaultSchedule: Schedule = {
-  monday: { isOpen: true, hours: '9:00 AM - 6:00 PM' },
-  tuesday: { isOpen: true, hours: '9:00 AM - 6:00 PM' },
-  wednesday: { isOpen: true, hours: '9:00 AM - 6:00 PM' },
-  thursday: { isOpen: true, hours: '9:00 AM - 6:00 PM' },
-  friday: { isOpen: true, hours: '9:00 AM - 6:00 PM' },
-  saturday: { isOpen: false, hours: '10:00 AM - 2:00 PM' },
-  sunday: { isOpen: false, hours: 'Closed' },
+  sunday: { isOpen: true, opening_time: '10:00 AM', closing_time: '3:00 PM' },
+  monday: { isOpen: true, opening_time: '10:00 AM', closing_time: '3:00 PM' },
+  tuesday: { isOpen: false, opening_time: '10:00 AM', closing_time: '3:00 PM' },
+  wednesday: { isOpen: true, opening_time: '10:00 AM', closing_time: '3:00 PM' },
+  thursday: { isOpen: true, opening_time: '10:00 AM', closing_time: '3:00 PM' },
+  friday: { isOpen: true, opening_time: '10:00 AM', closing_time: '3:00 PM' },
+  saturday: { isOpen: false, opening_time: '10:00 AM', closing_time: '3:00 PM' },
 };
+
+const PREDEFINED_SERVICES = [
+  "Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
+    "X-Ray", "Checkup"
+];
 
 export default function ClinicSetup({
   onClose,
   onSave,
   styles: externalStyles,
 }: ClinicSetupProps) {
+  const { currentUser } = useAuth();
   const [clinicData, setClinicData] = useState<ClinicData>({
+    clinic_name: '',
     address: '',
-    city: '',
-    phone: '',
     gallery_images: [],
     services: [],
     schedule: defaultSchedule,
@@ -71,6 +81,69 @@ export default function ClinicSetup({
 
   const [newService, setNewService] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [showServicesSection, setShowServicesSection] = useState(false);
+  const [showOpeningTimePicker, setShowOpeningTimePicker] = useState<keyof Schedule | null>(null);
+  const [showClosingTimePicker, setShowClosingTimePicker] = useState<keyof Schedule | null>(null);
+  const [tempHours, setTempHours] = useState('09');
+  const [tempMinutes, setTempMinutes] = useState('00');
+  const [tempPeriod, setTempPeriod] = useState<'AM' | 'PM'>('AM');
+  const today = new Date();
+  const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
+  const [showBlockoutDatePicker, setShowBlockoutDatePicker] = useState(false);
+  const [blockoutReason, setBlockoutReason] = useState('');
+  const [selectedBlockoutDate, setSelectedBlockoutDate] = useState(new Date());
+  const [tempBlockoutDay, setTempBlockoutDay] = useState(today.getDate().toString());
+  const [tempBlockoutMonth, setTempBlockoutMonth] = useState((today.getMonth() + 1).toString());
+  const [tempBlockoutYear, setTempBlockoutYear] = useState(today.getFullYear().toString());
+
+  // Load clinic data from database on component mount
+  useEffect(() => {
+    const loadClinicData = async () => {
+      if (!currentUser?.id) {
+        setInitialLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('clinic_setup')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error loading clinic data:', error);
+        } else if (data) {
+          setClinicData({
+            clinic_name: data.clinic_name || '',
+            address: data.address || '',
+            logo_url: data.logo_url || undefined,
+            gallery_images: data.gallery_images || [],
+            services: data.services || [],
+            schedule: data.schedule || defaultSchedule,
+          });
+          
+          // Load blockout dates
+          const { data: blockoutData, error: blockoutError } = await supabase
+            .from('clinic_blockout_dates')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('blockout_date', { ascending: true });
+          
+          if (!blockoutError && blockoutData) {
+            setBlockoutDates(blockoutData);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load clinic data:', error);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    loadClinicData();
+  }, [currentUser?.id]);
 
   const localStyles = StyleSheet.create({
     container: {
@@ -291,35 +364,174 @@ export default function ClinicSetup({
     }));
   };
 
-  const handleScheduleHoursChange = (day: keyof Schedule, hours: string) => {
+  const handleOpeningTimeChange = (day: keyof Schedule, opening_time: string) => {
     setClinicData(prev => ({
       ...prev,
       schedule: {
         ...prev.schedule,
         [day]: {
           ...prev.schedule[day],
-          hours,
+          opening_time,
         },
       },
     }));
   };
 
+  const handleClosingTimeChange = (day: keyof Schedule, closing_time: string) => {
+    setClinicData(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        [day]: {
+          ...prev.schedule[day],
+          closing_time,
+        },
+      },
+    }));
+  };
+
+  // Helper function to parse time string (e.g., "9:00 AM") to hours, minutes, period
+  const parseTimeString = (timeString: string) => {
+    const [time, period] = timeString.split(' ');
+    const [hours, minutes] = time.split(':');
+    return { hours, minutes, period: period as 'AM' | 'PM' };
+  };
+
+  // Helper function to create time string from components
+  const createTimeString = (hours: string, minutes: string, period: 'AM' | 'PM'): string => {
+    return `${hours}:${minutes} ${period}`;
+  };
+
+  const openOpeningTimePicker = (day: keyof Schedule) => {
+    const { hours, minutes, period } = parseTimeString(clinicData.schedule[day].opening_time);
+    setTempHours(hours);
+    setTempMinutes(minutes);
+    setTempPeriod(period);
+    setShowOpeningTimePicker(day);
+  };
+
+  const openClosingTimePicker = (day: keyof Schedule) => {
+    const { hours, minutes, period } = parseTimeString(clinicData.schedule[day].closing_time);
+    setTempHours(hours);
+    setTempMinutes(minutes);
+    setTempPeriod(period);
+    setShowClosingTimePicker(day);
+  };
+
+  const confirmOpeningTime = (day: keyof Schedule | null) => {
+    if (day) {
+      handleOpeningTimeChange(day, createTimeString(tempHours, tempMinutes, tempPeriod));
+    }
+    setShowOpeningTimePicker(null);
+  };
+
+  const confirmClosingTime = (day: keyof Schedule | null) => {
+    if (day) {
+      handleClosingTimeChange(day, createTimeString(tempHours, tempMinutes, tempPeriod));
+    }
+    setShowClosingTimePicker(null);
+  };
+
+  const handleAddBlockoutDate = async (selectedDate: Date, month: number, day: number, year: number) => {
+    if (!currentUser?.id) return;
+
+    try {
+      // Use the exact values selected to avoid timezone conversion issues
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      // Check if already exists
+      const existing = blockoutDates.find(b => b.blockout_date === dateStr);
+      if (existing) {
+        Alert.alert('Error', 'This date is already blocked');
+        return;
+      }
+
+      // Insert into database
+      const { error } = await supabase
+        .from('clinic_blockout_dates')
+        .insert({
+          user_id: currentUser.id,
+          blockout_date: dateStr,
+          reason: blockoutReason || 'Blocked',
+          is_blocked: true,
+        });
+
+      if (error) throw error;
+
+      // Add to local state
+      setBlockoutDates(prev => [
+        ...prev,
+        { blockout_date: dateStr, reason: blockoutReason || 'Blocked', is_blocked: true }
+      ]);
+      
+      setBlockoutReason('');
+      setShowBlockoutDatePicker(false);
+      Alert.alert('Success', 'Blockout date added');
+    } catch (error) {
+      console.error('Error adding blockout date:', error);
+      Alert.alert('Error', 'Failed to add blockout date');
+    }
+  };
+
+  const handleRemoveBlockoutDate = async (dateStr: string) => {
+    if (!currentUser?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('clinic_blockout_dates')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('blockout_date', dateStr);
+
+      if (error) throw error;
+
+      setBlockoutDates(prev => prev.filter(b => b.blockout_date !== dateStr));
+      Alert.alert('Success', 'Blockout date removed');
+    } catch (error) {
+      console.error('Error removing blockout date:', error);
+      Alert.alert('Error', 'Failed to remove blockout date');
+    }
+  };
+
   const handleSave = async () => {
-    if (!clinicData.address.trim() || !clinicData.city.trim() || !clinicData.phone.trim()) {
+    if (!clinicData.clinic_name.trim() || !clinicData.address.trim()) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    if (clinicData.services.length === 0) {
-      Alert.alert('Error', 'Please add at least one service');
+    if (!currentUser?.id) {
+      Alert.alert('Error', 'User not authenticated');
       return;
     }
 
     setLoading(true);
     try {
+      const dataToSave = {
+        user_id: currentUser.id,
+        clinic_name: clinicData.clinic_name,
+        address: clinicData.address,
+        logo_url: clinicData.logo_url || null,
+        gallery_images: clinicData.gallery_images || [],
+        services: clinicData.services || [],
+        schedule: clinicData.schedule,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Try to upsert (insert or update) clinic data
+      const { error } = await supabase
+        .from('clinic_setup')
+        .upsert(dataToSave, {
+          onConflict: 'user_id',
+        });
+
+      if (error) {
+        throw error;
+      }
+
       if (onSave) {
         await onSave(clinicData);
       }
+
       Alert.alert('Success', 'Clinic information saved successfully');
       onClose?.();
     } catch (error) {
@@ -332,9 +544,31 @@ export default function ClinicSetup({
 
   return (
     <View style={localStyles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      {initialLoading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#0b7fab" />
+        </View>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={{ padding: 16 }}>
           <Text style={localStyles.header}>Clinic Setup</Text>
+
+          {/* Clinic Name Section */}
+          <View style={localStyles.section}>
+            <Text style={localStyles.sectionTitle}>Clinic Name</Text>
+            <View style={localStyles.card}>
+              <TextInput
+                style={localStyles.input}
+                placeholder="Enter clinic name"
+                value={clinicData.clinic_name}
+                onChangeText={(text) =>
+                  setClinicData(prev => ({ ...prev, clinic_name: text }))
+                }
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
 
           {/* Clinic Logo Section */}
           <View style={localStyles.section}>
@@ -367,25 +601,6 @@ export default function ClinicSetup({
                 }
                 placeholderTextColor="#999"
               />
-              <TextInput
-                style={localStyles.input}
-                placeholder="City"
-                value={clinicData.city}
-                onChangeText={(text) =>
-                  setClinicData(prev => ({ ...prev, city: text }))
-                }
-                placeholderTextColor="#999"
-              />
-              <TextInput
-                style={localStyles.input}
-                placeholder="Phone Number"
-                value={clinicData.phone}
-                onChangeText={(text) =>
-                  setClinicData(prev => ({ ...prev, phone: text }))
-                }
-                placeholderTextColor="#999"
-                keyboardType="phone-pad"
-              />
             </View>
           </View>
 
@@ -410,112 +625,938 @@ export default function ClinicSetup({
 
           {/* Services Offered Section */}
           <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>🦷 Services Offered</Text>
-            <View style={localStyles.card}>
-              {clinicData.services.map((service) => (
-                <View key={service.id} style={localStyles.serviceItem}>
-                  <Text style={localStyles.serviceText}>{service.name}</Text>
+            <TouchableOpacity
+              onPress={() => setShowServicesSection(!showServicesSection)}
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 12,
+                padding: 12,
+                backgroundColor: '#f5f5f5',
+                borderRadius: 8,
+              }}
+            >
+              <Text style={localStyles.sectionTitle}>
+                Services Offered {clinicData.services.length > 0 ? `(${clinicData.services.length})` : ''}
+              </Text>
+              <Text style={{ fontSize: 18, color: '#0b7fab' }}>
+                {showServicesSection ? '−' : '+'}
+              </Text>
+            </TouchableOpacity>
+
+            {showServicesSection && (
+              <View style={localStyles.card}>
+                {/* Added Services */}
+                {clinicData.services.length > 0 && (
+                  <>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Added Services:</Text>
+                    {clinicData.services.map((service) => (
+                      <View key={service.id} style={localStyles.serviceItem}>
+                        <Text style={localStyles.serviceText}>{service.name}</Text>
+                        <TouchableOpacity
+                          onPress={() => handleRemoveService(service.id)}
+                        >
+                          <Text style={localStyles.removeButton}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    <View style={{ height: 1, backgroundColor: '#e0e0e0', marginVertical: 12 }} />
+                  </>
+                )}
+
+                {/* Predefined Services */}
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Available Services:</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  {PREDEFINED_SERVICES.map((service) => (
+                    <View
+                      key={service}
+                      style={{
+                        backgroundColor: '#f5f5f5',
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: '#ddd',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: '500',
+                          color: '#333',
+                        }}
+                      >
+                        {service}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Custom Service Input */}
+                <View style={{ height: 1, backgroundColor: '#e0e0e0', marginVertical: 12 }} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Add Custom Service:</Text>
+                <View style={localStyles.addServiceContainer}>
+                  <TextInput
+                    style={localStyles.addServiceInput}
+                    placeholder="Enter custom service..."
+                    value={newService}
+                    onChangeText={setNewService}
+                    placeholderTextColor="#999"
+                  />
                   <TouchableOpacity
-                    onPress={() => handleRemoveService(service.id)}
+                    style={localStyles.addServiceButton}
+                    onPress={handleAddService}
                   >
-                    <Text style={localStyles.removeButton}>✕</Text>
+                    <Text style={{ color: '#fff', fontSize: 20 }}>+</Text>
                   </TouchableOpacity>
                 </View>
-              ))}
-
-              <View style={localStyles.addServiceContainer}>
-                <TextInput
-                  style={localStyles.addServiceInput}
-                  placeholder="Add a service..."
-                  value={newService}
-                  onChangeText={setNewService}
-                  placeholderTextColor="#999"
-                />
-                <TouchableOpacity
-                  style={localStyles.addServiceButton}
-                  onPress={handleAddService}
-                >
-                  <Text style={{ color: '#fff', fontSize: 20 }}>+</Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            )}
           </View>
 
           {/* Schedule Section */}
           <View style={localStyles.section}>
             <Text style={localStyles.sectionTitle}> Schedule</Text>
             <View style={localStyles.card}>
-              {(Object.entries(clinicData.schedule) as Array<[keyof Schedule, Schedule[keyof Schedule]]>).map(
-                ([day, hours]) => (
+              {DAY_ORDER.map((day) => {
+                const schedule = clinicData.schedule[day];
+                return (
                   <View key={day} style={localStyles.scheduleDay}>
                     <View style={localStyles.dayColumn}>
                       <Text style={localStyles.dayName}>
                         {day.charAt(0).toUpperCase() + day.slice(1)}
                       </Text>
-                      <TextInput
-                        style={[
-                          localStyles.dayHours,
-                          { marginTop: 4, padding: 4, borderWidth: 1, borderColor: '#ddd', borderRadius: 4 },
-                        ]}
-                        value={hours.hours}
-                        onChangeText={(text) =>
-                          handleScheduleHoursChange(day, text)
-                        }
-                        editable={hours.isOpen}
-                        placeholder="HH:MM - HH:MM"
-                        placeholderTextColor="#ccc"
-                      />
+                      {schedule.isOpen && (
+                        <>
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity 
+                              style={{
+                                flex: 1,
+                                backgroundColor: '#fff',
+                                borderWidth: 1,
+                                borderColor: '#0b7fab',
+                                borderRadius: 8,
+                                padding: 12,
+                                alignItems: 'center',
+                              }}
+                              onPress={() => openOpeningTimePicker(day as keyof Schedule)}
+                            >
+                              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>From</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#0b7fab' }}>
+                                {schedule.opening_time}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={{
+                                flex: 1,
+                                backgroundColor: '#fff',
+                                borderWidth: 1,
+                                borderColor: '#0b7fab',
+                                borderRadius: 8,
+                                padding: 12,
+                                alignItems: 'center',
+                              }}
+                              onPress={() => openClosingTimePicker(day as keyof Schedule)}
+                            >
+                              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>To</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#0b7fab' }}>
+                                {schedule.closing_time}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+                      {!schedule.isOpen && (
+                        <Text style={{ fontSize: 12, color: '#999', marginTop: 8 }}>Closed</Text>
+                      )}
                     </View>
                     <Switch
-                      value={hours.isOpen}
+                      value={schedule.isOpen}
                       onValueChange={(value) =>
-                        handleScheduleChange(day, value)
+                        handleScheduleChange(day as keyof Schedule, value)
                       }
                       trackColor={{ false: '#ccc', true: '#81c784' }}
-                      thumbColor={hours.isOpen ? '#4caf50' : '#f44336'}
+                      thumbColor={schedule.isOpen ? '#4caf50' : '#f44336'}
                     />
                   </View>
-                )
+                );
+              })}
+            </View>
+          </View>
+
+          {/* One-Time Blockout Dates Section */}
+          <View style={localStyles.section}>
+            <Text style={localStyles.sectionTitle}>One-Time Blockout Dates</Text>
+            <View style={localStyles.card}>
+              <TouchableOpacity 
+                onPress={() => {
+                  const today = new Date();
+                  setTempBlockoutDay(today.getDate().toString());
+                  setTempBlockoutMonth((today.getMonth() + 1).toString());
+                  setTempBlockoutYear(today.getFullYear().toString());
+                  setBlockoutReason('');
+                  setShowBlockoutDatePicker(true);
+                }}
+                style={{
+                  backgroundColor: '#0b7fab',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                  marginBottom: 12,
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Add Blockout Date</Text>
+              </TouchableOpacity>
+
+              {blockoutDates.length === 0 ? (
+                <Text style={{ fontSize: 13, color: '#999', textAlign: 'center', paddingVertical: 12 }}>
+                  No blockout dates set
+                </Text>
+              ) : (
+                <View>
+                  {blockoutDates.map((blockout) => (
+                    <View key={blockout.blockout_date} style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#eee',
+                    }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, color: '#333', fontWeight: '600' }}>
+                          {new Date(blockout.blockout_date).toLocaleDateString('en-US', { 
+                            weekday: 'short', 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </Text>
+                        {blockout.reason && (
+                          <Text style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+                            {blockout.reason}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity 
+                        onPress={() => handleRemoveBlockoutDate(blockout.blockout_date)}
+                        style={{ padding: 8 }}
+                      >
+                        <Text style={{ color: '#d32f2f', fontSize: 20, fontWeight: 'bold' }}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
           </View>
         </View>
       </ScrollView>
 
-      {/* Footer Buttons */}
-      <View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: '#fff',
-          borderTopWidth: 1,
-          borderTopColor: '#eee',
-          paddingVertical: 16,
-        }}
+          {/* Footer Buttons */}
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: '#fff',
+              borderTopWidth: 1,
+              borderTopColor: '#eee',
+              paddingVertical: 16,
+            }}
+          >
+            <View style={localStyles.footerButtons}>
+              <TouchableOpacity
+                style={localStyles.cancelButton}
+                onPress={onClose}
+                disabled={loading}
+              >
+                <Text style={localStyles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={localStyles.saveButton}
+                onPress={handleSave}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={localStyles.saveButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </>
+      )}
+
+      {/* Time Pickers */}
+      <Modal
+        visible={showOpeningTimePicker !== null}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowOpeningTimePicker(null)}
       >
-        <View style={localStyles.footerButtons}>
-          <TouchableOpacity
-            style={localStyles.cancelButton}
-            onPress={onClose}
-            disabled={loading}
-          >
-            <Text style={localStyles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={localStyles.saveButton}
-            onPress={handleSave}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={localStyles.saveButtonText}>Save</Text>
-            )}
-          </TouchableOpacity>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>Select Opening Time</Text>
+              <TouchableOpacity onPress={() => setShowOpeningTimePicker(null)}>
+                <Text style={{ fontSize: 28, color: '#999' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+              {/* Hours */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let h = parseInt(tempHours) || 1;
+                    h = h === 12 ? 1 : h + 1;
+                    setTempHours(h.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 32,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 70,
+                    color: '#0b7fab',
+                  }}
+                  value={tempHours}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempHours('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      if (num > 12) num = 12;
+                      if (num < 1) num = 1;
+                      setTempHours(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="1"
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let h = parseInt(tempHours) || 1;
+                    h = h === 1 ? 12 : h - 1;
+                    setTempHours(h.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#333' }}>:</Text>
+
+              {/* Minutes */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let m = parseInt(tempMinutes) || 0;
+                    m = m + 1;
+                    if (m >= 60) m = 0;
+                    setTempMinutes(m.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 32,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 70,
+                    color: '#0b7fab',
+                  }}
+                  value={tempMinutes}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempMinutes('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      if (num > 59) num = 59;
+                      setTempMinutes(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="0"
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let m = parseInt(tempMinutes) || 0;
+                    m = m - 1;
+                    if (m < 0) m = 59;
+                    setTempMinutes(m.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Period */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 28,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 70,
+                    color: '#0b7fab',
+                  }}
+                  value={tempPeriod}
+                  editable={false}
+                />
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  borderWidth: 2,
+                  borderColor: '#ddd',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => setShowOpeningTimePicker(null)}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#666' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: '#0b7fab',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => confirmOpeningTime(showOpeningTimePicker)}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View>
+      </Modal>
+
+      <Modal
+        visible={showClosingTimePicker !== null}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowClosingTimePicker(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>Select Closing Time</Text>
+              <TouchableOpacity onPress={() => setShowClosingTimePicker(null)}>
+                <Text style={{ fontSize: 28, color: '#999' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+              {/* Hours */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let h = parseInt(tempHours) || 1;
+                    h = h === 12 ? 1 : h + 1;
+                    setTempHours(h.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 32,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 70,
+                    color: '#0b7fab',
+                  }}
+                  value={tempHours}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempHours('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      if (num > 12) num = 12;
+                      if (num < 1) num = 1;
+                      setTempHours(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="1"
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let h = parseInt(tempHours) || 1;
+                    h = h === 1 ? 12 : h - 1;
+                    setTempHours(h.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#333' }}>:</Text>
+
+              {/* Minutes */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let m = parseInt(tempMinutes) || 0;
+                    m = m + 1;
+                    if (m >= 60) m = 0;
+                    setTempMinutes(m.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 32,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 70,
+                    color: '#0b7fab',
+                  }}
+                  value={tempMinutes}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempMinutes('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      if (num > 59) num = 59;
+                      setTempMinutes(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="0"
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => {
+                    let m = parseInt(tempMinutes) || 0;
+                    m = m - 1;
+                    if (m < 0) m = 59;
+                    setTempMinutes(m.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Period */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 12,
+                    fontSize: 28,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 70,
+                    color: '#0b7fab',
+                  }}
+                  value={tempPeriod}
+                  editable={false}
+                />
+                <TouchableOpacity
+                  style={{ padding: 12 }}
+                  onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  borderWidth: 2,
+                  borderColor: '#ddd',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => setShowClosingTimePicker(null)}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#666' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: '#0b7fab',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => confirmClosingTime(showClosingTimePicker)}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Blockout Date Picker Modal */}
+      <Modal
+        visible={showBlockoutDatePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowBlockoutDatePicker(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>Add Blockout Date</Text>
+              <TouchableOpacity onPress={() => setShowBlockoutDatePicker(false)}>
+                <Text style={{ fontSize: 28, color: '#999' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 16 }}>Select Date</Text>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, alignItems: 'center', marginBottom: 24 }}>
+              {/* Month */}
+              <View style={{ alignItems: 'center', flex: 1 }}>
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => {
+                    let m = parseInt(tempBlockoutMonth) || 1;
+                    m = m === 12 ? 1 : m + 1;
+                    setTempBlockoutMonth(m.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 8,
+                    fontSize: 18,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 50,
+                    color: '#0b7fab',
+                  }}
+                  value={tempBlockoutMonth}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempBlockoutMonth('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      const currentYear = today.getFullYear();
+                      const currentMonth = today.getMonth() + 1;
+                      const selectedYear = parseInt(tempBlockoutYear) || currentYear;
+                      
+                      if (num > 12) num = 12;
+                      if (num < 1) num = 1;
+                      
+                      // If year is current, don't allow month below current month
+                      if (selectedYear === currentYear && num < currentMonth) {
+                        num = currentMonth;
+                      }
+                      
+                      setTempBlockoutMonth(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="1"
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => {
+                    let m = parseInt(tempBlockoutMonth) || 1;
+                    let y = parseInt(tempBlockoutYear) || today.getFullYear();
+                    const currentYear = today.getFullYear();
+                    const currentMonth = today.getMonth() + 1;
+                    
+                    // Don't go below current month if it's current year
+                    if (y === currentYear && m <= currentMonth) {
+                      return;
+                    }
+                    
+                    m = m === 1 ? 12 : m - 1;
+                    setTempBlockoutMonth(m.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#333' }}>/</Text>
+
+              {/* Day */}
+              <View style={{ alignItems: 'center', flex: 1 }}>
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => {
+                    let d = parseInt(tempBlockoutDay) || 1;
+                    d = d === 31 ? 1 : d + 1;
+                    setTempBlockoutDay(d.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 8,
+                    fontSize: 18,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 50,
+                    color: '#0b7fab',
+                  }}
+                  value={tempBlockoutDay}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempBlockoutDay('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      const currentYear = today.getFullYear();
+                      const currentMonth = today.getMonth() + 1;
+                      const currentDay = today.getDate();
+                      const selectedYear = parseInt(tempBlockoutYear) || currentYear;
+                      const selectedMonth = parseInt(tempBlockoutMonth) || 1;
+                      
+                      if (num > 31) num = 31;
+                      if (num < 1) num = 1;
+                      
+                      // If year and month are current, don't allow day below current day
+                      if (selectedYear === currentYear && selectedMonth === currentMonth && num < currentDay) {
+                        num = currentDay;
+                      }
+                      
+                      setTempBlockoutDay(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="1"
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => {
+                    let d = parseInt(tempBlockoutDay) || 1;
+                    let m = parseInt(tempBlockoutMonth) || 1;
+                    let y = parseInt(tempBlockoutYear) || today.getFullYear();
+                    const currentYear = today.getFullYear();
+                    const currentMonth = today.getMonth() + 1;
+                    const currentDay = today.getDate();
+                    
+                    // Don't go below current day if it's current month and year
+                    if (y === currentYear && m === currentMonth && d <= currentDay) {
+                      return;
+                    }
+                    
+                    d = d === 1 ? 31 : d - 1;
+                    setTempBlockoutDay(d.toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#333' }}>/</Text>
+
+              {/* Year */}
+              <View style={{ alignItems: 'center', flex: 1 }}>
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => {
+                    let y = parseInt(tempBlockoutYear) || new Date().getFullYear();
+                    setTempBlockoutYear((y + 1).toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#ddd',
+                    borderRadius: 8,
+                    padding: 8,
+                    fontSize: 18,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    width: 60,
+                    color: '#0b7fab',
+                  }}
+                  value={tempBlockoutYear}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    if (cleaned === '') {
+                      setTempBlockoutYear('');
+                    } else {
+                      let num = parseInt(cleaned);
+                      const currentYear = new Date().getFullYear();
+                      if (num < currentYear) num = currentYear;
+                      setTempBlockoutYear(num.toString());
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  placeholder={new Date().getFullYear().toString()}
+                  placeholderTextColor="#ccc"
+                />
+                <TouchableOpacity
+                  style={{ padding: 8 }}
+                  onPress={() => {
+                    let y = parseInt(tempBlockoutYear) || new Date().getFullYear();
+                    const currentYear = new Date().getFullYear();
+                    // Don't go below current year
+                    if (y <= currentYear) {
+                      return;
+                    }
+                    setTempBlockoutYear((y - 1).toString());
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: '#ddd',
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                marginBottom: 24,
+                color: '#333',
+              }}
+              placeholder="Reason (optional)"
+              placeholderTextColor="#999"
+              value={blockoutReason}
+              onChangeText={setBlockoutReason}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  borderWidth: 2,
+                  borderColor: '#ddd',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  setShowBlockoutDatePicker(false);
+                  setBlockoutReason('');
+                  const resetToday = new Date();
+                  setTempBlockoutDay(resetToday.getDate().toString());
+                  setTempBlockoutMonth((resetToday.getMonth() + 1).toString());
+                  setTempBlockoutYear(resetToday.getFullYear().toString());
+                }}
+              >
+                <Text style={{ color: '#666', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: '#0b7fab',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  const month = parseInt(tempBlockoutMonth) || 1;
+                  const day = parseInt(tempBlockoutDay) || 1;
+                  const year = parseInt(tempBlockoutYear) || 2026;
+                  handleAddBlockoutDate(null, month, day, year);
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }

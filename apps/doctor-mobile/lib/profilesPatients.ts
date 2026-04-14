@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '@smileguard/supabase-client';
 import { CurrentUser, MedicalIntake } from '../types/index';
 
 // ─────────────────────────────────────────
@@ -66,11 +66,55 @@ export async function getPatientMedicalIntake(
     pastSurgeries: record.past_surgeries || '',
     smokingStatus: record.smoking_status || '',
     pregnancyStatus: record.pregnancy_status || '',
+    notes: record.notes || '',
   };
 }
 
 // ─────────────────────────────────────────
-// 2B. FETCH PATIENT APPOINTMENTS
+// 2A. FETCH PATIENT MEDICAL INFO (Universal - handles both dummy_accounts and profiles)
+// ─────────────────────────────────────────
+export async function getPatientMedicalInfo(
+  patientId: string
+): Promise<MedicalIntake | null> {
+  try {
+    // First check if it's a dummy account
+    const { data: dummyAccount, error: dummyError } = await supabase
+      .from('dummy_accounts')
+      .select('*')
+      .eq('id', patientId)
+      .single();
+
+    if (!dummyError && dummyAccount) {
+      // Map dummy_accounts fields to MedicalIntake interface
+      console.log('✅ Fetching medical info from dummy_accounts');
+      return {
+        dateOfBirth: dummyAccount.date_of_birth || '',
+        gender: dummyAccount.gender || '',
+        phone: dummyAccount.phone || '',
+        address: dummyAccount.address || '',
+        emergencyContactName: dummyAccount.emergency_contact_name || '',
+        emergencyContactPhone: dummyAccount.emergency_contact_phone || '',
+        allergies: dummyAccount.allergies || '',
+        currentMedications: dummyAccount.current_medications || '',
+        medicalConditions: dummyAccount.medical_conditions || '',
+        pastSurgeries: dummyAccount.past_surgeries || '',
+        smokingStatus: dummyAccount.smoking_status || '',
+        pregnancyStatus: dummyAccount.pregnancy_status || '',
+        notes: dummyAccount.notes || '',
+      };
+    }
+
+    // Not a dummy account, fetch from medical_intake (existing profile)
+    console.log('✅ Fetching medical info from medical_intake');
+    return await getPatientMedicalIntake(patientId);
+  } catch (error) {
+    console.error('❌ Error fetching patient medical info:', error);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────
+// 2B. FETCH PATIENT MEDICAL INTAKE
 // ─────────────────────────────────────────
 export async function getPatientAppointments(
   patientId: string
@@ -96,8 +140,10 @@ export async function getPatientAppointments(
     });
 
     if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient
-      const patientAppointments = appointmentsData.filter((apt: any) => apt.patient_id === patientId);
+      // Filter for this specific patient (check both patient_id for real patients and dummy_account_id for dummy accounts)
+      const patientAppointments = appointmentsData.filter((apt: any) => 
+        apt.patient_id === patientId || apt.dummy_account_id === patientId
+      );
       
       if (patientAppointments.length > 0) {
         const statusBreakdown = {
@@ -111,12 +157,12 @@ export async function getPatientAppointments(
       }
     }
 
-    // Fallback: Direct query with explicit select
+    // Fallback: Direct query with explicit select (check both regular and dummy account appointments)
     console.log('⚠️ RPC returned no data, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
-      .eq('patient_id', patientId)
+      .select('id, patient_id, dummy_account_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
+      .or(`patient_id.eq.${patientId},dummy_account_id.eq.${patientId}`)
       .order('appointment_date', { ascending: false });
 
     if (error) {
@@ -167,8 +213,92 @@ export async function updateAppointmentStatus(
 }
 
 // ─────────────────────────────────────────
-// 2D. UPDATE PATIENT MEDICAL INTAKE
+// 2D. CHECK IF PATIENT IS DUMMY ACCOUNT
 // ─────────────────────────────────────────
+export async function isDummyAccount(patientId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('dummy_accounts')
+      .select('id')
+      .eq('id', patientId)
+      .single();
+
+    return !error && !!data;
+  } catch (error) {
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────
+// 2D-ALT. UPDATE DUMMY ACCOUNT MEDICAL INFO
+// ─────────────────────────────────────────
+export async function updateDummyAccountMedicalInfo(
+  patientId: string,
+  medicalData: Partial<MedicalIntake>
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Convert camelCase to snake_case for database
+    const dbData: any = {};
+    
+    if (medicalData.dateOfBirth !== undefined) dbData.date_of_birth = medicalData.dateOfBirth;
+    if (medicalData.gender !== undefined) dbData.gender = medicalData.gender;
+    if (medicalData.phone !== undefined) dbData.phone = medicalData.phone;
+    if (medicalData.address !== undefined) dbData.address = medicalData.address;
+    if (medicalData.emergencyContactName !== undefined) dbData.emergency_contact_name = medicalData.emergencyContactName;
+    if (medicalData.emergencyContactPhone !== undefined) dbData.emergency_contact_phone = medicalData.emergencyContactPhone;
+    if (medicalData.allergies !== undefined) dbData.allergies = medicalData.allergies;
+    if (medicalData.currentMedications !== undefined) dbData.current_medications = medicalData.currentMedications;
+    if (medicalData.medicalConditions !== undefined) dbData.medical_conditions = medicalData.medicalConditions;
+    if (medicalData.pastSurgeries !== undefined) dbData.past_surgeries = medicalData.pastSurgeries;
+    if (medicalData.smokingStatus !== undefined) dbData.smoking_status = medicalData.smokingStatus;
+    if (medicalData.pregnancyStatus !== undefined) dbData.pregnancy_status = medicalData.pregnancyStatus;
+    if (medicalData.notes !== undefined) dbData.notes = medicalData.notes;
+
+    // Update dummy_accounts table directly (no foreign key constraint issues)
+    const { error: updateError } = await supabase
+      .from('dummy_accounts')
+      .update(dbData)
+      .eq('id', patientId);
+
+    if (updateError) {
+      console.error('❌ Error updating dummy account medical info:', updateError);
+      return { success: false, message: 'Failed to update patient information' };
+    }
+
+    console.log('✅ Dummy account medical info updated successfully');
+    return { success: true, message: 'Patient information updated successfully' };
+  } catch (error) {
+    console.error('❌ Exception updating dummy account medical info:', error);
+    return { success: false, message: 'Exception updating patient information' };
+  }
+}
+
+// ─────────────────────────────────────────
+// 2D-UNIVERSAL. UPDATE PATIENT MEDICAL INFO (Auto-selects table)
+// ─────────────────────────────────────────
+export async function updatePatientMedicalInfo(
+  patientId: string,
+  medicalData: Partial<MedicalIntake>
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Check if this is a dummy account
+    const isDummy = await isDummyAccount(patientId);
+
+    if (isDummy) {
+      // Use dummy account update
+      return await updateDummyAccountMedicalInfo(patientId, medicalData);
+    } else {
+      // Use medical_intake update for existing patients
+      return await updatePatientMedicalIntake(patientId, medicalData);
+    }
+  } catch (error) {
+    console.error('❌ Exception in updatePatientMedicalInfo:', error);
+    return { success: false, message: 'Failed to update patient information' };
+  }
+}
+
+// ─────────────────────────────────────────
+// 2E. UPDATE PATIENT MEDICAL INTAKE
 export async function updatePatientMedicalIntake(
   patientId: string,
   medicalData: Partial<MedicalIntake>
@@ -189,6 +319,7 @@ export async function updatePatientMedicalIntake(
     if (medicalData.pastSurgeries !== undefined) dbData.past_surgeries = medicalData.pastSurgeries;
     if (medicalData.smokingStatus !== undefined) dbData.smoking_status = medicalData.smokingStatus;
     if (medicalData.pregnancyStatus !== undefined) dbData.pregnancy_status = medicalData.pregnancyStatus;
+    if (medicalData.notes !== undefined) dbData.notes = medicalData.notes;
 
     // First, check if medical_intake record exists for this patient
     const { data: existingData, error: checkError } = await supabase
