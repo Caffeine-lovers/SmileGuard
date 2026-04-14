@@ -17,16 +17,28 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import AppointmentCard from "./AppointmentCard";
 import StatCard from "./StatCard";
+import NotificationBell from "./NotificationBell";
+import NotificationCenter from "./NotificationCenter";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
+import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
 import SettingsTab from "../navigation/SettingsTab";
-import { updateDoctorAppointmentStatus, getDoctorAppointments } from "../../lib/appointmentService";
+import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
 import { updatePatientMedicalIntake } from "../../lib/profilesPatients";
+import { supabase } from '@smileguard/supabase-client';
+import { 
+  notifyAppointmentStatusChanged,
+  notifyMedicalIntakeUpdated,
+  notifyAppointmentCreated,
+  notifyDoctorProfileUpdated,
+  createManualNotification,
+} from "../../lib/notificationService";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
+import { useNotifications } from "../../hooks/useNotifications";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
   SERVICE_OPTIONS,
@@ -49,7 +61,7 @@ export interface DashboardAppointment {
   notes: string;
   imageUrl: string | number;
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
@@ -63,6 +75,12 @@ interface DoctorDashboardProps {
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   const insets = useSafeAreaInsets();
   
+  // ─────────────────────────────────────────
+  // NOTIFICATION SYSTEM
+  // ─────────────────────────────────────────
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+  const notificationState = useNotifications(user?.id, true);
+  
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
   
@@ -72,6 +90,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [loadingOnTabSwitch, setLoadingOnTabSwitch] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
   
   // Handle profile updates
   const handleUpdateProfile = (updatedData: Partial<CurrentUser>) => {
@@ -101,7 +120,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [viewingPatient, setViewingPatient] = useState<DashboardAppointment | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'settings'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -112,13 +131,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [patients, setPatients] = useState<DashboardAppointment[]>([]);
   const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
 
-  // Filter today's appointments - exclude completed and cancelled ones
+  // Filter today's appointments - exclude completed, cancelled, no-show, and declined ones
   const todayAppointments = appointments
     .filter(apt => 
       apt.date === today && 
       apt.status !== 'completed' && 
       apt.status !== 'cancelled' && 
-      apt.status !== 'no-show'
+      apt.status !== 'no-show' &&
+      apt.status !== 'declined'
     )
     .sort((a, b) => {
       // Convert time strings (e.g., "09:30 AM" or "2:30 PM") to comparable format
@@ -153,10 +173,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   // Update selectedPatient whenever todayAppointments changes
   useEffect(() => {
-    if (todayAppointments.length > 0 && !selectedPatient) {
+    if (todayAppointments.length > 0) {
       setSelectedPatient(todayAppointments[0]);
+    } else {
+      // If no today's appointments, clear selection
+      setSelectedPatient(null);
     }
-  }, [todayAppointments, selectedPatient]);
+  }, [todayAppointments]);
 
   // Auto-show patient details when a patient is selected
   useEffect(() => {
@@ -201,49 +224,158 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       setLoadingPatients(true);
       setErrorMessage(null);
 
+      // Fetch appointment requests (dentist_id IS NULL)
+      const appointmentRequestsData = await getAppointmentRequests();
+      if (appointmentRequestsData && appointmentRequestsData.length > 0) {
+        // Fetch all dummy account details for requests
+        let dummyAccountsMapRequests: { [key: string]: any } = {};
+        const dummyRequestIds = appointmentRequestsData
+          .filter((apt: any) => apt.dummy_account_id)
+          .map((apt: any) => apt.dummy_account_id);
+        
+        if (dummyRequestIds.length > 0) {
+          const { data: dummyDetails } = await supabase
+            .from('dummy_accounts')
+            .select('*')
+            .in('id', dummyRequestIds);
+          
+          if (dummyDetails) {
+            dummyDetails.forEach((dummy: any) => {
+              dummyAccountsMapRequests[dummy.id] = dummy;
+            });
+          }
+        }
+        
+        const transformedRequests = appointmentRequestsData.map((apt: any) => {
+          // Use dummy account data if available, otherwise use patient profile
+          const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
+            ? dummyAccountsMapRequests[apt.dummy_account_id]
+            : apt.patient_profile;
+          
+          const medicalIntake = medicalData ? {
+            gender: medicalData.gender || '',
+            phone: medicalData.phone || '',
+            address: medicalData.address || '',
+            dateOfBirth: medicalData.date_of_birth || '',
+            emergencyContactName: medicalData.emergency_contact_name || '',
+            emergencyContactPhone: medicalData.emergency_contact_phone || '',
+            allergies: medicalData.alergies || medicalData.allergies || '',
+            currentMedications: medicalData.current_medications || '',
+            medicalConditions: medicalData.medical_conditions || '',
+            pastSurgeries: medicalData.past_surgeries || '',
+            smokingStatus: medicalData.smoking_status || '',
+            pregnancyStatus: medicalData.pregnancy_status || '',
+            notes: medicalData.notes || '',
+          } : null;
+          
+          return {
+            id: apt.id || '',
+            name: apt.patient_name || 'Patient',
+            service: apt.service || '',
+            time: apt.appointment_time || '',
+            date: apt.appointment_date || '',
+            age: 0,
+            gender: medicalData?.gender || '',
+            contact: medicalData?.phone || '',
+            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+            notes: apt.notes || '',
+            imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+            patient_id: apt.patient_id,
+            dentist_id: apt.dentist_id,
+            medicalIntake: medicalIntake,
+          };
+        });
+        setAppointmentRequests(transformedRequests);
+      } else {
+        setAppointmentRequests([]);
+      }
+
       // Use RPC function to get ALL appointments including cancelled (bypasses RLS)
       const rpcAppointments = await getDoctorAppointments(user.id);
-      
+      console.log('🎯 [DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
       if (rpcAppointments && rpcAppointments.length > 0) {
-        const transformedAppointments = rpcAppointments.map((apt: any) => ({
-          id: apt.id || '',
-          name: apt.patient_name || 'Patient',
-          service: apt.service || '',
-          time: apt.appointment_time || '',
-          date: apt.appointment_date || '',
-          age: 0,
-          gender: apt.patient_profile?.gender || '',
-          contact: apt.patient_profile?.phone || '',
-          email: apt.profiles?.email || '',
-          notes: apt.notes || '',
-          imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
-          patient_id: apt.patient_id,
-          dentist_id: apt.dentist_id,
-          medicalIntake: apt.patient_profile ? {
-            gender: apt.patient_profile.gender || '',
-            phone: apt.patient_profile.phone || '',
-            address: apt.patient_profile.address || '',
-            dateOfBirth: apt.patient_profile.date_of_birth || '',
-            emergencyContactName: apt.patient_profile.emergency_contact_name || '',
-            emergencyContactPhone: apt.patient_profile.emergency_contact_phone || '',
-            allergies: apt.patient_profile.allergies || '',
-            currentMedications: apt.patient_profile.current_medications || '',
-            medicalConditions: apt.patient_profile.medical_conditions || '',
-            pastSurgeries: apt.patient_profile.past_surgeries || '',
-            smokingStatus: apt.patient_profile.smoking_status || '',
-            pregnancyStatus: apt.patient_profile.pregnancy_status || '',
-          } : null,
-        }));
+        console.log('📝 First appointment data:', rpcAppointments[0]);
+        
+        // Fetch all dummy account details to populate medical intake
+        let dummyAccountsMap: { [key: string]: any } = {};
+        const dummyAccountIds = rpcAppointments
+          .filter((apt: any) => apt.dummy_account_id)
+          .map((apt: any) => apt.dummy_account_id);
+        
+        if (dummyAccountIds.length > 0) {
+          const { data: allDummyAccounts, error: dummyError } = await supabase.rpc('get_all_dummy_accounts');
+          if (!dummyError && allDummyAccounts) {
+            // Need to fetch full details for each dummy account
+            const { data: dummyDetails } = await supabase
+              .from('dummy_accounts')
+              .select('*')
+              .in('id', dummyAccountIds);
+            
+            if (dummyDetails) {
+              dummyDetails.forEach((dummy: any) => {
+                dummyAccountsMap[dummy.id] = dummy;
+              });
+            }
+          }
+        }
+        
+        const transformedAppointments = rpcAppointments.map((apt: any) => {
+          console.log(`📐 Transforming appointment ${apt.id}:`, {
+            patient_name: apt.patient_name,
+            dummy_account_id: apt.dummy_account_id,
+            patient_id: apt.patient_id,
+          });
+          
+          // Use dummy account data if available, otherwise use patient profile
+          const medicalData = apt.dummy_account_id && dummyAccountsMap[apt.dummy_account_id]
+            ? dummyAccountsMap[apt.dummy_account_id]
+            : apt.patient_profile;
+          
+          const medicalIntake = medicalData ? {
+            gender: medicalData.gender || '',
+            phone: medicalData.phone || '',
+            address: medicalData.address || '',
+            dateOfBirth: medicalData.date_of_birth || '',
+            emergencyContactName: medicalData.emergency_contact_name || '',
+            emergencyContactPhone: medicalData.emergency_contact_phone || '',
+            allergies: medicalData.alergies || medicalData.allergies || '',
+            currentMedications: medicalData.current_medications || '',
+            medicalConditions: medicalData.medical_conditions || '',
+            pastSurgeries: medicalData.past_surgeries || '',
+            smokingStatus: medicalData.smoking_status || '',
+            pregnancyStatus: medicalData.pregnancy_status || '',
+            notes: medicalData.notes || '',
+          } : null;
+          
+          return {
+            id: apt.id || '',
+            name: apt.patient_name || 'Patient',
+            service: apt.service || '',
+            time: apt.appointment_time || '',
+            date: apt.appointment_date || '',
+            age: 0,
+            gender: medicalData?.gender || '',
+            contact: medicalData?.phone || '',
+            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+            notes: apt.notes || '',
+            imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+            patient_id: apt.patient_id,
+            dentist_id: apt.dentist_id,
+            medicalIntake: medicalIntake,
+          };
+        });
         setAppointments(transformedAppointments);
         
-        // Calculate stats from the actual appointments data - COUNT ALL REGARDLESS OF STATUS
+        // Calculate stats excluding declined appointments
+        const appointmentsExcludingDeclined = transformedAppointments.filter(apt => apt.status !== 'declined');
         const calculatedStats = {
-          total: transformedAppointments.length,
-          scheduled: transformedAppointments.filter(a => a.status === 'scheduled').length,
-          completed: transformedAppointments.filter(a => a.status === 'completed').length,
-          cancelled: transformedAppointments.filter(a => a.status === 'cancelled').length,
-          noShow: transformedAppointments.filter(a => a.status === 'no-show').length,
+          total: appointmentsExcludingDeclined.length,
+          scheduled: appointmentsExcludingDeclined.filter(a => a.status === 'scheduled').length,
+          completed: appointmentsExcludingDeclined.filter(a => a.status === 'completed').length,
+          cancelled: appointmentsExcludingDeclined.filter(a => a.status === 'cancelled').length,
+          noShow: appointmentsExcludingDeclined.filter(a => a.status === 'no-show').length,
         };
         setStats(calculatedStats);
 
@@ -327,6 +459,113 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setRequests((prev) => prev.filter((r) => r.id !== req.id));
   };
 
+  const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
+    Alert.alert(
+      'Accept Request',
+      `Accept this appointment request with ${request.name} for ${formatAppointmentDate(request.date)}?`,
+      [
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Accept',
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Error', 'Doctor ID not found');
+                return;
+              }
+
+              // Update the appointment with the current doctor's ID
+              const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', user.id, {
+                dentist_id: user.id
+              });
+      
+              if (!result.success) {
+                Alert.alert('Error', result.message);
+                return;
+              }
+
+              // Remove from requests list
+              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              // Add to appointments list
+              setAppointments((prev) => [...prev, { ...request, dentist_id: user.id }]);
+
+              // Trigger manual notification for accepting request
+              const notification = createManualNotification(
+                'appointment-updated',
+                'Appointment Accepted',
+                `You accepted the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
+                {
+                  appointmentId: request.id,
+                  patientId: request.patient_id,
+                  action: 'UPDATE',
+                }
+              );
+              notificationState.actions.addNotification(notification);
+
+              Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to accept appointment request');
+              console.error('Error accepting appointment request:', error);
+            }
+          },
+          style: 'default',
+        },
+      ]
+    );
+  };
+
+  const handleDeclineAppointmentRequest = async (request: DashboardAppointment) => {
+    Alert.alert(
+      'Decline Request',
+      `Are you sure you want to decline this appointment request with ${request.name}?`,
+      [
+        { text: 'Keep', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Decline',
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Error', 'Doctor ID not found');
+                return;
+              }
+
+              // Update the appointment status to 'declined'
+              const result = await updateDoctorAppointmentStatus(request.id, 'declined', user.id);
+
+              if (!result?.success) {
+                Alert.alert('Error', result?.message || 'Failed to decline appointment');
+                return;
+              }
+
+              // Remove from requests list
+              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              // Trigger notification for declining request
+              const notification = createManualNotification(
+                'appointment-declined',
+                'Appointment Declined',
+                `You declined the appointment request with ${request.name}`,
+                {
+                  appointmentId: request.id,
+                  patientId: request.patient_id,
+                  action: 'UPDATE',
+                }
+              );
+              notificationState.actions.addNotification(notification);
+
+              Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to decline appointment request');
+              console.error('Error declining appointment request:', error);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
   const handleEditPatient = () => {
     if (selectedPatient) {
       setOriginalPatient({ ...selectedPatient });
@@ -358,52 +597,96 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const handleSavePatient = async () => {
     if (editedPatient) {
-      // Save to Supabase first
-      const result = await updatePatientMedicalIntake(editedPatient.patient_id || '', {
-        gender: editedPatient.gender,
-        phone: editedPatient.contact,
-        address: editedPatient.medicalIntake?.address,
-        dateOfBirth: editedPatient.medicalIntake?.dateOfBirth,
-        emergencyContactName: editedPatient.medicalIntake?.emergencyContactName,
-        emergencyContactPhone: editedPatient.medicalIntake?.emergencyContactPhone,
-        allergies: editedPatient.medicalIntake?.allergies,
-        currentMedications: editedPatient.medicalIntake?.currentMedications,
-        medicalConditions: editedPatient.medicalIntake?.medicalConditions,
-        pastSurgeries: editedPatient.medicalIntake?.pastSurgeries,
-        smokingStatus: editedPatient.medicalIntake?.smokingStatus,
-        pregnancyStatus: editedPatient.medicalIntake?.pregnancyStatus,
-      });
-
-      if (!result.success) {
-        Alert.alert('Error', result.message);
-        return;
-      }
-
-      setPatients((prev) =>
-        prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
-      );
-      
-      if (editedPatient.status !== 'scheduled' && editedPatient.date === today) {
-        const updatedAppointments = appointments.filter(apt => apt.id !== editedPatient.id);
-        setAppointments(updatedAppointments);
+      try {
+        // Check if status was changed
+        const statusChanged = originalPatient && originalPatient.status !== editedPatient.status;
         
-        const remainingTodayAppointments = updatedAppointments.filter(apt => apt.date === today);
-        if (remainingTodayAppointments.length > 0) {
-          setSelectedPatient(remainingTodayAppointments[0]);
-        } else {
-          setSelectedPatient(updatedAppointments.length > 0 ? updatedAppointments[0] : null);
+        // Update medical intake information
+        const result = await updatePatientMedicalIntake(editedPatient.patient_id || '', {
+          gender: editedPatient.gender,
+          phone: editedPatient.contact,
+          address: editedPatient.medicalIntake?.address,
+          dateOfBirth: editedPatient.medicalIntake?.dateOfBirth,
+          emergencyContactName: editedPatient.medicalIntake?.emergencyContactName,
+          emergencyContactPhone: editedPatient.medicalIntake?.emergencyContactPhone,
+          allergies: editedPatient.medicalIntake?.allergies,
+          currentMedications: editedPatient.medicalIntake?.currentMedications,
+          medicalConditions: editedPatient.medicalIntake?.medicalConditions,
+          pastSurgeries: editedPatient.medicalIntake?.pastSurgeries,
+          smokingStatus: editedPatient.medicalIntake?.smokingStatus,
+          pregnancyStatus: editedPatient.medicalIntake?.pregnancyStatus,
+          notes: editedPatient.notes,
+        });
+
+        if (!result.success) {
+          Alert.alert('Error', result.message);
+          return;
         }
-      } else {
-        setAppointments((prev) =>
-          prev.map((apt) => (apt.id === editedPatient.id ? editedPatient : apt))
+
+        // If status changed, also update the appointment status in Supabase
+        if (statusChanged && user?.id) {
+          const statusUpdateResult = await updateDoctorAppointmentStatus(
+            editedPatient.id,
+            editedPatient.status || 'scheduled',
+            user.id
+          );
+
+          if (!statusUpdateResult.success) {
+            Alert.alert('Error', `Failed to update appointment status: ${statusUpdateResult.message}`);
+            return;
+          }
+
+          // Trigger notification if status changed to non-scheduled
+          if (editedPatient.status && editedPatient.status !== 'scheduled' && editedPatient.status !== 'declined') {
+            const notification = notifyAppointmentStatusChanged(
+              editedPatient.status as 'completed' | 'cancelled' | 'no-show',
+              editedPatient.name,
+              editedPatient.id,
+              editedPatient.patient_id || '',
+              user.id
+            );
+            notificationState.actions.addNotification(notification);
+          }
+        }
+
+        // Add notification for patient update
+        const medicalUpdateNotification = createManualNotification(
+          'medical-intake-updated',
+          'Medical Intake Updated',
+          `${editedPatient.name} medical records have been updated`,
+          {
+            patientId: editedPatient.patient_id,
+            tableName: 'medical_intake',
+            recordId: editedPatient.patient_id,
+            action: 'UPDATE',
+          }
         );
-        setSelectedPatient(editedPatient);
+        notificationState.actions.addNotification(medicalUpdateNotification);
+
+        setPatients((prev) =>
+          prev.map((p) => (p.id === editedPatient.id ? editedPatient : p))
+        );
+        
+        if (statusChanged && editedPatient.status !== 'scheduled') {
+          // Remove from appointments if status changed to non-scheduled
+          const updatedAppointments = appointments.filter(apt => apt.id !== editedPatient.id);
+          setAppointments(updatedAppointments);
+          // Let the useEffect set selectedPatient to the first remaining today's appointment
+        } else {
+          // Status unchanged or changed to 'scheduled', keep/update in appointments
+          setAppointments((prev) =>
+            prev.map((apt) => (apt.id === editedPatient.id ? editedPatient : apt))
+          );
+        }
+        
+        setIsEditingPatient(false);
+        setEditedPatient(null);
+        setOriginalPatient(null);
+        Alert.alert("Success", "Patient information and appointment status updated successfully.");
+      } catch (error) {
+        console.error('Error saving patient:', error);
+        Alert.alert("Error", "Failed to save patient information. Please try again.");
       }
-      
-      setIsEditingPatient(false);
-      setEditedPatient(null);
-      setOriginalPatient(null);
-      Alert.alert("Success", "Patient information updated successfully.");
     }
   };
 
@@ -413,7 +696,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setOriginalPatient(null);
   };
 
-  const handleUpdateAppointmentStatus = async (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show') => {
+  const handleUpdateAppointmentStatus = async (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined') => {
     try {
       if (!user?.id) {
         Alert.alert('Error', 'Doctor ID not found');
@@ -427,11 +710,28 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         return;
       }
       
+      // Update local state
       setAppointments((prev) =>
         prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
       );
+
+      // Trigger manual notification for status change (only for supported statuses)
+      if (status !== 'scheduled' && status !== 'declined') {
+        const appointment = appointments.find(apt => apt.id === appointmentId);
+        if (appointment) {
+          const notification = notifyAppointmentStatusChanged(
+            status as 'completed' | 'cancelled' | 'no-show',
+            appointment.name,
+            appointmentId,
+            appointment.patient_id || '',
+            user.id
+          );
+          notificationState.actions.addNotification(notification);
+        }
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to update appointment status');
+      console.error('Error updating appointment status:', error);
     }
   };
 
@@ -470,33 +770,40 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     <Text style={[styles.header, { marginBottom: 0 }]}>
                       Welcome, {doctorProfile.doctor_name || doctorProfile.name}
                     </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setIsRefreshing(true);
-                        refreshDashboardData();
-                      }}
-                      disabled={isRefreshing}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 8,
-                        backgroundColor: '#E3F2FD',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        borderWidth: 1,
-                        borderColor: '#0b7fab',
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      {isRefreshing ? (
-                        <ActivityIndicator size="small" color="#0b7fab" />
-                      ) : (
-                        <Image
-                          source={require('../../assets/images/icon/refresh.png')}
-                          style={{ width: 24, height: 24, resizeMode: 'contain' }}
-                        />
-                      )}
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                      <NotificationBell
+                        unreadCount={notificationState.unreadCount}
+                        onPress={() => setShowNotificationCenter(true)}
+                        animateOnNewNotification={true}
+                      />
+                      <TouchableOpacity
+                        onPress={() => {
+                          setIsRefreshing(true);
+                          refreshDashboardData();
+                        }}
+                        disabled={isRefreshing}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 8,
+                          backgroundColor: '#E3F2FD',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          borderWidth: 1,
+                          borderColor: '#0b7fab',
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        {isRefreshing ? (
+                          <ActivityIndicator size="small" color="#0b7fab" />
+                        ) : (
+                          <Image
+                            source={require('../../assets/images/icon/refresh.png')}
+                            style={{ width: 24, height: 24, resizeMode: 'contain' }}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {/* Stats Panel - from Supabase */}
@@ -824,6 +1131,100 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       )}
                     </View>
                   </View>
+
+                  {/* Appointment Requests Section - Show only 3 recent */}
+                  {appointmentRequests.length > 0 && (
+                    <View style={{ marginBottom: 12 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12}}>
+                        <Text style={[styles.subHeader, { color: '#d32f2f' }]}>
+                          Appointment Requests ({appointmentRequests.length})
+                        </Text>
+                      </View>
+                      {appointmentRequests.slice(0, 3).map((request) => (
+                        <View
+                          key={request.id}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#fff3e0',
+                            borderLeftWidth: 4,
+                            borderLeftColor: '#ff9800',
+                            borderRadius: 8,
+                            padding: 12,
+                            marginBottom: 10,
+                          }}
+                        >
+                          <Image
+                            source={typeof request.imageUrl === 'string' ? { uri: request.imageUrl } : request.imageUrl}
+                            style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>
+                              {request.name}
+                            </Text>
+                            <Text style={{ fontWeight: 'bold', fontSize: 12, color: '#0b7fab', marginTop: 4 }}>
+                              {request.service}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                              {formatAppointmentDate(request.date)} - {request.time}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <TouchableOpacity
+                              onPress={() => handleAcceptAppointmentRequest(request)}
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                borderRadius: 6,
+                                backgroundColor: '#4CAF50',
+                              }}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>Accept</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDeclineAppointmentRequest(request)}
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                borderRadius: 6,
+                                backgroundColor: '#f5f5f5',
+                                borderWidth: 1,
+                                borderColor: '#ddd',
+                              }}
+                            >
+                              <Text style={{ color: '#666', fontSize: 12, fontWeight: 'bold' }}>Decline</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                      {appointmentRequests.length > 3 && (
+                        <TouchableOpacity
+                          onPress={() => setActiveTab('appointment-requests')}
+                          style={{
+                            paddingVertical: 12,
+                            paddingHorizontal: 16,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 8,
+                            marginTop: 8,
+                            backgroundColor: '#fff3e0',
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: '#ff9800',
+                          }}
+                        >
+                          <Text style={{ color: '#ff9800', fontWeight: 'bold', fontSize: 14 }}>
+                            See more requests ({appointmentRequests.length - 3} more)
+                          </Text>
+                          <Image
+                            source={require('../../assets/images/icon/open.png')}
+                            style={{ width: 16, height: 16, resizeMode: 'contain' }}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
                 </View>
               </ScrollView>
             ) : activeTab === 'records' ? (
@@ -846,9 +1247,68 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
                 styles={styles}
                 doctorId={user.id}
+                onAppointmentCreated={(patientName, service, time, appointmentId, patientId, doctorId) => {
+                  // Trigger notification when appointment is created
+                  const notification = notifyAppointmentCreated(
+                    patientName,
+                    service,
+                    time,
+                    appointmentId,
+                    patientId,
+                    doctorId
+                  );
+                  notificationState.actions.addNotification(notification);
+                }}
+                onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
+                  // Trigger notification when appointment status is updated
+                  let notification;
+                  if (status === 'declined') {
+                    notification = createManualNotification(
+                      'appointment-declined',
+                      'Appointment Declined',
+                      `${patientName}'s appointment has been declined`,
+                      {
+                        appointmentId,
+                        patientId,
+                        action: 'UPDATE',
+                      }
+                    );
+                  } else {
+                    notification = notifyAppointmentStatusChanged(
+                      status as 'completed' | 'cancelled' | 'no-show',
+                      patientName,
+                      appointmentId,
+                      patientId,
+                      doctorId
+                    );
+                  }
+                  notificationState.actions.addNotification(notification);
+                }}
+              />
+            ) : activeTab === 'appointment-requests' ? (
+              <AppointmentsRequestTab
+                userId={user.id || ''}
+                onRequestAccepted={() => {
+                  // Refresh dashboard data when request is accepted
+                  refreshDashboardData();
+                }}
+                onRequestAcceptedWithNotification={(notification) => {
+                  // Add notification to the notification center
+                  notificationState.actions.addNotification(notification);
+                }}
+                styles={styles}
               />
             ) : (
-              <SettingsTab user={doctorProfile} onUpdateProfile={handleUpdateProfile} styles={styles} />
+              <SettingsTab 
+                user={doctorProfile} 
+                onUpdateProfile={handleUpdateProfile} 
+                styles={styles}
+                onProfileUpdated={(doctorName, doctorId) => {
+                  // Trigger notification when doctor profile is updated
+                  const notification = notifyDoctorProfileUpdated(doctorName, doctorId);
+                  notificationState.actions.addNotification(notification);
+                }}
+              />
             )}
           </View>
 
@@ -867,6 +1327,40 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 setEditedPatient({ ...viewingPatient });
                 setIsEditingPatient(true);
               }
+            }}
+            onMedicalIntakeUpdated={(patientName, patientId) => {
+              // Trigger notification when medical intake is updated
+              const notification = notifyMedicalIntakeUpdated(
+                patientName,
+                patientId,
+                patientId
+              );
+              notificationState.actions.addNotification(notification);
+            }}
+            onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
+              // Trigger notification when appointment status is updated
+              let notification;
+              if (status === 'declined') {
+                notification = createManualNotification(
+                  'appointment-declined',
+                  'Appointment Declined',
+                  `${patientName}'s appointment has been declined`,
+                  {
+                    appointmentId,
+                    patientId,
+                    action: 'UPDATE',
+                  }
+                );
+              } else {
+                notification = notifyAppointmentStatusChanged(
+                  status as 'completed' | 'cancelled' | 'no-show',
+                  patientName,
+                  appointmentId,
+                  patientId,
+                  doctorId
+                );
+              }
+              notificationState.actions.addNotification(notification);
             }}
           />
 
@@ -930,6 +1424,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={[styles.navItem, activeTab === 'appointment-requests' && styles.navItemActive]}
+                onPress={() => setActiveTab('appointment-requests')}
+              >
+                <Image
+                  source={require('../../assets/images/icon/appointment_request.png')}
+                  style={styles.navIcon}
+                />
+                {sidebarOpen && <Text style={styles.navLabel}>Requests</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
                 onPress={() => setActiveTab('settings')}
               >
@@ -983,6 +1488,59 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 14, fontWeight: '600' }}>Loading...</Text>
             </View>
           )}
+
+          {/* Notification Center Modal */}
+          <Modal
+            visible={showNotificationCenter}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setShowNotificationCenter(false)}
+          >
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+              <View style={{ flex: 1 }}>
+                {/* Modal Header */}
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  backgroundColor: '#fff',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e0e0e0',
+                }}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>
+                    Notifications
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowNotificationCenter(false)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      backgroundColor: '#f0f0f0',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 18, color: '#666' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Notification List */}
+                <NotificationCenter
+                  notifications={notificationState.notifications}
+                  unreadCount={notificationState.unreadCount}
+                  isLoading={notificationState.isLoading}
+                  error={notificationState.error}
+                  onMarkAsRead={notificationState.actions.markAsRead}
+                  onMarkAllAsRead={notificationState.actions.markAllAsRead}
+                  onDeleteNotification={notificationState.actions.deleteNotification}
+                  onClearAll={notificationState.actions.clearAll}
+                />
+              </View>
+            </SafeAreaView>
+          </Modal>
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -1121,6 +1679,7 @@ const styles = StyleSheet.create({
 
   contentArea: {
     flex: 1,
+    marginTop: 35,
   },
 
   scrollContent: {

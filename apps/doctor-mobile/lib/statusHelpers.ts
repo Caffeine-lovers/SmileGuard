@@ -13,6 +13,8 @@ export const getStatusColor = (status?: string): string => {
       return '#F44336';
     case 'no-show':
       return '#9C27B0';
+    case 'declined':
+      return '#FF6F00';
     default:
       return '#666';
   }
@@ -28,6 +30,8 @@ export const getStatusBgColor = (status?: string): string => {
       return '#FFCDD2';
     case 'no-show':
       return '#E1BEE7';
+    case 'declined':
+      return '#FFE0B2';
     default:
       return '#f5f5f5';
   }

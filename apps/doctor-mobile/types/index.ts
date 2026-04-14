@@ -30,6 +30,7 @@ export interface MedicalIntake {
   pastSurgeries: string;
   smokingStatus: "never" | "former" | "current" | "";
   pregnancyStatus: "yes" | "no" | "na" | "";
+  notes?: string;
 }
 
 export const EMPTY_MEDICAL_INTAKE: MedicalIntake = {
@@ -45,6 +46,7 @@ export const EMPTY_MEDICAL_INTAKE: MedicalIntake = {
   pastSurgeries: "",
   smokingStatus: "",
   pregnancyStatus: "",
+  notes: "",
 };
 
 export interface FormData {
