@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Suspense, lazy, useCallback } from "react";
+import React, { useState, useMemo, Suspense, lazy, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -27,6 +27,11 @@ import {
 } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
 import { getDoctorProfile } from "../../lib/doctorService";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+
+// ── Complete OAuth session (required for Android) ────────────────
+WebBrowser.maybeCompleteAuthSession();
 
 // ── Input sanitisation ───────────────────────────────────────────
 // Strip anything that looks like SQL / script injection.
@@ -62,8 +67,17 @@ export default function AuthModal({
 }: AuthModalProps) {
   // Use the auth hook directly to access login/register functions
   const { login, register, ensureRoleSet, currentUser } = useAuth();
+  const isOAuthFlowRef = useRef(false); // Track if we're in OAuth flow
+  const prevVisibleRef = useRef(visible); // Track previous visible state
+  const recoveryAttemptRef = useRef(0); // Track recovery attempts to prevent infinite loops
 
   const [step, setStep] = useState(1); // Start directly at login (skip step 0)
+  const stepRef = useRef(step); // Backup step in ref to prevent loss
+
+  // Keep stepRef in sync with step state
+  React.useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
   const [mode, setMode] = useState<"register" | "login">("login");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -78,26 +92,101 @@ export default function AuthModal({
     doctorAccessCode: "",
   });
 
-  // Reset state when modal re-opens
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [isSettingUpDoctor, setIsSettingUpDoctor] = useState(false); // Survives step resets
+
+  // When OAuth completes and useAuth finishes fetching profile, show Step 3
   React.useEffect(() => {
-    if (visible) {
-      setStep(1); // Start directly at login form
-      setMode("login");
-      setShowPassword(false);
-      setRememberMe(false);
-      setFormData({
-        service: "General",
-        name: "",
-        email: "",
-        password: "",
-        medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
-        doctorAccessCode: "",
-      });
+    if (!isOAuthFlowRef.current || !currentUser) return;
+    
+    console.log("🔄 OAuth complete, currentUser available:", currentUser.email);
+    console.log("📝 Routing to Step 3 (Doctor Profile Setup) with pre-filled Google info");
+    
+    // Pre-fill with Google account info
+    setFormData((f) => ({
+      ...f,
+      email: currentUser.email,
+      name: currentUser.name || "",
+    }));
+    
+    // Go directly to Step 3 - doctor profile setup form
+    setStep(3);
+    // Removed: isOAuthFlowRef.current = false; - We need this to stay true during Step 3!
+  }, [isSettingUpDoctor, currentUser]);
+
+  // Track step changes for debugging
+  React.useEffect(() => {
+    console.log(`📍 AuthModal step changed to: ${step}`);
+    if (step === 3) {
+      console.log("🚨 STEP 3 ACTIVATED - DoctorProfileSetup should render now");
+    }
+  }, [step]);
+
+  // Track visible prop changes for debugging
+  React.useEffect(() => {
+    console.log(`👁️ AuthModal visible prop changed to: ${visible}`);
+  }, [visible]);
+
+  // Additional safeguard: if step is 1 but isSettingUpDoctor is true, fix it immediately
+  React.useEffect(() => {
+    if (isSettingUpDoctor && step === 1) {
+      // Only attempt recovery max 3 times to prevent infinite loops
+      if (recoveryAttemptRef.current < 3) {
+        console.log(`🚨 RECOVERY #${recoveryAttemptRef.current + 1}: isSettingUpDoctor=true but step=1, fixing immediately`);
+        recoveryAttemptRef.current += 1;
+        setStep(3);
+      }
     } else {
-      // Dismiss keyboard when modal closes to prevent shaking on Android
+      // Reset counter when we're not in recovery state
+      recoveryAttemptRef.current = 0;
+    }
+  }, [step, isSettingUpDoctor]);
+
+  // Only reset state when user EXPLICITLY closes the modal
+  const handleCloseModal = () => {
+    console.log("🔒 Modal closed by user - resetting state");
+    prevVisibleRef.current = false;
+    isOAuthFlowRef.current = false;
+    setStep(1);
+    setMode("login");
+    setFormData({
+      service: "General",
+      name: "",
+      email: "",
+      password: "",
+      medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
+      doctorAccessCode: "",
+    });
+    setShowPassword(false);
+    setRememberMe(false);
+    Keyboard.dismiss();
+    onClose();
+  };
+
+  // Protect step from being reset if OAuth flow is active
+  React.useEffect(() => {
+    // DO NOT run any resets if setting up doctor - this is paramount
+    if (isSettingUpDoctor || isOAuthFlowRef.current) {
+      console.log("🔐 OAuth/doctor setup active - SKIPPING all state resets in visible effect");
+      return;
+    }
+
+    // Also skip if step is high (>= 3) - doctor setup in progress
+    if (stepRef.current >= 3) {
+      console.log(`🛡️ Doctor setup step ${stepRef.current} active - skipping reset`);
+      return;
+    }
+
+    console.log("✅ Visible effect running - safe to proceed");
+    // At this point we're safe to handle visibility changes
+    const visibilityChanged = prevVisibleRef.current !== visible;
+    prevVisibleRef.current = visible;
+
+    if (!visible && visibilityChanged) {
+      console.log("📭 Modal hidden");
       Keyboard.dismiss();
     }
-  }, [visible]);
+  }, [visible, isSettingUpDoctor]); // Added isSettingUpDoctor as dependency
 
   // ── Helpers ──────────────────────────────────────────────────────
 
@@ -155,6 +244,98 @@ export default function AuthModal({
       medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
       doctorAccessCode: "",
     });
+  };
+
+  // ── Google OAuth Handler ──────────────────────────────────────────
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true);
+      console.log("🔐 Starting Google OAuth...");
+
+      // We use the root URL so Expo Router doesn't navigate away and unmount us!
+      const redirectUrl = Linking.createURL("");
+      console.log("\n");
+      console.log("════════════════════════════════════════════════════════════════");
+      console.log("⚠️  SUPABASE CONFIGURATION REQUIRED");
+      console.log("════════════════════════════════════════════════════════════════");
+      console.log("Go to: Supabase Dashboard → Authentication → URL Configuration");
+      console.log("");
+      console.log("Add this to 'Redirect URLs':");
+      console.log(redirectUrl);
+      console.log("");
+      console.log("════════════════════════════════════════════════════════════════");
+      console.log("\n");
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+
+      if (error) {
+        console.error("❌ OAuth error from Supabase:", error);
+        throw error;
+      }
+
+      if (data?.url) {
+        console.log("📱 Opening OAuth browser...");
+        
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        console.log("🔄 Browser result type:", result.type);
+
+        if (result.type === "success") {
+          console.log("✅ Browser returned with URL:", result.url);
+
+          // Extract tokens from the callback URL
+          const url = result.url;
+          const hashIndex = url.indexOf("#");
+          
+          if (hashIndex !== -1) {
+            const fragment = url.substring(hashIndex + 1);
+            const params = new URLSearchParams(fragment);
+            const accessToken = params.get("access_token");
+            const refreshToken = params.get("refresh_token");
+
+            console.log("🔑 Tokens found - Access:", !!accessToken, "Refresh:", !!refreshToken);
+
+            if (accessToken && refreshToken) {
+              console.log("⏳ Setting session with extracted tokens (fire and forget)...");
+              try {
+                // Fire and forget - don't await this to avoid blocking the UI
+                // The onAuthStateChange listener will pick up the new session in the background
+                supabase.auth.setSession({ 
+                  access_token: accessToken, 
+                  refresh_token: refreshToken 
+                }).catch((err) => {
+                  console.error("⚠️ Background setSession error (non-blocking):", err);
+                });
+
+                // Immediately mark OAuth flow - don't wait for session
+                isOAuthFlowRef.current = true;
+                setIsSettingUpDoctor(true);
+                setGoogleLoading(false);
+                console.log("✅ OAuth flow marked, session setting in background...");
+              } catch (sessionErr) {
+                console.error("❌ Failed during OAuth processing:", sessionErr);
+                Alert.alert("Error", "Failed to process Google sign-in. Please try again.");
+                setGoogleLoading(false);
+              }
+            }
+          }
+        } else if (result.type === "cancel" || result.type === "dismiss") {
+          console.log("❌ User cancelled OAuth");
+          Alert.alert("Cancelled", "Google sign-in was cancelled.");
+        }
+      }
+    } catch (error) {
+      console.error("❌ OAuth error:", error);
+      Alert.alert("Sign-In Error", error instanceof Error ? error.message : "Google sign-in failed");
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleNext = () => {
@@ -264,6 +445,7 @@ export default function AuthModal({
   };
 
   const enterDashboardAfterSuccess = () => {
+    console.log("📞 enterDashboardAfterSuccess called");
     onSuccess({
       name: formData.name,
       email: formData.email,
@@ -411,24 +593,28 @@ export default function AuthModal({
                         </View>
                       </>
                     ) : (
-                      /* === REGISTRATION FORM === */
+                      /* === REGISTRATION FORM - GOOGLE OAUTH ONLY === */
                       <>
                         <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                          Click the button below to start your registration and fill in your professional details.
+                          Sign up securely with Google to create your doctor account.
                         </Text>
 
-                        {/* Register Button */}
+                        {/* Google Sign-In Button */}
                         <TouchableOpacity
-                          style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
-                          onPress={() => {
-                            setStep(3); // Go to full doctor profile setup
-                          }}
-                          disabled={loading}
+                          style={[styles.btn, styles.googleBtn, { marginTop: 12 }]}
+                          onPress={handleGoogleSignIn}
+                          disabled={googleLoading}
                         >
-                          {loading ? (
-                            <ActivityIndicator color="#fff" />
+                          {googleLoading ? (
+                            <ActivityIndicator color="#6b7280" />
                           ) : (
-                            <Text style={styles.btnText}>Start Registration</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+                              <Image
+                                source={require("../../assets/images/icon/google.png")}
+                                style={{ width: 20, height: 20, marginRight: 10 }}
+                              />
+                              <Text style={[styles.btnText, { color: "#374151" }]}>Sign Up with Google</Text>
+                            </View>
                           )}
                         </TouchableOpacity>
 
@@ -469,15 +655,47 @@ export default function AuthModal({
                 {/* ════════════ Step 3: Doctor Registration Form ════════════ */}
                 {step === 3 && (
                   <DoctorProfileSetup
+                    isOAuth={isOAuthFlowRef.current}
+                    preFilledEmail={formData.email}
+                    preFilledName={formData.name}
+                    oauthUserId={currentUser?.id || null}
                     onSuccess={(userData) => {
                       console.log("✅ Doctor registration completed successfully");
+                      console.log("📞 DoctorProfileSetup calling onSuccess with:", userData.email);
+                      isOAuthFlowRef.current = false; // OAuth flow complete
+                      setIsSettingUpDoctor(false);
                       setStep(2); // Move to success screen
                       // Then call the app's onSuccess to enter dashboard
                       onSuccess(userData);
                     }}
                     onCancel={() => {
                       console.log("❌ User cancelled doctor registration");
+                      isOAuthFlowRef.current = false; // OAuth flow cancelled
+                      setIsSettingUpDoctor(false);
                       setStep(1); // Go back to login/registration choice
+                    }}
+                  />
+                )}
+                
+                {/* Show DoctorProfileSetup even if step somehow resets but isSettingUpDoctor is true */}
+                {isSettingUpDoctor && step !== 3 && (
+                  <DoctorProfileSetup
+                    isOAuth={isOAuthFlowRef.current}
+                    preFilledEmail={formData.email}
+                    preFilledName={formData.name}
+                    oauthUserId={currentUser?.id || null}
+                    onSuccess={(userData) => {
+                      console.log("✅ Doctor registration completed successfully (fallback render)");
+                      isOAuthFlowRef.current = false;
+                      setIsSettingUpDoctor(false);
+                      setStep(2);
+                      onSuccess(userData);
+                    }}
+                    onCancel={() => {
+                      console.log("❌ User cancelled doctor registration (fallback render)");
+                      isOAuthFlowRef.current = false;
+                      setIsSettingUpDoctor(false);
+                      setStep(1);
                     }}
                   />
                 )}
@@ -563,7 +781,6 @@ export default function AuthModal({
                   </View>
                 )}
               </View>
-              
             </ScrollView>
           </View>
         </SafeAreaView>
@@ -677,6 +894,12 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: "#0b7fab",
+    width: "100%",
+  },
+  googleBtn: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
     width: "100%",
   },
   secondaryBtn: {

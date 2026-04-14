@@ -4,7 +4,7 @@
  * Step 2: Credentials (Email, Password, Confirm Password)
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -30,14 +30,24 @@ import { supabase } from "@smileguard/supabase-client";
 export interface DoctorRegistrationFormProps {
   onSuccess: (user: { name: string; email: string; role: "doctor" }) => void;
   onCancel?: () => void;
+  isOAuth?: boolean;  // If true, skip credentials step (use pre-filled Google info)
+  oauthUserId?: string | null; // Passed directly from AuthModal to prevent auth fetching deadlock
+  preFilledEmail?: string;  // From Google OAuth
+  preFilledName?: string;   // From Google OAuth
 }
 
 export default function DoctorRegistrationForm({
   onSuccess,
   onCancel,
+  isOAuth = false,
+  oauthUserId = null,
+  preFilledEmail = "",
+  preFilledName = "",
 }: DoctorRegistrationFormProps) {
-  const { register, ensureRoleSet } = useAuth();
-  const [step, setStep] = useState(1); // Step 1: Doctor details, Step 2: Credentials
+  const { register, ensureRoleSet, currentUser } = useAuth();
+  // If OAuth, only show Doctor details (step 1). If not OAuth, show both (step 1 and 2)
+  const [step, setStep] = useState(isOAuth ? 1 : 1);
+  const maxStep = isOAuth ? 1 : 2;  // Skip credentials step for OAuth users
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
@@ -50,8 +60,8 @@ export default function DoctorRegistrationForm({
 
   // ── Credentials (Step 2)
   const [credentials, setCredentials] = useState({
-    name: "",
-    email: "",
+    name: preFilledName,  // Pre-fill from Google if OAuth
+    email: preFilledEmail,  // Pre-fill from Google if OAuth
     password: "",
     confirmPassword: "",
     showPassword: false,
@@ -141,7 +151,7 @@ export default function DoctorRegistrationForm({
     );
   };
 
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     if (!isStep1Valid()) {
       let errorMsg = "Please complete all required fields.";
       
@@ -156,7 +166,57 @@ export default function DoctorRegistrationForm({
       Alert.alert("Invalid Information", errorMsg);
       return;
     }
-    setStep(2);
+    
+    // For OAuth users, save the profile and call onSuccess directly
+    if (isOAuth) {
+      try {
+        setLoading(true);
+        console.log("💾 Saving doctor profile for OAuth user...");
+        
+        const userId = oauthUserId;
+        
+        if (!userId) {
+          console.error("❌ No active session passed from props - cannot save profile");
+          Alert.alert(
+            "Session Error",
+            "Session not fully loaded yet. Please try clicking Complete again."
+          );
+          setLoading(false);
+          return;
+        }
+        
+        console.log("👤 User confirmed from props:", userId);
+        
+        const profileData = {
+          ...doctorData,
+          user_id: userId,
+        };
+        
+        console.log("🚀 Calling createDoctorProfile...");
+        const result = await createDoctorProfile(profileData);
+        if (!result) {
+          console.error("❌ createDoctorProfile returned null!");
+          throw new Error("Failed to create profile record");
+        }
+        
+        console.log("👑 Updating role with ensureRoleSet...");
+        await ensureRoleSet(userId, "doctor");
+        
+        console.log("✅ Profile saved, calling onSuccess");
+        onSuccess({
+          name: credentials.name,
+          email: credentials.email, 
+          role: "doctor",
+        });
+      } catch (error) {
+        console.error("❌ Error saving profile:", error);
+        Alert.alert("Error", "Failed to save doctor profile. Please try again.");
+        setLoading(false);
+      }
+    } else {
+      // For manual registration, advance to Step 2 (credentials)
+      setStep(2);
+    }
   };
   // ────────────────────────────────────────────────────────────────
   // IMAGE UPLOAD HANDLER
@@ -536,9 +596,17 @@ export default function DoctorRegistrationForm({
           <TouchableOpacity
             style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
             onPress={handleStep1Next}
-            disabled={!isStep1Valid()}
+            disabled={!isStep1Valid() || loading || (isOAuth && !oauthUserId)}
           >
-            <Text style={styles.btnText}>Continue to Credentials</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : isOAuth && !oauthUserId ? (
+              <Text style={styles.btnText}>🔄 Authenticating...</Text>
+            ) : (
+              <Text style={styles.btnText}>
+                {isOAuth ? "✅ Complete Doctor Profile" : "Continue to Credentials"}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* Cancel Button */}

@@ -21,6 +21,11 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
       .single();
 
     if (error) {
+      // PGRST116 = No rows found, which is normal for new users
+      if (error.code === "PGRST116") {
+        console.log("ℹ️ No doctor profile found (new user) - this is normal");
+        return null;
+      }
       console.error("❌ Error fetching doctor profile:", error.message, error.details, error.code);
       console.log("Query attempted: SELECT * FROM doctors WHERE user_id = ?", userId);
       return null;

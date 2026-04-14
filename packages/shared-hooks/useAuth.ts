@@ -31,13 +31,19 @@ export function useAuth() {
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: AuthChangeEvent, session: Session | null) => {
+      (_event: AuthChangeEvent, session: Session | null) => {
         console.log("[useAuth] Auth state changed:", { event: _event, hasSession: !!session, userId: session?.user?.id });
         if (_event === "SIGNED_OUT") {
           console.warn("[useAuth] Session expired or user signed out");
         }
         if (session?.user) {
-          await fetchProfile(session.user.id);
+          // Defer fetch to escape the exact moment setSession() has the auth lock
+          // This avoids the internal AsyncStorage deadlock
+          setTimeout(() => {
+            fetchProfile(session.user.id).catch(err => {
+              console.error("[useAuth] Error in deferred profile fetch:", err);
+            });
+          }, 0);
         } else {
           console.log("[useAuth] Session cleared, user set to null");
           setCurrentUser(null);
@@ -59,7 +65,7 @@ export function useAuth() {
 
       if (error) {
         if (error.code === "PGRST116") {
-          console.warn("[useAuth] Profile not found, creating from user metadata...");
+          console.warn("[useAuth] Profile not found (new user)");
           const { data: { user } } = await supabase.auth.getUser();
 
           if (!user || user.id !== userId) {
@@ -71,6 +77,32 @@ export function useAuth() {
 
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
           const userRole = user.user_metadata?.role || "patient";
+
+          // IMPORTANT: On doctor-mobile, don't auto-create profiles for new users
+          // They need to complete Step 3 (DoctorProfileSetup) first
+          // We detect doctor-mobile by checking app name or just being cautious about it
+          const isAppName = typeof process !== 'undefined' && (
+            process.env.EXPO_PUBLIC_DOMAIN?.includes('doctor') ||
+            process.env.EXPO_PUBLIC_APP_NAME?.includes('doctor')
+          );
+          
+          console.log("[useAuth] Checking if we should auto-create profile... role:", userRole);
+          if (userRole === "doctor") {
+            // New doctor from OAuth - let their app handle doctor profile creation
+            // But still set currentUser so AuthModal knows to route to Step 3
+            console.log("[useAuth] ✅ New doctor detected - skipping profile creation, notifying app");
+            setCurrentUser({
+              id: userId,
+              name: userName,
+              email: user.email || "",
+              role: "doctor", 
+            });
+            setLoading(false);
+            console.log("[useAuth] ✅ currentUser set for new doctor, returning");
+            return;
+          }
+
+          // For patient-web, auto-create patient profile
 
           const { data: createdProfile, error: createError } = await supabase
             .from("profiles")
@@ -344,15 +376,43 @@ export function useAuth() {
         return false;
       }
 
-      // Profile exists, verify role is correct
+      // Profile exists, try to update if role mismatch
       if (profile && profile.role === expectedRole) {
         console.log(`[useAuth] ✅ Role is correctly set to ${expectedRole}`);
         return true;
       } else if (profile) {
         console.warn(`[useAuth] ⚠️ Role mismatch: Current ${profile.role} ≠ Expected ${expectedRole}`);
-        console.warn("[useAuth] This may be due to RLS policies or trigger configuration");
-        // Return true anyway - the profile exists with a role, even if it might be wrong
-        return true;
+        console.log("[useAuth] Attempting to update role via function...");
+        
+        // Update auth metadata first
+        try {
+          await supabase.auth.updateUser({
+            data: { role: expectedRole }
+          });
+          console.log("[useAuth] ✅ Updated auth metadata with role:", expectedRole);
+        } catch (authErr) {
+          console.warn("[useAuth] Warning: Could not update auth metadata:", authErr);
+        }
+
+        // Call the RLS-bypassing function to update the profiles table
+        const { data, error: functionError } = await supabase
+          .rpc('update_user_role', {
+            target_user_id: userId,
+            new_role: expectedRole
+          });
+          
+        if (functionError) {
+          console.error("[useAuth] Failed to update role via function:", functionError);
+          return true; // Return true anyway so user isn't blocked
+        }
+        
+        if (data === true) {
+          console.log(`[useAuth] ✅ Successfully updated role to ${expectedRole}`);
+          return true;
+        } else {
+          console.warn("[useAuth] Function returned false, but continuing...");
+          return true;
+        }
       }
 
       return false;
