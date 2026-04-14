@@ -8,8 +8,8 @@ const SERVICE_PRICES: Record<string, number> = {
   Fillings: 2000,
   'Root Canal': 8000,
   Extraction: 1500,
-  Braces: 35000,
-  Implants: 45000,
+  'Braces Consultation': 35000,
+  'Implants Consultation': 45000,
   'X-Ray': 500,
   'Check-up': 300,
 };
@@ -34,7 +34,11 @@ export async function calculateOutstandingBalance(userId: string): Promise<numbe
         .filter((b) => b.payment_status === 'paid' && b.appointment_id)
         .map((b) => b.appointment_id)
     );
-    const unpaid = appts.filter((a) => a.status !== 'cancelled' && !paidApptIds.has(a.id));
+    const unpaid = appts.filter((a) => 
+      a.status !== 'cancelled' && 
+      a.status !== 'declined' && 
+      !paidApptIds.has(a.id)
+    );
 
     console.log("[calculateOutstandingBalance] Unpaid appointments:", unpaid.length);
 
@@ -75,7 +79,11 @@ export async function fetchBillingDataForDashboard(
         .filter((b) => b.payment_status === 'paid' && b.appointment_id)
         .map((b) => b.appointment_id)
     );
-    const unpaid = appts.filter((a) => a.status !== 'cancelled' && !paidApptIds.has(a.id));
+    const unpaid = appts.filter((a) =>
+      a.status !== 'cancelled' &&
+      a.status !== 'declined' &&
+      !paidApptIds.has(a.id)
+    );
 
     const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
 

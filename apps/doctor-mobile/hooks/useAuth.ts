@@ -33,7 +33,7 @@ export function useAuth() {
   }, []);
 
   const fetchProfile = async (userId: string) => {
-    console.log("🔍 Fetching profile for user:", userId);
+    console.log(" Fetching profile for user:", userId);
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -43,7 +43,7 @@ export function useAuth() {
 
       if (error) {
         if (error.code === "PGRST116") {
-          console.warn("⚠️ Profile not found, creating from user metadata...");
+          console.warn("️ Profile not found, creating from user metadata...");
           const { data: { user } } = await supabase.auth.getUser();
 
           if (!user || user.id !== userId) {
@@ -68,7 +68,7 @@ export function useAuth() {
             .single();
 
           if (createError) {
-            console.error("❌ Error creating profile:", createError);
+            console.error(" Error creating profile:", createError);
             setCurrentUser({
               id:    userId,                    // ← UUID always set
               name:  userName,
@@ -96,7 +96,7 @@ export function useAuth() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load profile.";
-      console.error("❌ Error in fetchProfile:", err);
+      console.error(" Error in fetchProfile:", err);
       setError(msg);
     } finally {
       setLoading(false);
@@ -109,13 +109,13 @@ export function useAuth() {
     role: "patient" | "doctor"
   ): Promise<CurrentUser> => {
     setError(null);
-    console.log("🔐 Starting login for:", email, "as", role);
+    console.log(" Starting login for:", email, "as", role);
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) throw new Error(error.message);
 
-    console.log("✅ Auth successful, user ID:", data.user.id);
+    console.log(" Auth successful, user ID:", data.user.id);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -124,7 +124,7 @@ export function useAuth() {
       .single();
 
     if (profileError && profileError.code === "PGRST116") {
-      console.warn("⚠️ Profile not found, creating from metadata...");
+      console.warn("️ Profile not found, creating from metadata...");
 
       const userName = data.user.user_metadata?.name || email.split("@")[0];
       const userRole = data.user.user_metadata?.role || role;
@@ -189,7 +189,7 @@ export function useAuth() {
     if (error)       throw new Error(error.message);
     if (!data.user)  throw new Error("Registration failed. Please try again.");
 
-    console.log("✅ Registration successful. User ID:", data.user.id, "Role:", role);
+    console.log(" Registration successful. User ID:", data.user.id, "Role:", role);
 
     return {
       id:    data.user.id,                      // ← UUID always set

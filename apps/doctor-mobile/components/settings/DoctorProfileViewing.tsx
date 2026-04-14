@@ -34,7 +34,7 @@ export default function DoctorProfileView({
 
   const handleChangeProfilePicture = async () => {
     try {
-      console.log('📷 Opening image picker...');
+      console.log(' Opening image picker...');
       const selectedImage = await pickImage();
 
       if (!selectedImage) {
@@ -56,17 +56,17 @@ export default function DoctorProfileView({
             onPress: async () => {
               setUploadingImage(true);
               try {
-                console.log('📤 Uploading new profile picture...');
+                console.log(' Uploading new profile picture...');
                 const newImageUrl = await uploadProfileImage(
                   selectedImage,
                   doctor.user_id
                 );
 
-                console.log('✅ Image uploaded:', newImageUrl);
+                console.log(' Image uploaded:', newImageUrl);
                 // Save the new image URL to the database
                 await onSave({ profile_picture_url: newImageUrl });
               } catch (error) {
-                console.error('❌ Failed to upload image:', error);
+                console.error(' Failed to upload image:', error);
                 Alert.alert(
                   "Upload Failed",
                   "Failed to upload profile picture. Please try again."
@@ -80,7 +80,7 @@ export default function DoctorProfileView({
         ]
       );
     } catch (error) {
-      console.error('❌ Error in handleChangeProfilePicture:', error);
+      console.error(' Error in handleChangeProfilePicture:', error);
       Alert.alert(
         "Error",
         "Failed to select image. Please try again."
@@ -151,7 +151,7 @@ export default function DoctorProfileView({
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Doctor Profile</Text>
+        <Text style={styles.headerTitle}>‍️ Doctor Profile</Text>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           {onClose && (
             <TouchableOpacity
@@ -165,7 +165,7 @@ export default function DoctorProfileView({
             style={styles.editBtn}
             onPress={() => setIsEditing(true)}
           >
-            <Text style={styles.editBtnText}>Edit</Text>
+            <Text style={styles.editBtnText}> Edit</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -222,7 +222,7 @@ export default function DoctorProfileView({
 
         {/* License & Credentials Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>License & Credentials</Text>
+          <Text style={styles.sectionTitle}> License & Credentials</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>License Number:</Text>
@@ -247,7 +247,7 @@ export default function DoctorProfileView({
 
         {/* Doctor Information Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Doctor Information</Text>
+          <Text style={styles.sectionTitle}> Doctor Information</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Name:</Text>
@@ -272,7 +272,7 @@ export default function DoctorProfileView({
 
         {/* Availability Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Availability</Text>
+          <Text style={styles.sectionTitle}> Availability</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Status:</Text>
@@ -308,7 +308,7 @@ export default function DoctorProfileView({
 
         {/* Additional Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Additional Information</Text>
+          <Text style={styles.sectionTitle}>️ Additional Information</Text>
 
           {doctor.created_at && (
             <View style={styles.infoRow}>
@@ -329,6 +329,14 @@ export default function DoctorProfileView({
           )}
         </View>
       </View>
+
+      {/* Edit Button (Floating) */}
+      <TouchableOpacity
+        style={styles.floatingEditBtn}
+        onPress={() => setIsEditing(true)}
+      >
+        <Text style={styles.floatingEditBtnText}> Edit Profile</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

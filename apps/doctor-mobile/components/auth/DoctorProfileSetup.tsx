@@ -165,11 +165,11 @@ export default function DoctorRegistrationForm({
   const handleImagePick = async () => {
     try {
       setUploadingImage(true);
-      console.log("🖼️  Picking image...");
+      console.log("️  Picking image...");
 
       const image = await pickImage();
       if (!image) {
-        console.log("📸 No image selected");
+        console.log(" No image selected");
         return;
       }
 
@@ -178,12 +178,12 @@ export default function DoctorRegistrationForm({
       setSelectedImageUri(image.uri); // For preview
 
       // Note: We'll upload after user confirms registration
-      console.log("✅ Image selected, will upload during registration");
+      console.log(" Image selected, will upload during registration");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to pick image";
       Alert.alert("Image Selection Error", message);
-      console.error("❌ Image pick error:", error);
+      console.error(" Image pick error:", error);
     } finally {
       setUploadingImage(false);
     }
@@ -215,7 +215,7 @@ export default function DoctorRegistrationForm({
 
     setLoading(true);
     try {
-      console.log("📝 Starting doctor registration...");
+      console.log(" Starting doctor registration...");
 
       // Register the doctor account
       const formData = {
@@ -228,24 +228,24 @@ export default function DoctorRegistrationForm({
       };
 
       await register(formData, "doctor");
-      console.log("✅ Registration completed, verifying role...");
+      console.log(" Registration completed, verifying role...");
 
       // Get the current user and ensure role is set to doctor
       const { data } = await supabase.auth.getUser();
       if (data.user) {
-        console.log("🔐 Ensuring role is set to doctor for user:", data.user.id);
+        console.log(" Ensuring role is set to doctor for user:", data.user.id);
         await ensureRoleSet(data.user.id, "doctor");
 
         // Upload image if provided
         let profileImageUrl = doctorData.profile_picture_url || "";
         if (selectedImage) {
           try {
-            console.log("📤 Uploading image...");
+            console.log(" Uploading image...");
             profileImageUrl = await uploadProfileImage(selectedImage, data.user.id);
-            console.log("✅ Image uploaded successfully:", profileImageUrl);
+            console.log(" Image uploaded successfully:", profileImageUrl);
           } catch (imageError) {
             console.warn(
-              "⚠️  Image upload failed, continuing without image:",
+              "️  Image upload failed, continuing without image:",
               imageError
             );
           }
@@ -256,14 +256,14 @@ export default function DoctorRegistrationForm({
         doctorData.profile_picture_url = profileImageUrl;
 
         // Save doctor details to the doctors table
-        console.log("💾 Saving doctor details to database...");
+        console.log(" Saving doctor details to database...");
         const result = await createDoctorProfile(doctorData);
 
         if (!result) {
           throw new Error("Failed to save doctor profile");
         }
 
-        console.log("✅ Doctor profile created successfully!");
+        console.log(" Doctor profile created successfully!");
         onSuccess({
           name: doctorData.doctor_name || "Doctor",
           email: credentials.email,
@@ -273,7 +273,7 @@ export default function DoctorRegistrationForm({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Registration failed. Please try again.";
-      console.error("❌ Registration failed:", message);
+      console.error(" Registration failed:", message);
       Alert.alert("Registration Error", message);
     } finally {
       setLoading(false);
@@ -299,7 +299,7 @@ export default function DoctorRegistrationForm({
       {/* ━━━━━━━━━━━━ STEP 1: DOCTOR DETAILS ━━━━━━━━━━━━ */}
       {step === 1 && (
         <View style={styles.stepContent}>
-          <Text style={styles.h2}>🩺 Doctor Professional Details</Text>
+          <Text style={styles.h2}> Doctor Professional Details</Text>
           <Text style={styles.p}>Step 1 of 2: Fill in your professional information</Text>
 
           {/* Section: License & Credentials */}
@@ -486,7 +486,7 @@ export default function DoctorRegistrationForm({
               />
             ) : (
               <View style={styles.imagePlaceholder}>
-                <Text style={styles.imagePlaceholderText}>📷</Text>
+                <Text style={styles.imagePlaceholderText}></Text>
                 <Text style={styles.imagePlaceholderLabel}>
                   No image selected
                 </Text>
@@ -504,7 +504,7 @@ export default function DoctorRegistrationForm({
               <ActivityIndicator color="#0b7fab" size="small" />
             ) : (
               <Text style={styles.secondaryBtnText}>
-                {selectedImage ? "📷 Change Photo" : "📷 Choose Photo"}
+                {selectedImage ? " Change Photo" : " Choose Photo"}
               </Text>
             )}
           </TouchableOpacity>
@@ -556,7 +556,7 @@ export default function DoctorRegistrationForm({
       {/* ━━━━━━━━━━━━ STEP 2: CREDENTIALS ━━━━━━━━━━━━ */}
       {step === 2 && (
         <View style={styles.stepContent}>
-          <Text style={styles.h2}>🔐 Create Your Account</Text>
+          <Text style={styles.h2}> Create Your Account</Text>
           <Text style={styles.p}>Step 2 of 2: Set up your login credentials</Text>
 
           {/* Email */}

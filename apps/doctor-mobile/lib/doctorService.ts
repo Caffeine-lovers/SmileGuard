@@ -13,7 +13,7 @@ import { Doctor } from "@smileguard/shared-types";
  */
 export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
   try {
-    console.log('🔍 getDoctorProfile called with userId:', userId);
+    console.log(' getDoctorProfile called with userId:', userId);
     const { data, error } = await supabase
       .from("doctors")
       .select("*")
@@ -21,15 +21,15 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
       .single();
 
     if (error) {
-      console.error("❌ Error fetching doctor profile:", error.message, error.details, error.code);
+      console.error(" Error fetching doctor profile:", error.message, error.details, error.code);
       console.log("Query attempted: SELECT * FROM doctors WHERE user_id = ?", userId);
       return null;
     }
 
-    console.log("✅ Doctor profile found:", data);
+    console.log(" Doctor profile found:", data);
     return data as Doctor;
   } catch (error) {
-    console.error("❌ Exception in getDoctorProfile:", error);
+    console.error(" Exception in getDoctorProfile:", error);
     return null;
   }
 }
