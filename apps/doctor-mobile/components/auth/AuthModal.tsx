@@ -205,16 +205,16 @@ export default function AuthModal({
 
   const performRegister = async () => {
     try {
-      console.log("📝 Starting doctor registration...");
+      console.log(" Starting doctor registration...");
       await register(formData, "doctor");
-      console.log("✅ Registration completed, verifying role...");
+      console.log(" Registration completed, verifying role...");
       
       // Get the current user and ensure role is set to doctor
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        console.log("🔐 Doctor Registration: Ensuring role is set to doctor for user:", user.id);
+        console.log(" Doctor Registration: Ensuring role is set to doctor for user:", user.id);
         await ensureRoleSet(user.id, "doctor");
-        console.log("✅ Role verification complete");
+        console.log(" Role verification complete");
       }
       
       setStep(2); // success screen, then enter dashboard
@@ -240,7 +240,7 @@ export default function AuthModal({
         }
       }
       
-      console.error("❌ Registration failed:", errorMessage);
+      console.error(" Registration failed:", errorMessage);
       Alert.alert("Registration Error", errorMessage);
       setLoading(false);
     }
@@ -275,7 +275,7 @@ export default function AuthModal({
                 {step === 0 && (
                   <View style={{ alignItems: "center" }}>
                     <Text style={styles.h2}>
-                      🩺 Doctor Access
+                       Doctor Access
                     </Text>
                     <Text style={[styles.p, { marginBottom: 40 }]}>
                       Please select an option to continue to your dashboard.
@@ -349,7 +349,7 @@ export default function AuthModal({
                             accessibilityRole="button"
                           >
                             <Text style={styles.passwordToggleText}>
-                              {showPassword ? "👁️" : "👁️‍🗨️"}
+                              {showPassword ? "️" : "️‍️"}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -404,7 +404,7 @@ export default function AuthModal({
                 {/* ════════════ Step 2: Success (Register Only) ════════════ */}
                 {step === 2 && (
                   <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}>🎉</Text>
+                    <Text style={{ fontSize: 40, marginBottom: 10 }}></Text>
                     <Text style={styles.h2}>All Set!</Text>
                     <Text style={styles.p}>Your doctor portal is ready.</Text>
                     <TouchableOpacity
@@ -420,13 +420,13 @@ export default function AuthModal({
                 {step === 3 && (
                   <DoctorProfileSetup
                     onSuccess={(userData) => {
-                      console.log("✅ Doctor registration completed successfully");
+                      console.log(" Doctor registration completed successfully");
                       setStep(2); // Move to success screen
                       // Then call the app's onSuccess to enter dashboard
                       onSuccess(userData);
                     }}
                     onCancel={() => {
-                      console.log("❌ User cancelled doctor registration");
+                      console.log(" User cancelled doctor registration");
                       setStep(0); // Go back to choice screen
                     }}
                   />
@@ -434,7 +434,7 @@ export default function AuthModal({
                 {/* ════════════ Step 6: Forgot Password ════════════ */}
                 {step === 6 && (
                   <View>
-                    <Text style={styles.h2}>🔐 Reset Password</Text>
+                    <Text style={styles.h2}> Reset Password</Text>
                     <Text style={[styles.p, { fontSize: 14 }]}>
                       Enter your email and we'll send you a reset link.
                     </Text>
@@ -491,7 +491,7 @@ export default function AuthModal({
                 {/* ════════════ Step 7: Reset Email Sent ════════════ */}
                 {step === 7 && (
                   <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}>📬</Text>
+                    <Text style={{ fontSize: 40, marginBottom: 10 }}></Text>
                     <Text style={styles.h2}>Check your inbox</Text>
                     <Text style={[styles.p, { fontSize: 14 }]}>
                       A password reset link was sent to{"\n"}

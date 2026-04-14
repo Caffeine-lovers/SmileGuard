@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { EMPTY_MEDICAL_INTAKE } from '@smileguard/shared-types';
@@ -27,6 +28,9 @@ export default function SignupPage() {
     service: 'General',
     medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [passwordCheck, setPasswordCheck] = useState({
     hasUpperCase: false,
@@ -77,10 +81,10 @@ export default function SignupPage() {
 
   const handlePasswordChange = (newPassword: string) => {
     setFormData({ ...formData, password: newPassword });
-    setPasswordCheck(checkPasswordStrength(newPassword));
+    setPasswordCheck(checkPasswordStrengthDetailed(newPassword));
   };
 
-  const handleNext = (e: React.FormEvent) => {
+  const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
 
@@ -143,7 +147,7 @@ export default function SignupPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
 
@@ -197,11 +201,11 @@ export default function SignupPage() {
         {getStepSubtitle()}
       </p>
 
-      {(authError || localError) && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
-          {authError || localError}
-        </div>
-      )}
+        {(authError || localError) && (
+          <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
+            {authError || localError}
+          </div>
+        )}
 
       {/* Step 1: Basic Info - Name, Email, Phone, Password */}
       {step === 1 && (
@@ -411,48 +415,47 @@ export default function SignupPage() {
             </label>
           </div>
 
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.medicalIntake.has_heart_disease || false}
+            <div>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.medicalIntake.has_heart_disease || false}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      medicalIntake: {
+                        ...formData.medicalIntake,
+                        has_heart_disease: e.target.checked,
+                      },
+                    })
+                  }
+                  className="w-4 h-4"
+                />
+                <span className="ml-2 text-text-primary">I have heart disease</span>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Allergies
+              </label>
+              <textarea
+                value={formData.medicalIntake.allergies || ''}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
                     medicalIntake: {
                       ...formData.medicalIntake,
-                      has_heart_disease: e.target.checked,
+                      allergies: e.target.value,
                     },
                   })
                 }
-                className="w-4 h-4"
+                className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                placeholder="List any allergies..."
+                rows={3}
               />
-              <span className="ml-2 text-text-primary">I have heart disease</span>
-            </label>
-          </div>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Allergies
-            </label>
-            <textarea
-              value={formData.medicalIntake.allergies || ''}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  medicalIntake: {
-                    ...formData.medicalIntake,
-                    allergies: e.target.value,
-                  },
-                })
-              }
-              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-              placeholder="List any allergies..."
-              rows={3}
-            />
-          </div>
-
-          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setStep(3)}
@@ -545,26 +548,104 @@ export default function SignupPage() {
               onClick={() => setStep(4)}
               className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
             >
-              Back
+              {loading ? 'Saving...' : 'Next: Set Password'}
             </button>
+          </form>
+        )}
+
+        {/* Step 4: Password setup */}
+        {step === 4 && (
+          <form onSubmit={handleSubmitPassword} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  required
+                  className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
+              </div>
+              <div className="mt-2 text-sm space-y-1">
+                <p className={`${passwordCheck.hasUpperCase ? 'text-green-600' : 'text-text-secondary'}`}>
+                  ✓ Uppercase letter
+                </p>
+                <p className={`${passwordCheck.hasLowerCase ? 'text-green-600' : 'text-text-secondary'}`}>
+                  ✓ Lowercase letter
+                </p>
+                <p className={`${passwordCheck.hasNumber ? 'text-green-600' : 'text-text-secondary'}`}>
+                  ✓ Number
+                </p>
+                <p className={`${passwordCheck.hasSpecialChar ? 'text-green-600' : 'text-text-secondary'}`}>
+                  ✓ Special character
+                </p>
+                <p className={`${passwordCheck.length ? 'text-green-600' : 'text-text-secondary'}`}>
+                  ✓ At least 8 characters
+                </p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  required
+                  className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
+              className="w-full bg-brand-primary hover:bg-brand-primary/90 text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
             >
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
-          </div>
-        </form>
-      )}
+          </form>
+        )}
 
-      <div className="mt-6 text-center">
-        <p className="text-text-secondary">
-          Already have an account?{' '}
-          <Link href="/login" className="text-text-link font-medium hover:underline">
-            Login
-          </Link>
-        </p>
+        <div className="mt-6 text-center">
+          <p className="text-text-secondary">
+            Already have an account?{' '}
+            <Link href="/login" className="text-text-link font-medium hover:underline">
+              Login
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

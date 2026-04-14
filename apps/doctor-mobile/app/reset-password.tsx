@@ -68,7 +68,7 @@ export default function ResetPassword() {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage("✅ Password updated! Redirecting...");
+      setMessage(" Password updated! Redirecting...");
       setTimeout(() => router.replace("/"), 1500);
     }
     setLoading(false);
@@ -91,7 +91,7 @@ export default function ResetPassword() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>🔐 Set New Password</Text>
+      <Text style={styles.title}> Set New Password</Text>
       <Text style={styles.sub}>Enter your new password below.</Text>
       <TextInput
         style={styles.input}

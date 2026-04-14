@@ -20,7 +20,7 @@ export const requestMediaPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     return status === "granted";
   } catch (error) {
-    console.error("❌ Permission request failed:", error);
+    console.error(" Permission request failed:", error);
     return false;
   }
 };
@@ -62,7 +62,7 @@ export const pickImage = async (): Promise<ImagePickerResult | null> => {
       type: asset.mimeType || "image/jpeg",
     };
   } catch (error) {
-    console.error("❌ Image picker failed:", error);
+    console.error(" Image picker failed:", error);
     throw error;
   }
 };
@@ -78,19 +78,19 @@ export const uploadProfileImage = async (
   userId: string
 ): Promise<string> => {
   try {
-    console.log("📤 Starting image upload...");
-    console.log("📋 Image URI:", image.uri);
-    console.log("📋 Image type:", image.type);
+    console.log(" Starting image upload...");
+    console.log(" Image URI:", image.uri);
+    console.log(" Image type:", image.type);
 
     // Create unique filename
     const timestamp = Date.now();
     const filename = `doctor-profiles/${userId}/profile_${timestamp}`;
 
-    console.log("📁 Uploading to path:", filename);
+    console.log(" Uploading to path:", filename);
 
     // Fetch the image as blob from the file URI
     try {
-      console.log("🔄 Fetching image from URI...");
+      console.log(" Fetching image from URI...");
       
       const response = await fetch(image.uri);
       if (!response.ok) {
@@ -98,10 +98,10 @@ export const uploadProfileImage = async (
       }
       
       const blob = await response.blob();
-      console.log("✅ Blob created, size:", blob.size, "bytes");
+      console.log(" Blob created, size:", blob.size, "bytes");
 
       // Upload to Supabase Storage
-      console.log("📤 Uploading blob to Supabase...");
+      console.log(" Uploading blob to Supabase...");
       const { data, error } = await supabase.storage
         .from("doctor-pictures")
         .upload(filename, blob, {
@@ -111,14 +111,14 @@ export const uploadProfileImage = async (
         });
 
       if (error) {
-        console.error("❌ Supabase upload error:", error);
+        console.error(" Supabase upload error:", error);
         throw new Error(`Upload failed: ${error.message}`);
       }
 
-      console.log("✅ Upload successful:", data);
+      console.log(" Upload successful:", data);
 
       // Get public URL
-      console.log("🔗 Getting public URL...");
+      console.log(" Getting public URL...");
       const { data: publicUrl } = supabase.storage
         .from("doctor-pictures")
         .getPublicUrl(filename);
@@ -127,16 +127,16 @@ export const uploadProfileImage = async (
         throw new Error("Failed to get public URL");
       }
 
-      console.log("🔗 Public URL:", publicUrl.publicUrl);
+      console.log(" Public URL:", publicUrl.publicUrl);
       return publicUrl.publicUrl;
     } catch (fetchError) {
-      console.error("❌ Failed to fetch or upload image:", fetchError);
+      console.error(" Failed to fetch or upload image:", fetchError);
       throw new Error(`Failed to upload image: ${fetchError}`);
     }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Image upload failed";
-    console.error("❌ Upload error:", message);
+    console.error(" Upload error:", message);
     throw error;
   }
 };
@@ -153,7 +153,7 @@ export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
     }
 
     const filePath = decodeURIComponent(urlParts[1]);
-    console.log("🗑️  Deleting image:", filePath);
+    console.log("️  Deleting image:", filePath);
 
     const { error } = await supabase.storage
       .from("doctor-pictures")
@@ -163,9 +163,9 @@ export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
       throw error;
     }
 
-    console.log("✅ Image deleted successfully");
+    console.log(" Image deleted successfully");
   } catch (error) {
-    console.error("❌ Delete failed:", error);
+    console.error(" Delete failed:", error);
     throw error;
   }
 };
