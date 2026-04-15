@@ -12,7 +12,11 @@
     "doctor:ios": "pnpm --filter doctor-mobile ios",
     "patient:dev": "pnpm --filter patient-web dev",
     "patient:build": "pnpm --filter patient-web build",
-    "lint": "pnpm --filter doctor-mobile lint"
+    "lint": "pnpm --filter doctor-mobile lint",
+    "test": "pnpm --filter @smileguard/tests test",
+    "test:watch": "pnpm --filter @smileguard/tests test:watch",
+    "test:coverage": "pnpm --filter @smileguard/tests test:coverage",
+    "type-check": "pnpm --filter patient-web type-check && pnpm --filter doctor-mobile tsc --noEmit"
   },
   "dependencies": {
     "expo": "53.0.0",
