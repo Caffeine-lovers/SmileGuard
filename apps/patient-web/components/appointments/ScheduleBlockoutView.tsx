@@ -20,7 +20,7 @@ export default function ScheduleBlockoutView({ compact = false }: ScheduleBlocko
   }, [currentUser?.id]);
 
   const fetchAppointments = async () => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
 
     setLoading(true);
     try {
