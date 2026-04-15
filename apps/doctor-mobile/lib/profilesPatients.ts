@@ -425,6 +425,7 @@ export async function getAllPatients(): Promise<
     gender?: string;
     allergies?: string;
     medical_conditions?: string;
+    role?: string;
   }>
 > {
   // Fetch medical intake data
@@ -445,11 +446,12 @@ export async function getAllPatients(): Promise<
   // Get unique patient IDs
   const patientIds = [...new Set(medicalData.map((m: any) => m.patient_id))];
 
-  // Fetch corresponding profiles
+  // Fetch corresponding profiles (only patients with role='patient')
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
-    .select('id, name, email, service')
-    .in('id', patientIds);
+    .select('id, name, email, service, role')
+    .in('id', patientIds)
+    .eq('role', 'patient');
 
   if (profileError) {
     // Continue with partial data
@@ -475,6 +477,7 @@ export async function getAllPatients(): Promise<
       gender: item.gender || '',
       allergies: item.allergies || '',
       medical_conditions: item.medical_conditions || '',
+      role: profile.role || '',
     };
   });
 
@@ -494,11 +497,12 @@ async function getAllPatientsFromProfiles(): Promise<
     gender?: string;
     allergies?: string;
     medical_conditions?: string;
+    role?: string;
   }>
 > {
   const { data: profilesData, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, name, email, service, created_at')
+    .select('id, name, email, service, created_at, role')
     .eq('role', 'patient');
 
   if (profilesError || !profilesData) {
@@ -517,6 +521,7 @@ async function getAllPatientsFromProfiles(): Promise<
     gender: '',
     allergies: '',
     medical_conditions: '',
+    role: profile.role || '',
   }));
 }
 
