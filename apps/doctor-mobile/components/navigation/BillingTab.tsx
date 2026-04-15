@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
-import BillingEdit from '../billing/BillingEdit';
 
 interface Patient {
   id: string;
@@ -53,8 +52,6 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showPatientModal, setShowPatientModal] = useState(false);
-  const [selectedBilling, setSelectedBilling] = useState<BillingWithPatientName | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [totalAmount, setTotalAmount] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
   const [pendingAmount, setPendingAmount] = useState(0);
@@ -183,17 +180,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     setSearchQuery('');
   };
 
-  const handleOpenEditModal = (billing: BillingWithPatientName) => {
-    setSelectedBilling(billing);
-    setShowEditModal(true);
-  };
 
-  const handleBillingUpdated = () => {
-    // Reload billings after update
-    if (selectedPatientId) {
-      loadPatientBillings();
-    }
-  };
 
   const loadAppointmentDetails = async (appointmentId: string) => {
     try {
@@ -409,9 +396,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                     data={billings}
                     keyExtractor={(item) => item.id || Math.random().toString()}
                     renderItem={({ item }) => (
-                      <TouchableOpacity
-                        onPress={() => handleOpenEditModal(item)}
-                        activeOpacity={0.7}
+                      <View
                         style={{
                           backgroundColor: '#fff',
                           borderRadius: 12,
@@ -531,23 +516,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                           )}
                         </View>
 
-                        {/* Action Button */}
-                        <TouchableOpacity
-                          onPress={() => handleOpenEditModal(item)}
-                          style={{
-                            marginTop: 12,
-                            paddingVertical: 8,
-                            paddingHorizontal: 12,
-                            backgroundColor: '#0b7fab',
-                            borderRadius: 6,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: '#fff' }}>
-                            Update Payment Status
-                          </Text>
-                        </TouchableOpacity>
-                      </TouchableOpacity>
+                      </View>
                     )}
                   />
                 )}
@@ -635,17 +604,6 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           />
         </SafeAreaView>
       </Modal>
-
-      {/* Billing Edit Modal */}
-      <BillingEdit
-        visible={showEditModal}
-        billing={selectedBilling}
-        onClose={() => {
-          setShowEditModal(false);
-          setSelectedBilling(null);
-        }}
-        onSave={handleBillingUpdated}
-      />
 
       {/* Appointment Details Modal */}
       <Modal
