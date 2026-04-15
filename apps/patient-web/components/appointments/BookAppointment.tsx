@@ -175,6 +175,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         setSelectedDate('');
         setSelectedTime('');
         setNotes('');
+      } else {
+        alert(`Booking failed: ${result.message}`);
       }
     } catch (error) {
       console.error('Error booking appointment:', error);
