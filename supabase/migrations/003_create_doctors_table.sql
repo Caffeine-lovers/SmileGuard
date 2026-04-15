@@ -15,15 +15,17 @@ CREATE TABLE IF NOT EXISTS public.doctors (
   -- Link to profiles table (auth user)
   user_id             UUID NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
   
-  -- License & Credentials
-  license_number      TEXT NOT NULL UNIQUE,
-  specialization      TEXT NOT NULL,
+  -- License & Credentials (optional for MVP)
+  license_number      TEXT UNIQUE,
+  specialization      TEXT,
   bio                 TEXT,
   
   -- Clinic Information
   clinic_name         TEXT,
+  clinic_address      TEXT,
   clinic_phone        TEXT,
   clinic_email        TEXT,
+  access_code         TEXT,
   
   -- Office Hours (JSON format for flexibility)
   office_hours        JSONB,

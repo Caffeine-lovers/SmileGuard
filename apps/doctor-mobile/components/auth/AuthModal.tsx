@@ -1,4 +1,5 @@
 import React, { useState, useMemo, Suspense, lazy, useCallback } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -16,6 +17,8 @@ import {
 import { useAuth } from "@smileguard/shared-hooks";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Alert } from 'react-native';
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import PasswordStrengthMeter from "../ui/password-strength-meter";
 import DoctorProfileSetup from "./DoctorProfileSetup";
 import {
@@ -27,6 +30,11 @@ import {
 } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
 import { getDoctorProfile } from "../../lib/doctorService";
+
+// ── Deep Link URL for OAuth Callback ─────────────────────────────
+// The app.json already has scheme: "smileguard"
+// This redirect URL will open the app at the oauth-redirect route
+const REDIRECT_URL = "smileguard://redirect";
 
 // ── Input sanitisation ───────────────────────────────────────────
 // Strip anything that looks like SQL / script injection.
@@ -48,9 +56,8 @@ export interface AuthModalProps {
 // ══════════════════════════════════════════════════════════════════
 // STEP MAP (DOCTOR ONLY)
 // 0  → Portal entry choice  (login / register)
-// 1  → Credentials           (doctor login/register)
-// 2  → Success screen        (register only, then enter dashboard)
-// 3  → Doctor Profile Setup  (register only, password confirmation + profile details)
+// 1  → Credentials / Google OAuth (email/password login OR Google sign-up)
+// 2  → Doctor Profile Setup  (bio information — register only, then dashboard)
 // 6  → Forgot password
 // 7  → Reset email sent
 // ══════════════════════════════════════════════════════════════════
@@ -263,6 +270,73 @@ export default function AuthModal({
     }
   };
 
+  /**
+   * Handle Google OAuth Sign-in/Sign-up
+   * 
+   * Uses expo-web-browser to open the OAuth URL in the system browser.
+   * After authentication, deep link redirects back to app.
+   */
+  const handleGoogleOAuth = async () => {
+    try {
+      setLoading(true);
+      console.log("🔓 Starting Google OAuth...");
+      console.log("  Mode:", mode);
+      console.log("  Redirect URL:", REDIRECT_URL);
+
+      // Create the OAuth URL that Supabase will generate
+      const result = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: REDIRECT_URL,
+          skipBrowserRedirect: true, // We must manually open the browser in React Native
+          queryParams: {
+            prompt: "consent",
+          },
+        },
+      });
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      console.log("✅ OAuth URL generated:", result.data?.url);
+      
+      if (result.data?.url) {
+        // Open the system browser for the auth flow
+        const browserResult = await WebBrowser.openAuthSessionAsync(
+          result.data.url,
+          REDIRECT_URL
+        );
+        console.log("Browser result:", browserResult);
+      } else {
+        console.warn("⚠️ No OAuth URL returned by Supabase!");
+      }
+      
+      setLoading(false);
+      
+    } catch (err) {
+      let errorMessage = "Google sign-in failed.";
+      
+      if (err instanceof Error) {
+        const message = err.message.toLowerCase();
+        
+        if (message.includes("network")) {
+          errorMessage = "Network error. Check your connection.";
+        } else if (message.includes("cancelled")) {
+          errorMessage = "Sign-in was cancelled.";
+        } else if (message.includes("configuration") || message.includes("provider")) {
+          errorMessage = "Google provider not configured in Supabase. Check Authentication → Providers.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      console.error("❌ Google OAuth error:", errorMessage);
+      Alert.alert("Google Sign-in Error", errorMessage);
+      setLoading(false);
+    }
+  };
+
   const enterDashboardAfterSuccess = () => {
     onSuccess({
       name: formData.name,
@@ -302,13 +376,12 @@ export default function AuthModal({
                     <TouchableOpacity
                       style={[
                         styles.btn,
-                        styles.choiceBtn,
-                        styles.modalbtn,
+                        styles.primaryBtn,
                         { marginBottom: 30, width: "80%" },
                       ]}
-                      onPress={() => handleChoice("login")}
+                      onPress={() => handleSwitchMode("login")}
                     >
-                      <Text style={styles.choiceBtnText}>
+                      <Text style={styles.btnText}>
                         I have an account (Login)
                       </Text>
                     </TouchableOpacity>
@@ -316,19 +389,19 @@ export default function AuthModal({
                     <TouchableOpacity
                       style={[
                         styles.btn,
-                        styles.outlineChoiceBtn,
+                        styles.secondaryBtn,
                         { width: "80%" },
                       ]}
-                      onPress={() => handleChoice("register")}
+                      onPress={() => handleSwitchMode("register")}
                     >
-                      <Text style={styles.outlineChoiceText}>
+                      <Text style={styles.secondaryBtnText}>
                         New to SmileGuard? (Register)
                       </Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
-                {/* ════════════ Step 1: Credentials ════════════ */}
+                {/* ════════════ Step 1: Credentials (Email/Password) ════════════ */}
                 {step === 1 && (
                   <View>
                     {/* App Logo/Name */}
@@ -434,13 +507,6 @@ export default function AuthModal({
                           )}
                         </TouchableOpacity>
 
-                        {/* Divider */}
-                        <View style={styles.dividerContainer}>
-                          <View style={styles.divider} />
-                          <Text style={styles.dividerText}>Or</Text>
-                          <View style={styles.divider} />
-                        </View>
-
                         {/* Switch to Register */}
                         <View style={styles.switchAuthContainer}>
                           <Text style={styles.switchAuthText}>Don't have an account? </Text>
@@ -453,30 +519,20 @@ export default function AuthModal({
                       /* === REGISTRATION FORM === */
                       <>
                         <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                          Click the button below to start your registration and fill in your professional details.
+                          Sign up with Google to create your account
                         </Text>
 
-                        {/* Register Button */}
+                        {/* Google OAuth Button */}
                         <TouchableOpacity
-                          style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
-                          onPress={() => {
-                            setStep(3); // Go to full doctor profile setup
-                          }}
+                          style={[styles.btn, styles.googleBtn, { marginBottom: 24 }]}
+                          onPress={handleGoogleOAuth}
                           disabled={loading}
                         >
-                          {loading ? (
-                            <ActivityIndicator color="#fff" />
-                          ) : (
-                            <Text style={styles.btnText}>Start Registration</Text>
-                          )}
+                          <Text style={styles.googleIcon}>G</Text>
+                          <Text style={styles.googleBtnText}>
+                            {loading ? "Signing up..." : "Sign up with Google"}
+                          </Text>
                         </TouchableOpacity>
-
-                        {/* Divider */}
-                        <View style={styles.dividerContainer}>
-                          <View style={styles.divider} />
-                          <Text style={styles.dividerText}>Or</Text>
-                          <View style={styles.divider} />
-                        </View>
 
                         {/* Switch to Login */}
                         <View style={styles.switchAuthContainer}>
@@ -490,36 +546,21 @@ export default function AuthModal({
                   </View>
                 )}
 
-                {/* ════════════ Step 2: Success (Register Only) ════════════ */}
+                {/* ════════════ Step 2: Doctor Profile Setup (Bio Information) ════════════ */}
                 {step === 2 && (
-                  <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}></Text>
-                    <Text style={styles.h2}>All Set!</Text>
-                    <Text style={styles.p}>Your doctor portal is ready.</Text>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn]}
-                      onPress={enterDashboardAfterSuccess}
-                    >
-                      <Text style={styles.btnText}>Enter Dashboard</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* ════════════ Step 3: Doctor Registration Form ════════════ */}
-                {step === 3 && (
                   <DoctorProfileSetup
                     onSuccess={(userData) => {
                       console.log(" Doctor registration completed successfully");
-                      setStep(2); // Move to success screen
-                      // Then call the app's onSuccess to enter dashboard
+                      // Direct to dashboard after profile setup
                       onSuccess(userData);
                     }}
                     onCancel={() => {
                       console.log(" User cancelled doctor registration");
-                      setStep(0); // Go back to choice screen
+                      setStep(1); // Go back to login/register screen
                     }}
                   />
                 )}
+
                 {/* ════════════ Step 6: Forgot Password ════════════ */}
                 {step === 6 && (
                   <View>
@@ -722,6 +763,26 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "#d1d5db",
+  },
+  googleBtn: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+  },
+  googleIcon: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#374151",
+    marginRight: 8,
+  },
+  googleBtnText: {
+    color: "#374151",
+    fontWeight: "600",
+    fontSize: 15,
   },
   secondaryBtnText: {
     color: "#374151",

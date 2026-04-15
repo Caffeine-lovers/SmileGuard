@@ -38,14 +38,15 @@ export default function BillingPayment({
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
+
+    const userId = currentUser.id;
 
     async function fetchBillingData() {
       setLoadingData(true);
       try {
-        if (!currentUser) return;
         const { outstandingBalance, unpaidAppointments, billingHistory } =
-          await fetchBillingDataForDashboard(currentUser.id);
+          await fetchBillingDataForDashboard(userId);
 
         setOutstandingBalance(outstandingBalance);
         setBillingHistory(billingHistory);
@@ -112,11 +113,12 @@ export default function BillingPayment({
       return;
     }
 
-    if (!selectedAppointment) {
+    if (!selectedAppointment || !currentUser?.id) {
       alert('Please select an appointment to pay.');
       return;
     }
 
+    const userId = currentUser.id;
     setIsProcessing(true);
     try {
       // Simulate payment processing
@@ -126,7 +128,7 @@ export default function BillingPayment({
       const { error } = await supabase
         .from('billings')
         .insert({
-          patient_id: currentUser!.id,
+          patient_id: userId,
           appointment_id: selectedAppointment.id,
           amount,
           discount_type: discountType,
@@ -151,7 +153,7 @@ export default function BillingPayment({
       if (onSuccess) {
         onSuccess({
           id: Date.now().toString(),
-          patient_id: currentUser!.id,
+          patient_id: userId,
           appointment_id: selectedAppointment.id,
           amount,
           discount_type: discountType,
@@ -166,9 +168,9 @@ export default function BillingPayment({
 
       // Refresh billing data
       const [balance, billings, appts] = await Promise.all([
-        getBalance(currentUser!.id),
-        getBillings(currentUser!.id),
-        getPatientAppointments(currentUser!.id),
+        getBalance(userId),
+        getBillings(userId),
+        getPatientAppointments(userId),
       ]);
 
       const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));

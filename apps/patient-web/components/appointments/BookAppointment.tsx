@@ -93,12 +93,12 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   useEffect(() => { fetchAllBlockedSlots(); }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
+    const userId = currentUser.id;
     async function fetchUserAppointments() {
       setLoadingUserData(true);
       try {
-        if (!currentUser) return;
-        const appointments = await getPatientAppointments(currentUser.id);
+        const appointments = await getPatientAppointments(userId);
         const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
@@ -149,19 +149,20 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   };
 
   const handleBooking = async () => {
-    if (!selectedService || !selectedDate || !selectedTime || !currentUser) {
+    if (!selectedService || !selectedDate || !selectedTime || !currentUser?.id) {
       alert('Please select service, date, and time');
       return;
     }
+    const userId = currentUser.id;
     setIsBooking(true);
     try {
-      const result = await bookSlot(currentUser.id, '', selectedService.name, selectedDate, selectedTime);
+      const result = await bookSlot(userId, '', selectedService.name, selectedDate, selectedTime);
       if (result.success) {
         alert('Appointment booked successfully!');
         if (onSuccess) {
           onSuccess({
             id: '1',
-            patient_id: currentUser.id,
+            patient_id: userId,
             dentist_id: null,
             service: selectedService.name,
             appointment_date: selectedDate,

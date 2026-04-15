@@ -55,8 +55,9 @@ export default function RootLayout() {
 
     const inDoctorGroup = segments[0] === "(doctor)";
     const inResetPassword = segments[0] === "reset-password";
+    const inCompleteProfile = segments[0] === "complete-profile";
 
-    if (inResetPassword) return;
+    if (inResetPassword || inCompleteProfile) return;
 
     if (!user) {
       if (inDoctorGroup) {
