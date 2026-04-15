@@ -23,6 +23,7 @@ import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
+import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
@@ -120,7 +121,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [viewingPatient, setViewingPatient] = useState<DashboardAppointment | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -1298,6 +1299,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 }}
                 styles={styles}
               />
+            ) : activeTab === 'billing' ? (
+              <BillingTab
+                doctorId={user.id || ''}
+                styles={styles}
+              />
             ) : (
               <SettingsTab 
                 user={doctorProfile} 
@@ -1432,6 +1438,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   style={styles.navIcon}
                 />
                 {sidebarOpen && <Text style={styles.navLabel}>Requests</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
+                onPress={() => setActiveTab('billing')}
+              >
+                <Text style={{...styles.navIcon, fontSize: 20}}>💳</Text>
+                {sidebarOpen && <Text style={styles.navLabel}>Billing</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity
