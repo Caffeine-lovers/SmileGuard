@@ -1,6 +1,6 @@
 import { supabase } from '@smileguard/supabase-client';
 
-export let TOTAL_SLOTS_PER_DAY = 14; // matches TIME_SLOTS.length in BookAppointment
+export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
 export function setTotalSlotsPerDay(total: number): void {
   TOTAL_SLOTS_PER_DAY = total;
@@ -102,15 +102,11 @@ export function generateTimeSlots(clinicSchedule: ClinicSchedule | null, year: n
   let currentHour = openingTime.hour;
   let currentMinute = openingTime.minute;
   
-  // Generate slots in 30-minute intervals until one hour before closing
+  // Generate slots in 1-hour intervals until one hour before closing
   while (currentHour < closingTime.hour || (currentHour === closingTime.hour && currentMinute < closingTime.minute - 60)) {
     slots.push(`${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
     
-    currentMinute += 30;
-    if (currentMinute >= 60) {
-      currentMinute = 0;
-      currentHour += 1;
-    }
+    currentHour += 1;
   }
 
   console.log(`📊 Generated ${slots.length} time slots for ${dayName} (${daySchedule.opening_time} - ${daySchedule.closing_time}):`, slots);
