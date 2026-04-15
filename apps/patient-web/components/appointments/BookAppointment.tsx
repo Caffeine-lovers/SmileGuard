@@ -2,24 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
-import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments } from '@/lib/appointmentService';
+import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
   { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
   { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
-  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '🦷' },
+  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '' },
   { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '' },
   { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '' },
   { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '' },
   { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '' },
   { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '' },
   { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '' },
-];
-
-const TIME_SLOTS = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
 ];
 
 interface BookAppointmentProps {
@@ -59,10 +54,12 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [isBooking, setIsBooking]                     = useState(false);
   const [blockedSlots, setBlockedSlots]               = useState<any[]>([]);
   const [loadingBlockedSlots, setLoadingBlockedSlots] = useState(true);
-  const [fullyBookedDates, setFullyBookedDates]       = useState<Set<string>>(new Set());
   const [userAppointments, setUserAppointments]       = useState<Appointment[]>([]);
   const [loadingUserData, setLoadingUserData]         = useState(true);
   const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
+  const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
+  const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
+  const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
 
   console.log('🔴 [DIAGNOSTIC] BookAppointment component RENDERED');
   console.log('🔴 [DIAGNOSTIC] currentUser:', currentUser);
@@ -90,7 +87,57 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const step2Complete = step1Complete && selectedDate !== '';
   const step3Complete = step2Complete && selectedTime !== '';
 
-  useEffect(() => { fetchAllBlockedSlots(); }, []);
+  // Fetch clinic setup and blocked slots on component mount
+  useEffect(() => {
+    const loadClinicData = async () => {
+      setLoadingBlockedSlots(true);
+      try {
+        const schedule = await getClinicSetup();
+        setClinicSchedule(schedule);
+        
+        const slots = await getAllBlockedSlots(schedule);
+        setBlockedSlots(slots);
+        
+        // Track only the blocked dates (not appointment counts)
+        const blocked = new Set<string>();
+        
+        for (const slot of slots) {
+          if (slot.service === 'blocked') {
+            blocked.add(slot.date);
+          }
+        }
+        
+        setBlockedDates(blocked);
+        console.log('📊 [BookAppointment] Blocked dates:', Array.from(blocked));
+      } catch (error) {
+        console.error('Error loading clinic data:', error);
+        setBlockedSlots([]);
+        setClinicSchedule(null);
+        setBlockedDates(new Set());
+      } finally {
+        setLoadingBlockedSlots(false);
+      }
+    };
+    
+    loadClinicData();
+  }, []);
+
+  // Update time slots when selected date changes
+  useEffect(() => {
+    if (selectedDate && clinicSchedule) {
+      // Check if date is blocked
+      if (blockedDates.has(selectedDate)) {
+        console.log(`🚫 [BookAppointment] ${selectedDate} is blocked - no time slots available`);
+        setTimeSlots([]);
+        return;
+      }
+      
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      const slots = generateTimeSlots(clinicSchedule, year, month, day);
+      setTimeSlots(slots);
+      console.log(`⏱️ [BookAppointment] Generated ${slots.length} time slots for ${selectedDate}:`, slots);
+    }
+  }, [selectedDate, clinicSchedule, blockedDates]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -110,42 +157,33 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     fetchUserAppointments();
   }, [currentUser?.id]);
 
-  const fetchAllBlockedSlots = async () => {
-    console.log('📞 [BookAppointment] fetchAllBlockedSlots called');
-    setLoadingBlockedSlots(true);
-    try {
-      const slots = await getAllBlockedSlots();
-      console.log('📦 [BookAppointment] Slots returned from getAllBlockedSlots:', slots.length, slots);
-      
-      setBlockedSlots(slots);
-      
-      const dateCounts: Record<string, number> = {};
-      for (const slot of slots) {
-        dateCounts[slot.date] = (dateCounts[slot.date] ?? 0) + 1;
-      }
-      console.log('📊 [BookAppointment] Date counts:', dateCounts);
-      
-      const full = new Set(
-        Object.entries(dateCounts)
-          .filter(([, count]) => count >= TIME_SLOTS.length)
-          .map(([date]) => date)
-      );
-      console.log('🚫 [BookAppointment] Fully booked dates:', Array.from(full));
-      setFullyBookedDates(full);
-    } catch (error) {
-      console.error('Error fetching blocked slots:', error);
-      setBlockedSlots([]);
-    } finally {
-      setLoadingBlockedSlots(false);
-    }
-  };
-
   const isSlotDisabled = (date: string, time: string) => {
     const taken = isSlotTaken(blockedSlots, date, time);
     if (taken) {
       console.log(`🔒 Slot disabled: ${date} @ ${time}`);
     }
     return taken;
+  };
+
+  // Check if a date is available based on clinic schedule
+  const isDateAvailable = (date: Date): boolean => {
+    if (!clinicSchedule) return true; // Default to available if no schedule
+    
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    const dayOfWeek = date.getDay();
+    const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = DAY_NAMES[dayOfWeek];
+    
+    const daySchedule = clinicSchedule[dayName as keyof ClinicSchedule];
+    if (!daySchedule || !daySchedule.isOpen) {
+      console.log(`🚫 Date ${day} is unavailable (clinic closed on ${dayName})`);
+      return false;
+    }
+    
+    return true;
   };
 
   const handleBooking = async () => {
@@ -186,6 +224,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setIsBooking(false);
     }
   };
+
 
   // ─── Loading ────────────────────────────────────────────────────────────────
   if (loadingBlockedSlots) {
@@ -350,31 +389,44 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const dateString = `${yyyy}-${mm}-${dd}`;
               
               const isPast = date < new Date(new Date().setHours(0,0,0,0));
-              const isFullyBooked = fullyBookedDates.has(dateString);
+              const isClinicClosed = !isDateAvailable(date);
+              const isBlockedDate = blockedDates.has(dateString);
               const isSelected = selectedDate === dateString;
-              const isDisabled = isPast || isFullyBooked || !step1Complete;
+              
+              const isDisabled = isPast || isClinicClosed || isBlockedDate || !step1Complete;
 
-              let cellStyle = 'bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
+              let cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
+              let dateNumStyle = 'text-sm font-semibold text-text-primary';
 
               if (isSelected) {
-                cellStyle = 'bg-brand-primary text-white shadow-md transform scale-105 z-10 border border-transparent font-bold';
-              } else if (isDisabled) {
-                if (isFullyBooked) {
-                  cellStyle = 'bg-brand-danger/10 text-brand-danger line-through opacity-70 cursor-not-allowed border border-transparent';
-                } else {
-                  cellStyle = 'bg-transparent text-text-secondary/30 cursor-not-allowed border border-transparent';
-                }
+                cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-brand-primary text-white shadow-md border-2 border-brand-primary font-bold cursor-pointer';
+              } else if (isBlockedDate || isClinicClosed) {
+                // Both blocked dates and clinic closed - gray out
+                cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
+                dateNumStyle = 'text-sm font-semibold text-gray-500 line-through';
+              } else if (isPast) {
+                cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-100 text-gray-400 cursor-not-allowed';
+                dateNumStyle = 'text-sm font-semibold text-gray-400';
               }
 
               return (
                 <button
                   type="button"
                   key={dateString}
-                  onClick={() => setSelectedDate(dateString)}
+                  onClick={() => !isDisabled && setSelectedDate(dateString)}
                   disabled={isDisabled}
-                  className={`aspect-square flex items-center justify-center rounded-xl text-xs font-semibold transition-all duration-200 ${cellStyle}`}
+                  className={cellStyle}
+                  title={
+                    isBlockedDate
+                      ? 'Blocked date - no appointments available'
+                      : isClinicClosed 
+                      ? 'Clinic closed on this day' 
+                      : isPast
+                      ? 'Date has passed'
+                      : ''
+                  }
                 >
-                  {date.getDate()}
+                  <span className={dateNumStyle}>{date.getDate()}</span>
                 </button>
               );
             })}
@@ -389,28 +441,34 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             Select a Time
           </p>
           <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-            {TIME_SLOTS.map((time) => {
-              const disabled = isSlotDisabled(selectedDate, time);
-              const active   = selectedTime === time;
-              console.log(`⏰ Time ${time} for ${selectedDate}: disabled=${disabled}`);
-              return (
-                <button
-                  type="button"
-                  key={time}
-                  onClick={() => setSelectedTime(time)}
-                  disabled={!step2Complete || disabled}
-                  className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all duration-150 ${
-                    active
-                      ? 'bg-brand-primary text-white shadow-sm'
-                      : disabled
-                        ? 'bg-border-card text-text-secondary cursor-not-allowed line-through opacity-50'
-                        : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'
-                  }`}
-                >
-                  {time}
-                </button>
-              );
-            })}
+            {timeSlots.length > 0 ? (
+              timeSlots.map((time) => {
+                const disabled = isSlotDisabled(selectedDate, time);
+                const active   = selectedTime === time;
+                console.log(`⏰ Time ${time} for ${selectedDate}: disabled=${disabled}`);
+                return (
+                  <button
+                    type="button"
+                    key={time}
+                    onClick={() => setSelectedTime(time)}
+                    disabled={!step2Complete || disabled}
+                    className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                      active
+                        ? 'bg-brand-primary text-white shadow-sm'
+                        : disabled
+                          ? 'bg-border-card text-text-secondary cursor-not-allowed line-through opacity-50'
+                          : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'
+                    }`}
+                  >
+                    {time}
+                  </button>
+                );
+              })
+            ) : (
+              <p className="col-span-full text-center text-text-secondary text-xs py-4">
+                {selectedDate ? 'No available time slots for this date' : 'Select a date first'}
+              </p>
+            )}
           </div>
         </div>
 

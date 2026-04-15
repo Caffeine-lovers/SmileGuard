@@ -7,6 +7,117 @@ export function setTotalSlotsPerDay(total: number): void {
 }
 
 // ─────────────────────────────────────────
+// CLINIC SETUP & HOURS UTILITIES
+// ─────────────────────────────────────────
+
+export interface ClinicSchedule {
+  sunday: { isOpen: boolean; opening_time: string; closing_time: string };
+  monday: { isOpen: boolean; opening_time: string; closing_time: string };
+  tuesday: { isOpen: boolean; opening_time: string; closing_time: string };
+  wednesday: { isOpen: boolean; opening_time: string; closing_time: string };
+  thursday: { isOpen: boolean; opening_time: string; closing_time: string };
+  friday: { isOpen: boolean; opening_time: string; closing_time: string };
+  saturday: { isOpen: boolean; opening_time: string; closing_time: string };
+}
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+// Parse 12-hour format time (e.g., "10:00 AM") to 24-hour format
+function parse12HourTime(timeString: string): { hour: number; minute: number } {
+  console.log(`🔄 Parsing time string: "${timeString}"`);
+  
+  const match = timeString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  
+  if (!match) {
+    console.error(`❌ Invalid time format: "${timeString}". Expected format: "HH:MM AM/PM"`);
+    return { hour: 9, minute: 0 }; // Fallback
+  }
+  
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const period = match[3].toUpperCase();
+  
+  if (period === 'PM' && hour !== 12) {
+    hour += 12;
+  } else if (period === 'AM' && hour === 12) {
+    hour = 0;
+  }
+  
+  console.log(`✅ Converted "${timeString}" to ${hour}:${String(minute).padStart(2, '0')} (24-hour format)`);
+  
+  return { hour, minute };
+}
+
+// Get clinic setup with schedule information
+export async function getClinicSetup(): Promise<ClinicSchedule | null> {
+  try {
+    // Fetch the first available clinic setup (shared clinic)
+    // Patients don't have their own clinic setup, so we fetch any available one
+    const { data, error } = await supabase
+      .from('clinic_setup')
+      .select('schedule')
+      .limit(1);
+
+    if (error) {
+      console.error('❌ Error fetching clinic setup:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0 || !data[0]?.schedule) {
+      console.warn('⚠️ No clinic schedule found');
+      return null;
+    }
+
+    console.log('✅ Loaded clinic schedule:', JSON.stringify(data[0].schedule, null, 2));
+    return data[0].schedule;
+  } catch (error) {
+    console.error('❌ Error getting clinic setup:', error);
+    return null;
+  }
+}
+
+// Generate available time slots based on clinic hours
+// Returns array of time strings like ['09:00', '09:30', '10:00', ...]
+export function generateTimeSlots(clinicSchedule: ClinicSchedule | null, year: number, month: number, day: number): string[] {
+  if (!clinicSchedule) {
+    console.warn('⚠️ No clinic schedule provided, returning empty slots');
+    return [];
+  }
+
+  const date = new Date(year, month - 1, day);
+  const dayOfWeek = date.getDay();
+  const dayName = DAY_NAMES[dayOfWeek];
+  
+  const daySchedule = clinicSchedule[dayName as keyof ClinicSchedule];
+  
+  if (!daySchedule || !daySchedule.isOpen) {
+    console.log(`🚫 ${dayName} is closed (isOpen = false)`);
+    return [];
+  }
+
+  const openingTime = parse12HourTime(daySchedule.opening_time);
+  const closingTime = parse12HourTime(daySchedule.closing_time);
+  
+  const slots: string[] = [];
+  let currentHour = openingTime.hour;
+  let currentMinute = openingTime.minute;
+  
+  // Generate slots in 30-minute intervals until one hour before closing
+  while (currentHour < closingTime.hour || (currentHour === closingTime.hour && currentMinute < closingTime.minute - 60)) {
+    slots.push(`${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
+    
+    currentMinute += 30;
+    if (currentMinute >= 60) {
+      currentMinute = 0;
+      currentHour += 1;
+    }
+  }
+
+  console.log(`📊 Generated ${slots.length} time slots for ${dayName} (${daySchedule.opening_time} - ${daySchedule.closing_time}):`, slots);
+  return slots;
+}
+
+// ─────────────────────────────────────────
 // 1. GET BOOKED SLOTS FOR A SINGLE DATE
 // ─────────────────────────────────────────
 export async function getBookedSlots(date: string): Promise<string[]> {
@@ -117,21 +228,15 @@ export interface BlockedSlot {
   service?: string;
 }
 
-export async function getAllBlockedSlots(): Promise<BlockedSlot[]> {
+export interface BlockoutDate {
+  blockout_date: string;
+  is_blocked: boolean;
+  blockout_start_time?: string;
+  blockout_end_time?: string;
+}
+
+export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null): Promise<BlockedSlot[]> {
   console.log('🔍 [getAllBlockedSlots] Starting to fetch blocked slots...');
-  
-  // TEST: Try to fetch with very permissive query first
-  console.log('🧪 [TEST] Attempting to query clinic_blockout_dates...');
-  const { data: testData, error: testError, status } = await supabase
-    .from('clinic_blockout_dates')
-    .select('*');
-  
-  console.log('🧪 [TEST RESULT]', {
-    error: testError,
-    status,
-    count: testData?.length || 0,
-    data: testData
-  });
 
   // ❌ PRIORITY 1: Fetch blockout dates FIRST (highest priority - overrides everything)
   const { data: blockoutDates, error: blockoutError } = await supabase
@@ -145,12 +250,13 @@ export async function getAllBlockedSlots(): Promise<BlockedSlot[]> {
     console.log(`✅ [BLOCKOUT DATES] Found ${blockoutDates?.length || 0} specific blockout dates:`, blockoutDates);
   }
 
-  // Convert blockout dates to blocked slots (block all time slots for those days)
+  // Convert blockout dates to blocked slots
   const blockoutSlots: BlockedSlot[] = [];
   const blockedDateSet = new Set<string>();
   
   if (blockoutDates && blockoutDates.length > 0) {
-    const TIME_SLOTS = [
+    // Fallback time slots if clinic schedule is not available
+    const DEFAULT_TIME_SLOTS = [
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
       '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
     ];
@@ -159,11 +265,22 @@ export async function getAllBlockedSlots(): Promise<BlockedSlot[]> {
       blockedDateSet.add(blockout.blockout_date);
       console.log(`🚫 [BLOCKOUT] Blocking ALL TIME SLOTS for: ${blockout.blockout_date}`);
       
-      for (const timeSlot of TIME_SLOTS) {
+      const year = parseInt(blockout.blockout_date.split('-')[0]);
+      const month = parseInt(blockout.blockout_date.split('-')[1]);
+      const day = parseInt(blockout.blockout_date.split('-')[2]);
+      
+      // Use generated slots if clinic schedule exists, otherwise use fallback
+      const availableSlots = clinicSchedule 
+        ? generateTimeSlots(clinicSchedule, year, month, day) 
+        : DEFAULT_TIME_SLOTS;
+      
+      console.log(`   Generated ${availableSlots.length} slots for ${blockout.blockout_date}`);
+      
+      for (const timeSlot of availableSlots) {
         blockoutSlots.push({
           date: blockout.blockout_date,
           time: timeSlot,
-          patientId: 'system-blockout', // System-generated blockout
+          patientId: 'system-blockout',
           service: 'blocked',
         });
       }
