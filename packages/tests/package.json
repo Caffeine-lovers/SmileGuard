@@ -1,0 +1,26 @@
+{
+  "name": "@smileguard/tests",
+  "version": "1.0.0",
+  "description": "SmileGuard Test Suite - Unit, Integration, and E2E Tests",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@smileguard/shared-types": "workspace:*",
+    "@smileguard/shared-hooks": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.1.0",
+    "@vitest/ui": "^0.34.0",
+    "@vitest/coverage-v8": "^0.34.0",
+    "vitest": "^0.34.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
