@@ -179,7 +179,7 @@ export default function AppointmentAdd({
   // Load blockout dates from clinic_blockout_dates table
   const loadBlockoutDates = async () => {
     try {
-      console.log('📅 Loading blockout dates...');
+      console.log('[AppointmentAdd] Loading blockout dates...');
       
       // Get current authenticated user to ensure RLS policy passes
       const { data: { user } } = await supabase.auth.getUser();
@@ -521,10 +521,10 @@ export default function AppointmentAdd({
     const blockout = blockoutDates.find(b => b.blockout_date === dateStr);
     if (blockout) {
       if (blockout.is_blocked) {
-        console.log(`📅 Date ${dateStr} is BLOCKED (specific blockout)`);
+        console.log(`[AppointmentAdd] Date ${dateStr} is BLOCKED (specific blockout)`);
         return true;
       } else {
-        console.log(`📅 Date ${dateStr} is AVAILABLE (blockout override)`);
+        console.log(`[AppointmentAdd] Date ${dateStr} is AVAILABLE (blockout override)`);
         return false;
       }
     }
@@ -613,7 +613,7 @@ export default function AppointmentAdd({
     const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
     const dayName = DAY_NAMES[dayOfWeek];
     
-    console.log(`📅 Getting hours for ${dayName} (date: ${year}-${month}-${day})`, {
+    console.log(`[AppointmentAdd] Getting hours for ${dayName} (date: ${year}-${month}-${day})`, {
       dayOfWeek,
       dayName,
       availableDays: Object.keys(clinicSchedule),

@@ -45,7 +45,7 @@ export default function AppointmentsTab({
   onAppointmentCreated,
   onAppointmentStatusUpdated,
 }: AppointmentsTabProps) {
-  console.log('🎯 AppointmentsTab rendered. providedDoctorId:', providedDoctorId);
+  console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
   
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show'>('all');
@@ -492,7 +492,7 @@ export default function AppointmentsTab({
       // Load clinic schedule and blockout dates
       const loadSchedule = async () => {
         try {
-          console.log('📅 Loading clinic schedule...');
+          console.log('[AppointmentsTab] Loading clinic schedule...');
           const { data, error } = await supabase
             .from('clinic_setup')
             .select('schedule')

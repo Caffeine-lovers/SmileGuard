@@ -82,21 +82,37 @@ export default function RootLayout() {
 
     const inDoctorGroup = segments[0] === "(doctor)";
     const inResetPassword = segments[0] === "reset-password";
-    const inCompleteProfile = segments[0] === "complete-profile";
+    const inSetupProfile = segments[0] === "setup-profile";
+    const inOAuthRedirect = segments[0] === "oauth-redirect";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    if (inResetPassword || inCompleteProfile) return;
+    // We only pause routing logic if on reset-password
+    if (inResetPassword) return;
 
     if (!user) {
-      if (inDoctorGroup) {
+      if (inDoctorGroup || inSetupProfile) {
         console.log("[RootLayout] No user, routing to /");
         router.replace("/");
       }
     } else {
-      if (!inDoctorGroup) {
-        console.log("[RootLayout] User exists, routing to /(doctor)/dashboard");
-        router.replace("/(doctor)/dashboard");
+      if (!inDoctorGroup && !inSetupProfile) {
+        console.log("[RootLayout] User exists, checking profile before dashboard...");
+        // Check if doctor profile exists before sending to dashboard
+        supabase
+          .from("doctors")
+          .select("id")
+          .eq("user_id", user.id)
+          .single()
+          .then(({ data, error }) => {
+            if (error?.code === "PGRST116" || !data) {
+              console.log("[RootLayout] No profile found, routing to /setup-profile");
+              router.replace("/setup-profile");
+            } else {
+              console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
+              router.replace("/(doctor)/dashboard");
+            }
+          });
       }
     }
   }, [user, ready, segments]);

@@ -1,10 +1,11 @@
 /**
- * Doctor Registration Form Component
- * Step 1: Doctor Details (License, Specialization, Clinic)
- * Step 2: Credentials (Email, Password, Confirm Password)
+ * Doctor Profile Setup Component
+ * 
+ * Shown after Google OAuth login to collect doctor professional information.
+ * Includes image upload, specialization, license, and bio.
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -17,45 +18,29 @@ import {
   Switch,
   Image,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
-import { Doctor, EMPTY_DOCTOR, PasswordCheck } from "@smileguard/shared-types";
-import PasswordStrengthMeter from "../ui/password-strength-meter";
-import { useAuth } from "@smileguard/shared-hooks";
+import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
 import { createDoctorProfile } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
 import { supabase } from "@smileguard/supabase-client";
 
-export interface DoctorRegistrationFormProps {
+export interface DoctorProfileSetupProps {
   onSuccess: (user: { name: string; email: string; role: "doctor" }) => void;
   onCancel?: () => void;
 }
 
-export default function DoctorRegistrationForm({
+export default function DoctorProfileSetup({
   onSuccess,
   onCancel,
-}: DoctorRegistrationFormProps) {
-  const { register, ensureRoleSet } = useAuth();
-  const [step, setStep] = useState(1); // Step 1: Doctor details, Step 2: Credentials
+}: DoctorProfileSetupProps) {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
 
-  // ── Doctor Details (Step 1)
+  // ── Doctor Details
   const [doctorData, setDoctorData] = useState<Doctor>({
     ...EMPTY_DOCTOR,
     user_id: "",
-  });
-
-  // ── Credentials (Step 2)
-  const [credentials, setCredentials] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    showPassword: false,
-    showConfirmPassword: false,
   });
 
   // ── Specialization Dropdown
@@ -82,45 +67,17 @@ export default function DoctorRegistrationForm({
   ];
 
   // ────────────────────────────────────────────────────────────────
-  // PASSWORD STRENGTH VALIDATION (Step 2)
-  // ────────────────────────────────────────────────────────────────
-
-  const passwordChecks: PasswordCheck[] = useMemo(() => {
-    const p = credentials.password;
-    return [
-      { label: "At least 8 characters", met: p.length >= 8 },
-      { label: "One uppercase letter (A-Z)", met: /[A-Z]/.test(p) },
-      { label: "One lowercase letter (a-z)", met: /[a-z]/.test(p) },
-      { label: "One number (0-9)", met: /\d/.test(p) },
-      { label: "One special character (!@#$…)", met: /[^A-Za-z0-9]/.test(p) },
-    ];
-  }, [credentials.password]);
-
-  const passwordStrong = passwordChecks.every((c) => c.met);
-  const passwordsMatch =
-    credentials.password === credentials.confirmPassword &&
-    credentials.password.length >= 8;
-
-  const strengthPercent = useMemo(() => {
-    const met = passwordChecks.filter((c) => c.met).length;
-    return Math.round((met / passwordChecks.length) * 100);
-  }, [passwordChecks]);
-
-  // ────────────────────────────────────────────────────────────────
-  // STEP 1: DOCTOR DETAILS
+  // DOCTOR DETAILS VALIDATION
   // ────────────────────────────────────────────────────────────────
 
   const isValidLicenseNumber = (license: string): boolean => {
     const trimmed = license.trim();
-    // Check length: 5-7 characters
     if (trimmed.length < 5 || trimmed.length > 7) {
       return false;
     }
-    // Check alphanumeric only (letters and numbers)
     if (!/^[a-zA-Z0-9]+$/.test(trimmed)) {
       return false;
     }
-    // Check if it's a mix (at least one letter AND one number)
     const hasLetter = /[a-zA-Z]/.test(trimmed);
     const hasNumber = /[0-9]/.test(trimmed);
     return hasLetter && hasNumber;
@@ -133,30 +90,12 @@ export default function DoctorRegistrationForm({
     }));
   };
 
-  const isStep1Valid = () => {
+  const isFormValid = () => {
     return (
       isValidLicenseNumber(doctorData.license_number) &&
       doctorData.specialization.trim() !== "" &&
       doctorData.doctor_name?.trim() !== ""
     );
-  };
-
-  const handleStep1Next = () => {
-    if (!isStep1Valid()) {
-      let errorMsg = "Please complete all required fields.";
-      
-      if (!isValidLicenseNumber(doctorData.license_number)) {
-        errorMsg = "Medical License Number must be 5-7 characters with both letters and numbers (e.g., ABC123)";
-      } else if (doctorData.specialization.trim() === "") {
-        errorMsg = "Please enter a specialization.";
-      } else if (doctorData.doctor_name?.trim() === "") {
-        errorMsg = "Please enter a doctor name.";
-      }
-      
-      Alert.alert("Invalid Information", errorMsg);
-      return;
-    }
-    setStep(2);
   };
   // ────────────────────────────────────────────────────────────────
   // IMAGE UPLOAD HANDLER
@@ -195,112 +134,93 @@ export default function DoctorRegistrationForm({
   const isValidEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const isStep2Valid = () => {
-    return (
-      credentials.email.trim() !== "" &&
-      isValidEmail(credentials.email) &&
-      passwordStrong &&
-      passwordsMatch
-    );
-  };
+  // ────────────────────────────────────────────────────────────────
+  // SUBMIT: SAVE DOCTOR PROFILE
+  // ────────────────────────────────────────────────────────────────
 
-  const handleRegister = async () => {
-    if (!isStep2Valid()) {
-      Alert.alert(
-        "Missing/Invalid Info",
-        "Please complete all required fields with valid information."
-      );
+  const handleSubmit = async () => {
+    if (!isFormValid()) {
+      let errorMsg = "Please complete all required fields.";
+      
+      if (!isValidLicenseNumber(doctorData.license_number)) {
+        errorMsg = "Medical License Number must be 5-7 characters with both letters and numbers (e.g., ABC123)";
+      } else if (doctorData.specialization.trim() === "") {
+        errorMsg = "Please enter a specialization.";
+      } else if (doctorData.doctor_name?.trim() === "") {
+        errorMsg = "Please enter a doctor name.";
+      }
+      
+      Alert.alert("Invalid Information", errorMsg);
       return;
     }
 
     setLoading(true);
     try {
-      console.log(" Starting doctor registration...");
+      console.log("[DoctorProfileSetup] Saving doctor profile...");
 
-      // Register the doctor account
-      const formData = {
-        service: "General",
-        name: doctorData.doctor_name || "Doctor", // Use doctor name from Step 1
-        email: credentials.email,
-        password: credentials.password,
-        medicalIntake: {},
-        doctorAccessCode: "",
-      };
-
-      await register(formData, "doctor");
-      console.log(" Registration completed, verifying role...");
-
-      // Get the current user and ensure role is set to doctor
+      // Get current authenticated user from Supabase
       const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        console.log(" Ensuring role is set to doctor for user:", data.user.id);
-        await ensureRoleSet(data.user.id, "doctor");
-
-        // Upload image if provided
-        let profileImageUrl = doctorData.profile_picture_url || "";
-        if (selectedImage) {
-          try {
-            console.log(" Uploading image...");
-            profileImageUrl = await uploadProfileImage(selectedImage, data.user.id);
-            console.log(" Image uploaded successfully:", profileImageUrl);
-          } catch (imageError) {
-            console.warn(
-              "️  Image upload failed, continuing without image:",
-              imageError
-            );
-          }
-        }
-
-        // Update doctor data with the user_id and image URL
-        doctorData.user_id = data.user.id;
-        doctorData.profile_picture_url = profileImageUrl;
-
-        // Save doctor details to the doctors table
-        console.log(" Saving doctor details to database...");
-        const result = await createDoctorProfile(doctorData);
-
-        if (!result) {
-          throw new Error("Failed to save doctor profile");
-        }
-
-        console.log(" Doctor profile created successfully!");
-        onSuccess({
-          name: doctorData.doctor_name || "Doctor",
-          email: credentials.email,
-          role: "doctor",
-        });
+      if (!data.user) {
+        throw new Error("User not authenticated. Please log in again.");
       }
+
+      // Upload image if provided
+      let profileImageUrl = doctorData.profile_picture_url || "";
+      if (selectedImage) {
+        try {
+          console.log("[DoctorProfileSetup] Uploading profile image...");
+          profileImageUrl = await uploadProfileImage(selectedImage, data.user.id);
+          console.log("[DoctorProfileSetup] Image uploaded successfully");
+        } catch (imageError) {
+          console.warn("[DoctorProfileSetup] Image upload failed, continuing without image:", imageError);
+        }
+      }
+
+      // Update doctor data with user_id and image URL
+      doctorData.user_id = data.user.id;
+      doctorData.profile_picture_url = profileImageUrl;
+
+      // Save doctor profile to database
+      console.log("[DoctorProfileSetup] Creating doctor profile in database...");
+      const result = await createDoctorProfile(doctorData);
+
+      if (!result) {
+        throw new Error("Failed to save doctor profile");
+      }
+
+      console.log("[DoctorProfileSetup] Doctor profile saved successfully!");
+      
+      // Notify success
+      onSuccess({
+        name: doctorData.doctor_name || "Doctor",
+        email: data.user.email || "",
+        role: "doctor",
+      });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Registration failed. Please try again.";
-      console.error(" Registration failed:", message);
-      Alert.alert("Registration Error", message);
+      const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";
+      console.error("[DoctorProfileSetup] Error:", message);
+      Alert.alert("Error", message);
     } finally {
       setLoading(false);
     }
   };
 
   // ────────────────────────────────────────────────────────────────
-  // RENDER STEPS
+  // RENDER
   // ────────────────────────────────────────────────────────────────
 
   return (
-    <KeyboardAvoidingView
-      enabled={step === 2}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={true}
-      >
-      {/* ━━━━━━━━━━━━ STEP 1: DOCTOR DETAILS ━━━━━━━━━━━━ */}
-      {step === 1 && (
+    <View style={styles.container}>
+      <View style={styles.centerContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={true}
+        >
         <View style={styles.stepContent}>
-          <Text style={styles.h2}> Doctor Professional Details</Text>
-          <Text style={styles.p}>Step 1 of 2: Fill in your professional information</Text>
+          <Text style={styles.h2}>Doctor Professional Details</Text>
+          <Text style={styles.p}>Complete your profile to access the dashboard</Text>
 
           {/* Section: License & Credentials */}
           <Text style={styles.sectionHeader}>License & Credentials</Text>
@@ -532,13 +452,17 @@ export default function DoctorRegistrationForm({
             * Specialization and Doctor Name are also required
           </Text>
 
-          {/* Next Button */}
+          {/* Submit Button */}
           <TouchableOpacity
             style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
-            onPress={handleStep1Next}
-            disabled={!isStep1Valid()}
+            onPress={handleSubmit}
+            disabled={loading || !isFormValid()}
           >
-            <Text style={styles.btnText}>Continue to Credentials</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnText}>Complete Profile</Text>
+            )}
           </TouchableOpacity>
 
           {/* Cancel Button */}
@@ -546,145 +470,15 @@ export default function DoctorRegistrationForm({
             <TouchableOpacity
               style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
               onPress={onCancel}
+              disabled={loading}
             >
               <Text style={styles.secondaryBtnText}>Cancel</Text>
             </TouchableOpacity>
           )}
         </View>
-      )}
-
-      {/* ━━━━━━━━━━━━ STEP 2: CREDENTIALS ━━━━━━━━━━━━ */}
-      {step === 2 && (
-        <View style={styles.stepContent}>
-          <Text style={styles.h2}> Create Your Account</Text>
-          <Text style={styles.p}>Step 2 of 2: Set up your login credentials</Text>
-
-          {/* Email */}
-          <TextInput
-            style={styles.input}
-            placeholder="Email *"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={credentials.email}
-            onChangeText={(text) =>
-              setCredentials((prev) => ({ ...prev, email: text }))
-            }
-          />
-
-          {/* Password */}
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Password *"
-              secureTextEntry={!credentials.showPassword}
-              value={credentials.password}
-              onChangeText={(text) =>
-                setCredentials((prev) => ({ ...prev, password: text }))
-              }
-            />
-            <TouchableOpacity
-              style={styles.passwordToggle}
-              onPress={() =>
-                setCredentials((prev) => ({
-                  ...prev,
-                  showPassword: !prev.showPassword,
-                }))
-              }
-            >
-              <Image
-                source={require("../../assets/images/icon/view.png")}
-                style={styles.passwordToggleIcon}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Password Strength Meter */}
-          {credentials.password.length > 0 && (
-            <View style={styles.strengthSection}>
-              <PasswordStrengthMeter strengthPercent={strengthPercent} />
-              {passwordChecks.map((c) => (
-                <Text
-                  key={c.label}
-                  style={{
-                    color: c.met ? "#22c55e" : "#9ca3af",
-                    fontSize: 13,
-                    marginTop: 2,
-                  }}
-                >
-                  {c.met ? "✓" : "○"} {c.label}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {/* Confirm Password */}
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Confirm Password *"
-              secureTextEntry={!credentials.showConfirmPassword}
-              value={credentials.confirmPassword}
-              onChangeText={(text) =>
-                setCredentials((prev) => ({ ...prev, confirmPassword: text }))
-              }
-            />
-            <TouchableOpacity
-              style={styles.passwordToggle}
-              onPress={() =>
-                setCredentials((prev) => ({
-                  ...prev,
-                  showConfirmPassword: !prev.showConfirmPassword,
-                }))
-              }
-            >
-              <Image
-                source={require("../../assets/images/icon/view.png")}
-                style={styles.passwordToggleIcon}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Password Match Status */}
-          {credentials.confirmPassword.length > 0 && (
-            <Text
-              style={[
-                styles.matchStatus,
-                {
-                  color: passwordsMatch ? "#22c55e" : "#ef4444",
-                  marginTop: 8,
-                  marginBottom: 12,
-                },
-              ]}
-            >
-              {passwordsMatch ? "Passwords match" : "Passwords do not match"}
-            </Text>
-          )}
-
-          {/* Register Button */}
-          <TouchableOpacity
-            style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
-            onPress={handleRegister}
-            disabled={loading || !isStep2Valid()}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>Create Doctor Account</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Back Button */}
-          <TouchableOpacity
-            style={[styles.btn, styles.secondaryBtn, { marginTop: 6 }]}
-            onPress={() => setStep(1)}
-            disabled={loading}
-          >
-            <Text style={styles.secondaryBtnText}>Back</Text>
-          </TouchableOpacity>
-        </View>
-      )}
       </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </View>
   );
 }
 
@@ -696,40 +490,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  centerContent: {
+    width: "100%",
+    maxWidth: 400,
+    justifyContent: "center",
+  },
+  scrollView: {
+    width: "100%",
   },
   scrollContent: {
     flexGrow: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    paddingBottom: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 40,
   },
   stepContent: {
     borderColor: "#2bf1ff7d",
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 12,
+    padding: 10,
     backgroundColor: "#f8fbff",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   h2: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 4,
+    marginBottom: 3,
     textAlign: "center",
   },
   p: {
-    fontSize: 13,
+    fontSize: 11,
     color: "#4b5563",
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sectionHeader: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
     color: "#1f2937",
-    marginTop: 10,
-    marginBottom: 8,
-    paddingBottom: 6,
+    marginTop: 7,
+    marginBottom: 5,
+    paddingBottom: 4,
     borderBottomColor: "#e5e7eb",
     borderBottomWidth: 1,
   },
@@ -737,16 +541,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 8,
-    fontSize: 13,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 6,
+    fontSize: 11,
     backgroundColor: "#fff",
   },
   textAreaInput: {
-    height: 60,
+    height: 40,
     textAlignVertical: "top",
-    paddingTop: 8,
+    paddingTop: 6,
   },
   passwordContainer: {
     flexDirection: "row",
@@ -755,42 +559,42 @@ const styles = StyleSheet.create({
     borderColor: "#d1d5db",
     borderRadius: 6,
     backgroundColor: "#fff",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   passwordInput: {
     flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 11,
   },
   passwordToggle: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   passwordToggleText: {
     fontSize: 16,
   },
   passwordToggleIcon: {
-    width: 24,
-    height: 24,
+    width: 18,
+    height: 18,
     resizeMode: "contain",
   },
   matchStatus: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: "500",
   },
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     backgroundColor: "#f3f4f6",
     borderRadius: 6,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   switchLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "500",
     color: "#1f2937",
   },
@@ -801,8 +605,8 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   btn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
@@ -817,12 +621,12 @@ const styles = StyleSheet.create({
   },
   btnText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "600",
   },
   secondaryBtnText: {
     color: "#374151",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "600",
   },
   strengthSection: {
@@ -830,11 +634,11 @@ const styles = StyleSheet.create({
   },
   imagePreviewContainer: {
     width: "100%",
-    height: 120,
+    height: 80,
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 6,
-    marginBottom: 8,
+    marginBottom: 6,
     overflow: "hidden",
     backgroundColor: "#f9fafb",
     justifyContent: "center",
@@ -850,11 +654,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   imagePlaceholderText: {
-    fontSize: 36,
-    marginBottom: 4,
+    fontSize: 24,
+    marginBottom: 3,
   },
   imagePlaceholderLabel: {
-    fontSize: 12,
+    fontSize: 9,
     color: "#999",
   },
   modalOverlay: {
@@ -870,10 +674,10 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   dropdownHeader: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "600",
     color: "#1f2937",
-    padding: 14,
+    padding: 10,
     textAlign: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
@@ -882,8 +686,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   dropdownOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
@@ -891,7 +695,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f0f9ff",
   },
   dropdownOptionText: {
-    fontSize: 13,
+    fontSize: 11,
     color: "#374151",
   },
 });

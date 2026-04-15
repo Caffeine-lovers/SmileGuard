@@ -144,7 +144,7 @@ export default function AppointmentHistory({
   const { past, current, future } = categorizeAppointments(appointments);
 
   // Debug categorization
-  console.log('📅 Appointment Categorization:');
+  console.log('[AppointmentHistory] Appointment Categorization:');
   console.log(`   Today: ${current.length} appointments`);
   console.log(`   Future: ${future.length} appointments`);
   console.log(`   Past: ${past.length} appointments`);
@@ -231,7 +231,10 @@ export default function AppointmentHistory({
           </View>
         ) : filteredAppointments.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={styles.emptyIcon}>📭</Text>
+            <Image
+              source={require('../../assets/images/icon/appointment.png')}
+              style={styles.emptyIcon}
+            />
             <Text style={styles.emptyText}>
               {activeTab === 'all'
                 ? 'No appointments found'

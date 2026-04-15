@@ -31,14 +31,11 @@ export default function CompleteProfile() {
   });
   const [loading, setLoading] = useState(false);
 
-  // Redirect to dashboard if no user
+  // We rely on _layout.tsx to handle the protective routing, 
+  // so we don't kick the user out here while useAuth might still be initializing.
   React.useEffect(() => {
     console.log("[CompleteProfile] Mounted - user:", user?.email);
-    if (!user) {
-      console.log("[CompleteProfile] No user, routing to /");
-      router.replace("/");
-    }
-  }, [user, router]);
+  }, [user]);
 
   const handleSubmit = async () => {
     try {
@@ -109,141 +106,195 @@ export default function CompleteProfile() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Complete Your Profile</Text>
-          <Text style={styles.subtitle}>
-            Help us set up your doctor account
-          </Text>
-        </View>
+    <SafeAreaView style={styles.modalFull}>
+      <View style={styles.bordercard}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.stepContent}>
+            {/* App Logo/Name */}
+            <View style={styles.logoSection}>
+              <Text style={styles.appName}>SmileGuard</Text>
+            </View>
 
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Dr. John Smith"
-              value={formData.name}
-              onChangeText={(text) =>
-                setFormData({ ...formData, name: text })
-              }
-              editable={!loading}
-            />
+            <View style={styles.header}>
+              <Text style={styles.h2}> Doctor Professional Details</Text>
+              <Text style={styles.subtitle}>
+                Fill in your professional information
+              </Text>
+            </View>
+
+            <View style={styles.form}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Dr. John Smith"
+                  placeholderTextColor="#9ca3af"
+                  value={formData.name}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, name: text })
+                  }
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Specialization</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., General Dentistry"
+                  placeholderTextColor="#9ca3af"
+                  value={formData.specialization}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, specialization: text })
+                  }
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>License Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your dental license number"
+                  placeholderTextColor="#9ca3af"
+                  value={formData.licenseNumber}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, licenseNumber: text })
+                  }
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Phone Number (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="+1 (555) 123-4567"
+                  placeholderTextColor="#9ca3af"
+                  value={formData.phoneNumber}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, phoneNumber: text })
+                  }
+                  keyboardType="phone-pad"
+                  editable={!loading}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.btn, styles.primaryBtn, loading && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.btnText}>Complete Profile</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Specialization</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., General Dentistry"
-              value={formData.specialization}
-              onChangeText={(text) =>
-                setFormData({ ...formData, specialization: text })
-              }
-              editable={!loading}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>License Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your dental license number"
-              value={formData.licenseNumber}
-              onChangeText={(text) =>
-                setFormData({ ...formData, licenseNumber: text })
-              }
-              editable={!loading}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="+1 (555) 123-4567"
-              value={formData.phoneNumber}
-              onChangeText={(text) =>
-                setFormData({ ...formData, phoneNumber: text })
-              }
-              keyboardType="phone-pad"
-              editable={!loading}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Complete Profile</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  modalFull: {
     flex: 1,
-    backgroundColor: "#fff",
+    padding: 30,
+    backgroundColor: "#fff"
   },
-  content: {
-    padding: 20,
+  bordercard: {
+    flex: 1,
+    maxWidth: 540,
+    alignSelf: "center",
+    width: "100%",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
     paddingBottom: 40,
   },
-  header: {
-    marginBottom: 30,
+  stepContent: {
+    marginTop: 20,
+    borderColor: "#2bf1ff7d",
+    borderWidth: 1,
+    borderRadius: 45,
+    padding: 24,
+    backgroundColor: "#fff",
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
+  logoSection: {
+    alignItems: "center",
     marginBottom: 8,
-    color: "#333",
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#0b7fab",
+  },
+  header: {
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  h2: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+    color: "#0f172a",
   },
   subtitle: {
     fontSize: 14,
-    color: "#666",
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 20,
   },
   form: {
-    gap: 16,
+    width: "100%",
   },
   inputGroup: {
-    gap: 8,
+    marginBottom: 16,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#333",
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    color: "#374151",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#333",
+    borderColor: "#d1d5db",
+    borderRadius: 15,
+    paddingHorizontal: 16,
+    height: 55,
+    fontSize: 16,
+    backgroundColor: "#f9fafb",
+    color: "#1f2937",
   },
-  submitButton: {
-    backgroundColor: "#007AFF",
-    borderRadius: 8,
-    paddingVertical: 12,
+  btn: {
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
+    borderRadius: 30,
+    height: 56,
+    borderWidth: 1,
+    borderColor: "transparent",
+    marginTop: 10,
+  },
+  primaryBtn: {
+    backgroundColor: "#3b82f6",
   },
   submitButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
-  submitButtonText: {
-    color: "#fff",
+  btnText: {
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

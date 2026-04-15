@@ -41,34 +41,10 @@ export default function OAuthRedirect() {
           console.log("✅ OAuth successful, user:", session.user.email);
           console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
           
-          // Check if user has completed doctor profile
-          console.log("[OAuthRedirect] Checking for doctor profile...");
-          const { data: doctorProfile, error: profileError } = await supabase
-            .from("doctors")
-            .select("id")
-            .eq("user_id", session.user.id)
-            .single();
-
-          console.log("[OAuthRedirect] Profile query result - data:", doctorProfile, "error:", profileError?.code);
-
-          if (profileError?.code === "PGRST116") {
-            // No doctor profile found - this is a NEW registration
-            // Route to profile completion page to collect doctor info
-            console.log("📋 New user - routing to profile completion");
-            router.replace("/complete-profile");
-          } else if (profileError) {
-            // Other database error
-            console.error("❌ Error checking profile:", profileError);
-            router.replace("/");
-          } else if (doctorProfile) {
-            // Doctor profile exists - route to dashboard
-            console.log("✅ Existing user - routing to dashboard");
-            router.replace("/(doctor)/dashboard");
-          } else {
-            // Shouldn't happen, but fallback to dashboard
-            console.log("[OAuthRedirect] No profile error but also no profile data, fallback to dashboard");
-            router.replace("/(doctor)/dashboard");
-          }
+          // Let the root layout handle the redirection
+          // We just need to give the system a second to process the auth state
+          console.log("[OAuthRedirect] Handing off to _layout...");
+          // We won't replace routes here, to avoid conflicting with _layout routing
         } else if (searchParams.error) {
           // OAuth error occurred
           console.error("❌ OAuth error:", searchParams.error);

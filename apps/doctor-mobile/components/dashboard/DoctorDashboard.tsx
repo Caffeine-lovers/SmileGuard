@@ -293,7 +293,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
       // Use RPC function to get ALL appointments including cancelled (bypasses RLS)
       const rpcAppointments = await getDoctorAppointments(user.id);
-      console.log('🎯 [DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
+      console.log('[DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);
         
@@ -758,7 +758,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               accessibilityLabel="Open sidebar"
               accessibilityRole="button"
             >
-              <Text style={styles.floatingToggleIcon}>☰</Text>
+              <Image
+                source={require('../../assets/images/icon/open.png')}
+                style={styles.floatingToggleIcon}
+              />
             </TouchableOpacity>
           )}
 
@@ -1379,7 +1382,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               style={styles.sidebarToggleButton}
               onPress={() => setSidebarOpen(false)}
             >
-              <Text style={styles.sidebarToggleIcon}>✕</Text>
+              <Image
+                source={require('../../assets/images/icon/close.png')}
+                style={styles.sidebarToggleIcon}
+              />
             </TouchableOpacity>
 
             {sidebarOpen && (
@@ -1583,9 +1589,9 @@ const styles = StyleSheet.create({
   },
 
   floatingToggleIcon: {
-    fontSize: 22,
-    color: '#fff',
-    fontWeight: 'bold',
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
   },
 
   backdropOverlay: {
@@ -1609,9 +1615,9 @@ const styles = StyleSheet.create({
   },
 
   sidebarToggleIcon: {
-    fontSize: 20,
-    color: '#fff',
-    fontWeight: 'bold',
+    width: 20,
+    height: 20,
+    tintColor: '#fff',
   },
 
   logoSection: {
