@@ -60,6 +60,29 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
+const calculateAge = (dateOfBirth: string | undefined): number | null => {
+  if (!dateOfBirth) return null;
+  
+  try {
+    const [year, month, day] = dateOfBirth.split('-').map(Number);
+    const birthDate = new Date(year, month - 1, day);
+    const today = new Date();
+    
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    // If birthday hasn't occurred yet this year, subtract 1 from age
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age >= 0 ? age : null;
+  } catch (error) {
+    console.error('Error calculating age:', error);
+    return null;
+  }
+};
+
 const categorizeAppointments = (appointments: any[]) => {
   const now = new Date();
   const past: any[] = [];
@@ -253,7 +276,14 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Information</Text>
             <View style={styles.infoContainer}>
-              {patient.age > 0 && <DetailRow label="Age" value={patient.age.toString()} />}
+              {(() => {
+                const calculatedAge = calculateAge(medicalIntake?.dateOfBirth);
+                return calculatedAge !== null ? (
+                  <DetailRow label="Age" value={calculatedAge.toString()} />
+                ) : patient.age > 0 ? (
+                  <DetailRow label="Age" value={patient.age.toString()} />
+                ) : null;
+              })()}
               <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
               <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
               <DetailRow label="Email" value={patient.email || "Not provided"} />
