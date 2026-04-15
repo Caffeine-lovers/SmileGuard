@@ -58,6 +58,13 @@ export function useAuth() {
         .single();
 
       if (error) {
+        console.error("[useAuth] Profile query error:", { 
+          code: error.code, 
+          message: error.message, 
+          details: error.details,
+          hint: error.hint 
+        });
+        
         if (error.code === "PGRST116") {
           console.warn("[useAuth] Profile not found, creating from user metadata...");
           const { data: { user } } = await supabase.auth.getUser();
@@ -85,7 +92,11 @@ export function useAuth() {
             .single();
 
           if (createError) {
-            console.error("[useAuth] Error creating profile:", createError);
+            console.error("[useAuth] Error creating profile:", { 
+              code: createError.code,
+              message: createError.message,
+              details: createError.details 
+            });
             setCurrentUser({
               id: userId,
               name: userName,
@@ -114,7 +125,12 @@ export function useAuth() {
         });
       }
     } catch (err) {
-      console.error("[useAuth] Error fetching profile:", err);
+      console.error("[useAuth] Error fetching profile:", {
+        error: err,
+        errorString: JSON.stringify(err),
+        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        errorStack: err instanceof Error ? err.stack : "No stack"
+      });
       setError(err instanceof Error ? err.message : "Failed to fetch profile");
     } finally {
       setLoading(false);
@@ -165,7 +181,7 @@ export function useAuth() {
         // Fetch profile to get name and email
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role, name, email")
+          .select("role, name, email, phone_number, nationality")
           .eq("id", data.user.id)
           .single();
 
@@ -208,7 +224,7 @@ export function useAuth() {
   const register = async (
     formData: FormData,
     role: "patient" | "doctor"
-  ) => {
+  ): Promise<{ totpSecret?: string; qrCodeURI?: string; factorId?: string } | void> => {
     setLoading(true);
     setError(null);
 
@@ -235,7 +251,10 @@ export function useAuth() {
           data: {
             name: formData.name,
             role,
+            phone: formData.phone || '',
+            nationality: formData.nationality || '',
           },
+          emailRedirectTo: undefined,
         },
       });
 
@@ -254,52 +273,62 @@ export function useAuth() {
 
       console.log("[useAuth] Auth user created:", authData.user.id);
 
-      // Now try to update auth user metadata
+      // Capture MFA enrollment result to return after all registration steps finish
+      let mfaResult: { totpSecret?: string; qrCodeURI?: string; factorId?: string } | undefined;
+
+      // Enroll TOTP MFA
       try {
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: {
-            name: formData.name,
-            role,
-          },
+        console.log("[useAuth] Enrolling TOTP MFA factor...");
+        const { data: enrollData, error: enrollError } = await (supabase.auth.mfa as any).enrollFactors({
+          factorType: 'totp',
         });
 
-        if (updateError) {
-          console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
+        if (enrollError) {
+          console.warn("[useAuth] Failed to enroll TOTP (non-fatal):", enrollError);
+          // Continue anyway - MFA is optional
+        } else if (enrollData && enrollData.totp) {
+          console.log("[useAuth] TOTP factor enrolled successfully, factor ID:", enrollData.totp.id);
+          mfaResult = {
+            totpSecret: enrollData.totp.secret,
+            qrCodeURI: enrollData.totp.qr_code,
+            factorId: enrollData.totp.id,
+          };
+        }
+      } catch (mfaErr) {
+        console.warn("[useAuth] Error during TOTP enrollment (continuing):", mfaErr);
+      }
+
+      // The Supabase trigger (handle_new_user) has already created the profile
+      // Just need to fetch it and set the current user
+      console.log("[useAuth] Fetching profile created by trigger...");
+      await fetchProfile(authData.user.id);
+
+      // Update the profile with phone and nationality
+      try {
+        const phoneNumber = formData.phone
+          ? (formData.nationality ? `${formData.nationality}${formData.phone}` : formData.phone)
+          : null;
+        const nationality = formData.nationality || null;
+        console.log("[useAuth] Updating profile with phone_number and nationality...");
+        const { error: updateProfileError } = await supabase
+          .from('profiles')
+          .update({
+            phone_number: phoneNumber,
+            nationality,
+          })
+          .eq('id', authData.user.id);
+
+        if (updateProfileError) {
+          console.warn("[useAuth] Failed to update profile phone/nationality (non-fatal):", updateProfileError);
         } else {
-          console.log("[useAuth] User metadata updated successfully");
+          console.log("[useAuth] Profile phone and nationality updated successfully");
         }
-      } catch (metaErr) {
-        console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
+      } catch (profileErr) {
+        console.warn("[useAuth] Error updating profile (continuing anyway):", profileErr);
       }
 
-      if (authData.user) {
-        console.log("[useAuth] Auth user created, trigger will create profile automatically");
-
-        // Update auth user metadata with name and role
-        try {
-          const { error: updateError } = await supabase.auth.updateUser({
-            data: {
-              name: formData.name,
-              role,
-            },
-          });
-
-          if (updateError) {
-            console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
-          } else {
-            console.log("[useAuth] User metadata updated successfully");
-          }
-        } catch (metaErr) {
-          console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
-        }
-
-        // The Supabase trigger (handle_new_user) has already created the profile
-        // Just need to fetch it and set the current user
-        console.log("[useAuth] Fetching profile created by trigger...");
-        await fetchProfile(authData.user.id);
-        
-        console.log("[useAuth] Registration complete, profile fetched from trigger");
-      }
+      console.log("[useAuth] Registration complete, profile fetched and updated");
+      return mfaResult;
     } catch (err) {
       let message = "Registration failed";
       let detailedError = "";
@@ -324,6 +353,52 @@ export function useAuth() {
       }
       
       setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // VERIFY TOTP
+  // ─────────────────────────────────────────
+  const verifyTOTP = async (factorId: string, totpCode: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("[useAuth] Verifying TOTP code for factor:", factorId);
+      
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("No active session for TOTP verification");
+      }
+
+      // Verify the TOTP factor
+      const { data: verifyData, error: verifyError } = await (supabase.auth.mfa as any).verifyFactor({
+        factorId,
+        code: totpCode,
+      });
+
+      if (verifyError) {
+        console.error("[useAuth] TOTP verification failed:", verifyError);
+        throw verifyError;
+      }
+
+      console.log("[useAuth] TOTP verification successful", verifyData);
+      
+      // Fetch profile after successful verification
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await fetchProfile(user.id);
+      }
+
+      return verifyData;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "TOTP verification failed";
+      setError(message);
+      console.error("❌ TOTP verification error:", message);
       throw err;
     } finally {
       setLoading(false);
@@ -493,6 +568,61 @@ export function useAuth() {
     }
   };
 
+  const signInWithGoogle = async (redirectTo?: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("[useAuth] Initiating Google OAuth sign-in...");
+      
+      // Get the actual app URL from window for web, or use localhost for server
+      const isServer = typeof window === 'undefined';
+      let redirectUrl: string;
+      
+      if (!isServer) {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const basePath = redirectTo || '/auth/callback';
+        redirectUrl = `${protocol}//${host}${basePath}`;
+      } else {
+        redirectUrl = redirectTo 
+          ? `http://localhost:3000${redirectTo}`
+          : 'http://localhost:3000/auth/callback';
+      }
+      
+      console.log("[useAuth] Google redirect URL:", redirectUrl);
+      
+      // Ensure we're using HTTP for web, not a custom scheme
+      if (redirectUrl.includes('smileguard://')) {
+        console.warn("[useAuth] Redirect URL contains smileguard:// scheme, converting to http");
+        redirectUrl = redirectUrl.replace('smileguard://', 'http://localhost:3000/');
+      }
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+          scopes: 'openid profile email',
+        },
+      });
+
+      if (error) {
+        console.error("[useAuth] Google OAuth failed:", error);
+        throw error;
+      }
+
+      console.log("[useAuth] Google OAuth redirect initiated to:", redirectUrl);
+    } catch (err) {
+      console.error("[useAuth] Google sign-in error:", err);
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+      setLoading(false);
+    }
+  };
+
   return {
     currentUser,
     loading,
@@ -500,11 +630,13 @@ export function useAuth() {
     login,
     register,
     logout,
+    verifyTOTP,
     resetPassword,
     sendSignupOtp,
     verifyEmailOtp,
     updateUserPassword,
     updateProfileData,
     ensureRoleSet,
+    signInWithGoogle,
   };
 }
