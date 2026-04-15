@@ -125,9 +125,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   // Update time slots when selected date changes
   useEffect(() => {
     if (selectedDate && clinicSchedule) {
-      // Check if date is blocked
-      if (blockedDates.has(selectedDate)) {
-        console.log(`🚫 [BookAppointment] ${selectedDate} is blocked - no time slots available`);
+      // Check if date is blocked or fully booked
+      if (blockedDates.has(selectedDate) || isFullyBooked(selectedDate)) {
+        console.log(`🚫 [BookAppointment] ${selectedDate} is blocked or fully booked - no time slots available`);
         setTimeSlots([]);
         return;
       }
@@ -137,7 +137,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setTimeSlots(slots);
       console.log(`⏱️ [BookAppointment] Generated ${slots.length} time slots for ${selectedDate}:`, slots);
     }
-  }, [selectedDate, clinicSchedule, blockedDates]);
+  }, [selectedDate, clinicSchedule, blockedDates, blockedSlots]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -184,6 +184,18 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
     
     return true;
+  };
+
+  // Count booked appointments for a specific date
+  const countBookedAppointments = (dateString: string): number => {
+    return blockedSlots.filter(slot => 
+      slot.date === dateString && slot.service !== 'blocked'
+    ).length;
+  };
+
+  // Check if a date is fully booked (3 or more appointments)
+  const isFullyBooked = (dateString: string): boolean => {
+    return countBookedAppointments(dateString) >= 3;
   };
 
   const handleBooking = async () => {
@@ -391,17 +403,18 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const isPast = date < new Date(new Date().setHours(0,0,0,0));
               const isClinicClosed = !isDateAvailable(date);
               const isBlockedDate = blockedDates.has(dateString);
+              const isFullyBookedDate = isFullyBooked(dateString);
               const isSelected = selectedDate === dateString;
               
-              const isDisabled = isPast || isClinicClosed || isBlockedDate || !step1Complete;
+              const isDisabled = isPast || isClinicClosed || isBlockedDate || isFullyBookedDate || !step1Complete;
 
               let cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
               let dateNumStyle = 'text-sm font-semibold text-text-primary';
 
               if (isSelected) {
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-brand-primary text-white shadow-md border-2 border-brand-primary font-bold cursor-pointer';
-              } else if (isBlockedDate || isClinicClosed) {
-                // Both blocked dates and clinic closed - gray out
+              } else if (isBlockedDate || isClinicClosed || isFullyBookedDate) {
+                // Blocked dates, clinic closed, or fully booked - gray out
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
                 dateNumStyle = 'text-sm font-semibold text-gray-500 line-through';
               } else if (isPast) {
@@ -419,6 +432,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   title={
                     isBlockedDate
                       ? 'Blocked date - no appointments available'
+                      : isFullyBookedDate
+                      ? 'Fully booked - 3 appointments already scheduled'
                       : isClinicClosed 
                       ? 'Clinic closed on this day' 
                       : isPast
