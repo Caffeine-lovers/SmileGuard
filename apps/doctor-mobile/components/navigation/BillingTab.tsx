@@ -180,7 +180,28 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     setSearchQuery('');
   };
 
-
+  // Refresh button handler - fetches latest patients and billings
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Refreshing billing data...');
+      
+      // Refresh patients list
+      await loadPatients();
+      
+      // If a patient is selected, refresh their billings too
+      if (selectedPatientId) {
+        await loadPatientBillings();
+      }
+      
+      Alert.alert('✅ Refreshed', 'Billing data updated successfully!');
+    } catch (error) {
+      console.error('❌ Error refreshing billing data:', error);
+      Alert.alert('❌ Error', 'Failed to refresh billing data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadAppointmentDetails = async (appointmentId: string) => {
     try {
@@ -238,6 +259,28 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
             <Text style={{ fontSize: 13, color: '#666' }}>
               Manage patient billings and payment statuses
             </Text>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
+            {/* Refresh Button */}
+            <TouchableOpacity
+              onPress={handleRefresh}
+              disabled={loading}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: loading ? '#ccc' : '#0b7fab',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Patient Selection Card */}
