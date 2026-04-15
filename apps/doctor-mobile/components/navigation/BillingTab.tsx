@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
+import BillingEdit from '../billing/BillingEdit';
 
 interface Patient {
   id: string;
@@ -31,6 +32,19 @@ interface BillingWithPatientName extends Billing {
   patient_name?: string;
 }
 
+interface AppointmentDetails {
+  id: string;
+  patient_id: string;
+  dentist_id: string | null;
+  service: string;
+  appointment_date: string;
+  appointment_time: string;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
@@ -39,17 +53,14 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showPatientModal, setShowPatientModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState<BillingWithPatientName | null>(null);
-  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
-  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<'pending' | 'paid' | 'overdue'>('pending');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash');
+  const [showEditModal, setShowEditModal] = useState(false);
   const [totalAmount, setTotalAmount] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
   const [pendingAmount, setPendingAmount] = useState(0);
-
-  const PAYMENT_STATUSES = ['pending', 'paid', 'overdue'] as const;
-  const PAYMENT_METHODS = ['cash', 'card', 'gcash', 'bank-transfer'] as const;
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentDetails | null>(null);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [loadingAppointment, setLoadingAppointment] = useState(false);
 
   // Fetch all patients associated with doctor
   useFocusEffect(
@@ -172,48 +183,43 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     setSearchQuery('');
   };
 
-  const handleUpdatePaymentStatus = async () => {
-    if (!selectedBilling) return;
+  const handleOpenEditModal = (billing: BillingWithPatientName) => {
+    setSelectedBilling(billing);
+    setShowEditModal(true);
+  };
 
-    try {
-      setUpdatingPaymentStatus(true);
-      
-      const updateData: any = {
-        payment_status: selectedPaymentStatus,
-      };
-
-      if (selectedPaymentStatus === 'paid') {
-        updateData.payment_method = selectedPaymentMethod;
-        updateData.payment_date = new Date().toISOString();
-      }
-
-      const { error } = await supabase
-        .from('billings')
-        .update(updateData)
-        .eq('id', selectedBilling.id);
-
-      if (error) {
-        console.error('Error updating payment status:', error);
-        Alert.alert('Error', 'Failed to update payment status');
-        return;
-      }
-
-      Alert.alert('Success', `Payment status updated to ${selectedPaymentStatus}`);
-      setShowPaymentModal(false);
+  const handleBillingUpdated = () => {
+    // Reload billings after update
+    if (selectedPatientId) {
       loadPatientBillings();
-    } catch (error) {
-      console.error('Error updating payment:', error);
-      Alert.alert('Error', 'Failed to update payment status');
-    } finally {
-      setUpdatingPaymentStatus(false);
     }
   };
 
-  const handleOpenPaymentModal = (billing: BillingWithPatientName) => {
-    setSelectedBilling(billing);
-    setSelectedPaymentStatus(billing.payment_status as 'pending' | 'paid' | 'overdue');
-    setSelectedPaymentMethod(billing.payment_method || 'cash');
-    setShowPaymentModal(true);
+  const loadAppointmentDetails = async (appointmentId: string) => {
+    try {
+      setLoadingAppointment(true);
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', appointmentId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching appointment:', error);
+        Alert.alert('Error', 'Failed to load appointment details');
+        return;
+      }
+
+      if (data) {
+        setSelectedAppointment(data);
+        setShowAppointmentModal(true);
+      }
+    } catch (error) {
+      console.error('Error loading appointment:', error);
+      Alert.alert('Error', 'Failed to load appointment details');
+    } finally {
+      setLoadingAppointment(false);
+    }
   };
 
   const getPaymentStatusColor = (status: string): string => {
@@ -293,65 +299,76 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
           {/* Summary Cards */}
           {selectedPatientId && (
-            <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
-              {/* Total Amount Card */}
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 100,
-                  backgroundColor: '#fff',
-                  borderRadius: 12,
-                  padding: 12,
-                  borderTopWidth: 3,
-                  borderTopColor: '#3b82f6',
-                }}
-              >
-                <Text style={{ fontSize: 11, color: '#666', marginBottom: 4, fontWeight: '600' }}>
-                  TOTAL AMOUNT
-                </Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#3b82f6' }}>
-                  ${totalAmount.toFixed(2)}
-                </Text>
-              </View>
+            <View style={{ marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {/* Total Amount Card */}
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    padding: 12,
+                    borderTopWidth: 3,
+                    borderTopColor: '#3b82f6',
+                  }}
+                >
+                  <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
+                    TOTAL
+                  </Text>
+                  <Text 
+                    style={{ fontSize: 16, fontWeight: '700', color: '#3b82f6' }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
+                    ${totalAmount.toFixed(2)}
+                  </Text>
+                </View>
 
-              {/* Paid Amount Card */}
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 100,
-                  backgroundColor: '#fff',
-                  borderRadius: 12,
-                  padding: 12,
-                  borderTopWidth: 3,
-                  borderTopColor: '#10b981',
-                }}
-              >
-                <Text style={{ fontSize: 11, color: '#666', marginBottom: 4, fontWeight: '600' }}>
-                  PAID
-                </Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#10b981' }}>
-                  ${paidAmount.toFixed(2)}
-                </Text>
-              </View>
+                {/* Paid Amount Card */}
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    padding: 12,
+                    borderTopWidth: 3,
+                    borderTopColor: '#10b981',
+                  }}
+                >
+                  <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
+                    PAID
+                  </Text>
+                  <Text 
+                    style={{ fontSize: 16, fontWeight: '700', color: '#10b981' }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
+                    ${paidAmount.toFixed(2)}
+                  </Text>
+                </View>
 
-              {/* Pending Amount Card */}
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 100,
-                  backgroundColor: '#fff',
-                  borderRadius: 12,
-                  padding: 12,
-                  borderTopWidth: 3,
-                  borderTopColor: '#ef4444',
-                }}
-              >
-                <Text style={{ fontSize: 11, color: '#666', marginBottom: 4, fontWeight: '600' }}>
-                  PENDING
-                </Text>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#ef4444' }}>
-                  ${pendingAmount.toFixed(2)}
-                </Text>
+                {/* Pending Amount Card */}
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    padding: 12,
+                    borderTopWidth: 3,
+                    borderTopColor: '#ef4444',
+                  }}
+                >
+                  <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
+                    PENDING
+                  </Text>
+                  <Text 
+                    style={{ fontSize: 16, fontWeight: '700', color: '#ef4444' }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
+                    ${pendingAmount.toFixed(2)}
+                  </Text>
+                </View>
               </View>
             </View>
           )}
@@ -393,7 +410,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                     keyExtractor={(item) => item.id || Math.random().toString()}
                     renderItem={({ item }) => (
                       <TouchableOpacity
-                        onPress={() => handleOpenPaymentModal(item)}
+                        onPress={() => handleOpenEditModal(item)}
                         activeOpacity={0.7}
                         style={{
                           backgroundColor: '#fff',
@@ -475,18 +492,23 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                         {/* Details */}
                         <View style={{ gap: 6 }}>
                           {item.appointment_id && (
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={{ fontSize: 11, color: '#666' }}>Appointment</Text>
-                              <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                                {item.appointment_id.slice(0, 8).toUpperCase()}
-                              </Text>
-                            </View>
+                            <TouchableOpacity 
+                              onPress={() => loadAppointmentDetails(item.appointment_id!)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ fontSize: 11, color: '#666' }}>Appointment</Text>
+                                <Text style={{ fontSize: 11, color: '#0b7fab', fontWeight: '600', textDecorationLine: 'underline' }}>
+                                  {item.appointment_id.slice(0, 8).toUpperCase()}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
                           )}
 
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                             <Text style={{ fontSize: 11, color: '#666' }}>Created</Text>
                             <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                              {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}
+                              {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
                             </Text>
                           </View>
 
@@ -494,7 +516,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                               <Text style={{ fontSize: 11, color: '#666' }}>Payment Date</Text>
                               <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                                {new Date(item.payment_date).toLocaleDateString()}
+                                {new Date(item.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                               </Text>
                             </View>
                           )}
@@ -511,6 +533,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
                         {/* Action Button */}
                         <TouchableOpacity
+                          onPress={() => handleOpenEditModal(item)}
                           style={{
                             marginTop: 12,
                             paddingVertical: 8,
@@ -613,12 +636,26 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
         </SafeAreaView>
       </Modal>
 
-      {/* Payment Status Update Modal */}
+      {/* Billing Edit Modal */}
+      <BillingEdit
+        visible={showEditModal}
+        billing={selectedBilling}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedBilling(null);
+        }}
+        onSave={handleBillingUpdated}
+      />
+
+      {/* Appointment Details Modal */}
       <Modal
-        visible={showPaymentModal}
+        visible={showAppointmentModal}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowPaymentModal(false)}
+        onRequestClose={() => {
+          setShowAppointmentModal(false);
+          setSelectedAppointment(null);
+        }}
       >
         <View
           style={{
@@ -627,172 +664,208 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
             justifyContent: 'flex-end',
           }}
         >
-          <View
-            style={{
-              backgroundColor: '#fff',
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingTop: 24,
-              paddingHorizontal: 16,
-              paddingBottom: 32,
-            }}
-          >
-            {/* Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>Update Payment Status</Text>
-              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                <Text style={{ fontSize: 24, color: '#999', fontWeight: '300' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Billing Info */}
-            {selectedBilling && (
-              <View style={{ backgroundColor: '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 20 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 12, color: '#666' }}>Bill ID</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#111' }}>
-                    {selectedBilling.id?.slice(0, 8).toUpperCase()}
-                  </Text>
+          <SafeAreaView style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 24, paddingBottom: 32 }}
+            >
+              {/* Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <View>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>Appointment Details</Text>
+                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>View appointment information</Text>
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 12, color: '#666' }}>Amount</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab' }}>
-                    ${(selectedBilling.final_amount || selectedBilling.amount).toFixed(2)}
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAppointmentModal(false);
+                    setSelectedAppointment(null);
+                  }}
+                >
+                  <Text style={{ fontSize: 24, color: '#999', fontWeight: '300' }}>✕</Text>
+                </TouchableOpacity>
               </View>
-            )}
 
-            {/* Payment Status Selection */}
-            <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 12 }}>
-                Payment Status
-              </Text>
-              <View style={{ gap: 8 }}>
-                {PAYMENT_STATUSES.map((status) => (
-                  <TouchableOpacity
-                    key={status}
-                    onPress={() => setSelectedPaymentStatus(status)}
+              {loadingAppointment ? (
+                <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                  <ActivityIndicator size="large" color="#0b7fab" />
+                </View>
+              ) : selectedAppointment ? (
+                <>
+                  {/* Appointment Info Card */}
+                  <View
                     style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 12,
-                      borderRadius: 8,
-                      borderWidth: 2,
-                      borderColor: selectedPaymentStatus === status ? '#0b7fab' : '#ddd',
-                      backgroundColor: selectedPaymentStatus === status ? '#f0f9ff' : '#fff',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      backgroundColor: '#f9f9f9',
+                      borderRadius: 12,
+                      padding: 14,
+                      marginBottom: 24,
+                      borderLeftWidth: 4,
+                      borderLeftColor: '#0b7fab',
                     }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: '600',
-                        color: selectedPaymentStatus === status ? '#0b7fab' : '#111',
-                        textTransform: 'capitalize',
-                      }}
-                    >
-                      {status}
-                    </Text>
-                    <View
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: 10,
-                        borderWidth: 2,
-                        borderColor: selectedPaymentStatus === status ? '#0b7fab' : '#ddd',
-                        backgroundColor: selectedPaymentStatus === status ? '#0b7fab' : 'transparent',
-                      }}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Appointment ID</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginTop: 4 }}>
+                          {selectedAppointment.id.slice(0, 8).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Status</Text>
+                        <View
+                          style={{
+                            backgroundColor:
+                              selectedAppointment.status === 'completed'
+                                ? '#10b981'
+                                : selectedAppointment.status === 'cancelled'
+                                ? '#ef4444'
+                                : selectedAppointment.status === 'no-show'
+                                ? '#f59e0b'
+                                : '#0b7fab',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            marginTop: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontWeight: '600',
+                              color: '#fff',
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {selectedAppointment.status}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
 
-            {/* Payment Method (only for paid status) */}
-            {selectedPaymentStatus === 'paid' && (
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginBottom: 12 }}>
-                  Payment Method
-                </Text>
-                <View style={{ gap: 8 }}>
-                  {PAYMENT_METHODS.map((method) => (
-                    <TouchableOpacity
-                      key={method}
-                      onPress={() => setSelectedPaymentMethod(method)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        borderWidth: 2,
-                        borderColor: selectedPaymentMethod === method ? '#0b7fab' : '#ddd',
-                        backgroundColor: selectedPaymentMethod === method ? '#f0f9ff' : '#fff',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <Text
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e5e5e5' }}>
+                      <View>
+                        <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Service</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginTop: 4 }}>
+                          {selectedAppointment.service || 'General'}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Patient ID</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginTop: 4 }}>
+                          {selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Date & Time */}
+                  <View style={{ marginBottom: 24 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 }}>
+                      Date & Time
+                    </Text>
+                    <View style={{ gap: 10 }}>
+                      <View
                         style={{
-                          fontSize: 14,
-                          fontWeight: '600',
-                          color: selectedPaymentMethod === method ? '#0b7fab' : '#111',
-                          textTransform: 'capitalize',
+                          backgroundColor: '#fff',
+                          borderRadius: 10,
+                          padding: 12,
+                          borderWidth: 1,
+                          borderColor: '#e5e5e5',
                         }}
                       >
-                        {method.replace('-', ' ')}
+                        <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Date</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginTop: 6 }}>
+                          {new Date(selectedAppointment.appointment_date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          backgroundColor: '#fff',
+                          borderRadius: 10,
+                          padding: 12,
+                          borderWidth: 1,
+                          borderColor: '#e5e5e5',
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Time</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginTop: 6 }}>
+                          {selectedAppointment.appointment_time}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Notes */}
+                  {selectedAppointment.notes && (
+                    <View style={{ marginBottom: 24 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 }}>
+                        Notes
                       </Text>
                       <View
                         style={{
-                          width: 20,
-                          height: 20,
+                          backgroundColor: '#f9f9f9',
                           borderRadius: 10,
-                          borderWidth: 2,
-                          borderColor: selectedPaymentMethod === method ? '#0b7fab' : '#ddd',
-                          backgroundColor: selectedPaymentMethod === method ? '#0b7fab' : 'transparent',
+                          padding: 12,
+                          borderLeftWidth: 3,
+                          borderLeftColor: '#0b7fab',
                         }}
-                      />
-                    </TouchableOpacity>
-                  ))}
+                      >
+                        <Text style={{ fontSize: 12, color: '#333', lineHeight: 18 }}>
+                          {selectedAppointment.notes}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Created Date */}
+                  <View
+                    style={{
+                      backgroundColor: '#f0f9ff',
+                      borderRadius: 10,
+                      padding: 12,
+                      borderLeftWidth: 3,
+                      borderLeftColor: '#3b82f6',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, color: '#0369a1', fontWeight: '600' }}>
+                      Created: {selectedAppointment.created_at
+                        ? new Date(selectedAppointment.created_at).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'N/A'}
+                    </Text>
+                  </View>
+
+                  {/* Close Button */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowAppointmentModal(false);
+                      setSelectedAppointment(null);
+                    }}
+                    style={{
+                      marginTop: 24,
+                      paddingVertical: 14,
+                      borderRadius: 10,
+                      backgroundColor: '#0b7fab',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                  <Text style={{ fontSize: 14, color: '#666' }}>No appointment data available</Text>
                 </View>
-              </View>
-            )}
-
-            {/* Action Buttons */}
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity
-                onPress={() => setShowPaymentModal(false)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                  backgroundColor: '#e5e5e5',
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#111' }}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleUpdatePaymentStatus}
-                disabled={updatingPaymentStatus}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 8,
-                  backgroundColor: '#0b7fab',
-                  alignItems: 'center',
-                }}
-              >
-                {updatingPaymentStatus ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Update Status</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+              )}
+            </ScrollView>
+          </SafeAreaView>
         </View>
       </Modal>
     </SafeAreaView>

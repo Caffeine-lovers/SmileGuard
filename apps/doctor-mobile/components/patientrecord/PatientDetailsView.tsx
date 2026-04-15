@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -91,6 +91,7 @@ const categorizeAppointments = (appointments: any[]) => {
 export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit,onMedicalIntakeUpdated, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [billingInfo, setBillingInfo] = useState<PatientBillingInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [scrollY, setScrollY] = useState(0);
@@ -104,6 +105,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       // Immediately clear old data and show loading
       setMedicalIntake(null);
       setAppointments([]);
+      setBillingInfo(null);
       setLoading(true);
       
       // Load new patient data
@@ -113,10 +115,11 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   const loadPatientData = async (patientId: string) => {
     try {
-      // Load both in parallel
-      const [intake, appts] = await Promise.all([
+      // Load all three in parallel
+      const [intake, appts, billing] = await Promise.all([
         getPatientMedicalInfo(patientId),
         getPatientAppointments(patientId),
+        getPatientBillingInfo(patientId),
       ]);
 
       // Update medical intake
@@ -140,6 +143,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       console.log('📋 Filtered cancelled:', updatedAppts.filter(a => a.status === 'cancelled'));
       
       setAppointments(updatedAppts);
+
+      // Update billing info
+      setBillingInfo(billing);
+      console.log('✅ Loaded billing info:', billing);
     } catch (error) {
       console.error('❌ Error loading patient data:', error);
     } finally {
@@ -301,6 +308,28 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
               <Text style={styles.notesText}>
                 {medicalIntake?.notes || patient.notes || "No notes available"}
               </Text>
+            </View>
+          </View>
+
+          {/* Billing Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Billing Information</Text>
+            <View style={styles.infoContainer}>
+              {billingInfo ? (
+                <>
+                  <DetailRow label="Total Charges" value={`₱${billingInfo.totalAmount.toFixed(2)}`} />
+                  <DetailRow label="Amount Paid" value={`₱${billingInfo.paidAmount.toFixed(2)}`} />
+                  {billingInfo.pendingAmount > 0 && (
+                    <DetailRow label="Pending Payment" value={`₱${billingInfo.pendingAmount.toFixed(2)}`} />
+                  )}
+                  {billingInfo.overdueAmount > 0 && (
+                    <DetailRow label="Overdue Amount" value={`₱${billingInfo.overdueAmount.toFixed(2)}`} />
+                  )}
+                  <DetailRow label="Number of Bills" value={billingInfo.billingCount.toString()} />
+                </>
+              ) : (
+                <Text style={styles.noDataText}>No billing records available</Text>
+              )}
             </View>
           </View>
 

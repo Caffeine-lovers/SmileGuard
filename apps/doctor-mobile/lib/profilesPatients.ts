@@ -591,3 +591,68 @@ export async function getPatientCount(): Promise<number> {
 
   return count || 0;
 }
+
+// ─────────────────────────────────────────
+// 9. FETCH PATIENT BILLING INFORMATION
+// ─────────────────────────────────────────
+export interface PatientBillingInfo {
+  totalAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  overdueAmount: number;
+  billingCount: number;
+}
+
+export async function getPatientBillingInfo(patientId: string): Promise<PatientBillingInfo | null> {
+  try {
+    const { data, error } = await supabase
+      .from('billings')
+      .select('amount, final_amount, payment_status')
+      .eq('patient_id', patientId);
+
+    if (error) {
+      console.error('Error fetching patient billing info:', error);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      // Return zero values if no billing records found
+      return {
+        totalAmount: 0,
+        paidAmount: 0,
+        pendingAmount: 0,
+        overdueAmount: 0,
+        billingCount: 0,
+      };
+    }
+
+    let totalAmount = 0;
+    let paidAmount = 0;
+    let pendingAmount = 0;
+    let overdueAmount = 0;
+
+    data.forEach((billing: any) => {
+      const amount = billing.final_amount || billing.amount || 0;
+      totalAmount += amount;
+
+      if (billing.payment_status === 'paid') {
+        paidAmount += amount;
+      } else if (billing.payment_status === 'pending') {
+        pendingAmount += amount;
+      } else if (billing.payment_status === 'overdue') {
+        overdueAmount += amount;
+      }
+    });
+
+    return {
+      totalAmount,
+      paidAmount,
+      pendingAmount,
+      overdueAmount,
+      billingCount: data.length,
+    };
+  } catch (error) {
+    console.error('Exception fetching patient billing info:', error);
+    return null;
+  }
+}
