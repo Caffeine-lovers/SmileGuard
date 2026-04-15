@@ -46,8 +46,15 @@ interface Schedule {
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 const SERVICES = [
-  "Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
-    "X-Ray", "Checkup"
+  { name: "Cleaning", price: 1500 },
+  { name: "Whitening", price: 5000 },
+  { name: "Fillings", price: 2000 },
+  { name: "Root Canal", price: 8000 },
+  { name: "Extraction", price: 1500 },
+  { name: "Braces Consultation", price: 35000 },
+  { name: "Implants Consultation", price: 45000 },
+  { name: "X-Ray", price: 500 },
+  { name: "Checkup", price: 300 }
 ];
 
 const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
@@ -710,6 +717,11 @@ export default function AppointmentAdd({
     return hours;
   };
 
+  const getServicePrice = (serviceName: string): number => {
+    const service = SERVICES.find(s => s.name === serviceName);
+    return service?.price || 0;
+  };
+
   const validateForm = (): boolean => {
     const dateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
     const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
@@ -785,6 +797,34 @@ export default function AppointmentAdd({
       }
 
       console.log('✅ Appointment created successfully:', data);
+      
+      // Create billing record if appointment was created
+      if (data && data.length > 0) {
+        const appointment = data[0];
+        const servicePrice = getServicePrice(selectedService);
+        
+        // For billings table, use appointment_id to link to the appointment (which contains service info)
+        const billingData: any = {
+          patient_id: selectedPatient,
+          appointment_id: appointment.id,
+          amount: servicePrice,
+          final_amount: servicePrice,
+          payment_status: 'pending',
+        };
+        
+        console.log('💳 Creating billing record:', billingData);
+        
+        const { error: billingError } = await supabase
+          .from('billings')
+          .insert([billingData]);
+        
+        if (billingError) {
+          console.error('Warning: Failed to create billing record:', billingError);
+          // Don't alert user for billing error as appointment was created
+        } else {
+          console.log('✅ Billing record created successfully');
+        }
+      }
       
       // Trigger notification callback if provided
       if (onAppointmentCreated && data && data.length > 0) {
@@ -1035,9 +1075,16 @@ export default function AppointmentAdd({
                   onPress={() => appointmentTime && setShowServicePicker(!showServicePicker)}
                   disabled={!appointmentTime}
                 >
-                  <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }]}>
-                    {selectedService || 'Select Service'}
-                  </Text>
+                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }]}>
+                      {selectedService || 'Select Service'}
+                    </Text>
+                    {selectedService && (
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginLeft: 8 }}>
+                        ₱{getServicePrice(selectedService).toLocaleString()}
+                      </Text>
+                    )}
+                  </View>
                   <Text style={{ color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }}>▼</Text>
                 </TouchableOpacity>
               </View>
@@ -1058,24 +1105,34 @@ export default function AppointmentAdd({
                       <ScrollView style={{ flex: 1 }} scrollEnabled={true}>
                         {SERVICES.map((service) => (
                           <TouchableOpacity
-                            key={service}
+                            key={service.name}
                             style={[
                               styles.pickerItem,
-                              selectedService === service && styles.pickerItemSelected,
+                              selectedService === service.name && styles.pickerItemSelected,
                             ]}
                             onPress={() => {
-                              setSelectedService(service);
+                              setSelectedService(service.name);
                               setShowServicePicker(false);
                             }}
                           >
-                            <Text
-                              style={[
-                                styles.pickerItemText,
-                                selectedService === service && styles.pickerItemTextSelected,
-                              ]}
-                            >
-                              {service}
-                            </Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text
+                                style={[
+                                  styles.pickerItemText,
+                                  selectedService === service.name && styles.pickerItemTextSelected,
+                                ]}
+                              >
+                                {service.name}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.pickerItemSubText,
+                                  selectedService === service.name && styles.pickerItemTextSelected,
+                                ]}
+                              >
+                                ₱{service.price.toLocaleString()}
+                              </Text>
+                            </View>
                           </TouchableOpacity>
                         ))}
                       </ScrollView>

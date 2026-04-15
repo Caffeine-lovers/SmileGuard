@@ -532,7 +532,6 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                 justifyContent: 'center',
               }}
             >
-              <Text style={{ fontSize: 48, marginBottom: 8 }}>👤</Text>
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#111', marginBottom: 4 }}>
                 Select a Patient
               </Text>

@@ -1444,7 +1444,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
                 onPress={() => setActiveTab('billing')}
               >
-                <Text style={{...styles.navIcon, fontSize: 20}}>💳</Text>
+                <Image
+                  source={require('../../assets/images/icon/bill.png')}
+                  style={styles.navIcon}
+                />
                 {sidebarOpen && <Text style={styles.navLabel}>Billing</Text>}
               </TouchableOpacity>
 
