@@ -21,6 +21,9 @@ export default function OAuthRedirect() {
   useEffect(() => {
     const handleOAuthCallback = async () => {
       try {
+        console.log("[OAuthRedirect] Handler called");
+        console.log("[OAuthRedirect] Search params:", searchParams);
+        
         // Give Supabase a moment to process the OAuth response
         // The session hook in _layout will automatically detect the new session
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -30,15 +33,23 @@ export default function OAuthRedirect() {
           data: { session },
         } = await supabase.auth.getSession();
 
+        console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
+        console.log("[OAuthRedirect] Session user email:", session?.user?.email);
+        console.log("[OAuthRedirect] Session user ID:", session?.user?.id);
+
         if (session?.user) {
           console.log("✅ OAuth successful, user:", session.user.email);
+          console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
           
           // Check if user has completed doctor profile
+          console.log("[OAuthRedirect] Checking for doctor profile...");
           const { data: doctorProfile, error: profileError } = await supabase
             .from("doctors")
             .select("id")
             .eq("user_id", session.user.id)
             .single();
+
+          console.log("[OAuthRedirect] Profile query result - data:", doctorProfile, "error:", profileError?.code);
 
           if (profileError?.code === "PGRST116") {
             // No doctor profile found - this is a NEW registration
@@ -55,6 +66,7 @@ export default function OAuthRedirect() {
             router.replace("/(doctor)/dashboard");
           } else {
             // Shouldn't happen, but fallback to dashboard
+            console.log("[OAuthRedirect] No profile error but also no profile data, fallback to dashboard");
             router.replace("/(doctor)/dashboard");
           }
         } else if (searchParams.error) {

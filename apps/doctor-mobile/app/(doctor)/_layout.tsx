@@ -11,8 +11,11 @@ export default function DoctorLayout() {
   useEffect(() => {
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      const role = session?.user?.user_metadata?.role;
-      if (!session || role !== "doctor") {
+      console.log("[DoctorLayout] Initial session check:", session ? "Found" : "Null");
+      // In doctor mobile app, we assume authenticated users are doctors
+      // Google OAuth doesn't set role automatically
+      if (!session) {
+        console.log("[DoctorLayout] No session, routing to /");
         router.replace("/");
         return;
       }
@@ -22,8 +25,9 @@ export default function DoctorLayout() {
     // Listen for auth state changes (including logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
-        const role = session?.user?.user_metadata?.role;
-        if (!session || role !== "doctor") {
+        console.log("[DoctorLayout] Auth changed:", event);
+        if (!session) {
+          console.log("[DoctorLayout] No session on auth change, routing to /");
           router.replace("/");
         }
       }

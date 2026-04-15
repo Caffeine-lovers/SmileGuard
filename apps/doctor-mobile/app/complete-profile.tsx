@@ -33,13 +33,17 @@ export default function CompleteProfile() {
 
   // Redirect to dashboard if no user
   React.useEffect(() => {
+    console.log("[CompleteProfile] Mounted - user:", user?.email);
     if (!user) {
+      console.log("[CompleteProfile] No user, routing to /");
       router.replace("/");
     }
   }, [user, router]);
 
   const handleSubmit = async () => {
     try {
+      console.log("[CompleteProfile] Form submission started");
+      
       // Validate form
       if (!formData.name.trim()) {
         Alert.alert("Error", "Please enter your name");
@@ -57,6 +61,7 @@ export default function CompleteProfile() {
       setLoading(true);
 
       // Update Supabase user metadata
+      console.log("[CompleteProfile] Updating user metadata...");
       const { error: updateError } = await supabase.auth.updateUser({
         data: {
           name: formData.name,
@@ -67,8 +72,10 @@ export default function CompleteProfile() {
       });
 
       if (updateError) throw updateError;
+      console.log("[CompleteProfile] User metadata updated");
 
       // Create or update doctor profile
+      console.log("[CompleteProfile] Inserting doctor profile...");
       const { error: insertError } = await supabase.from("doctors").insert([
         {
           user_id: user?.id,
@@ -83,11 +90,13 @@ export default function CompleteProfile() {
         // 23505 is duplicate key error - if doctor exists, that's ok
         throw insertError;
       }
+      console.log("[CompleteProfile] Doctor profile inserted");
 
       console.log("✅ Profile completed successfully");
       Alert.alert("Success", "Profile updated successfully!");
 
       // Navigate to dashboard
+      console.log("[CompleteProfile] Routing to dashboard");
       router.replace("/(doctor)/dashboard");
     } catch (error) {
       console.error("❌ Error completing profile:", error);
