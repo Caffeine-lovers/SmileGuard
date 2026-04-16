@@ -158,7 +158,10 @@ export default function DoctorProfileView({
               style={styles.closeBtn}
               onPress={onClose}
             >
-              <Text style={styles.closeBtnText}>✕</Text>
+              <Image
+                source={require("../../assets/images/icon/close.png")}
+                style={{ width: 20, height: 20 }}
+              />
             </TouchableOpacity>
           )}
           <TouchableOpacity

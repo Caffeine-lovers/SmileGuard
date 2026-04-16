@@ -23,6 +23,7 @@ import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
 import { createDoctorProfile } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
 import { supabase } from "@smileguard/supabase-client";
+import { HeroIcon } from "../ui/HeroIcon";
 
 export interface DoctorProfileSetupProps {
   onSuccess: (user: { name: string; email: string; role: "doctor" }) => void;
@@ -104,11 +105,11 @@ export default function DoctorProfileSetup({
   const handleImagePick = async () => {
     try {
       setUploadingImage(true);
-      console.log("️  Picking image...");
+      console.log("[ImagePick] Picking image...");
 
       const image = await pickImage();
       if (!image) {
-        console.log(" No image selected");
+        console.log("[ImagePick] No image selected");
         return;
       }
 
@@ -117,12 +118,12 @@ export default function DoctorProfileSetup({
       setSelectedImageUri(image.uri); // For preview
 
       // Note: We'll upload after user confirms registration
-      console.log(" Image selected, will upload during registration");
+      console.log("[ImagePick] Image selected, will upload during registration");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to pick image";
       Alert.alert("Image Selection Error", message);
-      console.error(" Image pick error:", error);
+      console.error("[ImagePick] Error:", error);
     } finally {
       setUploadingImage(false);
     }
@@ -243,26 +244,39 @@ export default function DoctorProfileSetup({
             >
               {isValidLicenseNumber(doctorData.license_number) ? (
                 <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "500" }}>
-                  ✓ Valid license number
+                  <Image
+                    source={require("../../assets/images/icon/check.png")}
+                    style={{ width: 16, height: 16, tintColor: "#22c55e" }}
+                  />
+                  <Text> Valid license number</Text>
                 </Text>
               ) : (
                 <View>
                   {doctorData.license_number.length < 5 ||
                   doctorData.license_number.length > 7 ? (
-                    <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                      ✗ Must be 5-7 characters (current: {doctorData.license_number.length})
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                        Must be 5-7 characters (current: {doctorData.license_number.length})
+                      </Text>
+                    </View>
                   ) : null}
                   {!/^[a-zA-Z0-9]+$/.test(doctorData.license_number) ? (
-                    <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                      ✗ Only letters and numbers allowed
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                        Only letters and numbers allowed
+                      </Text>
+                    </View>
                   ) : null}
                   {!/[a-zA-Z]/.test(doctorData.license_number) ||
                   !/[0-9]/.test(doctorData.license_number) ? (
-                    <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                      ✗ Must contain both letters and numbers
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                        Must contain both letters and numbers
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
               )}
@@ -439,7 +453,11 @@ export default function DoctorProfileSetup({
               disabled={loading}
             >
               <Text style={{ color: "#dc2626", fontSize: 14, fontWeight: "600" }}>
-                ✕ Remove Photo
+                <Image
+                  source={require("../../assets/images/icon/close.png")}
+                  style={{ width: 18, height: 18, tintColor: "#dc2626" }}
+                />
+                <Text> Remove Photo</Text>
               </Text>
             </TouchableOpacity>
           )}

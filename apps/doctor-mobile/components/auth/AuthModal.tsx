@@ -293,7 +293,7 @@ export default function AuthModal({
   const handleGoogleOAuth = async () => {
     try {
       setLoading(true);
-      console.log("🔓 Starting Google OAuth...");
+      console.log("[GoogleOAuth] Starting Google OAuth...");
 
       // Step 1: Create a redirect URI that points to a REAL route in your app
       // By using 'oauth-redirect', Expo Router knows exactly where to send the user
@@ -328,7 +328,7 @@ export default function AuthModal({
 
       // Step 4: Parse the redirect URL if successful
       if (result.type === "success") {
-        console.log("✅ OAuth successful, extracting session from URL...");
+        console.log("[GoogleOAuth] OAuth successful, extracting session from URL...");
         
         // Parse the implicit tokens from the URL that Supabase returned
         // It comes back like: exp://...#access_token=xyz&refresh_token=abc&token_type=bearer
@@ -351,14 +351,14 @@ export default function AuthModal({
         }
 
         if (params.access_token && params.refresh_token) {
-          console.log("🔑 Found tokens! Initializing session...");
+          console.log("[GoogleOAuth] Found tokens! Initializing session...");
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: params.access_token,
             refresh_token: params.refresh_token
           });
           
           if (sessionError) throw sessionError;
-          console.log("✅ Session officially set! Waiting for auth state listener...");
+          console.log("[GoogleOAuth] Session officially set! Waiting for auth state listener...");
         } else {
           console.log("No valid session tokens found in return URL. Found:", Object.keys(params));
           throw new Error("No tokens returned from Google login.");
@@ -527,7 +527,12 @@ export default function AuthModal({
                                 rememberMe && styles.customCheckboxChecked,
                               ]}
                             >
-                              {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                              {rememberMe && (
+                                <Image
+                                  source={require("../../assets/images/icon/check.png")}
+                                  style={{ width: 16, height: 16, tintColor: "#0b7fab" }}
+                                />
+                              )}
                             </View>
                             <Text style={styles.rememberText}>Remember me</Text>
                           </TouchableOpacity>
