@@ -50,6 +50,40 @@ export default function AuthCallbackPage() {
         
         if (session) {
           addDebug(`✓ Session found for user: ${session.user.email}`);
+          
+          // Ensure profile exists for OAuth users
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('id, role')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (profileError || !profile) {
+              addDebug('Creating patient profile for OAuth user...');
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: session.user.id,
+                  email: session.user.email,
+                  name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Patient',
+                  role: 'patient',
+                  created_at: new Date().toISOString(),
+                });
+              
+              if (insertError) {
+                addDebug(`Profile creation failed: ${insertError.message}`);
+              } else {
+                addDebug('✓ Patient profile created successfully');
+              }
+            } else {
+              addDebug(`✓ Profile already exists with role: ${profile.role}`);
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            addDebug(`Profile check failed: ${msg}`);
+          }
+          
           setMessage('✓ Authentication successful! Redirecting to dashboard...');
           await new Promise(resolve => setTimeout(resolve, 500));
           router.push('/dashboard');
@@ -71,13 +105,47 @@ export default function AuthCallbackPage() {
         }, 5000);
         
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          (event, session) => {
+          async (event, session) => {
             addDebug(`Auth state change event: ${event}`);
             
             if (completed) return;
             
             if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
               addDebug(`✓ User authenticated: ${session.user.email}`);
+              
+              // Ensure profile exists for OAuth users
+              try {
+                const { data: profile, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('id, role')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profileError || !profile) {
+                  addDebug('Creating patient profile for OAuth user...');
+                  const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({
+                      id: session.user.id,
+                      email: session.user.email,
+                      name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Patient',
+                      role: 'patient',
+                      created_at: new Date().toISOString(),
+                    });
+                  
+                  if (insertError) {
+                    addDebug(`Profile creation failed: ${insertError.message}`);
+                  } else {
+                    addDebug('✓ Patient profile created successfully');
+                  }
+                } else {
+                  addDebug(`✓ Profile already exists with role: ${profile.role}`);
+                }
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : 'Unknown error';
+                addDebug(`Profile check failed: ${msg}`);
+              }
+              
               clearTimeout(timeout);
               completed = true;
               subscription?.unsubscribe();

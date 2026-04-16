@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading, error, signInWithOAuth } = useAuth();
+  const { login, loading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +25,27 @@ export default function LoginPage() {
       setLocalError(
         err instanceof Error ? err.message : 'Login failed. Please try again.'
       );
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setOauthLoading(true);
+    setLocalError(null);
+    try {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
+        },
+      });
+      if (oauthError) {
+        setLocalError(`Google sign-in failed: ${oauthError.message}`);
+        setOauthLoading(false);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'An error occurred';
+      setLocalError(`Error: ${msg}`);
+      setOauthLoading(false);
     }
   };
 
@@ -41,14 +64,8 @@ export default function LoginPage() {
       {/* OAuth Sign-in Option */}
       <button
         type="button"
-        onClick={async () => {
-          try {
-            await signInWithOAuth("google", `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`);
-          } catch (err) {
-            console.error("Google sign-in failed:", err);
-          }
-        }}
-        disabled={loading}
+        onClick={handleGoogleSignIn}
+        disabled={loading || oauthLoading}
         className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 disabled:bg-gray-100 border border-border-card text-text-primary font-medium py-2 px-4 rounded-lg transition mb-4"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
@@ -56,7 +73,7 @@ export default function LoginPage() {
             <path d="M11 11.5v4.5h6.5m-6.5-9v-4.5h6.5M5.5 11H0M11 0v4.5" stroke="currentColor" strokeWidth="2" />
           </g>
         </svg>
-        <span>Sign in with Google</span>
+        <span>{oauthLoading ? 'Signing in...' : 'Sign in with Google'}</span>
       </button>
 
       {/* Divider */}
