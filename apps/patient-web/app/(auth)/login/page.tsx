@@ -7,7 +7,7 @@ import { useAuth } from '@smileguard/shared-hooks';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading, error } = useAuth();
+  const { login, loading, error, signInWithOAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -33,10 +33,38 @@ export default function LoginPage() {
       </h2>
 
       {(error || localError) && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6">
+        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
           {error || localError}
         </div>
       )}
+
+      {/* OAuth Sign-in Option */}
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await signInWithOAuth("google", `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`);
+          } catch (err) {
+            console.error("Google sign-in failed:", err);
+          }
+        }}
+        disabled={loading}
+        className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 disabled:bg-gray-100 border border-border-card text-text-primary font-medium py-2 px-4 rounded-lg transition mb-4"
+      >
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+          <g transform="translate(1 1)">
+            <path d="M11 11.5v4.5h6.5m-6.5-9v-4.5h6.5M5.5 11H0M11 0v4.5" stroke="currentColor" strokeWidth="2" />
+          </g>
+        </svg>
+        <span>Sign in with Google</span>
+      </button>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 h-px bg-border-card"></div>
+        <span className="text-text-secondary text-sm">or continue with email</span>
+        <div className="flex-1 h-px bg-border-card"></div>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

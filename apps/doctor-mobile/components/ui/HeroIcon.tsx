@@ -87,3 +87,4 @@ export const HeroIcon: React.FC<HeroIconProps> = ({
     />
   );
 };
+

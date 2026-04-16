@@ -165,41 +165,59 @@ export default function DoctorProfileSetup({
         throw new Error("User not authenticated. Please log in again.");
       }
 
+      console.log("[DoctorProfileSetup] Authenticated user ID:", data.user.id);
+      console.log("[DoctorProfileSetup] Current doctorData before save:", {
+        doctor_name: doctorData.doctor_name,
+        specialization: doctorData.specialization,
+        license_number: doctorData.license_number,
+        bio: doctorData.bio,
+      });
+
       // Upload image if provided
       let profileImageUrl = doctorData.profile_picture_url || "";
       if (selectedImage) {
         try {
           console.log("[DoctorProfileSetup] Uploading profile image...");
           profileImageUrl = await uploadProfileImage(selectedImage, data.user.id);
-          console.log("[DoctorProfileSetup] Image uploaded successfully");
+          console.log("[DoctorProfileSetup] Image uploaded successfully, URL:", profileImageUrl);
         } catch (imageError) {
           console.warn("[DoctorProfileSetup] Image upload failed, continuing without image:", imageError);
         }
       }
 
       // Update doctor data with user_id and image URL
-      doctorData.user_id = data.user.id;
-      doctorData.profile_picture_url = profileImageUrl;
+      const finalDoctorData = {
+        ...doctorData,
+        user_id: data.user.id,
+        profile_picture_url: profileImageUrl,
+      };
+
+      console.log("[DoctorProfileSetup] Final doctor data to save:", {
+        user_id: finalDoctorData.user_id,
+        doctor_name: finalDoctorData.doctor_name,
+        specialization: finalDoctorData.specialization,
+        license_number: finalDoctorData.license_number,
+      });
 
       // Save doctor profile to database
       console.log("[DoctorProfileSetup] Creating doctor profile in database...");
-      const result = await createDoctorProfile(doctorData);
+      const result = await createDoctorProfile(finalDoctorData);
 
       if (!result) {
-        throw new Error("Failed to save doctor profile");
+        throw new Error("Failed to save doctor profile - no data returned");
       }
 
       console.log("[DoctorProfileSetup] Doctor profile saved successfully!");
       
       // Notify success
       onSuccess({
-        name: doctorData.doctor_name || "Doctor",
+        name: finalDoctorData.doctor_name || "Doctor",
         email: data.user.email || "",
         role: "doctor",
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";
-      console.error("[DoctorProfileSetup] Error:", message);
+      console.error("[DoctorProfileSetup] Full error:", err);
       Alert.alert("Error", message);
     } finally {
       setLoading(false);
@@ -220,7 +238,25 @@ export default function DoctorProfileSetup({
           scrollEnabled={true}
         >
         <View style={styles.stepContent}>
-          <Text style={styles.h2}>Doctor Professional Details</Text>
+          {/* Back Button Header */}
+          {onCancel && (
+            <View style={styles.headerWithBack}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={onCancel}
+                disabled={loading}
+              >
+                <Image
+                  source={require("../../assets/images/icon/back.png")}
+                  style={{ width: 24, height: 24, tintColor: "#0b7fab" }}
+                />
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.h2}>Doctor Professional Details</Text>
+            </View>
+          )}
+          {!onCancel && <Text style={styles.h2}>Doctor Professional Details</Text>}
+          
           <Text style={styles.p}>Complete your profile to access the dashboard</Text>
 
           {/* Section: License & Credentials */}
@@ -532,6 +568,26 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#f8fbff",
     marginBottom: 14,
+  },
+  headerWithBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 12,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#f3f4f6",
+    gap: 6,
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0b7fab",
   },
   h2: {
     fontSize: 14,

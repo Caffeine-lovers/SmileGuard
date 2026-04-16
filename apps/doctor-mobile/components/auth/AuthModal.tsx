@@ -399,6 +399,129 @@ export default function AuthModal({
     });
   };
 
+  /**
+   * OAuth Sign-In Flow (Login)
+   * 
+   * 1. Initiates Google OAuth
+   * 2. After successful auth, verifies the doctor profile exists
+   * 3. If profile exists, navigates directly to dashboard
+   * 4. If profile doesn't exist (error case), shows message
+   */
+  const performOAuthSignIn = async () => {
+    try {
+      setLoading(true);
+      console.log("[GoogleOAuthSignIn] Starting OAuth signin...");
+
+      // Step 1: Initiate OAuth (same as signup)
+      const redirectUri = Linking.createURL('oauth-redirect');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectUri,
+          skipBrowserRedirect: true,
+          queryParams: {
+            prompt: "consent",
+          },
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.url) throw new Error("No OAuth URL generated");
+
+      // Step 2: Open browser and wait for callback
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+
+      if (result.type === "success") {
+        console.log("[GoogleOAuthSignIn] OAuth successful, extracting token...");
+        
+        // Parse tokens from URL
+        const extractParams = (urlString: string) => {
+          const queryString = urlString.includes('#') ? urlString.split('#')[1] : urlString.includes('?') ? urlString.split('?')[1] : '';
+          if (!queryString) return {} as Record<string, string>;
+          return queryString.split('&').reduce((acc, current) => {
+            const [key, value] = current.split('=');
+            if (key && value) acc[key] = decodeURIComponent(value);
+            return acc;
+          }, {} as Record<string, string>);
+        };
+
+        const params = extractParams(result.url);
+
+        if (params.error_description) {
+          throw new Error(params.error_description);
+        }
+
+        if (params.access_token && params.refresh_token) {
+          // Step 3: Set session
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: params.access_token,
+            refresh_token: params.refresh_token
+          });
+          
+          if (sessionError) throw sessionError;
+
+          // Step 4: Fetch current user and doctor profile
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          if (userError || !user) throw new Error("Failed to fetch user after OAuth");
+
+          console.log("[GoogleOAuthSignIn] Verifying doctor profile for user:", user.id);
+
+          const { data: doctorProfile, error: profileError } = await supabase
+            .from("doctors")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
+
+          if (profileError && profileError.code !== "PGRST116") {
+            // PGRST116 = no rows returned (expected for first-time OAuth users transitioning to signin)
+            throw profileError;
+          }
+
+          if (!doctorProfile) {
+            // No profile found - user can't signin without completing profile
+            throw new Error(
+              "Your doctor profile was not found. Please complete your profile setup first."
+            );
+          }
+
+          // Step 5: Profile exists - navigate to dashboard
+          console.log("[GoogleOAuthSignIn] Profile verified, redirecting to dashboard");
+          onSuccess({
+            name: doctorProfile.doctor_name || user.email || "",
+            email: user.email || "",
+            role: "doctor",
+          });
+        } else {
+          throw new Error("No tokens returned from Google");
+        }
+      } else {
+        console.log("[GoogleOAuthSignIn] OAuth cancelled");
+        setLoading(false);
+      }
+    } catch (err) {
+      let errorMessage = "Google sign-in failed.";
+
+      if (err instanceof Error) {
+        const message = err.message.toLowerCase();
+        if (message.includes("profile was not found")) {
+          errorMessage = err.message;
+        } else if (message.includes("network")) {
+          errorMessage = "Network error. Check your connection.";
+        } else if (message.includes("cancelled")) {
+          errorMessage = "Sign-in was cancelled.";
+        } else if (message.includes("configuration")) {
+          errorMessage = "Google provider not configured in Supabase.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      console.error("[GoogleOAuthSignIn] Error:", errorMessage);
+      Alert.alert("Sign-in Error", errorMessage);
+      setLoading(false);
+    }
+  };
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
@@ -564,6 +687,25 @@ export default function AuthModal({
                           ) : (
                             <Text style={styles.btnText}>Login</Text>
                           )}
+                        </TouchableOpacity>
+
+                        {/* OR Divider */}
+                        <View style={styles.dividerContainer}>
+                          <View style={styles.divider} />
+                          <Text style={styles.dividerText}>OR</Text>
+                          <View style={styles.divider} />
+                        </View>
+
+                        {/* Google OAuth Button */}
+                        <TouchableOpacity
+                          style={[styles.btn, styles.googleBtn]}
+                          onPress={performOAuthSignIn}
+                          disabled={loading}
+                        >
+                          <Text style={styles.googleIcon}>G</Text>
+                          <Text style={styles.googleBtnText}>
+                            {loading ? "Signing in..." : "Sign in with Google"}
+                          </Text>
                         </TouchableOpacity>
 
                         {/* Switch to Register */}

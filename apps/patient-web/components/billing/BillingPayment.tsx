@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
@@ -200,13 +201,13 @@ export default function BillingPayment({
       {/* Financial Summary Stats */}
       {!loadingData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <a href="/">
+          <Link href="/">
             <div className="bg-brand-danger/10 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(240,84,84,0.4)] cursor-pointer">
               <p className="text-sm text-text-secondary">Outstanding Balance</p>
               <p className="text-3xl font-bold text-brand-danger">₱{outstandingBalance?.toFixed(2)}</p>
               <p className="text-xs text-text-secondary mt-2">Current Due</p>
             </div>
-          </a>
+          </Link>
           <div className="bg-brand-primary/10 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(61,170,184,0.4)]">
             <p className="text-sm text-text-secondary">Total Transactions</p>
             <p className="text-3xl font-bold text-brand-primary">{billingHistory.length}</p>
