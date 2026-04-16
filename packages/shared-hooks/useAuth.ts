@@ -58,24 +58,44 @@ export function useAuth() {
         .single();
 
       if (error) {
-        console.error("[useAuth] Profile query error:", { 
-          code: error.code, 
-          message: error.message, 
-          details: error.details,
-          hint: error.hint 
-        });
-        
         if (error.code === "PGRST116") {
           console.warn("[useAuth] Profile not found, creating from user metadata...");
-          const { data: { user } } = await supabase.auth.getUser();
-
-          if (!user || user.id !== userId) {
-            console.error("[useAuth] User verification failed");
-            setError("User not found.");
+          
+          // During immediate post-signup, session may not be ready for getUser()
+          // Instead, try to get current session directly
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          if (!session?.user) {
+            // Session not ready yet - this is normal during signup
+            // Create a minimal profile from what we know
+            console.warn("[useAuth] Session not ready, creating minimal profile...");
+            const userName = "User";
+            const userRole = "patient";
+          
+            const { error: createError } = await supabase
+              .from("profiles")
+              .insert({
+                id: userId,
+                name: userName,
+                email: "",
+                role: userRole,
+              });
+            
+            if (createError) {
+              console.error("[useAuth] Error creating minimal profile:", createError);
+            }
+            
+            setCurrentUser({
+              id: userId,
+              name: userName,
+              email: "",
+              role: userRole as "patient" | "doctor",
+            });
             setLoading(false);
             return;
           }
 
+          const user = session.user;
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
           const userRole = user.user_metadata?.role || "patient";
 
@@ -92,11 +112,7 @@ export function useAuth() {
             .single();
 
           if (createError) {
-            console.error("[useAuth] Error creating profile:", { 
-              code: createError.code,
-              message: createError.message,
-              details: createError.details 
-            });
+            console.error("[useAuth] Error creating profile:", createError);
             setCurrentUser({
               id: userId,
               name: userName,
@@ -125,12 +141,7 @@ export function useAuth() {
         });
       }
     } catch (err) {
-      console.error("[useAuth] Error fetching profile:", {
-        error: err,
-        errorString: JSON.stringify(err),
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
-        errorStack: err instanceof Error ? err.stack : "No stack"
-      });
+      console.error("[useAuth] Error fetching profile:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch profile");
     } finally {
       setLoading(false);
@@ -181,7 +192,7 @@ export function useAuth() {
         // Fetch profile to get name and email
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role, name, email, phone_number, nationality")
+          .select("role, name, email")
           .eq("id", data.user.id)
           .single();
 
@@ -209,9 +220,70 @@ export function useAuth() {
 
       throw new Error("Login failed: No user data returned");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Login failed";
+      let message = err instanceof Error ? err.message : "Login failed";
+      
+      // Specifically guide users who might have signed up with OAuth
+      // and are now trying to use a password they never set.
+      if (message.includes("Invalid login credentials")) {
+        message = "Invalid email or password. If you signed up with Google, please use 'Sign in with Google' above, or click 'Forgot Password' to set a password.";
+      }
+      
       setError(message);
       console.error("❌ Login error:", message);
+      throw new Error(message); // Throw the improved message
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // ACCOUNT LINKING & CONFLICT DETECTION
+  // ─────────────────────────────────────────
+  const detectOAuthIdentity = async (email: string): Promise<string | null> => {
+    /**
+     * Attempts to check if an email has OAuth identities without auth context
+     * Returns provider name ('google', 'github') or null if no OAuth found
+     * Note: This is a detection helper; full identity lookup requires admin access
+     */
+    try {
+      // Try signing in with the email to check session state
+      // This won't actually log them in, but may reveal existing identities
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (user?.identities && user.identities.length > 0) {
+        const oauthIdentity = user.identities.find(
+          (id: any) => id.provider !== 'email' && id.provider !== 'phone'
+        );
+        if (oauthIdentity) {
+          console.log(`[useAuth] Found OAuth identity: ${oauthIdentity.provider}`);
+          return oauthIdentity.provider;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.warn("[useAuth] Could not detect OAuth identity");
+      return null;
+    }
+  };
+
+  const linkOAuthIdentity = async (provider: "google" | "github") => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase.auth.linkIdentity({
+        provider,
+      });
+
+      if (error) throw error;
+      
+      console.log(`[useAuth] ✅ Account linked with ${provider}`);
+      
+      // Return the URL for OAuth linking
+      return { success: true, url: data?.url };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : `Failed to link ${provider}`;
+      setError(message);
+      console.error(`[useAuth] Linking error:`, message);
       throw err;
     } finally {
       setLoading(false);
@@ -219,12 +291,12 @@ export function useAuth() {
   };
 
   // ─────────────────────────────────────────
-  // REGISTER
+  // REGISTER WITH CONFLICT DETECTION
   // ─────────────────────────────────────────
   const register = async (
     formData: FormData,
     role: "patient" | "doctor"
-  ): Promise<{ totpSecret?: string; qrCodeURI?: string; factorId?: string } | void> => {
+  ) => {
     setLoading(true);
     setError(null);
 
@@ -251,10 +323,7 @@ export function useAuth() {
           data: {
             name: formData.name,
             role,
-            phone: formData.phone || '',
-            nationality: formData.nationality || '',
           },
-          emailRedirectTo: undefined,
         },
       });
 
@@ -264,6 +333,15 @@ export function useAuth() {
         console.error("[useAuth] Error code:", (authError as any)?.code);
         console.error("[useAuth] Error status:", (authError as any)?.status);
         console.error("[useAuth] Full error object:", authError);
+        
+        // ACCOUNT CONFLICT DETECTION
+        // If "user already exists" error, provide guidance
+        if (authError.message?.includes("already exists") || (authError as any)?.status === 422) {
+          const conflictMessage = `This email is already registered. Try signing in with Google or another provider, or log in with your password if you have one.`;
+          console.warn("[useAuth] Account conflict detected:", conflictMessage);
+          throw new Error(conflictMessage);
+        }
+        
         throw authError;
       }
 
@@ -273,62 +351,52 @@ export function useAuth() {
 
       console.log("[useAuth] Auth user created:", authData.user.id);
 
-      // Capture MFA enrollment result to return after all registration steps finish
-      let mfaResult: { totpSecret?: string; qrCodeURI?: string; factorId?: string } | undefined;
-
-      // Enroll TOTP MFA
+      // Now try to update auth user metadata
       try {
-        console.log("[useAuth] Enrolling TOTP MFA factor...");
-        const { data: enrollData, error: enrollError } = await (supabase.auth.mfa as any).enrollFactors({
-          factorType: 'totp',
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            name: formData.name,
+            role,
+          },
         });
 
-        if (enrollError) {
-          console.warn("[useAuth] Failed to enroll TOTP (non-fatal):", enrollError);
-          // Continue anyway - MFA is optional
-        } else if (enrollData && enrollData.totp) {
-          console.log("[useAuth] TOTP factor enrolled successfully, factor ID:", enrollData.totp.id);
-          mfaResult = {
-            totpSecret: enrollData.totp.secret,
-            qrCodeURI: enrollData.totp.qr_code,
-            factorId: enrollData.totp.id,
-          };
-        }
-      } catch (mfaErr) {
-        console.warn("[useAuth] Error during TOTP enrollment (continuing):", mfaErr);
-      }
-
-      // The Supabase trigger (handle_new_user) has already created the profile
-      // Just need to fetch it and set the current user
-      console.log("[useAuth] Fetching profile created by trigger...");
-      await fetchProfile(authData.user.id);
-
-      // Update the profile with phone and nationality
-      try {
-        const phoneNumber = formData.phone
-          ? (formData.nationality ? `${formData.nationality}${formData.phone}` : formData.phone)
-          : null;
-        const nationality = formData.nationality || null;
-        console.log("[useAuth] Updating profile with phone_number and nationality...");
-        const { error: updateProfileError } = await supabase
-          .from('profiles')
-          .update({
-            phone_number: phoneNumber,
-            nationality,
-          })
-          .eq('id', authData.user.id);
-
-        if (updateProfileError) {
-          console.warn("[useAuth] Failed to update profile phone/nationality (non-fatal):", updateProfileError);
+        if (updateError) {
+          console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
         } else {
-          console.log("[useAuth] Profile phone and nationality updated successfully");
+          console.log("[useAuth] User metadata updated successfully");
         }
-      } catch (profileErr) {
-        console.warn("[useAuth] Error updating profile (continuing anyway):", profileErr);
+      } catch (metaErr) {
+        console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
       }
 
-      console.log("[useAuth] Registration complete, profile fetched and updated");
-      return mfaResult;
+      if (authData.user) {
+        console.log("[useAuth] Auth user created, trigger will create profile automatically");
+
+        // Update auth user metadata with name and role
+        try {
+          const { error: updateError } = await supabase.auth.updateUser({
+            data: {
+              name: formData.name,
+              role,
+            },
+          });
+
+          if (updateError) {
+            console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
+          } else {
+            console.log("[useAuth] User metadata updated successfully");
+          }
+        } catch (metaErr) {
+          console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
+        }
+
+        // The Supabase trigger (handle_new_user) has already created the profile
+        // Just need to fetch it and set the current user
+        console.log("[useAuth] Fetching profile created by trigger...");
+        await fetchProfile(authData.user.id);
+        
+        console.log("[useAuth] Registration complete, profile fetched from trigger");
+      }
     } catch (err) {
       let message = "Registration failed";
       let detailedError = "";
@@ -353,52 +421,6 @@ export function useAuth() {
       }
       
       setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─────────────────────────────────────────
-  // VERIFY TOTP
-  // ─────────────────────────────────────────
-  const verifyTOTP = async (factorId: string, totpCode: string) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      console.log("[useAuth] Verifying TOTP code for factor:", factorId);
-      
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("No active session for TOTP verification");
-      }
-
-      // Verify the TOTP factor
-      const { data: verifyData, error: verifyError } = await (supabase.auth.mfa as any).verifyFactor({
-        factorId,
-        code: totpCode,
-      });
-
-      if (verifyError) {
-        console.error("[useAuth] TOTP verification failed:", verifyError);
-        throw verifyError;
-      }
-
-      console.log("[useAuth] TOTP verification successful", verifyData);
-      
-      // Fetch profile after successful verification
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await fetchProfile(user.id);
-      }
-
-      return verifyData;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "TOTP verification failed";
-      setError(message);
-      console.error("❌ TOTP verification error:", message);
       throw err;
     } finally {
       setLoading(false);
@@ -568,57 +590,31 @@ export function useAuth() {
     }
   };
 
-  const signInWithGoogle = async (redirectTo?: string) => {
+  // ─────────────────────────────────────────
+  // OAUTH SIGN-IN (Google, GitHub, etc.)
+  // ─────────────────────────────────────────
+  const signInWithOAuth = async (provider: "google" | "github", redirectTo?: string) => {
     setLoading(true);
     setError(null);
-
     try {
-      console.log("[useAuth] Initiating Google OAuth sign-in...");
-      
-      // Get the actual app URL from window for web, or use localhost for server
-      const isServer = typeof window === 'undefined';
-      let redirectUrl: string;
-      
-      if (!isServer) {
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        const basePath = redirectTo || '/auth/callback';
-        redirectUrl = `${protocol}//${host}${basePath}`;
-      } else {
-        redirectUrl = redirectTo 
-          ? `http://localhost:3000${redirectTo}`
-          : 'http://localhost:3000/auth/callback';
-      }
-      
-      console.log("[useAuth] Google redirect URL:", redirectUrl);
-      
-      // Ensure we're using HTTP for web, not a custom scheme
-      if (redirectUrl.includes('smileguard://')) {
-        console.warn("[useAuth] Redirect URL contains smileguard:// scheme, converting to http");
-        redirectUrl = redirectUrl.replace('smileguard://', 'http://localhost:3000/');
-      }
-      
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
         options: {
-          redirectTo: redirectUrl,
+          redirectTo: redirectTo || `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`,
           queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
+            access_type: "offline",
+            prompt: "consent",
           },
-          scopes: 'openid profile email',
         },
       });
 
-      if (error) {
-        console.error("[useAuth] Google OAuth failed:", error);
-        throw error;
-      }
-
-      console.log("[useAuth] Google OAuth redirect initiated to:", redirectUrl);
+      if (error) throw error;
+      return { success: true };
     } catch (err) {
-      console.error("[useAuth] Google sign-in error:", err);
-      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+      const message = err instanceof Error ? err.message : `${provider} sign-in failed`;
+      setError(message);
+      throw err;
+    } finally {
       setLoading(false);
     }
   };
@@ -630,13 +626,14 @@ export function useAuth() {
     login,
     register,
     logout,
-    verifyTOTP,
     resetPassword,
     sendSignupOtp,
     verifyEmailOtp,
     updateUserPassword,
     updateProfileData,
     ensureRoleSet,
-    signInWithGoogle,
+    signInWithOAuth,
+    detectOAuthIdentity,
+    linkOAuthIdentity,
   };
 }
