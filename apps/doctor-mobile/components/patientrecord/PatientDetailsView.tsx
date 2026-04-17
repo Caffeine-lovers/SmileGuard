@@ -60,6 +60,43 @@ const formatDate = (dateStr: string): string => {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
+const calculateAge = (dateOfBirth: string | undefined): number | null => {
+  if (!dateOfBirth) return null;
+  
+  try {
+    let birthDate: Date;
+    
+    // Handle mm/dd/YYYY format
+    if (dateOfBirth.includes('/')) {
+      const [month, day, year] = dateOfBirth.split('/');
+      birthDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    } else {
+      // Handle ISO date format and other formats
+      birthDate = new Date(dateOfBirth);
+    }
+    
+    // Check if date is valid
+    if (isNaN(birthDate.getTime())) {
+      return null;
+    }
+    
+    const today = new Date();
+    
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    // If birthday hasn't occurred yet this year, subtract 1 from age
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age >= 0 ? age : null;
+  } catch (error) {
+    console.error('Error calculating age:', error);
+    return null;
+  }
+};
+
 const categorizeAppointments = (appointments: any[]) => {
   const now = new Date();
   const past: any[] = [];
@@ -256,11 +293,18 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Information</Text>
             <View style={styles.infoContainer}>
-              {patient.age > 0 && <DetailRow label="Age" value={patient.age.toString()} />}
               <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
               <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
               <DetailRow label="Email" value={patient.email || "Not provided"} />
               <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
+              {(() => {
+                const calculatedAge = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth);
+                return calculatedAge !== null ? (
+                  <DetailRow label="Age" value={calculatedAge.toString()} />
+                ) : patient.age > 0 ? (
+                  <DetailRow label="Age" value={patient.age.toString()} />
+                ) : null;
+              })()}
               <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
             </View>
           </View>
