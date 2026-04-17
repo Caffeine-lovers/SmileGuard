@@ -12,6 +12,7 @@ import {
   Image,
   Animated,
 } from 'react-native';
+import { HeroIcon } from '../ui/HeroIcon';
 
 interface NotificationBellProps {
   unreadCount: number;
@@ -56,7 +57,7 @@ export default function NotificationBell({
           animateOnNewNotification && { transform: [{ scale: scaleAnim }] },
         ]}
       >
-        <Text style={styles.bellIcon}>🔔</Text>
+        <HeroIcon name="bell" size="md" color="#0b7fab" />
       </Animated.View>
 
       {unreadCount > 0 && (

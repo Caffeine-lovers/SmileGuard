@@ -17,6 +17,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
 import AddPatient from '../patientrecord/AddPatient';
+import { HeroIcon } from '../ui/HeroIcon';
 
 interface AppointmentAddProps {
   visible: boolean;
@@ -1269,11 +1270,20 @@ export default function AppointmentAdd({
                               >
                                 {String(day).padStart(2, '0')} {getDayAbbreviation(selectedYear, selectedMonth, day)}
                               </Text>
-                              {isUnavailable && (
-                                <Text style={styles.closedLabel}>CLOSED</Text>
+                              {appointmentCount > 0 && (
+                                <View style={styles.appointmentCountBadge}>
+                                  <Text style={styles.appointmentCountText}>{appointmentCount}</Text>
+                                </View>
                               )}
-                              {isFull && (
-                                <Text style={styles.fullLabel}>FULL</Text>
+                              {isUnavailable && (
+                                <View style={styles.statusBadge}>
+                                  <HeroIcon name="xmark" size="sm" color="#fff" />
+                                </View>
+                              )}
+                              {isFull && !isUnavailable && (
+                                <View style={styles.fullBadge}>
+                                  <HeroIcon name="check" size="sm" color="#fff" />
+                                </View>
                               )}
                             </TouchableOpacity>
                           );
@@ -1582,6 +1592,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    position: 'relative',
   },
   pickerItemSelected: {
     backgroundColor: '#e3f2fd',
@@ -1787,17 +1798,59 @@ const styles = StyleSheet.create({
     color: '#ccc',
     fontWeight: '400',
   },
-  closedLabel: {
-    fontSize: 10,
-    color: '#ff6b6b',
-    fontWeight: '700',
-    marginTop: 2,
+  statusBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  fullLabel: {
-    fontSize: 10,
-    color: '#ff9800',
+  fullBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  appointmentCountBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#0b7fab',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  appointmentCountText: {
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: 2,
+    color: '#fff',
+    textAlign: 'center',
   },
   accountTypeLabel: {
     fontSize: 10,

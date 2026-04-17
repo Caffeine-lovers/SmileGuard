@@ -16,6 +16,7 @@ import {
   Image,
 } from 'react-native';
 import { Notification, NotificationType } from '../../types/notifications';
+import { HeroIcon } from '../ui/HeroIcon';
 
 interface NotificationCenterProps {
   notifications: Notification[];
@@ -139,7 +140,10 @@ export default function NotificationCenter({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>📬 Notifications</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <HeroIcon name="bell" size="md" color="#0b7fab" />
+            <Text style={styles.headerTitle}>Notifications</Text>
+          </View>
           {unreadCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadCount}</Text>
@@ -164,7 +168,8 @@ export default function NotificationCenter({
       {/* Error Display - Only show critical errors, hide subscription errors */}
       {error && !error.includes('subscribe') && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
+          <HeroIcon name="information" size="sm" color="#ef4444" />
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
@@ -223,7 +228,7 @@ export default function NotificationCenter({
       {/* Notifications List */}
       {isLoading ? null : filteredNotifications.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStateIcon}>🔔</Text>
+          <HeroIcon name="bell" size="xl" color="#d1d5db" />
           <Text style={styles.emptyStateTitle}>No Notifications</Text>
           <Text style={styles.emptyStateMessage}>
             You're all caught up! Updates will appear here.
@@ -276,7 +281,10 @@ export default function NotificationCenter({
                     style={styles.deleteButton}
                     onPress={() => handleDeleteWithConfirm(notification.id)}
                   >
-                    <Text style={styles.deleteButtonText}>✕</Text>
+                    <Image
+                      source={require("../../assets/images/icon/trash.png")}
+                      style={{ width: 18, height: 18, tintColor: "#6b7280" }}
+                    />
                   </TouchableOpacity>
                 </View>
 

@@ -199,7 +199,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
+              <Image
+                source={require("../../assets/images/icon/close.png")}
+                style={{ width: 20, height: 20 }}
+              />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Patient Details</Text>
             <View style={{ width: 30 }} />

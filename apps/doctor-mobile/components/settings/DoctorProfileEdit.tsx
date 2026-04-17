@@ -102,7 +102,10 @@ export default function DoctorProfileEdit({
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Edit Doctor Profile</Text>
         <TouchableOpacity onPress={onCancel}>
-          <Text style={styles.closeBtn}>✕</Text>
+          <Image
+            source={require("../../assets/images/icon/close.png")}
+            style={{ width: 20, height: 20 }}
+          />
         </TouchableOpacity>
       </View>
 
@@ -127,7 +130,11 @@ export default function DoctorProfileEdit({
           <View style={{ marginBottom: 8, marginTop: -4 }}>
             {isValidLicenseNumber(doctorData.license_number) ? (
               <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "500" }}>
-                ✓ Valid license number
+                <Image
+                  source={require("../../assets/images/icon/check.png")}
+                  style={{ width: 16, height: 16, tintColor: "#22c55e" }}
+                />
+                <Text> Valid license number</Text>
               </Text>
             ) : (
               <View>

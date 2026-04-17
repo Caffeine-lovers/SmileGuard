@@ -23,6 +23,7 @@ import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
 import { createDoctorProfile } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
 import { supabase } from "@smileguard/supabase-client";
+import { HeroIcon } from "../ui/HeroIcon";
 
 export interface DoctorProfileSetupProps {
   onSuccess: (user: { name: string; email: string; role: "doctor" }) => void;
@@ -104,11 +105,11 @@ export default function DoctorProfileSetup({
   const handleImagePick = async () => {
     try {
       setUploadingImage(true);
-      console.log("️  Picking image...");
+      console.log("[ImagePick] Picking image...");
 
       const image = await pickImage();
       if (!image) {
-        console.log(" No image selected");
+        console.log("[ImagePick] No image selected");
         return;
       }
 
@@ -117,12 +118,12 @@ export default function DoctorProfileSetup({
       setSelectedImageUri(image.uri); // For preview
 
       // Note: We'll upload after user confirms registration
-      console.log(" Image selected, will upload during registration");
+      console.log("[ImagePick] Image selected, will upload during registration");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to pick image";
       Alert.alert("Image Selection Error", message);
-      console.error(" Image pick error:", error);
+      console.error("[ImagePick] Error:", error);
     } finally {
       setUploadingImage(false);
     }
@@ -164,41 +165,59 @@ export default function DoctorProfileSetup({
         throw new Error("User not authenticated. Please log in again.");
       }
 
+      console.log("[DoctorProfileSetup] Authenticated user ID:", data.user.id);
+      console.log("[DoctorProfileSetup] Current doctorData before save:", {
+        doctor_name: doctorData.doctor_name,
+        specialization: doctorData.specialization,
+        license_number: doctorData.license_number,
+        bio: doctorData.bio,
+      });
+
       // Upload image if provided
       let profileImageUrl = doctorData.profile_picture_url || "";
       if (selectedImage) {
         try {
           console.log("[DoctorProfileSetup] Uploading profile image...");
           profileImageUrl = await uploadProfileImage(selectedImage, data.user.id);
-          console.log("[DoctorProfileSetup] Image uploaded successfully");
+          console.log("[DoctorProfileSetup] Image uploaded successfully, URL:", profileImageUrl);
         } catch (imageError) {
           console.warn("[DoctorProfileSetup] Image upload failed, continuing without image:", imageError);
         }
       }
 
       // Update doctor data with user_id and image URL
-      doctorData.user_id = data.user.id;
-      doctorData.profile_picture_url = profileImageUrl;
+      const finalDoctorData = {
+        ...doctorData,
+        user_id: data.user.id,
+        profile_picture_url: profileImageUrl,
+      };
+
+      console.log("[DoctorProfileSetup] Final doctor data to save:", {
+        user_id: finalDoctorData.user_id,
+        doctor_name: finalDoctorData.doctor_name,
+        specialization: finalDoctorData.specialization,
+        license_number: finalDoctorData.license_number,
+      });
 
       // Save doctor profile to database
       console.log("[DoctorProfileSetup] Creating doctor profile in database...");
-      const result = await createDoctorProfile(doctorData);
+      const result = await createDoctorProfile(finalDoctorData);
 
       if (!result) {
-        throw new Error("Failed to save doctor profile");
+        throw new Error("Failed to save doctor profile - no data returned");
       }
 
       console.log("[DoctorProfileSetup] Doctor profile saved successfully!");
       
       // Notify success
       onSuccess({
-        name: doctorData.doctor_name || "Doctor",
+        name: finalDoctorData.doctor_name || "Doctor",
         email: data.user.email || "",
         role: "doctor",
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";
-      console.error("[DoctorProfileSetup] Error:", message);
+      console.error("[DoctorProfileSetup] Full error:", err);
       Alert.alert("Error", message);
     } finally {
       setLoading(false);
@@ -219,7 +238,25 @@ export default function DoctorProfileSetup({
           scrollEnabled={true}
         >
         <View style={styles.stepContent}>
-          <Text style={styles.h2}>Doctor Professional Details</Text>
+          {/* Back Button Header */}
+          {onCancel && (
+            <View style={styles.headerWithBack}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={onCancel}
+                disabled={loading}
+              >
+                <Image
+                  source={require("../../assets/images/icon/back.png")}
+                  style={{ width: 24, height: 24, tintColor: "#0b7fab" }}
+                />
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.h2}>Doctor Professional Details</Text>
+            </View>
+          )}
+          {!onCancel && <Text style={styles.h2}>Doctor Professional Details</Text>}
+          
           <Text style={styles.p}>Complete your profile to access the dashboard</Text>
 
           {/* Section: License & Credentials */}
@@ -243,26 +280,39 @@ export default function DoctorProfileSetup({
             >
               {isValidLicenseNumber(doctorData.license_number) ? (
                 <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "500" }}>
-                  ✓ Valid license number
+                  <Image
+                    source={require("../../assets/images/icon/check.png")}
+                    style={{ width: 16, height: 16, tintColor: "#22c55e" }}
+                  />
+                  <Text> Valid license number</Text>
                 </Text>
               ) : (
                 <View>
                   {doctorData.license_number.length < 5 ||
                   doctorData.license_number.length > 7 ? (
-                    <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                      ✗ Must be 5-7 characters (current: {doctorData.license_number.length})
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                        Must be 5-7 characters (current: {doctorData.license_number.length})
+                      </Text>
+                    </View>
                   ) : null}
                   {!/^[a-zA-Z0-9]+$/.test(doctorData.license_number) ? (
-                    <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                      ✗ Only letters and numbers allowed
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                        Only letters and numbers allowed
+                      </Text>
+                    </View>
                   ) : null}
                   {!/[a-zA-Z]/.test(doctorData.license_number) ||
                   !/[0-9]/.test(doctorData.license_number) ? (
-                    <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                      ✗ Must contain both letters and numbers
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                        Must contain both letters and numbers
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
               )}
@@ -439,7 +489,11 @@ export default function DoctorProfileSetup({
               disabled={loading}
             >
               <Text style={{ color: "#dc2626", fontSize: 14, fontWeight: "600" }}>
-                ✕ Remove Photo
+                <Image
+                  source={require("../../assets/images/icon/close.png")}
+                  style={{ width: 18, height: 18, tintColor: "#dc2626" }}
+                />
+                <Text> Remove Photo</Text>
               </Text>
             </TouchableOpacity>
           )}
@@ -514,6 +568,26 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#f8fbff",
     marginBottom: 14,
+  },
+  headerWithBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 12,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#f3f4f6",
+    gap: 6,
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0b7fab",
   },
   h2: {
     fontSize: 14,
