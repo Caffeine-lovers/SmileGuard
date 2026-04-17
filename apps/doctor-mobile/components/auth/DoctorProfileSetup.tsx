@@ -137,8 +137,25 @@ export default function DoctorRegistrationForm({
     return (
       isValidLicenseNumber(doctorData.license_number) &&
       doctorData.specialization.trim() !== "" &&
-      doctorData.doctor_name?.trim() !== ""
+      doctorData.doctor_name?.trim() !== "" &&
+      (doctorData.years_of_experience && doctorData.years_of_experience > 0) &&
+      (doctorData.bio && doctorData.bio.trim().length > 0) &&
+      (doctorData.doctor_phone && doctorData.doctor_phone.trim().length > 0) &&
+      selectedImage !== null
     );
+  };
+
+  // Validation helpers
+  const isLicenseValid = doctorData.license_number.trim().length > 0 && isValidLicenseNumber(doctorData.license_number);
+  const isSpecializationValid = doctorData.specialization.trim().length > 0;
+  const isDoctorNameValid = doctorData.doctor_name?.trim().length > 0;
+  const isYearsOfExperienceValid = doctorData.years_of_experience && doctorData.years_of_experience > 0;
+  const isProfessionalBioValid = doctorData.bio && doctorData.bio.trim().length > 0;
+  const isDoctorPhoneValid = doctorData.doctor_phone && doctorData.doctor_phone.trim().length > 0;
+  const isProfilePictureValid = selectedImage !== null;
+
+  const getFieldBorderColor = (isValid: boolean): string => {
+    return isValid ? '#4caf50' : '#ff9800';
   };
 
   const handleStep1Next = () => {
@@ -151,6 +168,14 @@ export default function DoctorRegistrationForm({
         errorMsg = "Please enter a specialization.";
       } else if (doctorData.doctor_name?.trim() === "") {
         errorMsg = "Please enter a doctor name.";
+      } else if (!doctorData.years_of_experience || doctorData.years_of_experience <= 0) {
+        errorMsg = "Please enter years of experience.";
+      } else if (!doctorData.bio || doctorData.bio.trim() === "") {
+        errorMsg = "Please enter a professional bio.";
+      } else if (!doctorData.doctor_phone || doctorData.doctor_phone.trim() === "") {
+        errorMsg = "Please enter your phone number.";
+      } else if (!selectedImage) {
+        errorMsg = "Please upload a profile photo.";
       }
       
       Alert.alert("Invalid Information", errorMsg);
@@ -306,7 +331,10 @@ export default function DoctorRegistrationForm({
           <Text style={styles.sectionHeader}>License & Credentials</Text>
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { borderColor: getFieldBorderColor(isLicenseValid) },
+            ]}
             placeholder="Medical License Number (5-7 chars) *"
             value={doctorData.license_number}
             onChangeText={(text) => updateDoctorData("license_number", text)}
@@ -356,9 +384,7 @@ export default function DoctorRegistrationForm({
               {
                 justifyContent: "center",
                 paddingVertical: 0,
-                borderColor: doctorData.specialization
-                  ? "#0b7fab"
-                  : "#d1d5db",
+                borderColor: getFieldBorderColor(isSpecializationValid),
               },
             ]}
             onPress={() => setShowSpecializationDropdown(true)}
@@ -423,8 +449,11 @@ export default function DoctorRegistrationForm({
           </Modal>
 
           <TextInput
-            style={styles.input}
-            placeholder="Years of Experience (e.g., 5, 10)"
+            style={[
+              styles.input,
+              { borderColor: getFieldBorderColor(isYearsOfExperienceValid) },
+            ]}
+            placeholder="Years of Experience (e.g., 5, 10) *"
             keyboardType="number-pad"
             value={
               doctorData.years_of_experience && doctorData.years_of_experience > 0
@@ -437,8 +466,12 @@ export default function DoctorRegistrationForm({
           />
 
           <TextInput
-            style={[styles.input, styles.textAreaInput]}
-            placeholder="Professional Bio (optional)"
+            style={[
+              styles.input,
+              styles.textAreaInput,
+              { borderColor: getFieldBorderColor(isProfessionalBioValid) },
+            ]}
+            placeholder="Professional Bio *"
             multiline
             numberOfLines={3}
             value={doctorData.bio}
@@ -449,15 +482,21 @@ export default function DoctorRegistrationForm({
           <Text style={styles.sectionHeader}>Doctor Information</Text>
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { borderColor: getFieldBorderColor(isDoctorNameValid) },
+            ]}
             placeholder="Doctor Name *"
             value={doctorData.doctor_name || ""}
             onChangeText={(text) => updateDoctorData("doctor_name", text)}
           />
 
           <TextInput
-            style={styles.input}
-            placeholder="Doctor Phone"
+            style={[
+              styles.input,
+              { borderColor: getFieldBorderColor(isDoctorPhoneValid) },
+            ]}
+            placeholder="Doctor Phone *"
             keyboardType="phone-pad"
             value={doctorData.doctor_phone || ""}
             onChangeText={(text) => updateDoctorData("doctor_phone", text)}
@@ -529,12 +568,22 @@ export default function DoctorRegistrationForm({
             * License: 5-7 alphanumeric chars with letters & numbers (e.g., ABC123)
           </Text>
           <Text style={styles.requiredNote}>
-            * Specialization and Doctor Name are also required
+            * Specialization, Doctor Name, Years of Experience, Phone, and Bio are required
+          </Text>
+          <Text style={styles.requiredNote}>
+            * Profile photo upload is required
           </Text>
 
           {/* Next Button */}
           <TouchableOpacity
-            style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
+            style={[
+              styles.btn,
+              styles.primaryBtn,
+              {
+                marginTop: 12,
+                opacity: isStep1Valid() ? 1 : 0.5,
+              },
+            ]}
             onPress={handleStep1Next}
             disabled={!isStep1Valid()}
           >
@@ -662,7 +711,14 @@ export default function DoctorRegistrationForm({
 
           {/* Register Button */}
           <TouchableOpacity
-            style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}
+            style={[
+              styles.btn,
+              styles.primaryBtn,
+              {
+                marginTop: 12,
+                opacity: loading || !isStep2Valid() ? 0.5 : 1,
+              },
+            ]}
             onPress={handleRegister}
             disabled={loading || !isStep2Valid()}
           >
@@ -734,7 +790,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#d1d5db",
     borderRadius: 6,
     paddingHorizontal: 10,
@@ -751,7 +807,7 @@ const styles = StyleSheet.create({
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#d1d5db",
     borderRadius: 6,
     backgroundColor: "#fff",

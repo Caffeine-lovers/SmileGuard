@@ -145,6 +145,18 @@ export default function ClinicSetup({
     loadClinicData();
   }, [currentUser?.id]);
 
+  // Validation helpers
+  const isClinicNameValid = clinicData.clinic_name.trim().length > 0;
+  const isAddressValid = clinicData.address.trim().length > 0;
+  const isNewServiceValid = newService.trim().length > 0;
+
+  const getInputBorderColor = (isValid: boolean, isFocused?: boolean): string => {
+    if (isValid) {
+      return '#4caf50'; // Green for valid
+    }
+    return '#ff9800'; // Orange for required/empty
+  };
+
   const localStyles = StyleSheet.create({
     container: {
       flex: 1,
@@ -200,12 +212,18 @@ export default function ClinicSetup({
     },
     input: {
       backgroundColor: '#fff',
-      borderWidth: 1,
+      borderWidth: 2,
       borderColor: '#ddd',
       borderRadius: 8,
       padding: 12,
       fontSize: 14,
       marginBottom: 12,
+    },
+    inputValid: {
+      borderColor: '#4caf50',
+    },
+    inputInvalid: {
+      borderColor: '#ff9800',
     },
     galleryContainer: {
       flexDirection: 'row',
@@ -258,11 +276,17 @@ export default function ClinicSetup({
     addServiceInput: {
       flex: 1,
       backgroundColor: '#fff',
-      borderWidth: 1,
+      borderWidth: 2,
       borderColor: '#ddd',
       borderRadius: 8,
       padding: 12,
       fontSize: 14,
+    },
+    addServiceInputValid: {
+      borderColor: '#4caf50',
+    },
+    addServiceInputInvalid: {
+      borderColor: '#ff9800',
     },
     addServiceButton: {
       backgroundColor: '#0b7fab',
@@ -559,7 +583,10 @@ export default function ClinicSetup({
             <Text style={localStyles.sectionTitle}>Clinic Name</Text>
             <View style={localStyles.card}>
               <TextInput
-                style={localStyles.input}
+                style={[
+                  localStyles.input,
+                  isClinicNameValid ? localStyles.inputValid : localStyles.inputInvalid,
+                ]}
                 placeholder="Enter clinic name"
                 value={clinicData.clinic_name}
                 onChangeText={(text) =>
@@ -593,7 +620,10 @@ export default function ClinicSetup({
             <Text style={localStyles.sectionTitle}> Address</Text>
             <View style={localStyles.card}>
               <TextInput
-                style={localStyles.input}
+                style={[
+                  localStyles.input,
+                  isAddressValid ? localStyles.inputValid : localStyles.inputInvalid,
+                ]}
                 placeholder="Street Address"
                 value={clinicData.address}
                 onChangeText={(text) =>
@@ -698,7 +728,10 @@ export default function ClinicSetup({
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 10 }}>Add Custom Service:</Text>
                 <View style={localStyles.addServiceContainer}>
                   <TextInput
-                    style={localStyles.addServiceInput}
+                    style={[
+                      localStyles.addServiceInput,
+                      isNewServiceValid ? localStyles.addServiceInputValid : localStyles.addServiceInputInvalid,
+                    ]}
                     placeholder="Enter custom service..."
                     value={newService}
                     onChangeText={setNewService}
@@ -878,9 +911,14 @@ export default function ClinicSetup({
                 <Text style={localStyles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={localStyles.saveButton}
+                style={[
+                  localStyles.saveButton,
+                  {
+                    opacity: isClinicNameValid && isAddressValid ? 1 : 0.5,
+                  },
+                ]}
                 onPress={handleSave}
-                disabled={loading}
+                disabled={loading || !isClinicNameValid || !isAddressValid}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />

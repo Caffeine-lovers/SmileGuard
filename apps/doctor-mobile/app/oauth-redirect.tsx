@@ -24,24 +24,25 @@ export default function OAuthRedirect() {
         console.log("[OAuthRedirect] Handler called");
         console.log("[OAuthRedirect] Search params:", searchParams);
         
-        // Give Supabase a moment to process the OAuth response
-        // The session hook in _layout will automatically detect the new session
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Wait a bit for Supabase to process the session update
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // Check if user is now authenticated
+        // Check if user is authenticated
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
-        console.log("[OAuthRedirect] Session user email:", session?.user?.email);
-        console.log("[OAuthRedirect] Session user ID:", session?.user?.id);
+        console.log("[OAuthRedirect] Session check:", session ? "✅ Found" : "❌ Null");
 
         if (session?.user) {
-          console.log("✅ OAuth successful, user:", session.user.email);
-          console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
+          console.log("✅ User authenticated:", session.user.email);
+          console.log("[OAuthRedirect] User ID:", session.user.id);
           
-          // Check if user has completed doctor profile
+          // Get user's role
+          const userRole = session.user.user_metadata?.role;
+          console.log("[OAuthRedirect] User role from metadata:", userRole);
+          
+          // Check if doctor profile exists
           console.log("[OAuthRedirect] Checking for doctor profile...");
           const { data: doctorProfile, error: profileError } = await supabase
             .from("doctors")
@@ -49,37 +50,33 @@ export default function OAuthRedirect() {
             .eq("user_id", session.user.id)
             .single();
 
-          console.log("[OAuthRedirect] Profile query result - data:", doctorProfile, "error:", profileError?.code);
+          console.log("[OAuthRedirect] Profile query - error code:", profileError?.code);
 
           if (profileError?.code === "PGRST116") {
-            // No doctor profile found - this is a NEW registration
-            // Route to profile completion page to collect doctor info
-            console.log("📋 New user - routing to profile completion");
+            // No profile found - new user, route to profile completion
+            console.log("📋 New user detected - routing to profile setup");
             router.replace("/complete-profile");
           } else if (profileError) {
-            // Other database error
-            console.error("❌ Error checking profile:", profileError);
+            // Database error
+            console.error("❌ Profile query error:", profileError);
             router.replace("/");
           } else if (doctorProfile) {
-            // Doctor profile exists - route to dashboard
+            // Profile exists - route to dashboard
             console.log("✅ Existing user - routing to dashboard");
             router.replace("/(doctor)/dashboard");
           } else {
-            // Shouldn't happen, but fallback to dashboard
-            console.log("[OAuthRedirect] No profile error but also no profile data, fallback to dashboard");
+            console.log("⚠️ Unexpected state, routing to dashboard");
             router.replace("/(doctor)/dashboard");
           }
         } else if (searchParams.error) {
-          // OAuth error occurred
-          console.error("❌ OAuth error:", searchParams.error);
+          console.error("❌ OAuth error from params:", searchParams.error);
           router.replace("/");
         } else {
-          // No session yet, redirect back to login
-          console.log("⚠️ No session after redirect");
+          console.log("⚠️ No session found, redirecting to login");
           router.replace("/");
         }
       } catch (error) {
-        console.error("❌ Error handling OAuth callback:", error);
+        console.error("❌ OAuth callback error:", error);
         router.replace("/");
       }
     };

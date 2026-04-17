@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Suspense, lazy, useCallback } from "react";
+import React, { useState, useMemo, Suspense, lazy, useCallback, useEffect } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
@@ -20,8 +20,10 @@ import { Alert } from 'react-native';
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
+import * as QueryParams from "expo-auth-session/build/QueryParams";
 import PasswordStrengthMeter from "../ui/password-strength-meter";
 import DoctorProfileSetup from "./DoctorProfileSetup";
+import ClinicSetup from "../settings/ClinicSetup";
 import {
   FormData,
   CurrentUser,
@@ -73,7 +75,14 @@ export default function AuthModal({
   const [mode, setMode] = useState<"register" | "login">("login");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null);
+  const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     service: "General",
@@ -87,10 +96,17 @@ export default function AuthModal({
   // Reset state when modal re-opens
   React.useEffect(() => {
     if (visible) {
-      setStep(1); // Start directly at login form
+      setStep(2); // Start directly at login form
       setMode("login");
       setShowPassword(false);
+      setShowConfirmPassword(false);
       setRememberMe(false);
+      setVerificationCode("");
+      setEmailSent(false);
+      setConfirmPassword("");
+      setRateLimitUntil(null);
+      setRateLimitSeconds(0);
+      setRegistrationComplete(false);
       setFormData({
         service: "General",
         name: "",
@@ -105,21 +121,209 @@ export default function AuthModal({
     }
   }, [visible]);
 
-  // Listen for OAuth auth state changes (SIGNED_IN after deep link redirect)
+  // Listen for magic link from email
   React.useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[AuthModal] Auth state changed:", event);
-      
-      // When OAuth deep link comes back, we get SIGNED_IN event
-      if (event === "SIGNED_IN" && session?.user) {
-        console.log("[AuthModal] SIGNED_IN detected for", session.user.email);
-        // Stop showing loading - the session is here!
-        setLoading(false);
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log("[AuthModal] Deep link received:", url);
+      if (url.includes('access_token') || url.includes('type=signup')) {
+        handleMagicLinkCallback(url);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => subscription.remove();
   }, []);
+
+  // Check for magic link on mount
+  React.useEffect(() => {
+    Linking.getInitialURL().then(url => {
+      if (url) {
+        console.log("[AuthModal] Initial URL:", url);
+        if (url.includes('access_token') || url.includes('type=signup')) {
+          handleMagicLinkCallback(url);
+        }
+      }
+    });
+  }, []);
+
+  // Handle rate limit countdown timer
+  React.useEffect(() => {
+    if (!rateLimitUntil) {
+      setRateLimitSeconds(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const secondsRemaining = Math.max(0, Math.floor((rateLimitUntil.getTime() - now.getTime()) / 1000));
+      
+      if (secondsRemaining <= 0) {
+        setRateLimitUntil(null);
+        setRateLimitSeconds(0);
+        clearInterval(interval);
+      } else {
+        setRateLimitSeconds(secondsRemaining);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [rateLimitUntil]);
+
+  // Helper to format remaining time
+  const formatRemainingTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    }
+    return `${secs}s`;
+  };
+
+  console.log("[AuthModal] Current step:", step, "Modal visible:", visible, "Current mode:", mode);
+
+  // Send verification code to email with password validation
+  const sendVerificationCode = async () => {
+    if (!formData.email) {
+      Alert.alert("Error", "Please enter an email");
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      Alert.alert("Error", "Please enter a valid email");
+      return;
+    }
+
+    // Only allow gmail for simplicity
+    if (!formData.email.endsWith("@gmail.com")) {
+      Alert.alert("Error", "Please use a Gmail account (@gmail.com)");
+      return;
+    }
+
+    // Validate passwords
+    if (!formData.password) {
+      Alert.alert("Error", "Please enter a password");
+      return;
+    }
+
+    if (!confirmPassword) {
+      Alert.alert("Error", "Please confirm your password");
+      return;
+    }
+
+    if (formData.password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      Alert.alert("Error", "Password must be at least 8 characters");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("[AuthModal] Attempting to sign up with email...");
+      
+      // Try to sign up directly - this will fail if email already exists
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      console.log("[AuthModal] SignUp response:", { data, error });
+
+      if (error) {
+        const errorMsg = error.message.toLowerCase();
+        
+        // Check if email already exists
+        if (errorMsg.includes("already registered") || errorMsg.includes("email already exists") || errorMsg.includes("user already exists")) {
+          Alert.alert("Email Already Registered", "This email is already registered. Please use the Login tab instead.");
+          setLoading(false);
+          return;
+        }
+        
+        // Check for rate limiting
+        if (errorMsg.includes("rate limit") || errorMsg.includes("too many requests")) {
+          // Set rate limit to 15 minutes from now
+          const futureTime = new Date(Date.now() + 15 * 60 * 1000);
+          setRateLimitUntil(futureTime);
+          setRateLimitSeconds(900); // 15 minutes in seconds
+          
+          Alert.alert(
+            "Too Many Attempts", 
+            `Too many verification attempts for this email. Please try again in ${formatRemainingTime(900)}, or use a different email address.`
+          );
+          setLoading(false);
+          return;
+        }
+        
+        // Other errors
+        throw error;
+      }
+
+      // Success - show verification code input
+      console.log("[AuthModal] Sign up successful, showing verification code input");
+      setEmailSent(true);
+      setLoading(false);
+      Alert.alert("Check Your Email", "An 8-digit verification code has been sent to your Gmail. Enter it below to continue.");
+    } catch (err) {
+      console.error("[AuthModal] Error:", err);
+      setLoading(false);
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to send verification code");
+    }
+  };
+
+  // Verify the 8-digit code and proceed to sign up
+  const verifyAndProceed = async () => {
+    if (!verificationCode) {
+      Alert.alert("Error", "Please enter the 8-digit code");
+      return;
+    }
+
+    if (verificationCode.length !== 8) {
+      Alert.alert("Error", "Code must be 8 digits");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("[AuthModal] Verifying code...");
+      
+      // Verify with OTP
+      const { error } = await supabase.auth.verifyOtp({
+        email: formData.email,
+        token: verificationCode,
+        type: 'signup'
+      });
+
+      if (error) throw error;
+
+      console.log("[AuthModal] Email verified!");
+      
+      // Wait for session
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Ensure doctor role
+        try {
+          await ensureRoleSet(user.id, "doctor");
+        } catch(e) {
+          console.warn("Role warning:", e);
+        }
+        
+        // Move to doctor profile setup
+        setStep(2);
+      } else {
+        throw new Error("Failed to verify email");
+      }
+    } catch (err) {
+      console.error("[AuthModal] Verification error:", err);
+      Alert.alert("Error", err instanceof Error ? err.message : "Invalid code");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Helpers ──────────────────────────────────────────────────────
 
@@ -163,7 +367,16 @@ export default function AuthModal({
     }));
   };
 
-  // ── Navigation ───────────────────────────────────────────────────
+  // Validation helpers for Step 1
+  const isEmailValid = formData.email.trim().length > 0 && isValidEmail(formData.email);
+  const isPasswordValid = formData.password.length >= 8;
+  const isConfirmPasswordValid = confirmPassword === formData.password && confirmPassword.length > 0;
+  const loginEmailValid = formData.email.trim().length > 0 && isValidEmail(formData.email);
+  const loginPasswordValid = formData.password.trim().length > 0;
+
+  const getFieldBorderColor = (isValid: boolean): string => {
+    return isValid ? '#4caf50' : '#ff9800';
+  };
 
   const handleSwitchMode = (selectedMode: "register" | "login") => {
     setMode(selectedMode);
@@ -286,109 +499,10 @@ export default function AuthModal({
   };
 
   /**
-   * Handle Google OAuth Sign-in/Sign-up
-   * 
-   * Uses expo-web-browser openAuthSessionAsync to open an in-app browser modal.
+   * Handle Google OAuth Sign-in/Sign-up (deprecated - using email verification now)
    */
   const handleGoogleOAuth = async () => {
-    try {
-      setLoading(true);
-      console.log("🔓 Starting Google OAuth...");
-
-      // Step 1: Create a redirect URI that points to a REAL route in your app
-      // By using 'oauth-redirect', Expo Router knows exactly where to send the user
-      // so you won't get the "Unmatched Route" error screen anymore.
-      const redirectUri = Linking.createURL('oauth-redirect');
-      console.log("[AuthModal] Redirect URI from Linking.createURL:", redirectUri);
-      
-      const finalRedirectUri = redirectUri;
-      console.log("[AuthModal] Using final redirect URI:", finalRedirectUri);
-
-      // Step 2: Get OAuth URL from Supabase with the specific redirect
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: finalRedirectUri,
-          skipBrowserRedirect: true,
-          queryParams: {
-            prompt: "consent",
-          },
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.url) throw new Error("No OAuth URL generated by Supabase");
-
-      console.log("[AuthModal] Opening browser with URL:", data.url);
-
-      // Step 3: Open in-app browser and wait for it to return to the redirect URI
-      const result = await WebBrowser.openAuthSessionAsync(data.url, finalRedirectUri);
-
-      console.log("[AuthModal] Browser session result type:", result.type);
-
-      // Step 4: Parse the redirect URL if successful
-      if (result.type === "success") {
-        console.log("✅ OAuth successful, extracting session from URL...");
-        
-        // Parse the implicit tokens from the URL that Supabase returned
-        // It comes back like: exp://...#access_token=xyz&refresh_token=abc&token_type=bearer
-        const extractParams = (urlString: string) => {
-          const queryString = urlString.includes('#') ? urlString.split('#')[1] : urlString.includes('?') ? urlString.split('?')[1] : '';
-          
-          if (!queryString) return {} as Record<string, string>;
-          
-          return queryString.split('&').reduce((acc, current) => {
-            const [key, value] = current.split('=');
-            if (key && value) acc[key] = decodeURIComponent(value);
-            return acc;
-          }, {} as Record<string, string>);
-        };
-
-        const params = extractParams(result.url);
-
-        if (params.error_description) {
-          throw new Error(params.error_description);
-        }
-
-        if (params.access_token && params.refresh_token) {
-          console.log("🔑 Found tokens! Initializing session...");
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: params.access_token,
-            refresh_token: params.refresh_token
-          });
-          
-          if (sessionError) throw sessionError;
-          console.log("✅ Session officially set! Waiting for auth state listener...");
-        } else {
-          console.log("No valid session tokens found in return URL. Found:", Object.keys(params));
-          throw new Error("No tokens returned from Google login.");
-        }
-      } else {
-        console.log("[AuthModal] OAuth cancelled or failed in browser");
-        setLoading(false);
-      }
-    } catch (err) {
-      let errorMessage = "Google sign-in failed.";
-
-      if (err instanceof Error) {
-        const message = err.message.toLowerCase();
-
-        if (message.includes("network")) {
-          errorMessage = "Network error. Check your connection.";
-        } else if (message.includes("cancelled")) {
-          errorMessage = "Sign-in was cancelled.";
-        } else if (message.includes("configuration") || message.includes("provider")) {
-          errorMessage =
-            "Google provider not configured in Supabase. Check Authentication → Providers.";
-        } else {
-          errorMessage = err.message;
-        }
-      }
-
-      console.error("❌ Google OAuth error:", errorMessage);
-      Alert.alert("Google Sign-in Error", errorMessage);
-      setLoading(false);
-    }
+    // This function is no longer used - email verification is used instead
   };
 
   const enterDashboardAfterSuccess = () => {
@@ -538,7 +652,14 @@ export default function AuthModal({
 
                         {/* Login Button */}
                         <TouchableOpacity
-                          style={[styles.btn, styles.primaryBtn, { marginTop: 20 }]}
+                          style={[
+                            styles.btn,
+                            styles.primaryBtn,
+                            {
+                              marginTop: 20,
+                              opacity: loginEmailValid && loginPasswordValid ? 1 : 0.5,
+                            },
+                          ]}
                           onPress={async () => {
                             try {
                               setLoading(true);
@@ -552,7 +673,7 @@ export default function AuthModal({
                               setLoading(false);
                             }
                           }}
-                          disabled={loading}
+                          disabled={loading || !loginEmailValid || !loginPasswordValid}
                         >
                           {loading ? (
                             <ActivityIndicator color="#fff" />
@@ -572,29 +693,182 @@ export default function AuthModal({
                     ) : (
                       /* === REGISTRATION FORM === */
                       <>
-                        <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                          Sign up with Google to create your account
-                        </Text>
+                        {!emailSent ? (
+                          <>
+                            <Text style={[styles.subtitle, { marginBottom: 24 }]}>
+                              Enter your Gmail to create your account
+                            </Text>
 
-                        {/* Google OAuth Button */}
-                        <TouchableOpacity
-                          style={[styles.btn, styles.googleBtn, { marginBottom: 24 }]}
-                          onPress={handleGoogleOAuth}
-                          disabled={loading}
-                        >
-                          <Text style={styles.googleIcon}>G</Text>
-                          <Text style={styles.googleBtnText}>
-                            {loading ? "Signing up..." : "Sign up with Google"}
-                          </Text>
-                        </TouchableOpacity>
+                            {/* Email Field */}
+                            <Text style={styles.fieldLabel}>Email (Gmail)</Text>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                { borderColor: getFieldBorderColor(isEmailValid) },
+                              ]}
+                              placeholder="your.email@gmail.com"
+                              autoCapitalize="none"
+                              keyboardType="email-address"
+                              value={formData.email}
+                              onChangeText={(t) => setField("email", t)}
+                              placeholderTextColor="#9ca3af"
+                            />
 
-                        {/* Switch to Login */}
-                        <View style={styles.switchAuthContainer}>
-                          <Text style={styles.switchAuthText}>Already have an account? </Text>
-                          <TouchableOpacity onPress={() => handleSwitchMode("login")}>
-                            <Text style={styles.switchAuthLink}>Login</Text>
-                          </TouchableOpacity>
-                        </View>
+                            {/* Password Field */}
+                            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Password</Text>
+                            <View style={[
+                              styles.passwordInputContainer,
+                              { borderColor: getFieldBorderColor(isPasswordValid) },
+                            ]}>
+                              <TextInput
+                                style={styles.passwordInput}
+                                placeholder="Enter password (8+ characters)"
+                                secureTextEntry={!showPassword}
+                                value={formData.password}
+                                onChangeText={(t) => setField("password", t)}
+                                placeholderTextColor="#9ca3af"
+                              />
+                              <TouchableOpacity
+                                style={styles.eyeIcon}
+                                onPress={() => setShowPassword(!showPassword)}
+                              >
+                                <Image
+                                  source={require("../../assets/images/icon/view.png")}
+                                  style={styles.passwordToggleIcon}
+                                />
+                              </TouchableOpacity>
+                            </View>
+
+                            {/* Password Strength Meter */}
+                            {formData.password && (
+                              <PasswordStrengthMeter strengthPercent={strengthPercent} />
+                            )}
+
+                            {/* Confirm Password Field */}
+                            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Confirm Password</Text>
+                            <View style={[
+                              styles.passwordInputContainer,
+                              { borderColor: getFieldBorderColor(isConfirmPasswordValid) },
+                            ]}>
+                              <TextInput
+                                style={styles.passwordInput}
+                                placeholder="Confirm password"
+                                secureTextEntry={!showConfirmPassword}
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                placeholderTextColor="#9ca3af"
+                              />
+                              <TouchableOpacity
+                                style={styles.eyeIcon}
+                                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                              >
+                                <Image
+                                  source={require("../../assets/images/icon/view.png")}
+                                  style={styles.passwordToggleIcon}
+                                />
+                              </TouchableOpacity>
+                            </View>
+
+                            {/* Password Match Status */}
+                            {confirmPassword && (
+                              <Text style={{
+                                marginTop: 8,
+                                marginBottom: 16,
+                                fontSize: 12,
+                                color: formData.password === confirmPassword ? "#10b981" : "#ef4444",
+                                fontWeight: "500"
+                              }}>
+                                {formData.password === confirmPassword ? "✓ Passwords match" : "✗ Passwords do not match"}
+                              </Text>
+                            )}
+
+                            {/* Send Code Button */}
+                            <TouchableOpacity
+                              style={[
+                                styles.btn,
+                                styles.primaryBtn,
+                                {
+                                  marginTop: 20,
+                                  opacity: (rateLimitSeconds > 0 || !isEmailValid || !isPasswordValid || !isConfirmPasswordValid) ? 0.5 : 1,
+                                },
+                              ]}
+                              onPress={sendVerificationCode}
+                              disabled={loading || rateLimitSeconds > 0 || !isEmailValid || !isPasswordValid || !isConfirmPasswordValid}
+                            >
+                              {loading ? (
+                                <ActivityIndicator color="#fff" />
+                              ) : rateLimitSeconds > 0 ? (
+                                <Text style={styles.btnText}>Try again in {formatRemainingTime(rateLimitSeconds)}</Text>
+                              ) : (
+                                <Text style={styles.btnText}>Send Verification Code</Text>
+                              )}
+                            </TouchableOpacity>
+
+                            {/* Switch to Login */}
+                            <View style={styles.switchAuthContainer}>
+                              <Text style={styles.switchAuthText}>Already have an account? </Text>
+                              <TouchableOpacity onPress={() => handleSwitchMode("login")}>
+                                <Text style={styles.switchAuthLink}>Login</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        ) : (
+                          <>
+                            <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>
+                              Verify Your Email
+                            </Text>
+                            
+                            <Text style={[styles.subtitle, { marginBottom: 24 }]}>
+                              Enter the 8-digit code sent to{"\n"}
+                              <Text style={{ fontWeight: "700", color: "#0b7fab" }}>
+                                {formData.email}
+                              </Text>
+                            </Text>
+
+                            {/* Verification Code Field */}
+                            <Text style={styles.fieldLabel}>Verification Code (8 digits)</Text>
+                            <TextInput
+                              style={styles.input}
+                              placeholder="00000000"
+                              keyboardType="number-pad"
+                              maxLength={8}
+                              value={verificationCode}
+                              onChangeText={setVerificationCode}
+                              placeholderTextColor="#9ca3af"
+                            />
+
+                            {/* Verify Button */}
+                            <TouchableOpacity
+                              style={[
+                                styles.btn,
+                                styles.primaryBtn,
+                                {
+                                  marginTop: 20,
+                                  opacity: verificationCode.length === 8 ? 1 : 0.5,
+                                },
+                              ]}
+                              onPress={verifyAndProceed}
+                              disabled={loading || verificationCode.length !== 8}
+                            >
+                              {loading ? (
+                                <ActivityIndicator color="#fff" />
+                              ) : (
+                                <Text style={styles.btnText}>Verify & Continue</Text>
+                              )}
+                            </TouchableOpacity>
+
+                            {/* Back Button */}
+                            <TouchableOpacity
+                              style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
+                              onPress={() => {
+                                setEmailSent(false);
+                                setVerificationCode("");
+                              }}
+                            >
+                              <Text style={styles.secondaryBtnText}>← Use Different Email</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
                       </>
                     )}
                   </View>
@@ -604,13 +878,29 @@ export default function AuthModal({
                 {step === 2 && (
                   <DoctorProfileSetup
                     onSuccess={(userData) => {
-                      console.log(" Doctor registration completed successfully");
-                      // Direct to dashboard after profile setup
-                      onSuccess(userData);
+                      console.log("Doctor profile setup completed, moving to clinic setup");
+                      // Move to clinic setup
+                      setStep(3);
                     }}
                     onCancel={() => {
-                      console.log(" User cancelled doctor registration");
+                      console.log("User cancelled doctor registration");
                       setStep(1); // Go back to login/register screen
+                    }}
+                  />
+                )}
+
+                {/* ════════════ Step 3: Clinic Setup ════════════ */}
+                {step === 3 && (
+                  <ClinicSetup
+                    onClose={() => {
+                      console.log("Clinic setup completed, proceeding to dashboard");
+                      setRegistrationComplete(true);
+                      onSuccess({});
+                    }}
+                    onSave={(clinicData) => {
+                      console.log("Clinic setup saved", clinicData);
+                      setRegistrationComplete(true);
+                      onSuccess({});
                     }}
                   />
                 )}
@@ -854,7 +1144,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     fontSize: 15,
     color: "#0f172a",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#e5e7eb",
   },
   passwordContainer: {
@@ -864,7 +1154,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#f3f4f6",
     borderRadius: 10,
     paddingRight: 12,
-    borderWidth: 1,
+    borderWidth: 2,
+    borderColor: "#e5e7eb",
+  },
+  passwordInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    paddingRight: 12,
+    borderWidth: 2,
     borderColor: "#e5e7eb",
   },
   passwordInput: {
@@ -872,6 +1172,9 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 15,
     color: "#0f172a",
+  },
+  eyeIcon: {
+    padding: 8,
   },
   passwordToggle: {
     padding: 8,
@@ -946,6 +1249,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingBottom: 8,
+    marginTop: 15,
   },
   switchAuthText: {
     fontSize: 13,
