@@ -96,7 +96,7 @@ export default function AuthModal({
   // Reset state when modal re-opens
   React.useEffect(() => {
     if (visible) {
-      setStep(2); // Start directly at login form
+      setStep(1); // Start directly at login form
       setMode("login");
       setShowPassword(false);
       setShowConfirmPassword(false);
