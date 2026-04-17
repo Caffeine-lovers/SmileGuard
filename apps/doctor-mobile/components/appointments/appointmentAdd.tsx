@@ -351,17 +351,12 @@ export default function AppointmentAdd({
     if (!showTimePicker) return;
     
     const slot00Available = !bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:00`) && isTimeAvailable(selectedHour, 0);
-    const slot30Available = !bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:30`) && isTimeAvailable(selectedHour, 30);
     
-    // If both slots are unavailable, don't adjust
-    if (!slot00Available && !slot30Available) return;
+    // If slot is unavailable, don't adjust
+    if (!slot00Available) return;
     
-    // If minute 0 is available, select it; otherwise select 30
-    if (slot00Available) {
-      setSelectedMinute(0);
-    } else if (slot30Available) {
-      setSelectedMinute(30);
-    }
+    // Select minute 0 (only 1-hour intervals)
+    setSelectedMinute(0);
   }, [selectedHour, bookedTimes, showTimePicker, clinicSchedule]);
 
   // Validate selected hour when date changes (ensure it's within clinic hours for that date)
@@ -1313,8 +1308,7 @@ export default function AppointmentAdd({
                     <ScrollView style={styles.pickerScroll}>
                       {getAvailableHours().map((hour) => {
                         const slot00 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:00`);
-                        const slot30 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:30`);
-                        const isHourFull = slot00 && slot30;
+                        const isHourFull = slot00;
                         
                         // Check if hour is within clinic operating hours
                         const withinClinicHours = isHourAvailable(hour);
@@ -1358,7 +1352,7 @@ export default function AppointmentAdd({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Minute</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {[0, 30].map((minute) => {
+                      {[0].map((minute) => {
                         const timeString = `${String(selectedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
                         const isBooked = bookedTimes.includes(timeString);
                         
