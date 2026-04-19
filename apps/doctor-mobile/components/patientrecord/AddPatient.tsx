@@ -575,7 +575,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               </Text>
               <TextInput
                 style={[styles.input, { borderColor: "#0b7fab" }]}
-                placeholder="Enter phone number (10-11 digits)"
+                placeholder="Enter phone number"
                 placeholderTextColor="#999"
                 keyboardType="phone-pad"
                 maxLength={11}
