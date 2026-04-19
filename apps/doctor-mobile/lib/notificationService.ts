@@ -201,7 +201,7 @@ export function subscribeToTableChanges(
           );
 
           if (notification) {
-            console.log(`✨ Emitting notification:`, notification.type, notification.title);
+            console.log(`[NotificationService] Emitting notification:`, notification.type, notification.title);
             onNotification(notification);
           } else {
             console.log(`⏭️ Skipped notification for ${tableName} (generateNotification returned null)`);

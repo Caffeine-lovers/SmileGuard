@@ -9,7 +9,6 @@ import { getPatientAppointments } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
-import OutstandingBalance from '@/components/billing/BillingPayment';
 
 export default function PatientDashboard() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -40,10 +39,12 @@ export default function PatientDashboard() {
     async function fetchData() {
       setLoading(true);
       try {
-        console.log("[PatientDashboard] Starting data fetch for user:", currentUser.id);
+        if (!currentUser?.id) return;
+        const userId = currentUser.id;
+        console.log("[PatientDashboard] Starting data fetch for user:", userId);
         const [appts, balance] = await Promise.all([
-          getPatientAppointments(currentUser!.id),
-          calculateOutstandingBalance(currentUser!.id),
+          getPatientAppointments(userId),
+          calculateOutstandingBalance(userId),
         ]);
         console.log("[PatientDashboard] Data fetched successfully:", { appointmentsCount: appts.length, balance });
         

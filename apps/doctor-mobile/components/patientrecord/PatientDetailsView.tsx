@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -64,8 +64,22 @@ const calculateAge = (dateOfBirth: string | undefined): number | null => {
   if (!dateOfBirth) return null;
   
   try {
-    const [year, month, day] = dateOfBirth.split('-').map(Number);
-    const birthDate = new Date(year, month - 1, day);
+    let birthDate: Date;
+    
+    // Handle mm/dd/YYYY format
+    if (dateOfBirth.includes('/')) {
+      const [month, day, year] = dateOfBirth.split('/');
+      birthDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    } else {
+      // Handle ISO date format and other formats
+      birthDate = new Date(dateOfBirth);
+    }
+    
+    // Check if date is valid
+    if (isNaN(birthDate.getTime())) {
+      return null;
+    }
+    
     const today = new Date();
     
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -114,6 +128,7 @@ const categorizeAppointments = (appointments: any[]) => {
 export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit,onMedicalIntakeUpdated, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [billingInfo, setBillingInfo] = useState<PatientBillingInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [scrollY, setScrollY] = useState(0);
@@ -127,6 +142,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       // Immediately clear old data and show loading
       setMedicalIntake(null);
       setAppointments([]);
+      setBillingInfo(null);
       setLoading(true);
       
       // Load new patient data
@@ -136,10 +152,11 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   const loadPatientData = async (patientId: string) => {
     try {
-      // Load both in parallel
-      const [intake, appts] = await Promise.all([
+      // Load all three in parallel
+      const [intake, appts, billing] = await Promise.all([
         getPatientMedicalInfo(patientId),
         getPatientAppointments(patientId),
+        getPatientBillingInfo(patientId),
       ]);
 
       // Update medical intake
@@ -163,6 +180,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       console.log('📋 Filtered cancelled:', updatedAppts.filter(a => a.status === 'cancelled'));
       
       setAppointments(updatedAppts);
+
+      // Update billing info
+      setBillingInfo(billing);
+      console.log('✅ Loaded billing info:', billing);
     } catch (error) {
       console.error('❌ Error loading patient data:', error);
     } finally {
@@ -222,7 +243,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
+              <Image
+                source={require("../../assets/images/icon/close.png")}
+                style={{ width: 20, height: 20 }}
+              />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Patient Details</Text>
             <View style={{ width: 30 }} />
@@ -276,18 +300,18 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Information</Text>
             <View style={styles.infoContainer}>
+              <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
+              <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
+              <DetailRow label="Email" value={patient.email || "Not provided"} />
+              <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
               {(() => {
-                const calculatedAge = calculateAge(medicalIntake?.dateOfBirth);
+                const calculatedAge = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth);
                 return calculatedAge !== null ? (
                   <DetailRow label="Age" value={calculatedAge.toString()} />
                 ) : patient.age > 0 ? (
                   <DetailRow label="Age" value={patient.age.toString()} />
                 ) : null;
               })()}
-              <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
-              <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
-              <DetailRow label="Email" value={patient.email || "Not provided"} />
-              <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
               <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
             </View>
           </View>
@@ -331,6 +355,28 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
               <Text style={styles.notesText}>
                 {medicalIntake?.notes || patient.notes || "No notes available"}
               </Text>
+            </View>
+          </View>
+
+          {/* Billing Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Billing Information</Text>
+            <View style={styles.infoContainer}>
+              {billingInfo ? (
+                <>
+                  <DetailRow label="Total Charges" value={`₱${billingInfo.totalAmount.toFixed(2)}`} />
+                  <DetailRow label="Amount Paid" value={`₱${billingInfo.paidAmount.toFixed(2)}`} />
+                  {billingInfo.pendingAmount > 0 && (
+                    <DetailRow label="Pending Payment" value={`₱${billingInfo.pendingAmount.toFixed(2)}`} />
+                  )}
+                  {billingInfo.overdueAmount > 0 && (
+                    <DetailRow label="Overdue Amount" value={`₱${billingInfo.overdueAmount.toFixed(2)}`} />
+                  )}
+                  <DetailRow label="Number of Bills" value={billingInfo.billingCount.toString()} />
+                </>
+              ) : (
+                <Text style={styles.noDataText}>No billing records available</Text>
+              )}
             </View>
           </View>
 

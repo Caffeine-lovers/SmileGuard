@@ -1,6 +1,19 @@
 /**
  * Image Upload Service
  * Handles uploading images to Supabase Storage
+ * 
+ * IMPORTANT: The 'doctor-profiles' bucket must exist and be set to PUBLIC in Supabase
+ * SQL migration to create bucket:
+ * 
+ * -- Create the bucket if it doesn't exist
+ * INSERT INTO storage.buckets (id, name, public)
+ * VALUES ('doctor-profiles', 'doctor-profiles', true)
+ * ON CONFLICT (id) DO NOTHING;
+ * 
+ * -- Set public access policy
+ * CREATE POLICY "Public Access"
+ * ON storage.objects FOR SELECT
+ * USING (bucket_id = 'doctor-profiles');
  */
 
 import * as ImagePicker from "expo-image-picker";
@@ -62,7 +75,7 @@ export const pickImage = async (): Promise<ImagePickerResult | null> => {
       type: asset.mimeType || "image/jpeg",
     };
   } catch (error) {
-    console.error(" Image picker failed:", error);
+    console.error("[ImageUpload] Image picker failed:", error);
     throw error;
   }
 };
@@ -79,18 +92,18 @@ export const uploadProfileImage = async (
   userId: string
 ): Promise<string> => {
   try {
-    console.log(" Starting image upload...");
-    console.log(" Image URI:", image.uri);
-    console.log(" Image type:", image.type);
+    console.log("[ImageUpload] Starting image upload...");
+    console.log("[ImageUpload] Image URI:", image.uri);
+    console.log("[ImageUpload] Image type:", image.type);
 
     // Create unique filename
     const timestamp = Date.now();
     const filename = `doctor-profiles/${userId}/profile_${timestamp}`;
 
-    console.log(" Uploading to path:", filename);
+    console.log("[ImageUpload] Uploading to path:", filename);
 
     try {
-      console.log("🔄 Reading image file as binary...");
+      console.log("[ImageUpload] Reading image file as binary...");
       
       // Use fetch to get binary data directly without string conversion
       const response = await fetch(image.uri);
@@ -101,15 +114,15 @@ export const uploadProfileImage = async (
       
       // Get blob directly - this avoids unnecessary string encoding
       const blob = await response.blob();
-      console.log("✅ Image blob retrieved, size:", blob.size, "bytes");
+      console.log("[ImageUpload] Image blob retrieved, size:", blob.size, "bytes");
 
       // Upload to Supabase Storage with binary blob
-      console.log("📤 Uploading to Supabase storage...");
-      console.log("📦 Bucket: doctor-pictures");
-      console.log("📦 Content-Type:", image.type || "image/jpeg");
+      console.log("[ImageUpload] Uploading to Supabase storage...");
+      console.log("[ImageUpload] Bucket: doctor-profiles");
+      console.log("[ImageUpload] Content-Type:", image.type || "image/jpeg");
       
       const { data, error } = await supabase.storage
-        .from("doctor-pictures")
+        .from("doctor-profiles")
         .upload(filename, blob, {
           cacheControl: "3600",
           upsert: true,
@@ -117,20 +130,20 @@ export const uploadProfileImage = async (
         });
 
       if (error) {
-        console.error("❌ Supabase upload error details:");
+        console.error("[ImageUpload] Supabase upload error details:");
         console.error("  - Message:", error.message);
         console.error("  - Name:", error.name);
         console.error("  - Status:", (error as any).status);
         console.error("  - Full Error:", JSON.stringify(error));
         
         // Provide more specific error messages
-        if (error.message.includes("Network request failed")) {
-          console.error("💡 This usually means:");
-          console.error("   1. The 'doctor-pictures' bucket doesn't exist");
+        if (error.message.includes("Network request failed") || error.message.includes("bucket")) {
+          console.error("[ImageUpload] Bucket issue detected:");
+          console.error("   1. The 'doctor-profiles' bucket doesn't exist");
           console.error("   2. The bucket is not set to PUBLIC");
           console.error("   3. There's a CORS issue");
           throw new Error(
-            "Storage bucket error. Please verify:\\n1. Bucket 'doctor-pictures' exists\\n2. Bucket is set to PUBLIC\\n3. Check Supabase dashboard"
+            "Storage bucket error. Please verify:\n1. Bucket 'doctor-profiles' exists in Supabase\n2. Bucket is set to PUBLIC\n3. Check Supabase dashboard under Storage"
           );
         }
         
@@ -143,10 +156,10 @@ export const uploadProfileImage = async (
         throw new Error(`Upload failed: ${error.message}`);
       }
 
-      console.log(" Upload successful:", data);
+      console.log("[ImageUpload] Upload successful:", data);
 
       // Get public URL
-      console.log("🔗 Generating public URL...");
+      console.log("[ImageUpload] Generating public URL...");
       const { data: publicUrl } = supabase.storage
         .from("doctor-pictures")
         .getPublicUrl(filename);

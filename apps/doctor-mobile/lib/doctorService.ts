@@ -167,6 +167,20 @@ export async function getDoctorsByClinic(clinicName: string): Promise<Doctor[]> 
  */
 export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null> {
   try {
+    // Validate required fields before attempting insert
+    if (!doctor.user_id) throw new Error("Missing required field: user_id");
+    if (!doctor.doctor_name) throw new Error("Missing required field: doctor_name");
+    if (!doctor.specialization) throw new Error("Missing required field: specialization");
+    if (!doctor.license_number) throw new Error("Missing required field: license_number");
+
+    console.log("[DoctorService] Creating doctor profile with data:", {
+      user_id: doctor.user_id,
+      doctor_name: doctor.doctor_name,
+      specialization: doctor.specialization,
+      license_number: doctor.license_number,
+      profile_picture_url: doctor.profile_picture_url ? "✓ (URL set)" : "✗ (no URL)",
+    });
+
     const { data, error } = await supabase
       .from("doctors")
       .insert([doctor])
@@ -174,14 +188,20 @@ export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null
       .single();
 
     if (error) {
-      console.error("Error creating doctor profile:", error);
-      return null;
+      console.error("[DoctorService] Supabase insert error:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
+      throw new Error(`Database error (${error.code}): ${error.message}`);
     }
 
+    console.log("[DoctorService] Doctor profile created successfully");
     return data as Doctor;
   } catch (error) {
-    console.error("Exception in createDoctorProfile:", error);
-    return null;
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[DoctorService] Exception in createDoctorProfile:", message);
+    throw error; // Re-throw so caller gets the actual error
   }
 }
 

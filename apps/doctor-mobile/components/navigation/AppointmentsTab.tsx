@@ -17,6 +17,7 @@ import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, 
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import AppointmentAdd from "../appointments/appointmentAdd";
+import { HeroIcon } from "../ui/HeroIcon";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -45,7 +46,7 @@ export default function AppointmentsTab({
   onAppointmentCreated,
   onAppointmentStatusUpdated,
 }: AppointmentsTabProps) {
-  console.log('🎯 AppointmentsTab rendered. providedDoctorId:', providedDoctorId);
+  console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
   
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show'>('all');
@@ -492,7 +493,7 @@ export default function AppointmentsTab({
       // Load clinic schedule and blockout dates
       const loadSchedule = async () => {
         try {
-          console.log('📅 Loading clinic schedule...');
+          console.log('[AppointmentsTab] Loading clinic schedule...');
           const { data, error } = await supabase
             .from('clinic_setup')
             .select('schedule')
@@ -1036,9 +1037,9 @@ export default function AppointmentsTab({
             </View>
 
             {/* Calendar Days */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap:2 }}>
               {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={{ width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center' }} />
+                <View key={`empty-${index}`} style={{ flex: 1, minWidth: '14%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
               ))}
               {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                 const day = index + 1;
@@ -1059,46 +1060,109 @@ export default function AppointmentsTab({
                 const blockoutEntry = blockoutDates.find(b => b.blockout_date === dateStr && b.is_blocked);
                 const isBlockedSpecific = !!blockoutEntry;
 
+                // Check if date is at capacity (full)
+                const isFull = appointmentCount >= 3;
+
                 return (
                   <TouchableOpacity
                     key={day}
                     onPress={() => !isUnavailable && setSelectedDate(dateStr)}
                     disabled={isUnavailable}
                     style={{
-                      width: '14.28%',
-                      aspectRatio: 1,
+                      flex: 1,
+                      minWidth: '14%',
+                      height: 55,
                       justifyContent: 'center',
                       alignItems: 'center',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : '#f9f9f9',
-                      borderWidth: isBlockedSpecific ? 2 : isUnavailable ? 1 : isToday ? 2 : 0,
-                      borderColor: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ddd' : isToday ? '#0b7fab' : 'transparent',
+                      borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
+                      borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#0b7fab' : '#e0e0e0',
                       opacity: isUnavailable ? 0.6 : 1,
+                      position: 'relative',
                     }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
+                    <Text style={{ position: 'absolute', top: 4, left: 4, fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
                       {day}
                     </Text>
-                    {isBlockedSpecific && (
-                      <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#d32f2f', marginTop: 1 }}>
-                        🔒
-                      </Text>
-                    )}
+
+                    {/* Appointment Count Badge - Lower Left */}
                     {!isUnavailable && appointmentCount > 0 && (
                       <View
                         style={{
-                          backgroundColor: isSelected ? '#fff' : getCalendarBadgeColor(),
-                          borderRadius: 8,
+                          position: 'absolute',
+                          bottom: 2,
+                          left: 2,
+                          backgroundColor: '#22aaa8',
+                          borderRadius: 7,
                           width: 14,
                           height: 14,
+                          borderWidth: 1,
+                          borderColor: '#929ca0',
                           justifyContent: 'center',
                           alignItems: 'center',
-                          marginTop: 2,
+                          elevation: 5,
+                          shadowOpacity: 0.25,
+                          shadowRadius: 3,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
                         }}
                       >
-                        <Text style={{ fontSize: 9, fontWeight: 'bold', color: isSelected ? getCalendarBadgeColor() : '#fff' }}>
-                          {appointmentCount}
+                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#fff' }}>
+                          {appointmentCount > 9 ? '9+' : appointmentCount}
                         </Text>
+                      </View>
+                    )}
+
+                    {/* Status Badge - Lower Right (Blocked/Unavailable) */}
+                    {isBlockedSpecific && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          bottom: 2,
+                          right: 2,
+                          backgroundColor: '#ef4444',
+                          borderRadius: 6,
+                          width: 12,
+                          height: 12,
+                          borderWidth: 1,
+                          borderColor: '#ef4444',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          elevation: 5,
+                          shadowOpacity: 0.25,
+                          shadowRadius: 3,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                        }}
+                      >
+                        <HeroIcon name="xmark" size="xs" color="#fff" />
+                      </View>
+                    )}
+
+                    {/* Full Badge - Lower Right (3+ Appointments) */}
+                    {!isBlockedSpecific && isFull && !isUnavailable && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          bottom: 2,
+                          right: 2,
+                          backgroundColor: '#22c55e',
+                          borderRadius: 6,
+                          width: 12,
+                          height: 12,
+                          borderWidth: 1,
+                          borderColor: '#22c55e',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          elevation: 5,
+                          shadowOpacity: 0.25,
+                          shadowRadius: 3,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                        }}
+                      >
+                        <HeroIcon name="check" size="xs" color="#e60b0b" />
                       </View>
                     )}
                   </TouchableOpacity>

@@ -17,6 +17,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
 import AddPatient from '../patientrecord/AddPatient';
+import { HeroIcon } from '../ui/HeroIcon';
 
 interface AppointmentAddProps {
   visible: boolean;
@@ -46,8 +47,15 @@ interface Schedule {
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 const SERVICES = [
-  "Cleaning", "Whitening", "Fillings", "Root Canal", "Extraction", "Braces Consultation", "Implants Consultation",
-    "X-Ray", "Checkup"
+  { name: "Cleaning", price: 1500 },
+  { name: "Whitening", price: 5000 },
+  { name: "Fillings", price: 2000 },
+  { name: "Root Canal", price: 8000 },
+  { name: "Extraction", price: 1500 },
+  { name: "Braces Consultation", price: 35000 },
+  { name: "Implants Consultation", price: 45000 },
+  { name: "X-Ray", price: 500 },
+  { name: "Checkup", price: 300 }
 ];
 
 const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
@@ -179,7 +187,7 @@ export default function AppointmentAdd({
   // Load blockout dates from clinic_blockout_dates table
   const loadBlockoutDates = async () => {
     try {
-      console.log('📅 Loading blockout dates...');
+      console.log('[AppointmentAdd] Loading blockout dates...');
       
       // Get current authenticated user to ensure RLS policy passes
       const { data: { user } } = await supabase.auth.getUser();
@@ -351,17 +359,12 @@ export default function AppointmentAdd({
     if (!showTimePicker) return;
     
     const slot00Available = !bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:00`) && isTimeAvailable(selectedHour, 0);
-    const slot30Available = !bookedTimes.includes(`${String(selectedHour).padStart(2, '0')}:30`) && isTimeAvailable(selectedHour, 30);
     
-    // If both slots are unavailable, don't adjust
-    if (!slot00Available && !slot30Available) return;
+    // If slot is unavailable, don't adjust
+    if (!slot00Available) return;
     
-    // If minute 0 is available, select it; otherwise select 30
-    if (slot00Available) {
-      setSelectedMinute(0);
-    } else if (slot30Available) {
-      setSelectedMinute(30);
-    }
+    // Select minute 0 (only 1-hour intervals)
+    setSelectedMinute(0);
   }, [selectedHour, bookedTimes, showTimePicker, clinicSchedule]);
 
   // Validate selected hour when date changes (ensure it's within clinic hours for that date)
@@ -521,10 +524,10 @@ export default function AppointmentAdd({
     const blockout = blockoutDates.find(b => b.blockout_date === dateStr);
     if (blockout) {
       if (blockout.is_blocked) {
-        console.log(`📅 Date ${dateStr} is BLOCKED (specific blockout)`);
+        console.log(`[AppointmentAdd] Date ${dateStr} is BLOCKED (specific blockout)`);
         return true;
       } else {
-        console.log(`📅 Date ${dateStr} is AVAILABLE (blockout override)`);
+        console.log(`[AppointmentAdd] Date ${dateStr} is AVAILABLE (blockout override)`);
         return false;
       }
     }
@@ -613,7 +616,7 @@ export default function AppointmentAdd({
     const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
     const dayName = DAY_NAMES[dayOfWeek];
     
-    console.log(`📅 Getting hours for ${dayName} (date: ${year}-${month}-${day})`, {
+    console.log(`[AppointmentAdd] Getting hours for ${dayName} (date: ${year}-${month}-${day})`, {
       dayOfWeek,
       dayName,
       availableDays: Object.keys(clinicSchedule),
@@ -710,6 +713,11 @@ export default function AppointmentAdd({
     return hours;
   };
 
+  const getServicePrice = (serviceName: string): number => {
+    const service = SERVICES.find(s => s.name === serviceName);
+    return service?.price || 0;
+  };
+
   const validateForm = (): boolean => {
     const dateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
     const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
@@ -785,6 +793,34 @@ export default function AppointmentAdd({
       }
 
       console.log('✅ Appointment created successfully:', data);
+      
+      // Create billing record if appointment was created
+      if (data && data.length > 0) {
+        const appointment = data[0];
+        const servicePrice = getServicePrice(selectedService);
+        
+        // For billings table, use appointment_id to link to the appointment (which contains service info)
+        const billingData: any = {
+          patient_id: selectedPatient,
+          appointment_id: appointment.id,
+          amount: servicePrice,
+          final_amount: servicePrice,
+          payment_status: 'pending',
+        };
+        
+        console.log('💳 Creating billing record:', billingData);
+        
+        const { error: billingError } = await supabase
+          .from('billings')
+          .insert([billingData]);
+        
+        if (billingError) {
+          console.error('Warning: Failed to create billing record:', billingError);
+          // Don't alert user for billing error as appointment was created
+        } else {
+          console.log('✅ Billing record created successfully');
+        }
+      }
       
       // Trigger notification callback if provided
       if (onAppointmentCreated && data && data.length > 0) {
@@ -1035,9 +1071,16 @@ export default function AppointmentAdd({
                   onPress={() => appointmentTime && setShowServicePicker(!showServicePicker)}
                   disabled={!appointmentTime}
                 >
-                  <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }]}>
-                    {selectedService || 'Select Service'}
-                  </Text>
+                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }]}>
+                      {selectedService || 'Select Service'}
+                    </Text>
+                    {selectedService && (
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginLeft: 8 }}>
+                        ₱{getServicePrice(selectedService).toLocaleString()}
+                      </Text>
+                    )}
+                  </View>
                   <Text style={{ color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }}>▼</Text>
                 </TouchableOpacity>
               </View>
@@ -1058,24 +1101,34 @@ export default function AppointmentAdd({
                       <ScrollView style={{ flex: 1 }} scrollEnabled={true}>
                         {SERVICES.map((service) => (
                           <TouchableOpacity
-                            key={service}
+                            key={service.name}
                             style={[
                               styles.pickerItem,
-                              selectedService === service && styles.pickerItemSelected,
+                              selectedService === service.name && styles.pickerItemSelected,
                             ]}
                             onPress={() => {
-                              setSelectedService(service);
+                              setSelectedService(service.name);
                               setShowServicePicker(false);
                             }}
                           >
-                            <Text
-                              style={[
-                                styles.pickerItemText,
-                                selectedService === service && styles.pickerItemTextSelected,
-                              ]}
-                            >
-                              {service}
-                            </Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text
+                                style={[
+                                  styles.pickerItemText,
+                                  selectedService === service.name && styles.pickerItemTextSelected,
+                                ]}
+                              >
+                                {service.name}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.pickerItemSubText,
+                                  selectedService === service.name && styles.pickerItemTextSelected,
+                                ]}
+                              >
+                                ₱{service.price.toLocaleString()}
+                              </Text>
+                            </View>
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
@@ -1274,11 +1327,20 @@ export default function AppointmentAdd({
                               >
                                 {String(day).padStart(2, '0')} {getDayAbbreviation(selectedYear, selectedMonth, day)}
                               </Text>
-                              {isUnavailable && (
-                                <Text style={styles.closedLabel}>CLOSED</Text>
+                              {appointmentCount > 0 && (
+                                <View style={styles.appointmentCountBadge}>
+                                  <Text style={styles.appointmentCountText}>{appointmentCount}</Text>
+                                </View>
                               )}
-                              {isFull && (
-                                <Text style={styles.fullLabel}>FULL</Text>
+                              {isUnavailable && (
+                                <View style={styles.statusBadge}>
+                                  <HeroIcon name="xmark" size="sm" color="#fff" />
+                                </View>
+                              )}
+                              {isFull && !isUnavailable && (
+                                <View style={styles.fullBadge}>
+                                  <HeroIcon name="check" size="sm" color="#fff" />
+                                </View>
                               )}
                             </TouchableOpacity>
                           );
@@ -1313,8 +1375,7 @@ export default function AppointmentAdd({
                     <ScrollView style={styles.pickerScroll}>
                       {getAvailableHours().map((hour) => {
                         const slot00 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:00`);
-                        const slot30 = bookedTimes.includes(`${String(hour).padStart(2, '0')}:30`);
-                        const isHourFull = slot00 && slot30;
+                        const isHourFull = slot00;
                         
                         // Check if hour is within clinic operating hours
                         const withinClinicHours = isHourAvailable(hour);
@@ -1358,7 +1419,7 @@ export default function AppointmentAdd({
                   <View style={styles.pickerColumn}>
                     <Text style={styles.pickerLabel}>Minute</Text>
                     <ScrollView style={styles.pickerScroll}>
-                      {[0, 30].map((minute) => {
+                      {[0].map((minute) => {
                         const timeString = `${String(selectedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
                         const isBooked = bookedTimes.includes(timeString);
                         
@@ -1588,6 +1649,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    position: 'relative',
   },
   pickerItemSelected: {
     backgroundColor: '#e3f2fd',
@@ -1793,17 +1855,59 @@ const styles = StyleSheet.create({
     color: '#ccc',
     fontWeight: '400',
   },
-  closedLabel: {
-    fontSize: 10,
-    color: '#ff6b6b',
-    fontWeight: '700',
-    marginTop: 2,
+  statusBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  fullLabel: {
-    fontSize: 10,
-    color: '#ff9800',
+  fullBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  appointmentCountBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#0b7fab',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  appointmentCountText: {
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: 2,
+    color: '#fff',
+    textAlign: 'center',
   },
   accountTypeLabel: {
     fontSize: 10,

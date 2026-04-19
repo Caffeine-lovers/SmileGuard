@@ -78,7 +78,10 @@ export default function RecordsTab({
         const data = await getAllPatients();
         console.log('RecordsTab - Received profiles patients:', data);
         
-        const mapped: AppointmentType[] = data.map((patient) => ({
+        // Filter to show only patients with role='patient'
+        const filteredData = data.filter((patient) => patient.role === 'patient');
+        
+        const mapped: AppointmentType[] = filteredData.map((patient) => ({
           id: patient.patient_id,
           name: patient.name || 'Unknown Patient',
           email: patient.email || '',
@@ -215,7 +218,9 @@ export default function RecordsTab({
 
       // Fetch Supabase patients
       const supabaseData = await getAllPatients();
-      const mappedSupabase: AppointmentType[] = supabaseData.map((patient) => ({
+      // Filter to show only patients with role='patient'
+      const filteredSupabaseData = supabaseData.filter((patient) => patient.role === 'patient');
+      const mappedSupabase: AppointmentType[] = filteredSupabaseData.map((patient) => ({
         id: patient.patient_id,
         name: patient.name || 'Unknown Patient',
         email: patient.email || '',

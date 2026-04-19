@@ -377,7 +377,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 router.back();
               }
             }}>
-              <Text style={{ fontSize: 18, color: "#0b7fab", fontWeight: "600" }}>✕</Text>
+              <Image
+                source={require("../../assets/images/icon/close.png")}
+                style={{ width: 20, height: 20, tintColor: "#0b7fab" }}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -469,7 +472,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
                   <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Gender</Text>
                   <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                    <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                    <Image
+                      source={require("../../assets/images/icon/close.png")}
+                      style={{ width: 20, height: 20, tintColor: "#0b7fab" }}
+                    />
                   </TouchableOpacity>
                 </View>
                 {genderOptions.map((option) => (

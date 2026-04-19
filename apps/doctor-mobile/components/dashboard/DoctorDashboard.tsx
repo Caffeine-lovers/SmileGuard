@@ -23,6 +23,7 @@ import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
+import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
@@ -120,7 +121,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [viewingPatient, setViewingPatient] = useState<DashboardAppointment | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
@@ -293,7 +294,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
       // Use RPC function to get ALL appointments including cancelled (bypasses RLS)
       const rpcAppointments = await getDoctorAppointments(user.id);
-      console.log('🎯 [DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
+      console.log('[DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);
         
@@ -758,7 +759,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               accessibilityLabel="Open sidebar"
               accessibilityRole="button"
             >
-              <Text style={styles.floatingToggleIcon}>☰</Text>
+              <Image
+                source={require('../../assets/images/icon/open.png')}
+                style={styles.floatingToggleIcon}
+              />
             </TouchableOpacity>
           )}
 
@@ -1298,6 +1302,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 }}
                 styles={styles}
               />
+            ) : activeTab === 'billing' ? (
+              <BillingTab
+                doctorId={user.id || ''}
+                styles={styles}
+              />
             ) : (
               <SettingsTab 
                 user={doctorProfile} 
@@ -1379,7 +1388,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               style={styles.sidebarToggleButton}
               onPress={() => setSidebarOpen(false)}
             >
-              <Text style={styles.sidebarToggleIcon}>✕</Text>
+              <Image
+                source={require('../../assets/images/icon/close.png')}
+                style={styles.sidebarToggleIcon}
+              />
             </TouchableOpacity>
 
             {sidebarOpen && (
@@ -1432,6 +1444,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   style={styles.navIcon}
                 />
                 {sidebarOpen && <Text style={styles.navLabel}>Requests</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
+                onPress={() => setActiveTab('billing')}
+              >
+                <Image
+                  source={require('../../assets/images/icon/bill.png')}
+                  style={styles.navIcon}
+                />
+                {sidebarOpen && <Text style={styles.navLabel}>Billing</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1583,9 +1606,9 @@ const styles = StyleSheet.create({
   },
 
   floatingToggleIcon: {
-    fontSize: 22,
-    color: '#fff',
-    fontWeight: 'bold',
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
   },
 
   backdropOverlay: {
@@ -1609,9 +1632,9 @@ const styles = StyleSheet.create({
   },
 
   sidebarToggleIcon: {
-    fontSize: 20,
-    color: '#fff',
-    fontWeight: 'bold',
+    width: 20,
+    height: 20,
+    tintColor: '#fff',
   },
 
   logoSection: {

@@ -56,14 +56,63 @@ const categorizeAppointments = (appointments: any[]) => {
 };
 
 function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (appt: any) => void }) {
-  const apptDate = new Date(appointment.appointment_date);
-  const formattedDate = apptDate.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const formattedDate = (() => {
+    try {
+      if (appointment.appointment_date && appointment.appointment_time) {
+        const dateStr = String(appointment.appointment_date).trim(); // YYYY-MM-DD
+        const timeStr = String(appointment.appointment_time).trim(); // HH:MM
+        
+        // Parse date
+        const dateParts = dateStr.split('-').map(Number);
+        if (dateParts.length !== 3 || dateParts.some(isNaN)) {
+          console.warn('⚠️ Invalid date format:', appointment.appointment_date);
+          return 'Invalid date format';
+        }
+        
+        // Parse time
+        const timeParts = timeStr.split(':').map(Number);
+        if (timeParts.length < 2 || timeParts.some(isNaN)) {
+          console.warn('⚠️ Invalid time format:', appointment.appointment_time);
+          return 'Invalid time format';
+        }
+        
+        const [year, month, day] = dateParts;
+        const [hour, minute] = timeParts;
+        
+        // Validate date components
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+          console.warn('⚠️ Invalid date components:', { year, month, day });
+          return 'Invalid date';
+        }
+        
+        const date = new Date(year, month - 1, day, hour, minute);
+        
+        // Verify the date is valid
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Failed to create valid date:', { year, month, day, hour, minute });
+          return 'Invalid date';
+        }
+        
+        return date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      }
+      
+      console.warn('⚠️ Missing appointment date or time:', {
+        appointment_date: appointment.appointment_date,
+        appointment_time: appointment.appointment_time,
+      });
+      return 'Date/Time not available';
+    } catch (error) {
+      console.error('❌ Error formatting date:', error, { appointment });
+      return 'Error formatting date';
+    }
+  })();
 
   const statusColor = getStatusColor(appointment.status);
   const statusBgColor = getStatusBgColor(appointment.status);
@@ -144,7 +193,7 @@ export default function AppointmentHistory({
   const { past, current, future } = categorizeAppointments(appointments);
 
   // Debug categorization
-  console.log('📅 Appointment Categorization:');
+  console.log('[AppointmentHistory] Appointment Categorization:');
   console.log(`   Today: ${current.length} appointments`);
   console.log(`   Future: ${future.length} appointments`);
   console.log(`   Past: ${past.length} appointments`);
@@ -231,7 +280,10 @@ export default function AppointmentHistory({
           </View>
         ) : filteredAppointments.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={styles.emptyIcon}>📭</Text>
+            <Image
+              source={require('../../assets/images/icon/appointment.png')}
+              style={styles.emptyIcon}
+            />
             <Text style={styles.emptyText}>
               {activeTab === 'all'
                 ? 'No appointments found'

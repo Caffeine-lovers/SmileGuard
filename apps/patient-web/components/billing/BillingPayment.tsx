@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
@@ -38,14 +39,15 @@ export default function BillingPayment({
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
+
+    const userId = currentUser.id;
 
     async function fetchBillingData() {
       setLoadingData(true);
       try {
-        if (!currentUser) return;
         const { outstandingBalance, unpaidAppointments, billingHistory } =
-          await fetchBillingDataForDashboard(currentUser.id);
+          await fetchBillingDataForDashboard(userId);
 
         setOutstandingBalance(outstandingBalance);
         setBillingHistory(billingHistory);
@@ -112,11 +114,12 @@ export default function BillingPayment({
       return;
     }
 
-    if (!selectedAppointment) {
+    if (!selectedAppointment || !currentUser?.id) {
       alert('Please select an appointment to pay.');
       return;
     }
 
+    const userId = currentUser.id;
     setIsProcessing(true);
     try {
       // Simulate payment processing
@@ -126,7 +129,7 @@ export default function BillingPayment({
       const { error } = await supabase
         .from('billings')
         .insert({
-          patient_id: currentUser!.id,
+          patient_id: userId,
           appointment_id: selectedAppointment.id,
           amount,
           discount_type: discountType,
@@ -151,7 +154,7 @@ export default function BillingPayment({
       if (onSuccess) {
         onSuccess({
           id: Date.now().toString(),
-          patient_id: currentUser!.id,
+          patient_id: userId,
           appointment_id: selectedAppointment.id,
           amount,
           discount_type: discountType,
@@ -166,9 +169,9 @@ export default function BillingPayment({
 
       // Refresh billing data
       const [balance, billings, appts] = await Promise.all([
-        getBalance(currentUser!.id),
-        getBillings(currentUser!.id),
-        getPatientAppointments(currentUser!.id),
+        getBalance(userId),
+        getBillings(userId),
+        getPatientAppointments(userId),
       ]);
 
       const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
@@ -198,13 +201,13 @@ export default function BillingPayment({
       {/* Financial Summary Stats */}
       {!loadingData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <a href="/">
+          <Link href="/">
             <div className="bg-brand-danger/10 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(240,84,84,0.4)] cursor-pointer">
               <p className="text-sm text-text-secondary">Outstanding Balance</p>
               <p className="text-3xl font-bold text-brand-danger">₱{outstandingBalance?.toFixed(2)}</p>
               <p className="text-xs text-text-secondary mt-2">Current Due</p>
             </div>
-          </a>
+          </Link>
           <div className="bg-brand-primary/10 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(61,170,184,0.4)]">
             <p className="text-sm text-text-secondary">Total Transactions</p>
             <p className="text-3xl font-bold text-brand-primary">{billingHistory.length}</p>

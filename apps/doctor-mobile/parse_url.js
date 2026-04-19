@@ -1,0 +1,1 @@
+const url = 'smileguard://redirect#access_token=123&refresh_token=456&expires_in=3600'; const hash = url.split('#')[1]; const params = new URLSearchParams(hash); console.log(params.get('access_token'));

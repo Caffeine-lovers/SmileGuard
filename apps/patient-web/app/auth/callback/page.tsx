@@ -50,6 +50,71 @@ export default function AuthCallbackPage() {
         
         if (session) {
           addDebug(`✓ Session found for user: ${session.user.email}`);
+          
+          // Check if this is an OAuth signup flow (user clicked "Sign up with Google" on signup page)
+          const isOAuthSignupFlow = localStorage.getItem('oauth_signup_flow') === 'true';
+          
+          if (isOAuthSignupFlow) {
+            addDebug('OAuth signup flow detected - routing to registration');
+            localStorage.removeItem('oauth_signup_flow');
+            setMessage('Completing your registration...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            router.push('/signup/register?oauth=true');
+            return;
+          }
+          
+          // Ensure profile exists for OAuth users and check if complete
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (profileError || !profile) {
+              addDebug('Creating patient profile for OAuth user...');
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: session.user.id,
+                  email: session.user.email,
+                  name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Patient',
+                  role: null,
+                  created_at: new Date().toISOString(),
+                });
+              
+              if (insertError) {
+                addDebug(`Profile creation failed: ${insertError.message}`);
+              } else {
+                addDebug('✓ Patient profile created - redirecting to complete registration');
+                setMessage('Profile created! Completing registration...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                router.push('/signup/register?oauth=true');
+                return;
+              }
+            } else {
+              addDebug(`✓ Profile exists. Checking if registration is complete...`);
+              
+              // Check if profile is complete (has all required fields)
+              // Role must be set to indicate signup flow is complete
+              const isComplete = profile.name && profile.name.trim() !== '' && profile.role;
+              
+
+              if (!isComplete) {
+                addDebug('Profile incomplete - redirecting to complete registration');
+                setMessage('Completing your profile...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                router.push('/signup/register?oauth=true');
+                return;
+              }
+              
+              addDebug('✓ Profile complete - proceeding to dashboard');
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            addDebug(`Profile check failed: ${msg}`);
+          }
+          
           setMessage('✓ Authentication successful! Redirecting to dashboard...');
           await new Promise(resolve => setTimeout(resolve, 500));
           router.push('/dashboard');
@@ -71,13 +136,88 @@ export default function AuthCallbackPage() {
         }, 5000);
         
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          (event, session) => {
+          async (event, session) => {
             addDebug(`Auth state change event: ${event}`);
             
             if (completed) return;
             
             if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
               addDebug(`✓ User authenticated: ${session.user.email}`);
+              
+              // Check if this is an OAuth signup flow
+              const isOAuthSignupFlow = localStorage.getItem('oauth_signup_flow') === 'true';
+              
+              if (isOAuthSignupFlow) {
+                addDebug('OAuth signup flow detected - routing to registration');
+                localStorage.removeItem('oauth_signup_flow');
+                clearTimeout(timeout);
+                completed = true;
+                subscription?.unsubscribe();
+                setMessage('Completing your registration...');
+                setTimeout(() => {
+                  router.push('/signup/register?oauth=true');
+                }, 500);
+                return;
+              }
+              
+              // Ensure profile exists for OAuth users and check if complete
+              try {
+                const { data: profile, error: profileError } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (profileError || !profile) {
+                  addDebug('Creating patient profile for OAuth user...');
+                  const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({
+                      id: session.user.id,
+                      email: session.user.email,
+                      name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Patient',
+                      role: null,
+                      created_at: new Date().toISOString(),
+                    });
+                  
+                  if (insertError) {
+                    addDebug(`Profile creation failed: ${insertError.message}`);
+                  } else {
+                    addDebug('✓ Patient profile created - redirecting to complete registration');
+                    clearTimeout(timeout);
+                    completed = true;
+                    subscription?.unsubscribe();
+                    setMessage('Profile created! Completing registration...');
+                    setTimeout(() => {
+                      router.push('/signup/register?oauth=true');
+                    }, 500);
+                    return;
+                  }
+                } else {
+                  addDebug(`✓ Profile exists. Checking if registration is complete...`);
+                  
+                  // Check if profile is complete (has all required fields)
+                  const isComplete = profile.name && profile.name.trim() !== '' && profile.role;
+                  
+                  if (!isComplete) {
+                    addDebug('Profile incomplete - redirecting to complete registration');
+                    clearTimeout(timeout);
+                    completed = true;
+                    subscription?.unsubscribe();
+                    setMessage('Completing your profile...');
+                    setTimeout(() => {
+                      router.push('/signup/register?oauth=true');
+                    }, 500);
+                    return;
+                  }
+                  
+                  addDebug('✓ Profile complete - proceeding to dashboard');
+                }
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : 'Unknown error';
+                addDebug(`Profile check failed: ${msg}`);
+              }
+              
               clearTimeout(timeout);
               completed = true;
               subscription?.unsubscribe();

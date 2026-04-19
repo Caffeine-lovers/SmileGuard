@@ -21,10 +21,12 @@ export default function TreatmentsPage() {
   useEffect(() => {
     if (!currentUser?.id) return;
 
+    const userId = currentUser.id;
+
     async function fetchTreatments() {
       setLoadingData(true);
       try {
-        const appts = await getPatientAppointments(currentUser!.id);
+        const appts = await getPatientAppointments(userId);
         // Sort by appointment_date descending (most recent first)
         const sorted = appts.sort(
           (a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()
