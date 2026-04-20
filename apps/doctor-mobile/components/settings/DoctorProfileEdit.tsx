@@ -10,6 +10,7 @@ import {
   Switch,
   Modal,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
 
