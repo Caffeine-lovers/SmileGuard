@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { supabase } from '@smileguard/supabase-client';
 import { useAuth } from '../../hooks/useAuth';
+import { pickImage, uploadClinicLogo, uploadClinicGalleryImage, pickMultipleImages, uploadMultipleClinicGalleryImages } from '../../lib/imageUploadService';
 
 interface ClinicSetupProps {
   onClose?: () => void;
@@ -83,6 +84,8 @@ export default function ClinicSetup({
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [showServicesSection, setShowServicesSection] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState<keyof Schedule | null>(null);
   const [showClosingTimePicker, setShowClosingTimePicker] = useState<keyof Schedule | null>(null);
   const [tempHours, setTempHours] = useState('09');
@@ -96,6 +99,8 @@ export default function ClinicSetup({
   const [tempBlockoutDay, setTempBlockoutDay] = useState(today.getDate().toString());
   const [tempBlockoutMonth, setTempBlockoutMonth] = useState((today.getMonth() + 1).toString());
   const [tempBlockoutYear, setTempBlockoutYear] = useState(today.getFullYear().toString());
+  const [showImageFormatModal, setShowImageFormatModal] = useState(false);
+  const [pendingImageUploadType, setPendingImageUploadType] = useState<'logo' | 'gallery' | null>(null);
 
   // Load clinic data from database on component mount
   useEffect(() => {
@@ -351,6 +356,90 @@ export default function ClinicSetup({
     }));
   };
 
+  const handleUploadLogo = async () => {
+    setPendingImageUploadType('logo');
+    setShowImageFormatModal(true);
+  };
+
+  const performLogoUpload = async (aspectRatio?: [number, number]) => {
+    try {
+      const image = await pickImage(aspectRatio);
+      if (!image) return;
+
+      Alert.alert(
+        'Confirm Logo Upload',
+        'Do you want to use this image as your clinic logo?',
+        [
+          { text: 'Cancel', onPress: () => {} },
+          {
+            text: 'Upload',
+            onPress: async () => {
+              setUploadingLogo(true);
+              try {
+                const logoUrl = await uploadClinicLogo(image, currentUser?.id || '');
+                setClinicData(prev => ({
+                  ...prev,
+                  logo_url: logoUrl,
+                }));
+                Alert.alert('Success', 'Logo uploaded successfully');
+              } catch (error) {
+                const message = error instanceof Error ? error.message : 'Failed to upload logo';
+                Alert.alert('Error', message);
+              } finally {
+                setUploadingLogo(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to pick image';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const handleUploadGalleryImage = async () => {
+    setPendingImageUploadType('gallery');
+    setShowImageFormatModal(true);
+  };
+
+  const performGalleryUpload = async (aspectRatio?: [number, number]) => {
+    try {
+      const images = await pickMultipleImages(aspectRatio);
+      if (!images || images.length === 0) return;
+
+      setUploadingGalleryImage(true);
+      try {
+        const imageUrls = await uploadMultipleClinicGalleryImages(images, currentUser?.id || '');
+        
+        if (imageUrls.length > 0) {
+          setClinicData(prev => ({
+            ...prev,
+            gallery_images: [...(prev.gallery_images || []), ...imageUrls],
+          }));
+          Alert.alert('Success', `${imageUrls.length} image(s) added to gallery`);
+        } else {
+          Alert.alert('Error', 'No images were uploaded successfully');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload gallery images';
+        Alert.alert('Error', message);
+      } finally {
+        setUploadingGalleryImage(false);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to pick images';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const handleRemoveGalleryImage = (imageUrl: string) => {
+    setClinicData(prev => ({
+      ...prev,
+      gallery_images: prev.gallery_images?.filter(url => url !== imageUrl) || [],
+    }));
+  };
+
   const handleScheduleChange = (day: keyof Schedule, isOpen: boolean) => {
     setClinicData(prev => ({
       ...prev,
@@ -432,7 +521,7 @@ export default function ClinicSetup({
     setShowClosingTimePicker(null);
   };
 
-  const handleAddBlockoutDate = async (selectedDate: Date, month: number, day: number, year: number) => {
+  const handleAddBlockoutDate = async (selectedDate: Date | null, month: number, day: number, year: number) => {
     if (!currentUser?.id) return;
 
     try {
@@ -552,6 +641,21 @@ export default function ClinicSetup({
         <>
           <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={{ padding: 16 }}>
+          {/* Clinic Logo Header */}
+          {clinicData.logo_url && (
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+              <Image
+                source={{ uri: clinicData.logo_url }}
+                style={{
+                  width: 150,
+                  height: 150,
+                  borderRadius: 75,
+                  backgroundColor: '#e0e0e0',
+                }}
+              />
+            </View>
+          )}
+          
           <Text style={localStyles.header}>Clinic Setup</Text>
 
           {/* Clinic Name Section */}
@@ -581,8 +685,16 @@ export default function ClinicSetup({
                   }}
                   style={localStyles.logoImage}
                 />
-                <TouchableOpacity style={localStyles.logoButton}>
-                  <Text style={localStyles.buttonText}>Upload Logo</Text>
+                <TouchableOpacity 
+                  style={localStyles.logoButton}
+                  onPress={handleUploadLogo}
+                  disabled={uploadingLogo}
+                >
+                  {uploadingLogo ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={localStyles.buttonText}>Upload Logo</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -610,14 +722,39 @@ export default function ClinicSetup({
             <View style={localStyles.card}>
               <View style={localStyles.galleryContainer}>
                 {clinicData.gallery_images?.map((image, index) => (
-                  <Image
-                    key={index}
-                    source={{ uri: image }}
-                    style={localStyles.galleryImage}
-                  />
+                  <View key={index} style={{ position: 'relative' }}>
+                    <Image
+                      source={{ uri: image }}
+                      style={localStyles.galleryImage}
+                    />
+                    <TouchableOpacity
+                      onPress={() => handleRemoveGalleryImage(image)}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        borderRadius: 8,
+                        width: 24,
+                        height: 24,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
-                <TouchableOpacity style={localStyles.addImageButton}>
-                  <Text style={localStyles.addImageText}>+</Text>
+                <TouchableOpacity 
+                  style={localStyles.addImageButton}
+                  onPress={handleUploadGalleryImage}
+                  disabled={uploadingGalleryImage}
+                >
+                  {uploadingGalleryImage ? (
+                    <ActivityIndicator color="#0b7fab" />
+                  ) : (
+                    <Text style={localStyles.addImageText}>+</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -1266,6 +1403,89 @@ export default function ClinicSetup({
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Confirm</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Image Format Selection Modal */}
+      <Modal
+        visible={showImageFormatModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowImageFormatModal(false);
+          setPendingImageUploadType(null);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '80%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' }}>
+              Choose Image Format
+            </Text>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#f5f5f5',
+                borderWidth: 2,
+                borderColor: '#0b7fab',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                setShowImageFormatModal(false);
+                if (pendingImageUploadType === 'logo') {
+                  performLogoUpload([1, 1]);
+                } else if (pendingImageUploadType === 'gallery') {
+                  performGalleryUpload([1, 1]);
+                }
+                setPendingImageUploadType(null);
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0b7fab' }}>Square (1:1)</Text>
+              <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Fixed square aspect ratio</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#f5f5f5',
+                borderWidth: 2,
+                borderColor: '#0b7fab',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 20,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                setShowImageFormatModal(false);
+                if (pendingImageUploadType === 'logo') {
+                  performLogoUpload(undefined);
+                } else if (pendingImageUploadType === 'gallery') {
+                  performGalleryUpload(undefined);
+                }
+                setPendingImageUploadType(null);
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0b7fab' }}>Free Form</Text>
+              <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Crop any size you want</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                borderWidth: 2,
+                borderColor: '#ddd',
+                borderRadius: 8,
+                paddingVertical: 12,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                setShowImageFormatModal(false);
+                setPendingImageUploadType(null);
+              }}
+            >
+              <Text style={{ color: '#666', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

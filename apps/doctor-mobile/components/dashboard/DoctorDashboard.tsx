@@ -85,6 +85,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
   
+  // Clinic logo state
+  const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
+  
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [loadingPatients, setLoadingPatients] = useState(true);
@@ -445,6 +448,36 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       };
     }, [refreshDashboardData])
   );
+
+  // ─────────────────────────────────────────
+  // LOAD CLINIC LOGO
+  // ─────────────────────────────────────────
+  useEffect(() => {
+    const loadClinicLogo = async () => {
+      try {
+        if (!user?.id) return;
+        
+        const { data, error } = await supabase
+          .from('clinic_setup')
+          .select('logo_url')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (error) {
+          console.error('Error loading clinic logo:', error);
+          return;
+        }
+        
+        if (data?.logo_url) {
+          setClinicLogoUrl(data.logo_url);
+        }
+      } catch (error) {
+        console.error('Error loading clinic logo:', error);
+      }
+    };
+    
+    loadClinicLogo();
+  }, [user?.id]);
 
   const handlePress = (apt: DashboardAppointment) => {
     setSelectedPatient(apt);
@@ -1396,7 +1429,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
             {sidebarOpen && (
               <View style={styles.logoSection}>
-                <Text style={styles.logoText}>🦷</Text>
+                {clinicLogoUrl ? (
+                  <Image
+                    source={{ uri: clinicLogoUrl }}
+                    style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }}
+                  />
+                ) : (
+                  <Text style={styles.logoText}>🦷</Text>
+                )}
                 <Text style={styles.logoTitle}>SmileGuard</Text>
               </View>
             )}
