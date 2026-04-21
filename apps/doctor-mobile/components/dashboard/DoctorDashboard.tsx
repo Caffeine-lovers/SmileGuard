@@ -175,12 +175,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Update selectedPatient whenever todayAppointments changes
   useEffect(() => {
     if (todayAppointments.length > 0) {
-      setSelectedPatient(todayAppointments[0]);
+      // Only auto-select the first patient if no selection or current selection is no longer valid
+      if (!selectedPatient || !todayAppointments.some(apt => apt.id === selectedPatient.id)) {
+        setSelectedPatient(todayAppointments[0]);
+      }
     } else {
       // If no today's appointments, clear selection
       setSelectedPatient(null);
     }
-  }, [todayAppointments]);
+  }, [todayAppointments, selectedPatient]);
 
   // Auto-show patient details when a patient is selected
   useEffect(() => {
