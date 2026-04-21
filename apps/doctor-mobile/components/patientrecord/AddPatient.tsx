@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -16,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 
-const PHILIPPINES_PHONE_REGEX = /^\+63\d{3}-\d{3}-\d{4}$/;
+const PHILIPPINES_PHONE_REGEX = /^\+639\d{3}-\d{3}-\d{4}$/;
 
 interface FormData {
   name: string;
@@ -171,7 +172,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
       cleaned = cleaned.slice(1);
     }
     
-    // Only keep up to 10 digits (XXX-XXX-XXXX)
+    // Only keep up to 10 digits (since prefix already has 9)
     cleaned = cleaned.slice(0, 10);
     
     // Format as XXX-XXX-XXXX (only the digits part)
@@ -185,19 +186,29 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
       formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3, 6) + '-' + cleaned.slice(6);
     }
     
-    const fullNumber = '+63' + formatted;
+    const fullNumber = '+639' + formatted;
     handleInputChange('phone', fullNumber);
     
     // Validate only if input is complete
     if (cleaned.length === 10) {
       if (!PHILIPPINES_PHONE_REGEX.test(fullNumber)) {
-        setPhoneError("Please enter a valid phone number");
+        setPhoneError("Phone must be in format: +639XXX-XXX-XXXX");
       } else {
         setPhoneError("");
       }
     } else {
       setPhoneError("");
     }
+  };
+
+  const handleEmergencyContactPhoneChange = (text: string) => {
+    // Remove all non-digit characters
+    let cleaned = text.replace(/[^\d]/g, '');
+    
+    // Limit to 11 digits
+    cleaned = cleaned.slice(0, 11);
+    
+    handleInputChange('emergencyContactPhone', cleaned);
   };
 
   // Helper function to get field style based on completion status
@@ -232,7 +243,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
 
     // Validate phone format
     if (!PHILIPPINES_PHONE_REGEX.test(formData.phone)) {
-      Alert.alert("Error", "Phone must be in Philippines format: +63XXX-XXX-XXXX");
+      Alert.alert("Error", "Phone must start with +63 9 and be in format: +639XXX-XXX-XXXX");
       return;
     }
 
@@ -426,13 +437,13 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Phone Number
             </Text>
             <View style={[styles.phoneInputContainer, getRequiredFieldStyle('phone', formData.phone, !phoneError && PHILIPPINES_PHONE_REGEX.test(formData.phone))]}>
-              <Text style={styles.phonePrefix}>+63</Text>
+              <Text style={styles.phonePrefix}>+639</Text>
               <TextInput
                 style={styles.phoneInput}
                 placeholder="XXX-XXX-XXXX"
                 placeholderTextColor="#999"
                 keyboardType="phone-pad"
-                value={formData.phone ? formData.phone.replace('+63', '') : ''}
+                value={formData.phone ? formData.phone.replace('+639', '') : ''}
                 onChangeText={handlePhoneChange}
                 editable={!loading}
               />
@@ -567,8 +578,9 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 placeholder="Enter phone number"
                 placeholderTextColor="#999"
                 keyboardType="phone-pad"
+                maxLength={11}
                 value={formData.emergencyContactPhone}
-                onChangeText={(value) => handleInputChange("emergencyContactPhone", value)}
+                onChangeText={handleEmergencyContactPhoneChange}
                 editable={!loading}
               />
             </View>
