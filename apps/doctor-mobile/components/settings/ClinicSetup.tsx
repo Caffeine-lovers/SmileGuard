@@ -12,6 +12,7 @@ import {
   StyleSheet,
   FlatList,
   Modal,
+  Platform,
 } from 'react-native';
 import { supabase } from '@smileguard/supabase-client';
 import { useAuth } from '../../hooks/useAuth';
@@ -481,8 +482,14 @@ export default function ClinicSetup({
   };
 
   const handleUploadGalleryImage = async () => {
-    setPendingImageUploadType('gallery');
-    setShowImageFormatModal(true);
+    if (Platform.OS === 'ios') {
+      // iOS supports aspect ratio with multi-select, so offer format choice
+      setPendingImageUploadType('gallery');
+      setShowImageFormatModal(true);
+    } else {
+      // Android doesn't support aspect ratio with multi-select, so skip directly
+      performGalleryUpload();
+    }
   };
 
   const performGalleryUpload = async (aspectRatio?: [number, number]) => {

@@ -15,6 +15,7 @@
 
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
 
 export interface ImagePickerResult {
@@ -89,6 +90,7 @@ export const pickImage = async (aspectRatio?: [number, number]): Promise<ImagePi
  * Pick multiple images from device and return file info array
  * Note: allowsEditing is disabled for batch selection; editing is done per-image
  * @param aspectRatio Optional aspect ratio (e.g., [1, 1] for square). Omit for free form.
+ *                    On Android, aspect ratio is NOT applied with allowsMultiple due to picker limitations
  */
 export const pickMultipleImages = async (aspectRatio?: [number, number]): Promise<ImagePickerResult[] | null> => {
   try {
@@ -104,8 +106,9 @@ export const pickMultipleImages = async (aspectRatio?: [number, number]): Promis
       allowsMultiple: true,
     };
 
-    // Only add aspect ratio if provided
-    if (aspectRatio) {
+    // Apply aspect ratio only on iOS
+    // Android doesn't support aspect ratio with allowsMultiple - it disables multi-select
+    if (aspectRatio && Platform.OS === 'ios') {
       config.aspect = aspectRatio;
     }
 
