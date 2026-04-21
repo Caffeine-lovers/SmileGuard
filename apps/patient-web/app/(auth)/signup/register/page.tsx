@@ -92,9 +92,6 @@ export default function SignupRegisterPage() {
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
         Create Account
       </h2>
-      <p className="text-center text-text-secondary mb-8">
-        Step 1 of 3: Enter your details
-      </p>
 
       {localError && (
         <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
