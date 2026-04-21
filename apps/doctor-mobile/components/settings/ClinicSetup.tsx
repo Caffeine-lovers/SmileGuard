@@ -101,6 +101,40 @@ export default function ClinicSetup({
   const [tempBlockoutYear, setTempBlockoutYear] = useState(today.getFullYear().toString());
   const [showImageFormatModal, setShowImageFormatModal] = useState(false);
   const [pendingImageUploadType, setPendingImageUploadType] = useState<'logo' | 'gallery' | null>(null);
+  
+  // Change tracking
+  const [originalClinicData, setOriginalClinicData] = useState<ClinicData | null>(null);
+  const [changedFields, setChangedFields] = useState<Set<string>>(new Set());
+
+  // Helper: Check if data has unsaved changes
+  const hasUnsavedChanges = () => {
+    if (!originalClinicData) return false;
+    
+    return (
+      clinicData.clinic_name !== originalClinicData.clinic_name ||
+      clinicData.address !== originalClinicData.address ||
+      clinicData.logo_url !== originalClinicData.logo_url ||
+      JSON.stringify(clinicData.gallery_images) !== JSON.stringify(originalClinicData.gallery_images) ||
+      JSON.stringify(clinicData.services) !== JSON.stringify(originalClinicData.services) ||
+      JSON.stringify(clinicData.schedule) !== JSON.stringify(originalClinicData.schedule)
+    );
+  };
+
+  // Helper: Update changed fields tracking
+  const updateChangedFields = () => {
+    if (!originalClinicData) return;
+    
+    const changed = new Set<string>();
+    
+    if (clinicData.clinic_name !== originalClinicData.clinic_name) changed.add('clinic_name');
+    if (clinicData.address !== originalClinicData.address) changed.add('address');
+    if (clinicData.logo_url !== originalClinicData.logo_url) changed.add('logo_url');
+    if (JSON.stringify(clinicData.gallery_images) !== JSON.stringify(originalClinicData.gallery_images)) changed.add('gallery_images');
+    if (JSON.stringify(clinicData.services) !== JSON.stringify(originalClinicData.services)) changed.add('services');
+    if (JSON.stringify(clinicData.schedule) !== JSON.stringify(originalClinicData.schedule)) changed.add('schedule');
+    
+    setChangedFields(changed);
+  };
 
   // Load clinic data from database on component mount
   useEffect(() => {
@@ -111,31 +145,57 @@ export default function ClinicSetup({
       }
 
       try {
-        const { data, error } = await supabase
-          .from('clinic_setup')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .single();
+        // Load both clinic_setup and blockout_dates in parallel for faster loading
+        const [clinicResponse, blockoutResponse] = await Promise.all([
+          supabase
+            .from('clinic_setup')
+            .select('clinic_name, address, logo_url, gallery_images, services, schedule')
+            .eq('user_id', currentUser.id)
+            .single(),
+          supabase
+            .from('clinic_blockout_dates')
+            .select('blockout_date, reason, is_blocked')
+            .eq('user_id', currentUser.id)
+            .order('blockout_date', { ascending: true }),
+        ]);
+
+        const { data, error } = clinicResponse;
+        const { data: blockoutData, error: blockoutError } = blockoutResponse;
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error loading clinic data:', error);
         } else if (data) {
-          setClinicData({
+          // Helper to safely parse gallery images
+          let galleryImages: string[] = [];
+          if (data.gallery_images) {
+            if (Array.isArray(data.gallery_images)) {
+              galleryImages = data.gallery_images;
+            } else if (typeof data.gallery_images === 'string') {
+              try {
+                galleryImages = JSON.parse(data.gallery_images);
+                if (!Array.isArray(galleryImages)) {
+                  galleryImages = [];
+                }
+              } catch (e) {
+                console.warn('Failed to parse gallery_images:', e);
+                galleryImages = [];
+              }
+            }
+          }
+          
+          const loadedData = {
             clinic_name: data.clinic_name || '',
             address: data.address || '',
             logo_url: data.logo_url || undefined,
-            gallery_images: data.gallery_images || [],
+            gallery_images: galleryImages,
             services: data.services || [],
             schedule: data.schedule || defaultSchedule,
-          });
+          };
+          setClinicData(loadedData);
+          setOriginalClinicData(loadedData);
+          setChangedFields(new Set());
           
-          // Load blockout dates
-          const { data: blockoutData, error: blockoutError } = await supabase
-            .from('clinic_blockout_dates')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('blockout_date', { ascending: true });
-          
+          // Set blockout dates if loaded successfully
           if (!blockoutError && blockoutData) {
             setBlockoutDates(blockoutData);
           }
@@ -320,6 +380,20 @@ export default function ClinicSetup({
       paddingVertical: 12,
       alignItems: 'center',
     },
+    saveButtonChanged: {
+      flex: 1,
+      backgroundColor: '#d32f2f',
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: '#ff6f00',
+    },
+    sectionChanged: {
+      backgroundColor: '#fff3cd',
+      borderLeftWidth: 4,
+      borderLeftColor: '#ffc107',
+    },
     saveButtonText: {
       color: '#fff',
       fontWeight: '600',
@@ -334,26 +408,34 @@ export default function ClinicSetup({
 
   const handleAddService = () => {
     if (newService.trim()) {
-      setClinicData(prev => ({
-        ...prev,
-        services: [
-          ...prev.services,
-          {
-            id: Date.now().toString(),
-            name: newService,
-            description: '',
-          },
-        ],
-      }));
+      setClinicData(prev => {
+        const updated = {
+          ...prev,
+          services: [
+            ...prev.services,
+            {
+              id: Date.now().toString(),
+              name: newService,
+              description: '',
+            },
+          ],
+        };
+        setTimeout(() => updateChangedFields(), 0);
+        return updated;
+      });
       setNewService('');
     }
   };
 
   const handleRemoveService = (id: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      services: prev.services.filter(service => service.id !== id),
-    }));
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        services: prev.services.filter(service => service.id !== id),
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleUploadLogo = async () => {
@@ -413,10 +495,14 @@ export default function ClinicSetup({
         const imageUrls = await uploadMultipleClinicGalleryImages(images, currentUser?.id || '');
         
         if (imageUrls.length > 0) {
-          setClinicData(prev => ({
-            ...prev,
-            gallery_images: [...(prev.gallery_images || []), ...imageUrls],
-          }));
+          setClinicData(prev => {
+            const updated = {
+              ...prev,
+              gallery_images: [...(prev.gallery_images || []), ...imageUrls],
+            };
+            setTimeout(() => updateChangedFields(), 0);
+            return updated;
+          });
           Alert.alert('Success', `${imageUrls.length} image(s) added to gallery`);
         } else {
           Alert.alert('Error', 'No images were uploaded successfully');
@@ -434,49 +520,65 @@ export default function ClinicSetup({
   };
 
   const handleRemoveGalleryImage = (imageUrl: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      gallery_images: prev.gallery_images?.filter(url => url !== imageUrl) || [],
-    }));
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        gallery_images: prev.gallery_images?.filter(url => url !== imageUrl) || [],
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleScheduleChange = (day: keyof Schedule, isOpen: boolean) => {
-    setClinicData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [day]: {
-          ...prev.schedule[day],
-          isOpen,
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        schedule: {
+          ...prev.schedule,
+          [day]: {
+            ...prev.schedule[day],
+            isOpen,
+          },
         },
-      },
-    }));
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleOpeningTimeChange = (day: keyof Schedule, opening_time: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [day]: {
-          ...prev.schedule[day],
-          opening_time,
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        schedule: {
+          ...prev.schedule,
+          [day]: {
+            ...prev.schedule[day],
+            opening_time,
+          },
         },
-      },
-    }));
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleClosingTimeChange = (day: keyof Schedule, closing_time: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [day]: {
-          ...prev.schedule[day],
-          closing_time,
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        schedule: {
+          ...prev.schedule,
+          [day]: {
+            ...prev.schedule[day],
+            closing_time,
+          },
         },
-      },
-    }));
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   // Helper function to parse time string (e.g., "9:00 AM") to hours, minutes, period
@@ -620,6 +722,10 @@ export default function ClinicSetup({
       if (onSave) {
         await onSave(clinicData);
       }
+      
+      // Reset original data to current data after successful save
+      setOriginalClinicData(clinicData);
+      setChangedFields(new Set());
 
       Alert.alert('Success', 'Clinic information saved successfully');
       onClose?.();
@@ -641,41 +747,27 @@ export default function ClinicSetup({
         <>
           <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={{ padding: 16 }}>
-          {/* Clinic Logo Header */}
-          {clinicData.logo_url && (
-            <View style={{ alignItems: 'center', marginBottom: 24 }}>
-              <Image
-                source={{ uri: clinicData.logo_url }}
-                style={{
-                  width: 150,
-                  height: 150,
-                  borderRadius: 75,
-                  backgroundColor: '#e0e0e0',
-                }}
-              />
-            </View>
-          )}
-          
           <Text style={localStyles.header}>Clinic Setup</Text>
 
           {/* Clinic Name Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('clinic_name') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}>Clinic Name</Text>
             <View style={localStyles.card}>
               <TextInput
                 style={localStyles.input}
                 placeholder="Enter clinic name"
                 value={clinicData.clinic_name}
-                onChangeText={(text) =>
-                  setClinicData(prev => ({ ...prev, clinic_name: text }))
-                }
+                onChangeText={(text) => {
+                  setClinicData(prev => ({ ...prev, clinic_name: text }));
+                  updateChangedFields();
+                }}
                 placeholderTextColor="#999"
               />
             </View>
           </View>
 
           {/* Clinic Logo Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('logo_url') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}> Clinic Logo</Text>
             <View style={localStyles.card}>
               <View style={localStyles.logoContainer}>
@@ -701,23 +793,24 @@ export default function ClinicSetup({
           </View>
 
           {/* Address Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('address') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}> Address</Text>
             <View style={localStyles.card}>
               <TextInput
                 style={localStyles.input}
                 placeholder="Street Address"
                 value={clinicData.address}
-                onChangeText={(text) =>
-                  setClinicData(prev => ({ ...prev, address: text }))
-                }
+                onChangeText={(text) => {
+                  setClinicData(prev => ({ ...prev, address: text }));
+                  updateChangedFields();
+                }}
                 placeholderTextColor="#999"
               />
             </View>
           </View>
 
           {/* Clinic Gallery Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('gallery_images') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}>️ Clinic Pictures</Text>
             <View style={localStyles.card}>
               <View style={localStyles.galleryContainer}>
@@ -1015,7 +1108,7 @@ export default function ClinicSetup({
                 <Text style={localStyles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={localStyles.saveButton}
+                style={hasUnsavedChanges() ? localStyles.saveButtonChanged : localStyles.saveButton}
                 onPress={handleSave}
                 disabled={loading}
               >

@@ -85,8 +85,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
   
-  // Clinic logo state
+  // Clinic logo and name state
   const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
+  const [clinicName, setClinicName] = useState<string>('SmileGuard');
   
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
@@ -450,33 +451,37 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   );
 
   // ─────────────────────────────────────────
-  // LOAD CLINIC LOGO
+  // LOAD CLINIC LOGO AND NAME
   // ─────────────────────────────────────────
   useEffect(() => {
-    const loadClinicLogo = async () => {
+    const loadClinicData = async () => {
       try {
         if (!user?.id) return;
         
         const { data, error } = await supabase
           .from('clinic_setup')
-          .select('logo_url')
+          .select('logo_url, clinic_name')
           .eq('user_id', user.id)
           .single();
         
         if (error) {
-          console.error('Error loading clinic logo:', error);
+          console.error('Error loading clinic data:', error);
           return;
         }
         
         if (data?.logo_url) {
           setClinicLogoUrl(data.logo_url);
         }
+        
+        if (data?.clinic_name) {
+          setClinicName(data.clinic_name);
+        }
       } catch (error) {
-        console.error('Error loading clinic logo:', error);
+        console.error('Error loading clinic data:', error);
       }
     };
     
-    loadClinicLogo();
+    loadClinicData();
   }, [user?.id]);
 
   const handlePress = (apt: DashboardAppointment) => {
@@ -1437,7 +1442,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 ) : (
                   <Text style={styles.logoText}>🦷</Text>
                 )}
-                <Text style={styles.logoTitle}>SmileGuard</Text>
+                <Text style={styles.logoTitle}>{clinicName}</Text>
               </View>
             )}
 
