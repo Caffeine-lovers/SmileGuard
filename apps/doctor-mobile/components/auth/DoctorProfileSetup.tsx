@@ -28,11 +28,17 @@ import { HeroIcon } from "../ui/HeroIcon";
 export interface DoctorProfileSetupProps {
   onSuccess: (user: { name: string; email: string; role: "doctor" }) => void;
   onCancel?: () => void;
+  isOAuthFlow?: boolean;
+  prefilledEmail?: string;
+  prefilledName?: string;
 }
 
 export default function DoctorProfileSetup({
   onSuccess,
   onCancel,
+  isOAuthFlow = false,
+  prefilledEmail = "",
+  prefilledName = "",
 }: DoctorProfileSetupProps) {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -42,6 +48,8 @@ export default function DoctorProfileSetup({
   const [doctorData, setDoctorData] = useState<Doctor>({
     ...EMPTY_DOCTOR,
     user_id: "",
+    doctor_name: prefilledName,
+    doctor_email: prefilledEmail,
   });
 
   // ── Specialization Dropdown
