@@ -498,14 +498,6 @@ export default function DoctorProfileSetup({
             </TouchableOpacity>
           )}
 
-          {/* Mandatory Fields Note */}
-          <Text style={styles.requiredNote}>
-            * License: 5-7 alphanumeric chars with letters & numbers (e.g., ABC123)
-          </Text>
-          <Text style={styles.requiredNote}>
-            * Specialization and Doctor Name are also required
-          </Text>
-
           {/* Submit Button */}
           <TouchableOpacity
             style={[styles.btn, styles.primaryBtn, { marginTop: 12 }]}

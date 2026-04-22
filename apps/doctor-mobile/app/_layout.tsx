@@ -84,6 +84,7 @@ export default function RootLayout() {
     const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
     const inOAuthRedirect = segments[0] === "oauth-redirect";
+    const onHome = segments.length === 0 || segments[0] === "index";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
@@ -96,6 +97,12 @@ export default function RootLayout() {
         router.replace("/");
       }
     } else {
+      // If on home page, let AuthModal handle profile/clinic setup flows
+      if (onHome) {
+        console.log("[RootLayout] User on home page, allowing AuthModal to handle setup flows");
+        return;
+      }
+
       if (!inDoctorGroup && !inSetupProfile) {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         // Check if doctor profile exists before sending to dashboard
@@ -104,13 +111,28 @@ export default function RootLayout() {
           .select("id")
           .eq("user_id", user.id)
           .single()
-          .then(({ data, error }) => {
+          .then(async ({ data, error }) => {
             if (error?.code === "PGRST116" || !data) {
-              console.log("[RootLayout] No profile found, routing to /setup-profile");
-              router.replace("/setup-profile");
+              console.log("[RootLayout] No profile found, routing to /");
+              router.replace("/");
             } else {
-              console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
-              router.replace("/(doctor)/dashboard");
+              // Doctor profile exists, check if clinic profile exists
+              console.log("[RootLayout] Doctor profile found, checking clinic...");
+              const { data: clinicData, error: clinicError } = await supabase
+                .from("clinics")
+                .select("id")
+                .eq("doctor_id", data.id)
+                .single();
+
+              if (clinicError?.code === "PGRST116" || !clinicData) {
+                // No clinic profile, route back to home to show clinic setup in modal
+                console.log("[RootLayout] No clinic found, routing to /");
+                router.replace("/");
+              } else {
+                // Both profiles exist, redirect to dashboard
+                console.log("[RootLayout] Profile and clinic found, routing to /(doctor)/dashboard");
+                router.replace("/(doctor)/dashboard");
+              }
             }
           });
       }
