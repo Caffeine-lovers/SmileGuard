@@ -69,8 +69,7 @@ export default function AuthModal({
   // Use the auth hook directly to access login/register functions
   const { login, register, ensureRoleSet, currentUser } = useAuth();
 
-  const [step, setStep] = useState(1); // Start directly at login (skip step 0)
-  const [mode, setMode] = useState<"register" | "login">("login");
+  const [step, setStep] = useState(1); // Start directly at login
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -88,7 +87,6 @@ export default function AuthModal({
   React.useEffect(() => {
     if (visible) {
       setStep(1); // Start directly at login form
-      setMode("login");
       setShowPassword(false);
       setRememberMe(false);
       setFormData({
@@ -164,20 +162,7 @@ export default function AuthModal({
   };
 
   // ── Navigation ───────────────────────────────────────────────────
-
-  const handleSwitchMode = (selectedMode: "register" | "login") => {
-    setMode(selectedMode);
-    setShowPassword(false);
-    setRememberMe(false);
-    setFormData({
-      service: "General",
-      name: "",
-      email: "",
-      password: "",
-      medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
-      doctorAccessCode: "",
-    });
-  };
+  // (Simplified - only login mode needed since OAuth handles both cases)
 
   const handleNext = () => {
     setStep((s) => s + 1);
@@ -540,44 +525,6 @@ export default function AuthModal({
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.stepContent}>
-                {/* ════════════ Step 0: Portal Entry Choice (DOCTOR ONLY) ════════════ */}
-                {step === 0 && (
-                  <View style={{ alignItems: "center" }}>
-                    <Text style={styles.h2}>
-                       Doctor Access
-                    </Text>
-                    <Text style={[styles.p, { marginBottom: 40 }]}>
-                      Please select an option to continue to your dashboard.
-                    </Text>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.btn,
-                        styles.primaryBtn,
-                        { marginBottom: 30, width: "80%" },
-                      ]}
-                      onPress={() => handleSwitchMode("login")}
-                    >
-                      <Text style={styles.btnText}>
-                        I have an account (Login)
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.btn,
-                        styles.secondaryBtn,
-                        { width: "80%" },
-                      ]}
-                      onPress={() => handleSwitchMode("register")}
-                    >
-                      <Text style={styles.secondaryBtnText}>
-                        New to SmileGuard? (Register)
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
                 {/* ════════════ Step 1: Credentials (Email/Password) ════════════ */}
                 {step === 1 && (
                   <View>
@@ -588,18 +535,16 @@ export default function AuthModal({
 
                     {/* Heading */}
                     <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>
-                      {mode === "login" ? "Welcome Back!" : "Create Account"}
+                      Welcome Back!
                     </Text>
                     
                     {/* Subheading */}
                     <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                      {mode === "login" 
-                        ? "Ready to manage your patients? Log in now!" 
-                        : "Join SmileGuard and start your registration"}
+                      Ready to manage your patients? Log in now!
                     </Text>
 
                     {/* === LOGIN FORM === */}
-                    {mode === "login" ? (
+                    <>
                       <>
                         {/* Email Field */}
                         <Text style={styles.fieldLabel}>Email</Text>
@@ -708,42 +653,8 @@ export default function AuthModal({
                           </Text>
                         </TouchableOpacity>
 
-                        {/* Switch to Register */}
-                        <View style={styles.switchAuthContainer}>
-                          <Text style={styles.switchAuthText}>Don't have an account? </Text>
-                          <TouchableOpacity onPress={() => handleSwitchMode("register")}>
-                            <Text style={styles.switchAuthLink}>Sign Up</Text>
-                          </TouchableOpacity>
-                        </View>
                       </>
-                    ) : (
-                      /* === REGISTRATION FORM === */
-                      <>
-                        <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                          Sign up with Google to create your account
-                        </Text>
-
-                        {/* Google OAuth Button */}
-                        <TouchableOpacity
-                          style={[styles.btn, styles.googleBtn, { marginBottom: 24 }]}
-                          onPress={handleGoogleOAuth}
-                          disabled={loading}
-                        >
-                          <Text style={styles.googleIcon}>G</Text>
-                          <Text style={styles.googleBtnText}>
-                            {loading ? "Signing up..." : "Sign up with Google"}
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Switch to Login */}
-                        <View style={styles.switchAuthContainer}>
-                          <Text style={styles.switchAuthText}>Already have an account? </Text>
-                          <TouchableOpacity onPress={() => handleSwitchMode("login")}>
-                            <Text style={styles.switchAuthLink}>Login</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </>
-                    )}
+                    </>
                   </View>
                 )}
 

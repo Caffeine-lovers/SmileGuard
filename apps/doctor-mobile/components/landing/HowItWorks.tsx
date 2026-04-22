@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Smartphone, Camera, Brain, CircuitBoard, Activity, CheckCircle, ArrowDown } from 'lucide-react-native';
+import { Smartphone, Camera, Brain, CircuitBoard, Activity, CheckCircle } from 'lucide-react-native';
 
 const HowItWorks: React.FC = () => {
   return (
@@ -32,9 +32,9 @@ const HowItWorks: React.FC = () => {
           </Text>
         </View>
 
-        {/* Arrow Connector */}
-        <View style={styles.arrowContainer}>
-          <ArrowDown size={32} color="#22d3ee" />
+        {/* Connecting Dot Separator */}
+        <View style={styles.dotConnector}>
+          <View style={styles.dotConnectorCircle} />
         </View>
 
         {/* --- STEP 2: AI ANALYSIS --- */}
@@ -51,9 +51,9 @@ const HowItWorks: React.FC = () => {
           </Text>
         </View>
 
-        {/* Arrow Connector */}
-        <View style={styles.arrowContainer}>
-           <ArrowDown size={32} color="#22d3ee" />
+        {/* Connecting Dot Separator */}
+        <View style={styles.dotConnector}>
+          <View style={styles.dotConnectorCircle} />
         </View>
 
         {/* --- STEP 3: TRACK PROGRESS --- */}
@@ -158,12 +158,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  arrowContainer: {
-    height: 60,
+  dotConnector: {
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2,
-    paddingVertical: 10,
+  },
+  dotConnectorCircle: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22d3ee',
   },
 });
 

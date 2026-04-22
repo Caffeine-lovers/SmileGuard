@@ -490,7 +490,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           .eq('user_id', user.id)
           .single();
         
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
+          // PGRST116 = no rows (clinic not set up yet, which is expected)
           console.error('Error loading clinic data:', error);
           return;
         }
