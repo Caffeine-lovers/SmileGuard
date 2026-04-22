@@ -17,30 +17,48 @@ export function useAuth() {
     supabase.auth
       .getSession()
       .then(({ data: { session } }: { data: { session: Session | null } }) => {
-        console.log("[useAuth] Initial session check:", { hasSession: !!session, userId: session?.user?.id });
+        console.log("[useAuth] 📱 Initial session check:", { hasSession: !!session, userId: session?.user?.id, email: session?.user?.email });
         if (session?.user) {
+          console.log("[useAuth] 🔐 Found active session for:", session.user.id);
           fetchProfile(session.user.id);
         } else {
-          console.log("[useAuth] No active session found");
+          console.log("[useAuth] 📭 No active session found on initialization");
           setLoading(false);
         }
       })
       .catch((err) => {
-        console.error("[useAuth] Error getting session:", err);
+        console.error("[useAuth] ❌ Error getting initial session:", err);
         setLoading(false);
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event: AuthChangeEvent, session: Session | null) => {
-        console.log("[useAuth] Auth state changed:", { event: _event, hasSession: !!session, userId: session?.user?.id });
+        console.log(
+          "[useAuth] 🔄 Auth state changed",
+          {
+            event: _event,
+            hasSession: !!session,
+            userId: session?.user?.id,
+            email: session?.user?.email,
+            timestamp: new Date().toISOString(),
+          }
+        );
         if (_event === "SIGNED_OUT") {
-          console.warn("[useAuth] Session expired or user signed out");
-        }
-        if (session?.user) {
+          console.warn("[useAuth] ⚠️  SIGNED_OUT event - session expired or user signed out");
+          setCurrentUser(null);
+          setLoading(false);
+        } else if (session?.user) {
+          // Skip fetching if currentUser already set for this userId (likely from register())
+          if (currentUser?.id === session.user.id) {
+            console.log("[useAuth] ℹ️  currentUser already set for", session.user.id, "- skipping fetch");
+            return;
+          }
+          console.log("[useAuth] 🔐 User authenticated, fetching profile for:", session.user.id);
           await fetchProfile(session.user.id);
         } else {
-          console.log("[useAuth] Session cleared, user set to null");
+          console.log("[useAuth] 📭 Session cleared in auth state change");
           setCurrentUser(null);
+          setLoading(false);
         }
       }
     );
@@ -59,30 +77,32 @@ export function useAuth() {
 
       if (error) {
         if (error.code === "PGRST116") {
-          console.warn("[useAuth] Profile not found, creating from user metadata...");
+          console.warn("[useAuth] Profile not found (PGRST116), attempting to create...");
           
-          // During immediate post-signup, session may not be ready for getUser()
-          // Instead, try to get current session directly
+          // Get the session to extract user metadata
           const { data: { session } } = await supabase.auth.getSession();
           
           if (!session?.user) {
-            // Session not ready yet - this is normal during signup
-            // Create a minimal profile from what we know
-            console.warn("[useAuth] Session not ready, creating minimal profile...");
+            console.warn("[useAuth] ⚠️  Session not ready yet, creating minimal profile with empty metadata...");
             const userName = "User";
             const userRole = "patient";
           
             const { error: createError } = await supabase
               .from("profiles")
-              .insert({
+              .upsert([{
                 id: userId,
                 name: userName,
                 email: "",
                 role: userRole,
-              });
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }], { onConflict: "id" });
             
             if (createError) {
-              console.error("[useAuth] Error creating minimal profile:", createError);
+              console.error("[useAuth] ❌ Error creating minimal profile:", createError.message, createError.code);
+              // Still set user even if insert fails
+            } else {
+              console.log("[useAuth] ✅ Minimal profile created successfully");
             }
             
             setCurrentUser({
@@ -98,29 +118,35 @@ export function useAuth() {
           const user = session.user;
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
           const userRole = user.user_metadata?.role || "patient";
+          const userEmail = user.email || "";
+
+          console.log("[useAuth] Creating profile with metadata:", { userName, userRole, userEmail });
 
           const { data: createdProfile, error: createError } = await supabase
             .from("profiles")
-            .insert({
+            .upsert([{
               id: userId,
               name: userName,
-              email: user.email || "",
+              email: userEmail,
               role: userRole,
               service: user.user_metadata?.service || "General",
-            })
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }], { onConflict: "id" })
             .select()
             .single();
 
           if (createError) {
-            console.error("[useAuth] Error creating profile:", createError);
+            console.error("[useAuth] ❌ Error creating profile:", createError.message, "Code:", createError.code);
+            // Still set user even if creation fails - at least allow the app to continue
             setCurrentUser({
               id: userId,
               name: userName,
-              email: user.email || "",
+              email: userEmail,
               role: userRole as "patient" | "doctor",
             });
           } else {
-            console.log("[useAuth] Profile created successfully:", createdProfile);
+            console.log("[useAuth] ✅ Profile created successfully:", createdProfile);
             setCurrentUser({
               id: userId,
               name: createdProfile.name,
@@ -129,10 +155,11 @@ export function useAuth() {
             });
           }
         } else {
+          console.error("[useAuth] ❌ Profile query error (not PGRST116):", error.code, error.message);
           throw error;
         }
       } else {
-        console.log("[useAuth] Profile fetched successfully:", { name: data.name, role: data.role });
+        console.log("[useAuth] ✅ Profile fetched successfully:", { id: userId, name: data.name, role: data.role });
         setCurrentUser({
           id: userId,
           name: data.name,
@@ -141,8 +168,15 @@ export function useAuth() {
         });
       }
     } catch (err) {
-      console.error("[useAuth] Error fetching profile:", err);
+      console.error("[useAuth] ❌ Error in fetchProfile:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch profile");
+      // Still set a minimal user object to prevent the app from being stuck
+      setCurrentUser({
+        id: userId,
+        name: "User",
+        email: "",
+        role: "patient",
+      });
     } finally {
       setLoading(false);
     }
@@ -370,7 +404,28 @@ export function useAuth() {
       }
 
       if (authData.user) {
-        console.log("[useAuth] Auth user created, trigger will create profile automatically");
+        console.log("[useAuth] ✅ Auth user created:", authData.user.id);
+
+        // Immediately create the profile so it exists for the app
+        console.log("[useAuth] Creating profile for user:", authData.user.id);
+        const { error: profileCreateError } = await supabase
+          .from("profiles")
+          .upsert([{
+            id: authData.user.id,
+            name: formData.name,
+            email: normalizedEmail,
+            role,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }], { onConflict: "id" });
+
+        if (profileCreateError) {
+          console.warn("[useAuth] ⚠️ Failed to create profile (non-fatal):", profileCreateError.message);
+          // Don't fail the entire registration if profile creation fails
+          // The fetchProfile() function will create it if needed
+        } else {
+          console.log("[useAuth] ✅ Profile created successfully");
+        }
 
         // Update auth user metadata with name and role
         try {
@@ -390,12 +445,24 @@ export function useAuth() {
           console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
         }
 
-        // The Supabase trigger (handle_new_user) has already created the profile
-        // Just need to fetch it and set the current user
-        console.log("[useAuth] Fetching profile created by trigger...");
-        await fetchProfile(authData.user.id);
+        // Set currentUser directly (don't use fetchProfile to avoid race condition with auth state listener)
+        console.log("[useAuth] Setting currentUser for new registration...");
+        setCurrentUser({
+          id: authData.user.id,
+          name: formData.name,
+          email: normalizedEmail,
+          role,
+        });
+        setLoading(false);
         
-        console.log("[useAuth] Registration complete, profile fetched from trigger");
+        console.log("[useAuth] ✅ Registration complete");
+        
+        return {
+          id: authData.user.id,
+          name: formData.name,
+          email: normalizedEmail,
+          role,
+        };
       }
     } catch (err) {
       let message = "Registration failed";
