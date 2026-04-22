@@ -51,69 +51,59 @@ export default function AuthCallbackPage() {
         if (session) {
           addDebug(`✓ Session found for user: ${session.user.email}`);
           
-          // Check if this is an OAuth signup flow (user clicked "Sign up with Google" on signup page)
-          const isOAuthSignupFlow = localStorage.getItem('oauth_signup_flow') === 'true';
-          
-          if (isOAuthSignupFlow) {
-            addDebug('OAuth signup flow detected - routing to registration');
-            localStorage.removeItem('oauth_signup_flow');
-            setMessage('Completing your registration...');
-            await new Promise(resolve => setTimeout(resolve, 500));
-            router.push('/signup/register?oauth=true');
-            return;
-          }
-          
-          // Ensure profile exists for OAuth users and check if complete
+          // Check if user has completed registration by checking medical_intake record
+          // medical_intake exists = user has completed the full registration flow
           try {
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
+            const { data: medicalIntake, error: intakeError } = await supabase
+              .from('medical_intake')
+              .select('id')
+              .eq('patient_id', session.user.id)
               .single();
             
-            if (profileError || !profile) {
-              addDebug('Creating patient profile for OAuth user...');
-              const { error: insertError } = await supabase
+            if (intakeError && intakeError.code !== 'PGRST116') {
+              // PGRST116 = no rows found (expected for new users)
+              addDebug(`Medical intake query error: ${intakeError.message}`);
+            }
+            
+            if (!medicalIntake) {
+              // User has no medical_intake record - check if profile exists
+              const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .insert({
-                  id: session.user.id,
-                  email: session.user.email,
-                  name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Patient',
-                  role: null,
-                  created_at: new Date().toISOString(),
-                });
+                .select('id')
+                .eq('id', session.user.id)
+                .single();
               
-              if (insertError) {
-                addDebug(`Profile creation failed: ${insertError.message}`);
-              } else {
-                addDebug('✓ Patient profile created - redirecting to complete registration');
-                setMessage('Profile created! Completing registration...');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                router.push('/signup/register?oauth=true');
-                return;
+              if (profileError && profileError.code !== 'PGRST116') {
+                addDebug(`Profile query error: ${profileError.message}`);
               }
-            } else {
-              addDebug(`✓ Profile exists. Checking if registration is complete...`);
               
-              // Check if profile is complete (has all required fields)
-              // Role must be set to indicate signup flow is complete
-              const isComplete = profile.name && profile.name.trim() !== '' && profile.role;
-              
-
-              if (!isComplete) {
-                addDebug('Profile incomplete - redirecting to complete registration');
+              if (profile) {
+                // Profile exists but no medical_intake - skip register, go to medical
+                addDebug('Profile exists but no medical intake - routing to medical intake');
+                localStorage.removeItem('oauth_signup_flow');
+                setMessage('Completing your medical information...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                router.push('/signup/medical?oauth=true');
+                return;
+              } else {
+                // No profile exists - go to register
+                addDebug('No profile found - user needs to register');
                 setMessage('Completing your profile...');
                 await new Promise(resolve => setTimeout(resolve, 500));
                 router.push('/signup/register?oauth=true');
                 return;
               }
-              
-              addDebug('✓ Profile complete - proceeding to dashboard');
+            } else {
+              // User has medical_intake record - registration complete
+              addDebug('✓ Medical intake found - registration complete');
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
-            addDebug(`Profile check failed: ${msg}`);
+            addDebug(`Medical intake check failed: ${msg}`);
           }
+          
+          // Clear flag after all checks
+          localStorage.removeItem('oauth_signup_flow');
           
           setMessage('✓ Authentication successful! Redirecting to dashboard...');
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -144,63 +134,46 @@ export default function AuthCallbackPage() {
             if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
               addDebug(`✓ User authenticated: ${session.user.email}`);
               
-              // Check if this is an OAuth signup flow
-              const isOAuthSignupFlow = localStorage.getItem('oauth_signup_flow') === 'true';
-              
-              if (isOAuthSignupFlow) {
-                addDebug('OAuth signup flow detected - routing to registration');
-                localStorage.removeItem('oauth_signup_flow');
-                clearTimeout(timeout);
-                completed = true;
-                subscription?.unsubscribe();
-                setMessage('Completing your registration...');
-                setTimeout(() => {
-                  router.push('/signup/register?oauth=true');
-                }, 500);
-                return;
-              }
-              
-              // Ensure profile exists for OAuth users and check if complete
+              // Check if user has completed registration by checking medical_intake record
               try {
-                const { data: profile, error: profileError } = await supabase
-                  .from('profiles')
-                  .select('*')
-                  .eq('id', session.user.id)
+                const { data: medicalIntake, error: intakeError } = await supabase
+                  .from('medical_intake')
+                  .select('id')
+                  .eq('patient_id', session.user.id)
                   .single();
                 
-                if (profileError || !profile) {
-                  addDebug('Creating patient profile for OAuth user...');
-                  const { error: insertError } = await supabase
+                if (intakeError && intakeError.code !== 'PGRST116') {
+                  // PGRST116 = no rows found (expected for new users)
+                  addDebug(`Medical intake query error: ${intakeError.message}`);
+                }
+                
+                if (!medicalIntake) {
+                  // User has no medical_intake record - check if profile exists
+                  const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .insert({
-                      id: session.user.id,
-                      email: session.user.email,
-                      name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Patient',
-                      role: null,
-                      created_at: new Date().toISOString(),
-                    });
+                    .select('id')
+                    .eq('id', session.user.id)
+                    .single();
                   
-                  if (insertError) {
-                    addDebug(`Profile creation failed: ${insertError.message}`);
-                  } else {
-                    addDebug('✓ Patient profile created - redirecting to complete registration');
+                  if (profileError && profileError.code !== 'PGRST116') {
+                    addDebug(`Profile query error: ${profileError.message}`);
+                  }
+                  
+                  if (profile) {
+                    // Profile exists but no medical_intake - skip register, go to medical
+                    addDebug('Profile exists but no medical intake - routing to medical intake');
+                    localStorage.removeItem('oauth_signup_flow');
                     clearTimeout(timeout);
                     completed = true;
                     subscription?.unsubscribe();
-                    setMessage('Profile created! Completing registration...');
+                    setMessage('Completing your medical information...');
                     setTimeout(() => {
-                      router.push('/signup/register?oauth=true');
+                      router.push('/signup/medical?oauth=true');
                     }, 500);
                     return;
-                  }
-                } else {
-                  addDebug(`✓ Profile exists. Checking if registration is complete...`);
-                  
-                  // Check if profile is complete (has all required fields)
-                  const isComplete = profile.name && profile.name.trim() !== '' && profile.role;
-                  
-                  if (!isComplete) {
-                    addDebug('Profile incomplete - redirecting to complete registration');
+                  } else {
+                    // No profile exists - go to register
+                    addDebug('No profile found - user needs to register');
                     clearTimeout(timeout);
                     completed = true;
                     subscription?.unsubscribe();
@@ -210,13 +183,17 @@ export default function AuthCallbackPage() {
                     }, 500);
                     return;
                   }
-                  
-                  addDebug('✓ Profile complete - proceeding to dashboard');
+                } else {
+                  // User has medical_intake record - registration complete
+                  addDebug('✓ Medical intake found - registration complete');
                 }
               } catch (err) {
                 const msg = err instanceof Error ? err.message : 'Unknown error';
-                addDebug(`Profile check failed: ${msg}`);
+                addDebug(`Medical intake check failed: ${msg}`);
               }
+              
+              // Clear flag after all checks
+              localStorage.removeItem('oauth_signup_flow');
               
               clearTimeout(timeout);
               completed = true;

@@ -26,7 +26,10 @@ export default function SignupConfirmPage() {
 
     try {
       if (isOAuthFlow && currentAuthUser) {
-        // OAuth flow: Update existing profile
+        console.log('[SignupConfirm] Starting OAuth registration for:', currentAuthUser.id);
+
+        // Step 1: Update profile
+        console.log('[SignupConfirm] Updating profile...');
         const { error: updateError } = await supabase
           .from('profiles')
           .update({
@@ -38,16 +41,41 @@ export default function SignupConfirmPage() {
           .eq('id', currentAuthUser.id);
 
         if (updateError) {
+          console.error('[SignupConfirm] Profile update failed:', updateError);
           setLocalError(`Failed to update profile: ${updateError.message}`);
+          setLoading(false);
           return;
         }
+        console.log('[SignupConfirm] Profile updated successfully');
+
+        // Step 2: Create medical_intake record
+        console.log('[SignupConfirm] Creating medical intake...');
+        const { error: intakeError, data: intakeData } = await supabase
+          .from('medical_intake')
+          .insert({
+            patient_id: currentAuthUser.id,
+            has_diabetes: formData.medicalIntake.has_diabetes || false,
+            has_heart_disease: formData.medicalIntake.has_heart_disease || false,
+            allergies: formData.medicalIntake.allergies || null,
+            created_at: new Date().toISOString(),
+          });
+
+        if (intakeError) {
+          console.error('[SignupConfirm] Medical intake creation failed:', intakeError);
+          setLocalError(`Failed to save medical information: ${intakeError.message}`);
+          setLoading(false);
+          return;
+        }
+        console.log('[SignupConfirm] Medical intake created successfully:', intakeData);
 
         clearSignupData();
+        console.log('[SignupConfirm] Redirecting to dashboard...');
         router.push('/dashboard');
       } else {
         // Standard email/phone flow: Create new account
         if (formData.password !== formData.confirmPassword) {
           setLocalError('Passwords do not match');
+          setLoading(false);
           return;
         }
 
@@ -64,9 +92,8 @@ export default function SignupConfirmPage() {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
+      console.error('[SignupConfirm] Error:', errorMessage);
       setLocalError(errorMessage);
-      console.error('[SignupConfirmPage] Error:', errorMessage);
-    } finally {
       setLoading(false);
     }
   };
