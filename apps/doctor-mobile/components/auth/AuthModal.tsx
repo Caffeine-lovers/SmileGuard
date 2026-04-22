@@ -1,9 +1,7 @@
-import React, { useState, useMemo, Suspense, lazy, useCallback } from "react";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -11,40 +9,18 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
-  Image,
   Keyboard,
 } from "react-native";
-import { useAuth } from "@smileguard/shared-hooks";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Alert } from 'react-native';
+import { Alert } from "react-native";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
-import PasswordStrengthMeter from "../ui/password-strength-meter";
 import DoctorProfileSetup from "./DoctorProfileSetup";
-import {
-  FormData,
-  CurrentUser,
-  MedicalIntake,
-  PasswordCheck,
-  EMPTY_MEDICAL_INTAKE,
-} from "@smileguard/shared-types";
+import { CurrentUser } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
-import { getDoctorProfile } from "../../lib/doctorService";
 
 // CRITICAL: For iOS, handle the auth session completion
 WebBrowser.maybeCompleteAuthSession();
-
-// ── Input sanitisation ───────────────────────────────────────────
-// Strip anything that looks like SQL / script injection.
-// This is a *client-side* first line of defence; real protection
-// happens via Supabase parameterised queries + RLS on the backend.
-const sanitize = (input: string): string =>
-  input
-    .replace(/[<>]/g, "") // strip angle brackets (XSS)
-    .replace(/(['";\\])/g, "") // strip SQL-sensitive chars
-    .replace(/--/g, "") // strip SQL comment sequences
-    .trim();
 
 export interface AuthModalProps {
   visible: boolean;
@@ -52,53 +28,19 @@ export interface AuthModalProps {
   onSuccess: (user: CurrentUser) => void;
 }
 
-// ══════════════════════════════════════════════════════════════════
-// STEP MAP (DOCTOR ONLY)
-// 0  → Portal entry choice  (login / register)
-// 1  → Credentials / Google OAuth (email/password login OR Google sign-up)
-// 2  → Doctor Profile Setup  (bio information — register only, then dashboard)
-// 6  → Forgot password
-// 7  → Reset email sent
-// ══════════════════════════════════════════════════════════════════
-
 export default function AuthModal({
   visible,
   onClose,
   onSuccess,
 }: AuthModalProps) {
-  // Use the auth hook directly to access login/register functions
-  const { login, register, ensureRoleSet, currentUser } = useAuth();
-
-  const [step, setStep] = useState(1); // Start directly at login
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-
-  const [formData, setFormData] = useState<FormData>({
-    service: "General",
-    name: "",
-    email: "",
-    password: "",
-    medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
-    doctorAccessCode: "",
-  });
 
   // Reset state when modal re-opens
   React.useEffect(() => {
     if (visible) {
-      setStep(1); // Start directly at login form
-      setShowPassword(false);
-      setRememberMe(false);
-      setFormData({
-        service: "General",
-        name: "",
-        email: "",
-        password: "",
-        medicalIntake: { ...EMPTY_MEDICAL_INTAKE },
-        doctorAccessCode: "",
-      });
+      setStep(1); 
     } else {
-      // Dismiss keyboard when modal closes to prevent shaking on Android
       Keyboard.dismiss();
     }
   }, [visible]);
@@ -107,11 +49,8 @@ export default function AuthModal({
   React.useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[AuthModal] Auth state changed:", event);
-      
-      // When OAuth deep link comes back, we get SIGNED_IN event
       if (event === "SIGNED_IN" && session?.user) {
         console.log("[AuthModal] SIGNED_IN detected for", session.user.email);
-        // Stop showing loading - the session is here!
         setLoading(false);
       }
     });
@@ -119,286 +58,17 @@ export default function AuthModal({
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── Helpers ──────────────────────────────────────────────────────
-
-  const isValidEmail = (email: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  const isValidPhone = (phone: string) => /^[\d\s\-+().]{7,20}$/.test(phone);
-
-  // Password strength rules
-  const passwordChecks: PasswordCheck[] = useMemo(() => {
-    const p = formData.password;
-    return [
-      { label: "At least 8 characters", met: p.length >= 8 },
-      { label: "One uppercase letter (A-Z)", met: /[A-Z]/.test(p) },
-      { label: "One lowercase letter (a-z)", met: /[a-z]/.test(p) },
-      { label: "One number (0-9)", met: /\d/.test(p) },
-      { label: "One special character (!@#$…)", met: /[^A-Za-z0-9]/.test(p) },
-    ];
-  }, [formData.password]);
-
-  const passwordStrong = passwordChecks.every((c) => c.met);
-
-  const strengthPercent = useMemo(() => {
-    const met = passwordChecks.filter((c) => c.met).length;
-    return Math.round((met / passwordChecks.length) * 100);
-  }, [passwordChecks]);
-
-  // Shorthand to update medical intake fields
-  const setIntake = (patch: Partial<MedicalIntake>) =>
-    setFormData((f) => ({
-      ...f,
-      medicalIntake: { ...f.medicalIntake, ...patch },
-    }));
-
-  // Shorthand to update top-level fields (with sanitisation)
-  const setField = (key: keyof FormData, value: string) => {
-    // Don't sanitise the password – it may legitimately contain special chars
-    setFormData((f) => ({
-      ...f,
-      [key]: key === "password" ? value : sanitize(value),
-    }));
-  };
-
-  // ── Navigation ───────────────────────────────────────────────────
-  // (Simplified - only login mode needed since OAuth handles both cases)
-
-  const handleNext = () => {
-    setStep((s) => s + 1);
-  };
-
-  // ── Finalize ─────────────────────────────────────────────────────
-
-  const handleFinalize = async () => {
-    if (!formData.email || !formData.password) {
-      Alert.alert("Missing Info", "Please complete all required fields.");
-      return;
-    }
-
-    if (!isValidEmail(formData.email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
-      return;
-    }
-
-    if (mode === "register" && !passwordStrong) {
-      Alert.alert(
-        "Weak Password",
-        "Your password must meet all the strength requirements listed below the field.",
-      );
-      return;
-    }
-
-    if (mode === "register" && !formData.name) {
-      Alert.alert("Missing Info", "Please enter your full name.");
-      return;
-    }
-
-    setLoading(true);
-  };
-
-  const performLogin = async () => {
-    try {
-      const userData: CurrentUser = await login(formData.email, formData.password, "doctor");
-      onSuccess(userData);
-      console.log("Login successful for user:", userData);
-    } catch (err) {
-      let errorMessage = "Login failed. Please try again.";
-      
-      if (err instanceof Error) {
-        const message = err.message.toLowerCase();
-        
-        // Handle specific Supabase error messages
-        if (message.includes("invalid login credentials")) {
-          errorMessage = "Invalid email or password. Please check your credentials and try again.";
-        } else if (message.includes("user not found") || message.includes("does not exist")) {
-          errorMessage = "No account found with this email. Please check or register.";
-        } else if (message.includes("invalid email")) {
-          errorMessage = "Please enter a valid email address.";
-        } else if (message.includes("password")) {
-          errorMessage = "Wrong password. Please try again.";
-        } else {
-          errorMessage = err.message;
-        }
-      }
-      
-      Alert.alert("Login Error", errorMessage);
-      setLoading(false); 
-    }
-  };
-
-  const performRegister = async () => {
-    try {
-      console.log(" Starting doctor registration...");
-      await register(formData, "doctor");
-      console.log(" Registration completed, verifying role...");
-      
-      // Get the current user and ensure role is set to doctor
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log(" Doctor Registration: Ensuring role is set to doctor for user:", user.id);
-        await ensureRoleSet(user.id, "doctor");
-        console.log(" Role verification complete");
-      }
-      
-      setStep(2); // success screen, then enter dashboard
-    } catch (err) {
-      let errorMessage = "Registration failed. Please try again.";
-      
-      if (err instanceof Error) {
-        const errorText = err.message.toLowerCase();
-        
-        // Handle specific error messages
-        if (errorText.includes("email")) {
-          errorMessage = "This email is already registered or invalid. Please use another email.";
-        } else if (errorText.includes("password")) {
-          errorMessage = "Password error. Please ensure it meets all requirements.";
-        } else if (errorText.includes("database")) {
-          errorMessage = "Database error. Please check your information and try again.";
-        } else if (errorText.includes("name is required")) {
-          errorMessage = "Please enter your full name.";
-        } else if (errorText.includes("required")) {
-          errorMessage = `Required field missing: ${err.message}`;
-        } else {
-          errorMessage = err.message;
-        }
-      }
-      
-      console.error(" Registration failed:", errorMessage);
-      Alert.alert("Registration Error", errorMessage);
-      setLoading(false);
-    }
-  };
-
   /**
-   * Handle Google OAuth Sign-in/Sign-up
-   * 
-   * Uses expo-web-browser openAuthSessionAsync to open an in-app browser modal.
+   * Handle Google OAuth Sign-in
    */
   const handleGoogleOAuth = async () => {
     try {
       setLoading(true);
       console.log("[GoogleOAuth] Starting Google OAuth...");
 
-      // Step 1: Create a redirect URI that points to a REAL route in your app
-      // By using 'oauth-redirect', Expo Router knows exactly where to send the user
-      // so you won't get the "Unmatched Route" error screen anymore.
-      const redirectUri = Linking.createURL('oauth-redirect');
-      console.log("[AuthModal] Redirect URI from Linking.createURL:", redirectUri);
+      const redirectUri = Linking.createURL("oauth-redirect");
+      console.log("[AuthModal] Redirect URI:", redirectUri);
       
-      const finalRedirectUri = redirectUri;
-      console.log("[AuthModal] Using final redirect URI:", finalRedirectUri);
-
-      // Step 2: Get OAuth URL from Supabase with the specific redirect
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: finalRedirectUri,
-          skipBrowserRedirect: true,
-          queryParams: {
-            prompt: "consent",
-          },
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.url) throw new Error("No OAuth URL generated by Supabase");
-
-      console.log("[AuthModal] Opening browser with URL:", data.url);
-
-      // Step 3: Open in-app browser and wait for it to return to the redirect URI
-      const result = await WebBrowser.openAuthSessionAsync(data.url, finalRedirectUri);
-
-      console.log("[AuthModal] Browser session result type:", result.type);
-
-      // Step 4: Parse the redirect URL if successful
-      if (result.type === "success") {
-        console.log("[GoogleOAuth] OAuth successful, extracting session from URL...");
-        
-        // Parse the implicit tokens from the URL that Supabase returned
-        // It comes back like: exp://...#access_token=xyz&refresh_token=abc&token_type=bearer
-        const extractParams = (urlString: string) => {
-          const queryString = urlString.includes('#') ? urlString.split('#')[1] : urlString.includes('?') ? urlString.split('?')[1] : '';
-          
-          if (!queryString) return {} as Record<string, string>;
-          
-          return queryString.split('&').reduce((acc, current) => {
-            const [key, value] = current.split('=');
-            if (key && value) acc[key] = decodeURIComponent(value);
-            return acc;
-          }, {} as Record<string, string>);
-        };
-
-        const params = extractParams(result.url);
-
-        if (params.error_description) {
-          throw new Error(params.error_description);
-        }
-
-        if (params.access_token && params.refresh_token) {
-          console.log("[GoogleOAuth] Found tokens! Initializing session...");
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: params.access_token,
-            refresh_token: params.refresh_token
-          });
-          
-          if (sessionError) throw sessionError;
-          console.log("[GoogleOAuth] Session officially set! Waiting for auth state listener...");
-        } else {
-          console.log("No valid session tokens found in return URL. Found:", Object.keys(params));
-          throw new Error("No tokens returned from Google login.");
-        }
-      } else {
-        console.log("[AuthModal] OAuth cancelled or failed in browser");
-        setLoading(false);
-      }
-    } catch (err) {
-      let errorMessage = "Google sign-in failed.";
-
-      if (err instanceof Error) {
-        const message = err.message.toLowerCase();
-
-        if (message.includes("network")) {
-          errorMessage = "Network error. Check your connection.";
-        } else if (message.includes("cancelled")) {
-          errorMessage = "Sign-in was cancelled.";
-        } else if (message.includes("configuration") || message.includes("provider")) {
-          errorMessage =
-            "Google provider not configured in Supabase. Check Authentication → Providers.";
-        } else {
-          errorMessage = err.message;
-        }
-      }
-
-      console.error("❌ Google OAuth error:", errorMessage);
-      Alert.alert("Google Sign-in Error", errorMessage);
-      setLoading(false);
-    }
-  };
-
-  const enterDashboardAfterSuccess = () => {
-    onSuccess({
-      name: formData.name,
-      email: formData.email,
-      role: "doctor",
-    });
-  };
-
-  /**
-   * OAuth Sign-In Flow (Login)
-   * 
-   * 1. Initiates Google OAuth
-   * 2. After successful auth, verifies the doctor profile exists
-   * 3. If profile exists, navigates directly to dashboard
-   * 4. If profile doesn't exist (error case), shows message
-   */
-  const performOAuthSignIn = async () => {
-    try {
-      setLoading(true);
-      console.log("[GoogleOAuthSignIn] Starting OAuth signin...");
-
-      // Step 1: Initiate OAuth (same as signup)
-      const redirectUri = Linking.createURL('oauth-redirect');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -411,20 +81,16 @@ export default function AuthModal({
       });
 
       if (error) throw error;
-      if (!data?.url) throw new Error("No OAuth URL generated");
+      if (!data?.url) throw new Error("No OAuth URL generated by Supabase");
 
-      // Step 2: Open browser and wait for callback
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
 
       if (result.type === "success") {
-        console.log("[GoogleOAuthSignIn] OAuth successful, extracting token...");
-        
-        // Parse tokens from URL
         const extractParams = (urlString: string) => {
-          const queryString = urlString.includes('#') ? urlString.split('#')[1] : urlString.includes('?') ? urlString.split('?')[1] : '';
+          const queryString = urlString.includes("#") ? urlString.split("#")[1] : urlString.includes("?") ? urlString.split("?")[1] : "";
           if (!queryString) return {} as Record<string, string>;
-          return queryString.split('&').reduce((acc, current) => {
-            const [key, value] = current.split('=');
+          return queryString.split("&").reduce((acc, current) => {
+            const [key, value] = current.split("=");
             if (key && value) acc[key] = decodeURIComponent(value);
             return acc;
           }, {} as Record<string, string>);
@@ -437,7 +103,6 @@ export default function AuthModal({
         }
 
         if (params.access_token && params.refresh_token) {
-          // Step 3: Set session
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: params.access_token,
             refresh_token: params.refresh_token
@@ -445,11 +110,8 @@ export default function AuthModal({
           
           if (sessionError) throw sessionError;
 
-          // Step 4: Fetch current user and doctor profile
           const { data: { user }, error: userError } = await supabase.auth.getUser();
           if (userError || !user) throw new Error("Failed to fetch user after OAuth");
-
-          console.log("[GoogleOAuthSignIn] Verifying doctor profile for user:", user.id);
 
           const { data: doctorProfile, error: profileError } = await supabase
             .from("doctors")
@@ -458,19 +120,15 @@ export default function AuthModal({
             .single();
 
           if (profileError && profileError.code !== "PGRST116") {
-            // PGRST116 = no rows returned (expected for first-time OAuth users transitioning to signin)
             throw profileError;
           }
 
           if (!doctorProfile) {
-            // No profile found - user can't signin without completing profile
-            throw new Error(
-              "Your doctor profile was not found. Please complete your profile setup first."
-            );
+            // No profile found - user needs to complete profile setup next
+            setStep(2);
+            return;
           }
 
-          // Step 5: Profile exists - navigate to dashboard
-          console.log("[GoogleOAuthSignIn] Profile verified, redirecting to dashboard");
           onSuccess({
             name: doctorProfile.doctor_name || user.email || "",
             email: user.email || "",
@@ -480,610 +138,87 @@ export default function AuthModal({
           throw new Error("No tokens returned from Google");
         }
       } else {
-        console.log("[GoogleOAuthSignIn] OAuth cancelled");
         setLoading(false);
       }
     } catch (err) {
       let errorMessage = "Google sign-in failed.";
-
       if (err instanceof Error) {
-        const message = err.message.toLowerCase();
-        if (message.includes("profile was not found")) {
-          errorMessage = err.message;
-        } else if (message.includes("network")) {
-          errorMessage = "Network error. Check your connection.";
-        } else if (message.includes("cancelled")) {
-          errorMessage = "Sign-in was cancelled.";
-        } else if (message.includes("configuration")) {
-          errorMessage = "Google provider not configured in Supabase.";
-        } else {
-          errorMessage = err.message;
-        }
+        errorMessage = err.message;
       }
-
-      console.error("[GoogleOAuthSignIn] Error:", errorMessage);
       Alert.alert("Sign-in Error", errorMessage);
       setLoading(false);
     }
   };
 
-  // ── Render ───────────────────────────────────────────────────────
-
   return (
-    <Modal visible={visible} animationType="slide">
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <SafeAreaView style={styles.modalFull}>
-          <View style={styles.bordercard}>
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.stepContent}>
-                {/* ════════════ Step 1: Credentials (Email/Password) ════════════ */}
-                {step === 1 && (
-                  <View>
-                    {/* App Logo/Name */}
-                    <View style={styles.logoSection}>
-                      <Text style={styles.appName}>SmileGuard</Text>
-                    </View>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
 
-                    {/* Heading */}
-                    <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>
-                      Welcome Back!
+            <View style={styles.stepContent}>
+              {step === 1 && (
+                <View style={{ alignItems: "center" }}>
+                  <Text style={styles.appName}>SmileGuard</Text>
+                  <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>Welcome!</Text>
+                  
+                  <Text style={[styles.subtitle, { marginBottom: 24 }]}>
+                    Continue with Google to manage your patients.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[styles.btn, styles.googleBtn]}
+                    onPress={handleGoogleOAuth}
+                    disabled={loading}
+                  >
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleBtnText}>
+                      {loading ? "Signing in..." : "Continue with Google"}
                     </Text>
-                    
-                    {/* Subheading */}
-                    <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                      Ready to manage your patients? Log in now!
-                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-                    {/* === LOGIN FORM === */}
-                    <>
-                      <>
-                        {/* Email Field */}
-                        <Text style={styles.fieldLabel}>Email</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Enter your email"
-                          autoCapitalize="none"
-                          keyboardType="email-address"
-                          value={formData.email}
-                          onChangeText={(t) => setField("email", t)}
-                          placeholderTextColor="#9ca3af"
-                        />
-
-                        {/* Password Field */}
-                        <Text style={styles.fieldLabel}>Password</Text>
-                        <View style={styles.passwordContainer}>
-                          <TextInput
-                            style={styles.passwordInput}
-                            placeholder="Enter your password"
-                            secureTextEntry={!showPassword}
-                            value={formData.password}
-                            onChangeText={(t) => setField("password", t)}
-                            placeholderTextColor="#9ca3af"
-                          />
-                          <TouchableOpacity
-                            style={styles.passwordToggle}
-                            onPress={() => setShowPassword(!showPassword)}
-                            accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                            accessibilityRole="button"
-                          >
-                            <Image
-                              source={require("../../assets/images/icon/view.png")}
-                              style={styles.passwordToggleIcon}
-                            />
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Remember me & Forgot Password */}
-                        <View style={styles.rememberRow}>
-                          <TouchableOpacity
-                            style={styles.checkboxContainer}
-                            onPress={() => setRememberMe(!rememberMe)}
-                            activeOpacity={0.7}
-                          >
-                            <View
-                              style={[
-                                styles.customCheckbox,
-                                rememberMe && styles.customCheckboxChecked,
-                              ]}
-                            >
-                              {rememberMe && (
-                                <Image
-                                  source={require("../../assets/images/icon/check.png")}
-                                  style={{ width: 16, height: 16, tintColor: "#0b7fab" }}
-                                />
-                              )}
-                            </View>
-                            <Text style={styles.rememberText}>Remember me</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => setStep(6)}>
-                            <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Login Button */}
-                        <TouchableOpacity
-                          style={[styles.btn, styles.primaryBtn, { marginTop: 20 }]}
-                          onPress={async () => {
-                            try {
-                              setLoading(true);
-                              await handleFinalize();
-                              await performLogin();
-                            } catch (err) {
-                              const message = err instanceof Error ? err.message : "Login failed. Please try again.";
-                              Alert.alert("Login Error", message);
-                              console.error("Auth error:", err);
-                            } finally {
-                              setLoading(false);
-                            }
-                          }}
-                          disabled={loading}
-                        >
-                          {loading ? (
-                            <ActivityIndicator color="#fff" />
-                          ) : (
-                            <Text style={styles.btnText}>Login</Text>
-                          )}
-                        </TouchableOpacity>
-
-                        {/* OR Divider */}
-                        <View style={styles.dividerContainer}>
-                          <View style={styles.divider} />
-                          <Text style={styles.dividerText}>OR</Text>
-                          <View style={styles.divider} />
-                        </View>
-
-                        {/* Google OAuth Button */}
-                        <TouchableOpacity
-                          style={[styles.btn, styles.googleBtn]}
-                          onPress={performOAuthSignIn}
-                          disabled={loading}
-                        >
-                          <Text style={styles.googleIcon}>G</Text>
-                          <Text style={styles.googleBtnText}>
-                            {loading ? "Signing in..." : "Sign in with Google"}
-                          </Text>
-                        </TouchableOpacity>
-
-                      </>
-                    </>
-                  </View>
-                )}
-
-                {/* ════════════ Step 2: Doctor Profile Setup (Bio Information) ════════════ */}
-                {step === 2 && (
-                  <DoctorProfileSetup
-                    onSuccess={(userData) => {
-                      console.log(" Doctor registration completed successfully");
-                      // Direct to dashboard after profile setup
-                      onSuccess(userData);
-                    }}
-                    onCancel={() => {
-                      console.log(" User cancelled doctor registration");
-                      setStep(1); // Go back to login/register screen
-                    }}
-                  />
-                )}
-
-                {/* ════════════ Step 6: Forgot Password ════════════ */}
-                {step === 6 && (
-                  <View>
-                    <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>🔐 Reset Password</Text>
-                    <Text style={[styles.subtitle, { marginBottom: 24 }]}>
-                      Enter your email and we'll send you a reset link.
-                    </Text>
-
-                    <Text style={styles.fieldLabel}>Email</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Enter your email"
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                      value={formData.email}
-                      onChangeText={(t) => setField("email", t)}
-                      placeholderTextColor="#9ca3af"
-                    />
-
-                    <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn, { marginTop: 4 }]}
-                      disabled={loading}
-                      onPress={async () => {
-                        if (!formData.email || !isValidEmail(formData.email)) {
-                          Alert.alert("Invalid Email", "Please enter a valid email address.");
-                          return;
-                        }
-                        setLoading(true);
-                        try {
-                          const { error } = await supabase.auth.resetPasswordForEmail(
-                            formData.email,
-                            { redirectTo: "http://localhost:8081/reset-password" }
-                          );
-                          if (error) throw error;
-                          setStep(7);
-                        } catch (err) {
-                          const message = err instanceof Error ? err.message : "Something went wrong.";
-                          Alert.alert("Error", message);
-                        } finally {
-                          setLoading(false);
-                        }
-                      }}
-                    >
-                      {loading ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text style={styles.btnText}>Send Reset Link</Text>
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
-                      onPress={() => setStep(1)}
-                    >
-                      <Text style={styles.secondaryBtnText}>← Back to Login</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* ════════════ Step 7: Reset Email Sent ════════════ */}
-                {step === 7 && (
-                  <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}></Text>
-                    <Text style={styles.h2}>Check your inbox</Text>
-                    <Text style={[styles.p, { fontSize: 14 }]}>
-                      A password reset link was sent to{"\n"}
-                      <Text style={{ fontWeight: "700", color: "#0b7fab" }}>
-                        {formData.email}
-                      </Text>
-                    </Text>
-                    <Text style={[styles.subtext, { marginBottom: 24 }]}>
-                      The link expires in 1 hour. Check your spam folder if you don't see it.
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.btn, styles.primaryBtn]}
-                      onPress={() => setStep(1)}
-                    >
-                      <Text style={styles.btnText}>Back to Login</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-              
-            </ScrollView>
-          </View>
+              {step === 2 && (
+                <DoctorProfileSetup
+                  onSuccess={(userData) => onSuccess(userData)}
+                  onCancel={() => setStep(1)}
+                />
+              )}
+            </View>
+          </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-// ══════════════════════════════════════════════════════════════════
-// STYLES
-// ══════════════════════════════════════════════════════════════════
-
 const styles = StyleSheet.create({
-  modalFull: {
-    flex: 1,
-    padding: 30,
-  },
-  bordercard: {
-    flex: 1,
-    maxWidth: 540,
-    alignSelf: "center",
-    width: "100%",
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
+  modalFull: { flex: 1, padding: 30 },
+  scrollContent: { flexGrow: 1, justifyContent: "center" },
   stepContent: {
     marginTop: 20,
     borderColor: "#2bf1ff7d",
     borderWidth: 1,
     borderRadius: 45,
     padding: 24,
-  },
-  logoSection: {
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#0b7fab",
-  },
-  h2: {
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#0f172a",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-    color: "#374151",
-  },
-  stepIndicator: {
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: 13,
-    marginBottom: 18,
-  },
-  p: {
-    fontSize: 18,
-    color: "#4b5563",
-    textAlign: "center",
-    marginBottom: 30,
-  },
-  subtext: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    color: "#374151",
-  },
-  sectionHeader: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginTop: 14,
-    marginBottom: 10,
-    color: "#0b7fab",
-  },
-  helperText: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginBottom: 12,
-    marginTop: -4,
-  },
-  warningText: {
-    fontSize: 13,
-    color: "#ef4444",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  btn: {
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  primaryBtn: {
-    backgroundColor: "#0b7fab",
-    width: "100%",
-  },
-  secondaryBtn: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-  },
-  googleBtn: {
     backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    width: "100%",
   },
-  googleIcon: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#374151",
-    marginRight: 8,
-  },
-  googleBtnText: {
-    color: "#374151",
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  secondaryBtnText: {
-    color: "#374151",
-    fontWeight: "600",
-  },
-  btnText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  input: {
-    backgroundColor: "#f3f4f6",
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 14,
-    fontSize: 15,
-    color: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    paddingRight: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  passwordInput: {
-    flex: 1,
-    padding: 14,
-    fontSize: 15,
-    color: "#0f172a",
-  },
-  passwordToggle: {
-    padding: 8,
-  },
-  passwordToggleText: {
-    fontSize: 18,
-  },
-  passwordToggleIcon: {
-    width: 24,
-    height: 24,
-    resizeMode: "contain",
-  },
-  rememberRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  customCheckbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: "#d1d5db",
-    backgroundColor: "transparent",
-    marginRight: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  customCheckboxChecked: {
-    backgroundColor: "#0b7fab",
-    borderColor: "#0b7fab",
-  },
-  checkmark: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  rememberText: {
-    fontSize: 13,
-    color: "#374151",
-    marginLeft: 8,
-    fontWeight: "500",
-  },
-  forgotPasswordLink: {
-    fontSize: 13,
-    color: "#0b7fab",
-    fontWeight: "600",
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 18,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#e5e7eb",
-  },
-  dividerText: {
-    fontSize: 13,
-    color: "#9ca3af",
-    marginHorizontal: 12,
-    fontWeight: "500",
-  },
-  switchAuthContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingBottom: 8,
-  },
-  switchAuthText: {
-    fontSize: 13,
-    color: "#6b7280",
-  },
-  switchAuthLink: {
-    fontSize: 13,
-    color: "#0b7fab",
-    fontWeight: "700",
-  },
-  multilineInput: {
-    minHeight: 70,
-    textAlignVertical: "top",
-  },
-  radioRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 8,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#0b7fab",
-    marginRight: 12,
-  },
-  radioActive: {
-    backgroundColor: "#0b7fab",
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    backgroundColor: "#f9fafb",
-  },
-  chipActive: {
-    backgroundColor: "#0b7fab",
-    borderColor: "#0b7fab",
-  },
-  chipText: {
-    fontSize: 13,
-    color: "#374151",
-  },
-  chipTextActive: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  navRow: {
-    flexDirection: "row",
-    marginTop: 16,
-  },
-  strengthSection: {
-    marginBottom: 12,
-  },
-  closeBtn: {
-    alignItems: "center",
-    padding: 20,
-  },
-  closeBtnText: {
-    fontSize: 15,
-    color: "#ef4444",
-    fontWeight: "bold",
-    borderColor: "#ef4444",
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 30,
-    overflow: "hidden",
-  },
+  appName: { fontSize: 28, fontWeight: "700", color: "#0b7fab" },
+  h2: { fontSize: 24, fontWeight: "800", color: "#0f172a", textAlign: "center" },
+  subtitle: { fontSize: 14, color: "#6b7280", textAlign: "center", lineHeight: 20 },
+  btn: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 10, alignItems: "center", width: "100%" },
+  googleBtn: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#d1d5db", flexDirection: "row", justifyContent: "center" },
+  googleIcon: { fontSize: 18, fontWeight: "700", color: "#374151", marginRight: 8 },
+  googleBtnText: { color: "#374151", fontWeight: "600", fontSize: 15 },
+  closeBtn: { padding: 8 },
+  closeBtnText: { fontSize: 20, color: "#6b7280" },
 });
+
