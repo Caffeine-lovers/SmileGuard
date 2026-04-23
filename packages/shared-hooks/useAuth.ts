@@ -75,7 +75,7 @@ export function useAuth(options: UseAuthOptions = {}) {
         .from("profiles")
         .select("name, email, role")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         if (error.code === "PGRST116") {
@@ -163,7 +163,7 @@ export function useAuth(options: UseAuthOptions = {}) {
           .from("profiles")
           .select("role, name, email")
           .eq("id", data.user.id)
-          .single();
+          .maybeSingle();
 
         const userRole = profile?.role || data.user.user_metadata?.role;
         if (userRole !== expectedRole) {
@@ -315,7 +315,7 @@ export function useAuth(options: UseAuthOptions = {}) {
         .from("profiles")
         .select("id, role")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (fetchError?.code === "PGRST116") {
         console.warn("[useAuth] Profile not found in ensureRoleSet, retrying...");

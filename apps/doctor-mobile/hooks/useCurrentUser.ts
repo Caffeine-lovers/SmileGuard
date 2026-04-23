@@ -14,7 +14,7 @@ export function useCurrentUser(): CurrentUser | null {
           id: session.user.id,
           email: session.user.email!,
           name: session.user.user_metadata?.name,
-          role: session.user.user_metadata?.role,
+          role: session.user.user_metadata?.role || "doctor",
         });
       }
     });
@@ -32,7 +32,7 @@ export function useCurrentUser(): CurrentUser | null {
             id: session.user.id,
             email: session.user.email!,
             name: session.user.user_metadata?.name,
-            role: session.user.user_metadata?.role,
+            role: session.user.user_metadata?.role || "doctor",
           });
         }
       }
