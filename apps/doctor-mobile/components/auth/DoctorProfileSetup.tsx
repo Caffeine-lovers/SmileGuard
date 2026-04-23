@@ -26,12 +26,12 @@ import { supabase } from "@smileguard/supabase-client";
 import { HeroIcon } from "../ui/HeroIcon";
 
 export interface DoctorProfileSetupProps {
-  onSuccess: (user: { name: string; email: string; role: "doctor" }) => void;
+  onContinue: () => void;
   onCancel?: () => void;
 }
 
 export default function DoctorProfileSetup({
-  onSuccess,
+  onContinue,
   onCancel,
 }: DoctorProfileSetupProps) {
   const [loading, setLoading] = useState(false);
@@ -209,12 +209,8 @@ export default function DoctorProfileSetup({
 
       console.log("[DoctorProfileSetup] Doctor profile saved successfully!");
       
-      // Notify success
-      onSuccess({
-        name: finalDoctorData.doctor_name || "Doctor",
-        email: data.user.email || "",
-        role: "doctor",
-      });
+      // Move to clinic setup step
+      onContinue();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";
       console.error("[DoctorProfileSetup] Full error:", err);
@@ -447,41 +443,43 @@ export default function DoctorProfileSetup({
           {/* Section: Profile Picture */}
           <Text style={styles.sectionHeader}>Profile Picture</Text>
 
-          {/* Image Preview or Placeholder */}
-          <View style={styles.imagePreviewContainer}>
+          {/* Profile Picture Container - Circular with Camera Overlay */}
+          <TouchableOpacity
+            onPress={handleImagePick}
+            disabled={uploadingImage || loading}
+            style={styles.profileImageContainer}
+          >
             {selectedImageUri ? (
               <Image
                 source={{ uri: selectedImageUri }}
-                style={styles.imagePreview}
+                style={styles.profileImage}
               />
             ) : (
-              <View style={styles.imagePlaceholder}>
-                <Text style={styles.imagePlaceholderText}></Text>
-                <Text style={styles.imagePlaceholderLabel}>
-                  No image selected
-                </Text>
+              <View style={styles.profileImagePlaceholder}>
+                <Image
+                  source={require("../../assets/images/user.png")}
+                  style={styles.profileImagePlaceholderIcon}
+                />
               </View>
             )}
-          </View>
-
-          {/* Image Picker Button */}
-          <TouchableOpacity
-            style={[styles.btn, styles.secondaryBtn, { marginTop: 8 }]}
-            onPress={handleImagePick}
-            disabled={uploadingImage || loading}
-          >
-            {uploadingImage ? (
-              <ActivityIndicator color="#0b7fab" size="small" />
-            ) : (
-              <Text style={styles.secondaryBtnText}>
-                {selectedImage ? " Change Photo" : " Choose Photo"}
-              </Text>
+            {uploadingImage && (
+              <View style={styles.uploadingOverlay}>
+                <ActivityIndicator size="large" color="#fff" />
+              </View>
+            )}
+            {!uploadingImage && (
+              <View style={styles.cameraIconContainer}>
+                <Image
+                  source={require("../../assets/images/icon/camera.png")}
+                  style={styles.cameraIcon}
+                />
+              </View>
             )}
           </TouchableOpacity>
 
           {selectedImage && (
             <TouchableOpacity
-              style={[styles.btn, { marginTop: 6, backgroundColor: "#fee2e2" }]}
+              style={[styles.btn, { marginTop: 12, backgroundColor: "#fee2e2" }]}
               onPress={() => {
                 setSelectedImage(null);
                 setSelectedImageUri(null);
@@ -515,7 +513,7 @@ export default function DoctorProfileSetup({
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.btnText}>Complete Profile</Text>
+              <Text style={styles.btnText}>Continue to Clinic Setup</Text>
             )}
           </TouchableOpacity>
 
@@ -706,34 +704,59 @@ const styles = StyleSheet.create({
   strengthSection: {
     marginBottom: 8,
   },
-  imagePreviewContainer: {
-    width: "100%",
-    height: 80,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 6,
-    marginBottom: 6,
-    overflow: "hidden",
-    backgroundColor: "#f9fafb",
+  profileImageContainer: {
+    alignSelf: "center",
+    marginBottom: 12,
+    position: "relative",
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignSelf: "center",
+  },
+  profileImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#f0f0f0",
     justifyContent: "center",
     alignItems: "center",
+    alignSelf: "center",
   },
-  imagePreview: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
+  profileImagePlaceholderIcon: {
+    width: 60,
+    height: 60,
+    resizeMode: "contain",
   },
-  imagePlaceholder: {
+  cameraIconContainer: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#0b7fab",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
-  imagePlaceholderText: {
-    fontSize: 24,
-    marginBottom: 3,
+  cameraIcon: {
+    width: 18,
+    height: 18,
+    resizeMode: "contain",
   },
-  imagePlaceholderLabel: {
-    fontSize: 9,
-    color: "#999",
+  uploadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalOverlay: {
     flex: 1,

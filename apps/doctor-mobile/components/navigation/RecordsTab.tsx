@@ -16,7 +16,7 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Appointment } from "../../data/dashboardData";
-import { getAllPatients } from "../../lib/profilesPatients";
+import * as dashboardService from "../../lib/dashboardService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "@smileguard/supabase-client";
 import AddPatient from "../patientrecord/AddPatient";
@@ -75,20 +75,17 @@ export default function RecordsTab({
     const fetchSupabasePatients = async () => {
       setLoadingSupabase(true);
       try {
-        const data = await getAllPatients();
-        console.log('RecordsTab - Received profiles patients:', data);
+        const result = await dashboardService.fetchDoctorPatients(currentUser?.id || '');
+        console.log('RecordsTab - Received profiles patients:', result.data);
         
-        // Filter to show only patients with role='patient'
-        const filteredData = data.filter((patient) => patient.role === 'patient');
-        
-        const mapped: AppointmentType[] = filteredData.map((patient) => ({
-          id: patient.patient_id,
+        const mapped: AppointmentType[] = (result.data || []).map((patient: any) => ({
+          id: patient.id,
           name: patient.name || 'Unknown Patient',
           email: patient.email || '',
           service: patient.service || 'General',
           contact: patient.phone || '',
           time: '',
-          date: patient.created_at,
+          date: patient.created_at || new Date().toISOString(),
           age: 0,
           gender: patient.gender || '',
           notes: '',
@@ -105,8 +102,10 @@ export default function RecordsTab({
       }
     };
 
-    fetchSupabasePatients();
-  }, []);
+    if (currentUser?.id) {
+      fetchSupabasePatients();
+    }
+  }, [currentUser?.id]);
 
   // Fetch dummy_accounts patients whenever screen is focused
   useFocusEffect(

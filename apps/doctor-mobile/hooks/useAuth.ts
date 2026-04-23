@@ -59,7 +59,7 @@ export function useAuth() {
           }
 
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
-          const userRole = user.user_metadata?.role || "doctor";
+          const userRole = user.user_metadata?.role || "doctor"; // Default to 'doctor' instead of 'patient'
           const userEmail = user.email || "";
 
           console.log("[useAuth] Creating profile with metadata:", { userName, userRole, userEmail });
@@ -106,7 +106,7 @@ export function useAuth() {
           id:    userId,
           name:  data.name,
           email: data.email,
-          role:  data.role,
+          role:  data.role || "doctor",
         });
       }
     } catch (err) {
@@ -128,7 +128,7 @@ export function useAuth() {
   const login = async (
     email: string,
     password: string,
-    role: "patient" | "doctor"
+    role: "doctor"
   ): Promise<CurrentUser> => {
     setError(null);
     console.log(" Starting login for:", email, "as", role);
@@ -149,7 +149,7 @@ export function useAuth() {
       console.warn("️ Profile not found, creating from metadata...");
 
       const userName = data.user.user_metadata?.name || email.split("@")[0];
-      const userRole = data.user.user_metadata?.role || role;
+      const userRole = data.user.user_metadata?.role || "doctor"; // Default to 'doctor' instead of 'patient'
 
       const { data: insertedProfile, error: createError } = await supabase
         .from("profiles")
@@ -169,17 +169,19 @@ export function useAuth() {
         id:    data.user.id,                    // ← UUID always set
         name:  insertedProfile?.name  || userName,
         email: insertedProfile?.email || data.user.email || email,
-        role:  (insertedProfile?.role as "patient" | "doctor") || userRole,
+        role:  (insertedProfile?.role as "doctor") || userRole,
       };
     }
 
     if (profileError) throw new Error(`Profile error: ${profileError.message}`);
     if (!profile)     throw new Error("Profile not found. Please contact support.");
 
-    if (profile.role !== role) {
+    const actualRole = profile.role || "doctor";
+
+    if (actualRole !== role) {
       await supabase.auth.signOut();
       throw new Error(
-        `This account is registered as a ${profile.role}, not a ${role}.`
+        `This account is registered as a ${actualRole}, not a ${role}.`
       );
     }
 
@@ -187,13 +189,13 @@ export function useAuth() {
       id:    data.user.id,                      // ← UUID always set
       name:  profile.name,
       email: profile.email,
-      role:  profile.role,
+      role:  actualRole,
     };
   };
 
   const register = async (
     formData: FormData,
-    role: "patient" | "doctor"
+    role: "doctor"
   ): Promise<CurrentUser> => {
     console.log("[useAuth] Starting registration for:", formData.email);
     
