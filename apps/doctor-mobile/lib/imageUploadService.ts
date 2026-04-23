@@ -2,21 +2,20 @@
  * Image Upload Service
  * Handles uploading images to Supabase Storage
  * 
- * IMPORTANT: The 'doctor-profiles' bucket must exist and be set to PUBLIC in Supabase
+ * IMPORTANT: The 'doctor-pictures' bucket must exist and be set to PUBLIC in Supabase
  * SQL migration to create bucket:
  * 
  * -- Create the bucket if it doesn't exist
  * INSERT INTO storage.buckets (id, name, public)
- * VALUES ('doctor-profiles', 'doctor-profiles', true)
+ * VALUES ('doctor-pictures', 'doctor-pictures', true)
  * ON CONFLICT (id) DO NOTHING;
  * 
- * -- Set public access policy
- * CREATE POLICY "Public Access"
- * ON storage.objects FOR SELECT
- * USING (bucket_id = 'doctor-profiles');
+ * -- Set RLS policies (see setupStoragePolicies.sql)
  */
 
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
 
 export interface ImagePickerResult {
@@ -40,20 +39,27 @@ export const requestMediaPermission = async (): Promise<boolean> => {
 
 /**
  * Pick an image from device and return file info
+ * @param aspectRatio Optional aspect ratio (e.g., [1, 1] for square). Omit for free form.
  */
-export const pickImage = async (): Promise<ImagePickerResult | null> => {
+export const pickImage = async (aspectRatio?: [number, number]): Promise<ImagePickerResult | null> => {
   try {
     const hasPermission = await requestMediaPermission();
     if (!hasPermission) {
       throw new Error("Media library permission denied");
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const config: any = {
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [1, 1], // Square for profile pictures
       quality: 0.7,
-    });
+    };
+
+    // Only add aspect ratio if provided
+    if (aspectRatio) {
+      config.aspect = aspectRatio;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync(config);
 
     if (result.canceled) {
       return null;
@@ -81,6 +87,63 @@ export const pickImage = async (): Promise<ImagePickerResult | null> => {
 };
 
 /**
+ * Pick multiple images from device and return file info array
+ * Note: allowsEditing is disabled for batch selection; editing is done per-image
+ * @param aspectRatio Optional aspect ratio (e.g., [1, 1] for square). Omit for free form.
+ *                    On Android, aspect ratio is NOT applied with allowsMultiple due to picker limitations
+ */
+export const pickMultipleImages = async (aspectRatio?: [number, number]): Promise<ImagePickerResult[] | null> => {
+  try {
+    const hasPermission = await requestMediaPermission();
+    if (!hasPermission) {
+      throw new Error("Media library permission denied");
+    }
+
+    const config: any = {
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.7,
+      allowsMultiple: true,
+    };
+
+    // Apply aspect ratio only on iOS
+    // Android doesn't support aspect ratio with allowsMultiple - it disables multi-select
+    if (aspectRatio && Platform.OS === 'ios') {
+      config.aspect = aspectRatio;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync(config);
+
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      return null;
+    }
+
+    // Convert all assets to ImagePickerResult
+    const images: ImagePickerResult[] = result.assets.map(asset => {
+      const fileUri = asset.uri;
+      
+      // Extract filename from URI or create one
+      let filename = "image";
+      if (fileUri.includes("/")) {
+        const parts = fileUri.split("/");
+        filename = parts[parts.length - 1] || filename;
+      }
+
+      return {
+        uri: fileUri,
+        name: filename,
+        type: asset.mimeType || "image/jpeg",
+      };
+    });
+
+    return images;
+  } catch (error) {
+    console.error("[ImageUpload] Multiple image picker failed:", error);
+    throw error;
+  }
+};
+
+/**
  * Upload image to Supabase Storage
  * Uses direct binary upload to avoid unnecessary string conversions
  * @param image Image to upload
@@ -98,32 +161,37 @@ export const uploadProfileImage = async (
 
     // Create unique filename
     const timestamp = Date.now();
-    const filename = `doctor-profiles/${userId}/profile_${timestamp}`;
+    const filename = `profile/${userId}/profile_${timestamp}`;
 
     console.log("[ImageUpload] Uploading to path:", filename);
 
     try {
-      console.log("[ImageUpload] Reading image file as binary...");
+      console.log("[ImageUpload] Reading image file as base64...");
       
-      // Use fetch to get binary data directly without string conversion
-      const response = await fetch(image.uri);
+      // Read file as base64 using expo-file-system (more reliable than fetch on React Native)
+      const base64 = await FileSystem.readAsStringAsync(image.uri, {
+        encoding: 'base64' as any,
+      });
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      console.log("[ImageUpload] File read successfully, converting to binary...");
+      
+      // Convert base64 to Uint8Array for upload
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
       
-      // Get blob directly - this avoids unnecessary string encoding
-      const blob = await response.blob();
-      console.log("[ImageUpload] Image blob retrieved, size:", blob.size, "bytes");
+      console.log("[ImageUpload] Binary conversion complete, size:", bytes.length, "bytes");
 
-      // Upload to Supabase Storage with binary blob
+      // Upload to Supabase Storage with binary data
       console.log("[ImageUpload] Uploading to Supabase storage...");
-      console.log("[ImageUpload] Bucket: doctor-profiles");
+      console.log("[ImageUpload] Bucket: doctor-pictures");
       console.log("[ImageUpload] Content-Type:", image.type || "image/jpeg");
       
       const { data, error } = await supabase.storage
-        .from("doctor-profiles")
-        .upload(filename, blob, {
+        .from("doctor-pictures")
+        .upload(filename, bytes, {
           cacheControl: "3600",
           upsert: true,
           contentType: image.type || "image/jpeg",
@@ -138,12 +206,12 @@ export const uploadProfileImage = async (
         
         // Provide more specific error messages
         if (error.message.includes("Network request failed") || error.message.includes("bucket")) {
-          console.error("[ImageUpload] Bucket issue detected:");
-          console.error("   1. The 'doctor-profiles' bucket doesn't exist");
-          console.error("   2. The bucket is not set to PUBLIC");
-          console.error("   3. There's a CORS issue");
+          console.error("[ImageUpload] Upload failed:");
+          console.error("   1. Check your internet connection");
+          console.error("   2. Verify Supabase project is accessible");
+          console.error("   3. Check bucket 'doctor-pictures' exists");
           throw new Error(
-            "Storage bucket error. Please verify:\n1. Bucket 'doctor-profiles' exists in Supabase\n2. Bucket is set to PUBLIC\n3. Check Supabase dashboard under Storage"
+            "Upload failed. Possible causes:\n1. No internet connection\n2. Supabase project unreachable\n3. Bucket 'doctor-pictures' missing"
           );
         }
         
@@ -212,6 +280,235 @@ export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
     console.log(" Image deleted successfully");
   } catch (error) {
     console.error(" Delete failed:", error);
+    throw error;
+  }
+};
+
+/**
+ * Upload clinic logo to Supabase Storage
+ * @param image Image to upload
+ * @param userId User ID for organizing storage
+ * @returns URL of uploaded image
+ */
+export const uploadClinicLogo = async (
+  image: ImagePickerResult,
+  userId: string
+): Promise<string> => {
+  try {
+    console.log("[ClinicUpload] Starting clinic logo upload...");
+
+    const timestamp = Date.now();
+    const filename = `logo/${userId}/logo_${timestamp}`;
+
+    try {
+      console.log("[ClinicUpload] Reading logo file as base64...");
+      
+      // Read file as base64 using expo-file-system (reliable on React Native)
+      const base64 = await FileSystem.readAsStringAsync(image.uri, {
+        encoding: 'base64' as any,
+      });
+      
+      console.log("[ClinicUpload] File read successfully, converting to binary...");
+      
+      // Convert base64 to Uint8Array for upload
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      console.log("[ClinicUpload] Binary conversion complete, size:", bytes.length, "bytes");
+
+      const { data, error } = await supabase.storage
+        .from("doctor-pictures")
+        .upload(filename, bytes, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: image.type || "image/jpeg",
+        });
+
+      if (error) {
+        console.error("[ClinicUpload] Supabase upload error:", error.message);
+        throw new Error(`Upload failed: ${error.message}`);
+      }
+
+      console.log("[ClinicUpload] Logo upload successful");
+
+      const { data: publicUrl } = supabase.storage
+        .from("doctor-pictures")
+        .getPublicUrl(filename);
+
+      if (!publicUrl?.publicUrl) {
+        throw new Error("Failed to generate public URL");
+      }
+
+      return publicUrl.publicUrl;
+    } catch (uploadError) {
+      const errorMsg = uploadError instanceof Error 
+        ? uploadError.message 
+        : JSON.stringify(uploadError);
+      
+      console.error("[ClinicUpload] Upload error:", errorMsg);
+      throw uploadError;
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Clinic logo upload failed";
+    console.error("[ClinicUpload] Error:", message);
+    throw error;
+  }
+};
+
+/**
+ * Upload clinic gallery image to Supabase Storage
+ * @param image Image to upload
+ * @param userId User ID for organizing storage
+ * @returns URL of uploaded image
+ */
+export const uploadClinicGalleryImage = async (
+  image: ImagePickerResult,
+  userId: string
+): Promise<string> => {
+  try {
+    console.log("[ClinicUpload] Starting clinic gallery image upload...");
+
+    const timestamp = Date.now();
+    const filename = `clinic_pictures/${userId}/gallery_${timestamp}`;
+
+    try {
+      console.log("[ClinicUpload] Reading gallery image file as base64...");
+      
+      // Read file as base64 using expo-file-system (reliable on React Native)
+      const base64 = await FileSystem.readAsStringAsync(image.uri, {
+        encoding: 'base64' as any,
+      });
+      
+      console.log("[ClinicUpload] File read successfully, converting to binary...");
+      
+      // Convert base64 to Uint8Array for upload
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      console.log("[ClinicUpload] Binary conversion complete, size:", bytes.length, "bytes");
+
+      const { data, error } = await supabase.storage
+        .from("doctor-pictures")
+        .upload(filename, bytes, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: image.type || "image/jpeg",
+        });
+
+      if (error) {
+        console.error("[ClinicUpload] Supabase upload error:", error.message);
+        throw new Error(`Upload failed: ${error.message}`);
+      }
+
+      console.log("[ClinicUpload] Gallery image upload successful");
+
+      const { data: publicUrl } = supabase.storage
+        .from("doctor-pictures")
+        .getPublicUrl(filename);
+
+      if (!publicUrl?.publicUrl) {
+        throw new Error("Failed to generate public URL");
+      }
+
+      return publicUrl.publicUrl;
+    } catch (uploadError) {
+      const errorMsg = uploadError instanceof Error 
+        ? uploadError.message 
+        : JSON.stringify(uploadError);
+      
+      console.error("[ClinicUpload] Upload error:", errorMsg);
+      throw uploadError;
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Clinic gallery upload failed";
+    console.error("[ClinicUpload] Error:", message);
+    throw error;
+  }
+};
+
+/**
+ * Upload multiple clinic gallery images to Supabase Storage
+ * @param images Array of images to upload
+ * @param userId User ID for organizing storage
+ * @returns Array of URLs of uploaded images
+ */
+export const uploadMultipleClinicGalleryImages = async (
+  images: ImagePickerResult[],
+  userId: string
+): Promise<string[]> => {
+  try {
+    console.log("[ClinicUpload] Starting batch gallery image upload...", images.length, "images");
+
+    const uploadedUrls: string[] = [];
+    const errors: { filename: string; error: string }[] = [];
+
+    // Upload each image sequentially
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      const timestamp = Date.now() + i; // Add index to ensure unique timestamps
+      const filename = `clinic_pictures/${userId}/gallery_${timestamp}`;
+
+      try {
+        console.log(`[ClinicUpload] Uploading image ${i + 1}/${images.length}...`);
+        
+        const base64 = await FileSystem.readAsStringAsync(image.uri, {
+          encoding: 'base64' as any,
+        });
+        
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let j = 0; j < binaryString.length; j++) {
+          bytes[j] = binaryString.charCodeAt(j);
+        }
+
+        const { data, error } = await supabase.storage
+          .from("doctor-pictures")
+          .upload(filename, bytes, {
+            cacheControl: "3600",
+            upsert: true,
+            contentType: image.type || "image/jpeg",
+          });
+
+        if (error) {
+          console.error(`[ClinicUpload] Error uploading image ${i + 1}:`, error.message);
+          errors.push({ filename, error: error.message });
+          continue;
+        }
+
+        const { data: publicUrl } = supabase.storage
+          .from("doctor-pictures")
+          .getPublicUrl(filename);
+
+        if (publicUrl?.publicUrl) {
+          uploadedUrls.push(publicUrl.publicUrl);
+          console.log(`[ClinicUpload] Image ${i + 1} uploaded successfully`);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+        console.error(`[ClinicUpload] Error uploading image ${i + 1}:`, errorMsg);
+        errors.push({ filename, error: errorMsg });
+      }
+    }
+
+    console.log(`[ClinicUpload] Batch upload complete. Uploaded: ${uploadedUrls.length}/${images.length}`);
+    
+    if (errors.length > 0) {
+      console.warn("[ClinicUpload] Some images failed to upload:", errors);
+    }
+
+    return uploadedUrls;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Batch gallery upload failed";
+    console.error("[ClinicUpload] Batch error:", message);
     throw error;
   }
 };

@@ -216,7 +216,7 @@ export default function DoctorProfileView({
             {doctor.specialization || "Specialization: N/A"}
           </Text>
           <Text style={styles.subtext}>
-            {doctor.years_of_experience || 0} years of experience
+            {doctor.years_of_experience || 0} {doctor.years_of_experience === 1 ? "year" : "years"} of experience
           </Text>
         </View>
 
@@ -240,7 +240,7 @@ export default function DoctorProfileView({
           <View style={styles.infoRow}>
             <Text style={styles.label}>Years of Experience:</Text>
             <Text style={styles.value}>
-              {doctor.years_of_experience || 0} years
+              {doctor.years_of_experience || 0} {doctor.years_of_experience === 1 ? "year" : "years"}
             </Text>
           </View>
         </View>

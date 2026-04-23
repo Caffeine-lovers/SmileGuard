@@ -50,19 +50,25 @@ export default function SignupConfirmPage() {
         // Profile already exists — created in OAuth callback
         console.log('[SignupConfirm] OAuth flow: updating profile for', currentAuthUser.id);
 
-        const { error: updateError } = await supabase
+        // Step 1: Upsert profile (create if not exists)
+        const { error: upsertError } = await supabase
           .from('profiles')
-          .update({
-            name: formData.name,
-            service: formData.service,
-            role: 'patient',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentAuthUser.id);
+          .upsert(
+            {
+              id: currentAuthUser.id,
+              name: formData.name,
+              service: formData.service,
+              role: 'patient',
+              email: formData.email ?? currentAuthUser.email ?? '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
 
-        if (updateError) {
-          console.error('[SignupConfirm] Profile update failed:', updateError);
-          setLocalError(`Failed to update profile: ${updateError.message}`);
+        if (upsertError) {
+          console.error('[SignupConfirm] Profile upsert failed:', upsertError);
+          setLocalError(`Failed to save profile: ${upsertError.message}`);
           setLoading(false);
           return;
         }

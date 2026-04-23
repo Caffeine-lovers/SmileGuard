@@ -85,6 +85,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
   
+  // Clinic logo and name state
+  const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
+  const [clinicName, setClinicName] = useState<string>('SmileGuard');
+  
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [loadingPatients, setLoadingPatients] = useState(true);
@@ -130,7 +134,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [requests, setRequests] = useState<DashboardAppointment[]>([]);
   const [patients, setPatients] = useState<DashboardAppointment[]>([]);
-  const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
+  const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0, paidBillings: 0 });
 
   // Filter today's appointments - exclude completed, cancelled, no-show, and declined ones
   const todayAppointments = appointments
@@ -175,12 +179,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Update selectedPatient whenever todayAppointments changes
   useEffect(() => {
     if (todayAppointments.length > 0) {
-      setSelectedPatient(todayAppointments[0]);
+      // Only auto-select the first patient if no selection or current selection is no longer valid
+      if (!selectedPatient || !todayAppointments.some(apt => apt.id === selectedPatient.id)) {
+        setSelectedPatient(todayAppointments[0]);
+      }
     } else {
       // If no today's appointments, clear selection
       setSelectedPatient(null);
     }
-  }, [todayAppointments]);
+  }, [todayAppointments, selectedPatient]);
 
   // Auto-show patient details when a patient is selected
   useEffect(() => {
@@ -371,18 +378,41 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         
         // Calculate stats excluding declined appointments
         const appointmentsExcludingDeclined = transformedAppointments.filter(apt => apt.status !== 'declined');
+        // Fetch paid billings count for this doctor using appointment IDs
+        const appointmentIds = rpcAppointments
+          .filter((apt: any) => apt.id)
+          .map((apt: any) => apt.id);
+        
+        let paidBillings: any[] = [];
+        if (appointmentIds.length > 0) {
+          const { data: billingData, error: billingError } = await supabase
+            .from('billings')
+            .select('id')
+            .in('appointment_id', appointmentIds)
+            .eq('payment_status', 'paid');
+          
+          if (billingError) {
+            console.error('[DoctorDashboard] Billing query error:', billingError);
+          } else {
+            paidBillings = billingData || [];
+          }
+        }
+        
+        console.log('[DoctorDashboard] Paid billings count:', paidBillings.length);
+        
         const calculatedStats = {
           total: appointmentsExcludingDeclined.length,
           scheduled: appointmentsExcludingDeclined.filter(a => a.status === 'scheduled').length,
           completed: appointmentsExcludingDeclined.filter(a => a.status === 'completed').length,
           cancelled: appointmentsExcludingDeclined.filter(a => a.status === 'cancelled').length,
           noShow: appointmentsExcludingDeclined.filter(a => a.status === 'no-show').length,
+          paidBillings: paidBillings?.length || 0,
         };
         setStats(calculatedStats);
 
       } else {
         setAppointments([]);
-        setStats({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0 });
+        setStats({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0, paidBillings: 0 });
 
       }
 
@@ -445,6 +475,41 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       };
     }, [refreshDashboardData])
   );
+
+  // ─────────────────────────────────────────
+  // LOAD CLINIC LOGO AND NAME
+  // ─────────────────────────────────────────
+  useEffect(() => {
+    const loadClinicData = async () => {
+      try {
+        if (!user?.id) return;
+        
+        const { data, error } = await supabase
+          .from('clinic_setup')
+          .select('logo_url, clinic_name')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (error && error.code !== 'PGRST116') {
+          // PGRST116 = no rows (clinic not set up yet, which is expected)
+          console.error('Error loading clinic data:', error);
+          return;
+        }
+        
+        if (data?.logo_url) {
+          setClinicLogoUrl(data.logo_url);
+        }
+        
+        if (data?.clinic_name) {
+          setClinicName(data.clinic_name);
+        }
+      } catch (error) {
+        console.error('Error loading clinic data:', error);
+      }
+    };
+    
+    loadClinicData();
+  }, [user?.id]);
 
   const handlePress = (apt: DashboardAppointment) => {
     setSelectedPatient(apt);
@@ -814,7 +879,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   <View style={styles.firstPanel}>
                     <StatCard number={patients.length} label="Patients" />
                     <StatCard number={stats.total} label="Appointments" />
-                    <StatCard number={67} label="Treatments" />
+                    <StatCard number={stats.paidBillings} label="Paid Billings" />
                   </View>
 
                   <View style={styles.sectionHeader}>
@@ -1396,8 +1461,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
             {sidebarOpen && (
               <View style={styles.logoSection}>
-                <Text style={styles.logoText}>🦷</Text>
-                <Text style={styles.logoTitle}>SmileGuard</Text>
+                {clinicLogoUrl ? (
+                  <Image
+                    source={{ uri: clinicLogoUrl }}
+                    style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }}
+                  />
+                ) : (
+                  <Text style={styles.logoText}>🦷</Text>
+                )}
+                <Text style={styles.logoTitle}>{clinicName}</Text>
               </View>
             )}
 

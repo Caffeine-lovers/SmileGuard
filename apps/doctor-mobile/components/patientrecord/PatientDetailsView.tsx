@@ -389,9 +389,11 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
               ) : (
                 <>
                   {(() => {
-                    const cancelledAppts = appointments.filter((appt: any) => appt.status === 'cancelled');
-                    const otherAppts = appointments.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
-                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other`);
+                    // Filter: Only show appointments that have been accepted (dentist_id exists)
+                    const acceptedAppointments = appointments.filter((appt: any) => appt.dentist_id);
+                    const cancelledAppts = acceptedAppointments.filter((appt: any) => appt.status === 'cancelled');
+                    const otherAppts = acceptedAppointments.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
+                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other (filtered to show only accepted appointments)`);
                     
                     return (
                       <>
@@ -414,16 +416,21 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                           </>
                         )}
                         
-                        {/* See More Button */}
-                        {appointments.length > 3 && (
+                        {/* See More Button - only show if there are more than 3 accepted appointments */}
+                        {acceptedAppointments.length > 3 && (
                           <TouchableOpacity 
                             style={styles.seeMoreButton}
                             onPress={() => setShowAppointmentHistory(true)}
                           >
                             <Text style={styles.seeMoreText}>
-                              See All ({appointments.length}) →
+                              See All ({acceptedAppointments.length}) →
                             </Text>
                           </TouchableOpacity>
+                        )}
+                        
+                        {/* Show message if no accepted appointments */}
+                        {acceptedAppointments.length === 0 && (
+                          <Text style={styles.noDataText}>No accepted appointments yet</Text>
                         )}
                       </>
                     );

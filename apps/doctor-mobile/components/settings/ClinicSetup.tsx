@@ -12,9 +12,11 @@ import {
   StyleSheet,
   FlatList,
   Modal,
+  Platform,
 } from 'react-native';
 import { supabase } from '@smileguard/supabase-client';
 import { useAuth } from '../../hooks/useAuth';
+import { pickImage, uploadClinicLogo, uploadClinicGalleryImage, pickMultipleImages, uploadMultipleClinicGalleryImages } from '../../lib/imageUploadService';
 
 interface ClinicSetupProps {
   onClose?: () => void;
@@ -83,6 +85,8 @@ export default function ClinicSetup({
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [showServicesSection, setShowServicesSection] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState<keyof Schedule | null>(null);
   const [showClosingTimePicker, setShowClosingTimePicker] = useState<keyof Schedule | null>(null);
   const [tempHours, setTempHours] = useState('09');
@@ -96,6 +100,42 @@ export default function ClinicSetup({
   const [tempBlockoutDay, setTempBlockoutDay] = useState(today.getDate().toString());
   const [tempBlockoutMonth, setTempBlockoutMonth] = useState((today.getMonth() + 1).toString());
   const [tempBlockoutYear, setTempBlockoutYear] = useState(today.getFullYear().toString());
+  const [showImageFormatModal, setShowImageFormatModal] = useState(false);
+  const [pendingImageUploadType, setPendingImageUploadType] = useState<'logo' | 'gallery' | null>(null);
+  
+  // Change tracking
+  const [originalClinicData, setOriginalClinicData] = useState<ClinicData | null>(null);
+  const [changedFields, setChangedFields] = useState<Set<string>>(new Set());
+
+  // Helper: Check if data has unsaved changes
+  const hasUnsavedChanges = () => {
+    if (!originalClinicData) return false;
+    
+    return (
+      clinicData.clinic_name !== originalClinicData.clinic_name ||
+      clinicData.address !== originalClinicData.address ||
+      clinicData.logo_url !== originalClinicData.logo_url ||
+      JSON.stringify(clinicData.gallery_images) !== JSON.stringify(originalClinicData.gallery_images) ||
+      JSON.stringify(clinicData.services) !== JSON.stringify(originalClinicData.services) ||
+      JSON.stringify(clinicData.schedule) !== JSON.stringify(originalClinicData.schedule)
+    );
+  };
+
+  // Helper: Update changed fields tracking
+  const updateChangedFields = () => {
+    if (!originalClinicData) return;
+    
+    const changed = new Set<string>();
+    
+    if (clinicData.clinic_name !== originalClinicData.clinic_name) changed.add('clinic_name');
+    if (clinicData.address !== originalClinicData.address) changed.add('address');
+    if (clinicData.logo_url !== originalClinicData.logo_url) changed.add('logo_url');
+    if (JSON.stringify(clinicData.gallery_images) !== JSON.stringify(originalClinicData.gallery_images)) changed.add('gallery_images');
+    if (JSON.stringify(clinicData.services) !== JSON.stringify(originalClinicData.services)) changed.add('services');
+    if (JSON.stringify(clinicData.schedule) !== JSON.stringify(originalClinicData.schedule)) changed.add('schedule');
+    
+    setChangedFields(changed);
+  };
 
   // Load clinic data from database on component mount
   useEffect(() => {
@@ -106,31 +146,57 @@ export default function ClinicSetup({
       }
 
       try {
-        const { data, error } = await supabase
-          .from('clinic_setup')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .single();
+        // Load both clinic_setup and blockout_dates in parallel for faster loading
+        const [clinicResponse, blockoutResponse] = await Promise.all([
+          supabase
+            .from('clinic_setup')
+            .select('clinic_name, address, logo_url, gallery_images, services, schedule')
+            .eq('user_id', currentUser.id)
+            .single(),
+          supabase
+            .from('clinic_blockout_dates')
+            .select('blockout_date, reason, is_blocked')
+            .eq('user_id', currentUser.id)
+            .order('blockout_date', { ascending: true }),
+        ]);
+
+        const { data, error } = clinicResponse;
+        const { data: blockoutData, error: blockoutError } = blockoutResponse;
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error loading clinic data:', error);
         } else if (data) {
-          setClinicData({
+          // Helper to safely parse gallery images
+          let galleryImages: string[] = [];
+          if (data.gallery_images) {
+            if (Array.isArray(data.gallery_images)) {
+              galleryImages = data.gallery_images;
+            } else if (typeof data.gallery_images === 'string') {
+              try {
+                galleryImages = JSON.parse(data.gallery_images);
+                if (!Array.isArray(galleryImages)) {
+                  galleryImages = [];
+                }
+              } catch (e) {
+                console.warn('Failed to parse gallery_images:', e);
+                galleryImages = [];
+              }
+            }
+          }
+          
+          const loadedData = {
             clinic_name: data.clinic_name || '',
             address: data.address || '',
             logo_url: data.logo_url || undefined,
-            gallery_images: data.gallery_images || [],
+            gallery_images: galleryImages,
             services: data.services || [],
             schedule: data.schedule || defaultSchedule,
-          });
+          };
+          setClinicData(loadedData);
+          setOriginalClinicData(loadedData);
+          setChangedFields(new Set());
           
-          // Load blockout dates
-          const { data: blockoutData, error: blockoutError } = await supabase
-            .from('clinic_blockout_dates')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('blockout_date', { ascending: true });
-          
+          // Set blockout dates if loaded successfully
           if (!blockoutError && blockoutData) {
             setBlockoutDates(blockoutData);
           }
@@ -315,6 +381,20 @@ export default function ClinicSetup({
       paddingVertical: 12,
       alignItems: 'center',
     },
+    saveButtonChanged: {
+      flex: 1,
+      backgroundColor: '#d32f2f',
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: '#ff6f00',
+    },
+    sectionChanged: {
+      backgroundColor: '#fff3cd',
+      borderLeftWidth: 4,
+      borderLeftColor: '#ffc107',
+    },
     saveButtonText: {
       color: '#fff',
       fontWeight: '600',
@@ -329,65 +409,183 @@ export default function ClinicSetup({
 
   const handleAddService = () => {
     if (newService.trim()) {
-      setClinicData(prev => ({
-        ...prev,
-        services: [
-          ...prev.services,
-          {
-            id: Date.now().toString(),
-            name: newService,
-            description: '',
-          },
-        ],
-      }));
+      setClinicData(prev => {
+        const updated = {
+          ...prev,
+          services: [
+            ...prev.services,
+            {
+              id: Date.now().toString(),
+              name: newService,
+              description: '',
+            },
+          ],
+        };
+        setTimeout(() => updateChangedFields(), 0);
+        return updated;
+      });
       setNewService('');
     }
   };
 
   const handleRemoveService = (id: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      services: prev.services.filter(service => service.id !== id),
-    }));
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        services: prev.services.filter(service => service.id !== id),
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
+  };
+
+  const handleUploadLogo = async () => {
+    setPendingImageUploadType('logo');
+    setShowImageFormatModal(true);
+  };
+
+  const performLogoUpload = async (aspectRatio?: [number, number]) => {
+    try {
+      const image = await pickImage(aspectRatio);
+      if (!image) return;
+
+      Alert.alert(
+        'Confirm Logo Upload',
+        'Do you want to use this image as your clinic logo?',
+        [
+          { text: 'Cancel', onPress: () => {} },
+          {
+            text: 'Upload',
+            onPress: async () => {
+              setUploadingLogo(true);
+              try {
+                const logoUrl = await uploadClinicLogo(image, currentUser?.id || '');
+                setClinicData(prev => ({
+                  ...prev,
+                  logo_url: logoUrl,
+                }));
+                Alert.alert('Success', 'Logo uploaded successfully');
+              } catch (error) {
+                const message = error instanceof Error ? error.message : 'Failed to upload logo';
+                Alert.alert('Error', message);
+              } finally {
+                setUploadingLogo(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to pick image';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const handleUploadGalleryImage = async () => {
+    if (Platform.OS === 'ios') {
+      // iOS supports aspect ratio with multi-select, so offer format choice
+      setPendingImageUploadType('gallery');
+      setShowImageFormatModal(true);
+    } else {
+      // Android doesn't support aspect ratio with multi-select, so skip directly
+      performGalleryUpload();
+    }
+  };
+
+  const performGalleryUpload = async (aspectRatio?: [number, number]) => {
+    try {
+      const images = await pickMultipleImages(aspectRatio);
+      if (!images || images.length === 0) return;
+
+      setUploadingGalleryImage(true);
+      try {
+        const imageUrls = await uploadMultipleClinicGalleryImages(images, currentUser?.id || '');
+        
+        if (imageUrls.length > 0) {
+          setClinicData(prev => {
+            const updated = {
+              ...prev,
+              gallery_images: [...(prev.gallery_images || []), ...imageUrls],
+            };
+            setTimeout(() => updateChangedFields(), 0);
+            return updated;
+          });
+          Alert.alert('Success', `${imageUrls.length} image(s) added to gallery`);
+        } else {
+          Alert.alert('Error', 'No images were uploaded successfully');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload gallery images';
+        Alert.alert('Error', message);
+      } finally {
+        setUploadingGalleryImage(false);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to pick images';
+      Alert.alert('Error', message);
+    }
+  };
+
+  const handleRemoveGalleryImage = (imageUrl: string) => {
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        gallery_images: prev.gallery_images?.filter(url => url !== imageUrl) || [],
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleScheduleChange = (day: keyof Schedule, isOpen: boolean) => {
-    setClinicData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [day]: {
-          ...prev.schedule[day],
-          isOpen,
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        schedule: {
+          ...prev.schedule,
+          [day]: {
+            ...prev.schedule[day],
+            isOpen,
+          },
         },
-      },
-    }));
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleOpeningTimeChange = (day: keyof Schedule, opening_time: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [day]: {
-          ...prev.schedule[day],
-          opening_time,
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        schedule: {
+          ...prev.schedule,
+          [day]: {
+            ...prev.schedule[day],
+            opening_time,
+          },
         },
-      },
-    }));
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   const handleClosingTimeChange = (day: keyof Schedule, closing_time: string) => {
-    setClinicData(prev => ({
-      ...prev,
-      schedule: {
-        ...prev.schedule,
-        [day]: {
-          ...prev.schedule[day],
-          closing_time,
+    setClinicData(prev => {
+      const updated = {
+        ...prev,
+        schedule: {
+          ...prev.schedule,
+          [day]: {
+            ...prev.schedule[day],
+            closing_time,
+          },
         },
-      },
-    }));
+      };
+      setTimeout(() => updateChangedFields(), 0);
+      return updated;
+    });
   };
 
   // Helper function to parse time string (e.g., "9:00 AM") to hours, minutes, period
@@ -432,7 +630,7 @@ export default function ClinicSetup({
     setShowClosingTimePicker(null);
   };
 
-  const handleAddBlockoutDate = async (selectedDate: Date, month: number, day: number, year: number) => {
+  const handleAddBlockoutDate = async (selectedDate: Date | null, month: number, day: number, year: number) => {
     if (!currentUser?.id) return;
 
     try {
@@ -531,6 +729,10 @@ export default function ClinicSetup({
       if (onSave) {
         await onSave(clinicData);
       }
+      
+      // Reset original data to current data after successful save
+      setOriginalClinicData(clinicData);
+      setChangedFields(new Set());
 
       Alert.alert('Success', 'Clinic information saved successfully');
       onClose?.();
@@ -555,23 +757,24 @@ export default function ClinicSetup({
           <Text style={localStyles.header}>Clinic Setup</Text>
 
           {/* Clinic Name Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('clinic_name') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}>Clinic Name</Text>
             <View style={localStyles.card}>
               <TextInput
                 style={localStyles.input}
                 placeholder="Enter clinic name"
                 value={clinicData.clinic_name}
-                onChangeText={(text) =>
-                  setClinicData(prev => ({ ...prev, clinic_name: text }))
-                }
+                onChangeText={(text) => {
+                  setClinicData(prev => ({ ...prev, clinic_name: text }));
+                  updateChangedFields();
+                }}
                 placeholderTextColor="#999"
               />
             </View>
           </View>
 
           {/* Clinic Logo Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('logo_url') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}> Clinic Logo</Text>
             <View style={localStyles.card}>
               <View style={localStyles.logoContainer}>
@@ -581,43 +784,77 @@ export default function ClinicSetup({
                   }}
                   style={localStyles.logoImage}
                 />
-                <TouchableOpacity style={localStyles.logoButton}>
-                  <Text style={localStyles.buttonText}>Upload Logo</Text>
+                <TouchableOpacity 
+                  style={localStyles.logoButton}
+                  onPress={handleUploadLogo}
+                  disabled={uploadingLogo}
+                >
+                  {uploadingLogo ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={localStyles.buttonText}>Upload Logo</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
           </View>
 
           {/* Address Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('address') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}> Address</Text>
             <View style={localStyles.card}>
               <TextInput
                 style={localStyles.input}
                 placeholder="Street Address"
                 value={clinicData.address}
-                onChangeText={(text) =>
-                  setClinicData(prev => ({ ...prev, address: text }))
-                }
+                onChangeText={(text) => {
+                  setClinicData(prev => ({ ...prev, address: text }));
+                  updateChangedFields();
+                }}
                 placeholderTextColor="#999"
               />
             </View>
           </View>
 
           {/* Clinic Gallery Section */}
-          <View style={localStyles.section}>
+          <View style={[localStyles.section, changedFields.has('gallery_images') && localStyles.sectionChanged]}>
             <Text style={localStyles.sectionTitle}>️ Clinic Pictures</Text>
             <View style={localStyles.card}>
               <View style={localStyles.galleryContainer}>
                 {clinicData.gallery_images?.map((image, index) => (
-                  <Image
-                    key={index}
-                    source={{ uri: image }}
-                    style={localStyles.galleryImage}
-                  />
+                  <View key={index} style={{ position: 'relative' }}>
+                    <Image
+                      source={{ uri: image }}
+                      style={localStyles.galleryImage}
+                    />
+                    <TouchableOpacity
+                      onPress={() => handleRemoveGalleryImage(image)}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        borderRadius: 8,
+                        width: 24,
+                        height: 24,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
-                <TouchableOpacity style={localStyles.addImageButton}>
-                  <Text style={localStyles.addImageText}>+</Text>
+                <TouchableOpacity 
+                  style={localStyles.addImageButton}
+                  onPress={handleUploadGalleryImage}
+                  disabled={uploadingGalleryImage}
+                >
+                  {uploadingGalleryImage ? (
+                    <ActivityIndicator color="#0b7fab" />
+                  ) : (
+                    <Text style={localStyles.addImageText}>+</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -878,7 +1115,7 @@ export default function ClinicSetup({
                 <Text style={localStyles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={localStyles.saveButton}
+                style={hasUnsavedChanges() ? localStyles.saveButtonChanged : localStyles.saveButton}
                 onPress={handleSave}
                 disabled={loading}
               >
@@ -1266,6 +1503,89 @@ export default function ClinicSetup({
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Confirm</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Image Format Selection Modal */}
+      <Modal
+        visible={showImageFormatModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowImageFormatModal(false);
+          setPendingImageUploadType(null);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '80%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' }}>
+              Choose Image Format
+            </Text>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#f5f5f5',
+                borderWidth: 2,
+                borderColor: '#0b7fab',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                setShowImageFormatModal(false);
+                if (pendingImageUploadType === 'logo') {
+                  performLogoUpload([1, 1]);
+                } else if (pendingImageUploadType === 'gallery') {
+                  performGalleryUpload([1, 1]);
+                }
+                setPendingImageUploadType(null);
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0b7fab' }}>Square (1:1)</Text>
+              <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Fixed square aspect ratio</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#f5f5f5',
+                borderWidth: 2,
+                borderColor: '#0b7fab',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 20,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                setShowImageFormatModal(false);
+                if (pendingImageUploadType === 'logo') {
+                  performLogoUpload(undefined);
+                } else if (pendingImageUploadType === 'gallery') {
+                  performGalleryUpload(undefined);
+                }
+                setPendingImageUploadType(null);
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0b7fab' }}>Free Form</Text>
+              <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Crop any size you want</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                borderWidth: 2,
+                borderColor: '#ddd',
+                borderRadius: 8,
+                paddingVertical: 12,
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                setShowImageFormatModal(false);
+                setPendingImageUploadType(null);
+              }}
+            >
+              <Text style={{ color: '#666', fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

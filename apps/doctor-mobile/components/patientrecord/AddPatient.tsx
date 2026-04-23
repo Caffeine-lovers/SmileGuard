@@ -9,12 +9,15 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+
+const PHILIPPINES_PHONE_REGEX = /^\+639\d{3}-\d{3}-\d{4}$/;
 
 interface FormData {
   name: string;
@@ -43,7 +46,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
   const params = useLocalSearchParams();
   const currentUser = useCurrentUser();
   const [loading, setLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
   const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showSmokingStatusPicker, setShowSmokingStatusPicker] = useState(false);
+  const [showPregnancyStatusPicker, setShowPregnancyStatusPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -67,6 +73,8 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
   });
 
   const genderOptions = ["Male", "Female", "Other"];
+  const smokingStatusOptions = ["never", "former", "current"];
+  const pregnancyStatusOptions = ["yes", "no", "na"];
 
   // Helper function to get the number of days in a month
   const getDaysInMonth = (month: number, year: number): number => {
@@ -137,6 +145,81 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
     }));
   };
 
+  // Helper function to validate email format
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
+  // Check if required fields are filled and valid
+  const isFormValid = (): boolean => {
+    return (
+      formData.name.trim().length > 0 &&
+      isValidEmail(formData.email) &&
+      formData.phone.trim().length > 0 &&
+      formData.gender.trim().length > 0 &&
+      formData.dateOfBirth.trim().length > 0 &&
+      formData.address.trim().length > 0
+    );
+  };
+
+  const handlePhoneChange = (text: string) => {
+    // Remove all non-digit characters
+    let cleaned = text.replace(/[^\d]/g, '');
+    
+    // Remove leading 0 if it starts with 0 (common in Philippines)
+    if (cleaned.startsWith('0')) {
+      cleaned = cleaned.slice(1);
+    }
+    
+    // Only keep up to 10 digits (since prefix already has 9)
+    cleaned = cleaned.slice(0, 10);
+    
+    // Format as XXX-XXX-XXXX (only the digits part)
+    let formatted = cleaned;
+    if (cleaned.length > 3) {
+      // XXX-
+      formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3);
+    }
+    if (cleaned.length > 6) {
+      // XXX-XXX-
+      formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3, 6) + '-' + cleaned.slice(6);
+    }
+    
+    const fullNumber = '+639' + formatted;
+    handleInputChange('phone', fullNumber);
+    
+    // Validate only if input is complete
+    if (cleaned.length === 10) {
+      if (!PHILIPPINES_PHONE_REGEX.test(fullNumber)) {
+        setPhoneError("Phone must be in format: +639XXX-XXX-XXXX");
+      } else {
+        setPhoneError("");
+      }
+    } else {
+      setPhoneError("");
+    }
+  };
+
+  const handleEmergencyContactPhoneChange = (text: string) => {
+    // Remove all non-digit characters
+    let cleaned = text.replace(/[^\d]/g, '');
+    
+    // Limit to 11 digits
+    cleaned = cleaned.slice(0, 11);
+    
+    handleInputChange('emergencyContactPhone', cleaned);
+  };
+
+  // Helper function to get field style based on completion status
+  const getRequiredFieldStyle = (fieldName: keyof FormData, value: string, isValid: boolean = true) => {
+    const isComplete = value.trim().length > 0 && isValid;
+    return {
+      borderColor: isComplete ? "#4caf50" : "#ff9800",
+      backgroundColor: isComplete ? "#e8f5e9" : "#fff3e0",
+    };
+  };
+
   const handleAddPatient = async () => {
     // Validate required fields
     if (!formData.name.trim()) {
@@ -153,9 +236,14 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
     }
 
     // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!isValidEmail(formData.email)) {
       Alert.alert("Error", "Please enter a valid email address");
+      return;
+    }
+
+    // Validate phone format
+    if (!PHILIPPINES_PHONE_REGEX.test(formData.phone)) {
+      Alert.alert("Error", "Phone must start with +63 9 and be in format: +639XXX-XXX-XXXX");
       return;
     }
 
@@ -313,10 +401,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
           {/* Patient Name */}
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-              Patient Name *
+              <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Patient Name
             </Text>
             <TextInput
-              style={[styles.input, { borderColor: "#0b7fab" }]}
+              style={[styles.input, getRequiredFieldStyle('name', formData.name)]}
               placeholder="Enter patient's full name"
               placeholderTextColor="#999"
               value={formData.name}
@@ -328,10 +416,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
           {/* Email */}
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-              Email *
+              <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Email
             </Text>
             <TextInput
-              style={[styles.input, { borderColor: "#0b7fab" }]}
+              style={[styles.input, getRequiredFieldStyle('email', formData.email, isValidEmail(formData.email))]}
               placeholder="Enter patient's email"
               placeholderTextColor="#999"
               keyboardType="email-address"
@@ -346,26 +434,34 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
           {/* Phone */}
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-              Phone Number *
+              <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Phone Number
             </Text>
-            <TextInput
-              style={[styles.input, { borderColor: "#0b7fab" }]}
-              placeholder="Enter phone number"
-              placeholderTextColor="#999"
-              keyboardType="phone-pad"
-              value={formData.phone}
-              onChangeText={(value) => handleInputChange("phone", value)}
-              editable={!loading}
-            />
+            <View style={[styles.phoneInputContainer, getRequiredFieldStyle('phone', formData.phone, !phoneError && PHILIPPINES_PHONE_REGEX.test(formData.phone))]}>
+              <Text style={styles.phonePrefix}>+639</Text>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="XXX-XXX-XXXX"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+                value={formData.phone ? formData.phone.replace('+639', '') : ''}
+                onChangeText={handlePhoneChange}
+                editable={!loading}
+              />
+            </View>
+            {phoneError ? (
+              <Text style={{ color: "#ff6b6b", fontSize: 12, marginTop: 4, fontWeight: "500" }}>
+                {phoneError}
+              </Text>
+            ) : null}
           </View>
 
           {/* Gender */}
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-              Gender
+              <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Gender
             </Text>
             <TouchableOpacity
-              style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+              style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }, getRequiredFieldStyle('gender', formData.gender)]}
               onPress={() => setShowGenderPicker(true)}
               disabled={loading}
             >
@@ -420,10 +516,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
             {/* Date of Birth */}
             <View style={{ marginBottom: 16 }}>
               <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-                Date of Birth
+                <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Date of Birth
               </Text>
               <TouchableOpacity
-                style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+                style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }, getRequiredFieldStyle('dateOfBirth', formData.dateOfBirth)]}
                 onPress={() => {
                   // Initialize date picker with current formData value if available
                   if (formData.dateOfBirth) {
@@ -445,10 +541,10 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
             {/* Address */}
             <View style={{ marginBottom: 16 }}>
               <Text style={{ fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 }}>
-                Address
+                <Text style={{ color: "#ff0000", fontSize: 16, fontWeight: "700" }}>*</Text> Address
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab" }]}
+                style={[styles.input, getRequiredFieldStyle('address', formData.address)]}
                 placeholder="Enter address"
                 placeholderTextColor="#999"
                 value={formData.address}
@@ -482,8 +578,9 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 placeholder="Enter phone number"
                 placeholderTextColor="#999"
                 keyboardType="phone-pad"
+                maxLength={11}
                 value={formData.emergencyContactPhone}
-                onChangeText={(value) => handleInputChange("emergencyContactPhone", value)}
+                onChangeText={handleEmergencyContactPhoneChange}
                 editable={!loading}
               />
             </View>
@@ -563,14 +660,47 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               </Text>
               <TouchableOpacity
                 style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
-                onPress={() => setShowGenderPicker(true)}
+                onPress={() => setShowSmokingStatusPicker(true)}
                 disabled={loading}
               >
                 <Text style={{ fontSize: 14, color: formData.smokingStatus ? "#333" : "#999" }}>
-                  {formData.smokingStatus || "Select status"}
+                  {formData.smokingStatus ? formData.smokingStatus.charAt(0).toUpperCase() + formData.smokingStatus.slice(1) : "Select status"}
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Smoking Status Picker Modal */}
+            <Modal
+              visible={showSmokingStatusPicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowSmokingStatusPicker(false)}
+            >
+              <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+                <View style={{ backgroundColor: '#fff', paddingBottom: 20 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Smoking Status</Text>
+                    <TouchableOpacity onPress={() => setShowSmokingStatusPicker(false)}>
+                      <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {smokingStatusOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}
+                      onPress={() => {
+                        handleInputChange('smokingStatus', option);
+                        setShowSmokingStatusPicker(false);
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, color: formData.smokingStatus === option ? '#0b7fab' : '#333', fontWeight: formData.smokingStatus === option ? '600' : '400' }}>
+                        {option.charAt(0).toUpperCase() + option.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </Modal>
 
             {/* Pregnancy Status (only if not male) */}
             {formData.gender?.toLowerCase() !== 'male' && (
@@ -580,14 +710,48 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 </Text>
                 <TouchableOpacity
                   style={[styles.input, { justifyContent: 'center', paddingVertical: 12 }]}
+                  onPress={() => setShowPregnancyStatusPicker(true)}
                   disabled={loading}
                 >
                   <Text style={{ fontSize: 14, color: formData.pregnancyStatus ? "#333" : "#999" }}>
-                    {formData.pregnancyStatus || "Select status"}
+                    {formData.pregnancyStatus ? formData.pregnancyStatus.toUpperCase() : "Select status"}
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Pregnancy Status Picker Modal */}
+            <Modal
+              visible={showPregnancyStatusPicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowPregnancyStatusPicker(false)}
+            >
+              <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+                <View style={{ backgroundColor: '#fff', paddingBottom: 20 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Pregnancy Status</Text>
+                    <TouchableOpacity onPress={() => setShowPregnancyStatusPicker(false)}>
+                      <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {pregnancyStatusOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}
+                      onPress={() => {
+                        handleInputChange('pregnancyStatus', option);
+                        setShowPregnancyStatusPicker(false);
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, color: formData.pregnancyStatus === option ? '#0b7fab' : '#333', fontWeight: formData.pregnancyStatus === option ? '600' : '400' }}>
+                        {option.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </Modal>
           </View>
 
           {/* Notes */}
@@ -628,14 +792,17 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.button, styles.submitButton]}
+              style={[
+                styles.button,
+                isFormValid() && !loading ? styles.submitButton : styles.submitButtonDisabled
+              ]}
               onPress={handleAddPatient}
-              disabled={loading}
+              disabled={!isFormValid() || loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={isFormValid() ? "#fff" : "#999"} />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Add Patient</Text>
+                <Text style={{ color: isFormValid() ? "#fff" : "#999", fontWeight: "600", fontSize: 14 }}>Add Patient</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -739,6 +906,27 @@ const styles = StyleSheet.create({
     color: "#333",
     borderColor: "#0b7fab",
   },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  phonePrefix: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 4,
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#333",
+    padding: 0,
+  },
   button: {
     flex: 1,
     paddingVertical: 12,
@@ -753,5 +941,8 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: "#0b7fab",
+  },
+  submitButtonDisabled: {
+    backgroundColor: "#ccc",
   },
 });

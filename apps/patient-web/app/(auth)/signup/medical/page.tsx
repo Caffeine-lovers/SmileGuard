@@ -10,7 +10,7 @@ export default function SignupMedicalPage() {
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
     router.push('/signup/confirm');
-  };
+
 
   const updateMedicalField = (field: string, value: any) => {
     updateFormField('medicalIntake', {
@@ -25,7 +25,6 @@ export default function SignupMedicalPage() {
         Medical Details
       </h2>
       <p className="text-center text-text-secondary mb-8">
-        Step 2 of 3: Your medical history (all optional)
       </p>
 
       <form onSubmit={handleNext} className="space-y-6">
