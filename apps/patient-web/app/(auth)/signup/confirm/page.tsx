@@ -47,80 +47,71 @@ export default function SignupConfirmPage() {
 
     try {
       if (isOAuthFlow && currentAuthUser) {
-        // Profile already exists — created in OAuth callback
-        console.log('[SignupConfirm] OAuth flow: updating profile for', currentAuthUser.id);
-
-        // Step 1: Upsert profile (create if not exists)
-        const { error: upsertError } = await supabase
+        // 1. Update Profile
+        const { error: updateError } = await supabase
           .from('profiles')
-          .upsert(
-            {
-              id: currentAuthUser.id,
-              name: formData.name,
-              service: formData.service,
-              role: 'patient',
-              email: formData.email ?? currentAuthUser.email ?? '',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          );
+          .upsert({
+            id: currentAuthUser.id,        
+            name: formData.name,
+            service: formData.service,
+            role: 'patient',
+            email: formData.email ?? currentAuthUser.email ?? '',
+            updated_at: new Date().toISOString(),
+          });
 
-        if (upsertError) {
-          console.error('[SignupConfirm] Profile upsert failed:', upsertError);
-          setLocalError(`Failed to save profile: ${upsertError.message}`);
-          setLoading(false);
-          return;
-        }
+        if (updateError) throw updateError;
 
-        const intakeError = await saveMedicalIntake(currentAuthUser.id);
-        if (intakeError) {
-          console.error('[SignupConfirm] Medical intake failed:', intakeError);
-          setLocalError(`Failed to save medical information: ${intakeError.message}`);
-          setLoading(false);
-          return;
-        }
+        // 2. Map Medical Data (Fixing the 400 error)
+        // We explicitly map keys and convert empty strings to null
+        const medicalData = {
+          patient_id: currentAuthUser.id,
+          date_of_birth: formData.medicalIntake.date_of_birth || null,
+          gender: formData.medicalIntake.gender || null,
+          phone: formData.medicalIntake.phone || null,
+          address: formData.medicalIntake.address || null,
+          emergency_contact_name: formData.medicalIntake.emergency_contact_name || null,
+          emergency_contact_phone: formData.medicalIntake.emergency_contact_phone || null,
+          allergies: formData.medicalIntake.allergies || 'None',
+          current_medications: formData.medicalIntake.current_medications || 'None',
+          medical_conditions: formData.medicalIntake.medical_conditions || 'None',
+          past_surgeries: formData.medicalIntake.past_surgeries || 'None',
+          smoking_status: formData.medicalIntake.smoking_status || null,
+          pregnancy_status: formData.medicalIntake.pregnancy_status || null,
+          notes: formData.medicalIntake.notes || null,
+        };
+
+        const { error: intakeError } = await supabase
+          .from('medical_intake')
+          .insert(medicalData);
+
+        if (intakeError) throw intakeError;
 
         console.log('[SignupConfirm] OAuth signup complete');
         clearSignupData();
         router.push('/dashboard');
 
       } else {
-        // Email flow
+        // Standard flow
         if (formData.password !== formData.confirmPassword) {
           setLocalError('Passwords do not match');
           setLoading(false);
           return;
-        }
+        } 
 
-        console.log('[SignupConfirm] Email flow: registering...');
-
-        // register() now creates the profile internally — see useAuth changes below
-        await register({ ...formData, doctorAccessCode: '' }, 'patient');
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          setLocalError('Session not found after registration');
-          setLoading(false);
-          return;
-        }
-
-        // Profile already exists at this point — created inside register()
-        const intakeError = await saveMedicalIntake(session.user.id);
-        if (intakeError) {
-          console.error('[SignupConfirm] Medical intake failed:', intakeError);
-          setLocalError(`Failed to save medical information: ${intakeError.message}`);
-          setLoading(false);
-          return;
-        }
-
-        console.log('[SignupConfirm] Email signup complete');
+        await register(
+          {
+            ...formData,
+            doctorAccessCode: '',
+          },
+          'patient'
+        );
+        
         clearSignupData();
-        router.push('/login?registered=true');
+        router.push('/(patient)/dashboard');
       }
     } catch (err) {
+      console.error('[SignupConfirm] Error details:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
-      console.error('[SignupConfirm] Error:', errorMessage);
       setLocalError(errorMessage);
       setLoading(false);
     }
@@ -130,10 +121,10 @@ export default function SignupConfirmPage() {
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
-        Confirm & Create
+        Review & Confirm
       </h2>
-      <p className="text-center text-text-secondary mb-8">
-        Step 3 of 3: Review your information
+      <p className="text-center text-text-secondary mb-8 text-sm">
+        Please verify your details before completing registration.
       </p>
 
       {localError && (
@@ -142,56 +133,36 @@ export default function SignupConfirmPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-border-card/20 rounded-lg p-4 space-y-3 text-sm">
-          <div>
-            <p className="text-text-secondary text-xs">Full Name</p>
-            <p className="text-text-primary font-medium">{formData.name}</p>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Account Information</h3>
+          <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
+            <ReviewField label="Full Name" value={formData.name} />
+            <ReviewField label="Email Address" value={formData.email} />
+            <ReviewField label="Service Interest" value={formData.service} />
           </div>
-          <div>
-            <p className="text-text-secondary text-xs">Email</p>
-            <p className="text-text-primary font-medium">{formData.email}</p>
-          </div>
-          {formData.phone && (
-            <div>
-              <p className="text-text-secondary text-xs">Phone</p>
-              <p className="text-text-primary font-medium">{formData.phone}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-text-secondary text-xs">Service Type</p>
-            <p className="text-text-primary font-medium">{formData.service}</p>
-          </div>
-          {(formData.medicalIntake.dateOfBirth || formData.medicalIntake.gender || formData.medicalIntake.phone || formData.medicalIntake.address || formData.medicalIntake.allergies || formData.medicalIntake.currentMedications || formData.medicalIntake.medicalConditions || formData.medicalIntake.pastSurgeries || formData.medicalIntake.smokingStatus || formData.medicalIntake.pregnancyStatus) && (
-            <div>
-              <p className="text-text-secondary text-xs">Medical Information</p>
-              <ul className="text-text-primary text-xs space-y-1">
-                {formData.medicalIntake.dateOfBirth && <li>• DOB: {formData.medicalIntake.dateOfBirth}</li>}
-                {formData.medicalIntake.gender && <li>• Gender: {formData.medicalIntake.gender}</li>}
-                {formData.medicalIntake.phone && <li>• Phone: {formData.medicalIntake.phone}</li>}
-                {formData.medicalIntake.address && <li>• Address: {formData.medicalIntake.address}</li>}
-                {formData.medicalIntake.emergencyContactName && <li>• Emergency Contact: {formData.medicalIntake.emergencyContactName}</li>}
-                {formData.medicalIntake.allergies && <li>• Allergies: {formData.medicalIntake.allergies}</li>}
-                {formData.medicalIntake.currentMedications && <li>• Medications: {formData.medicalIntake.currentMedications}</li>}
-                {formData.medicalIntake.medicalConditions && <li>• Medical Conditions: {formData.medicalIntake.medicalConditions}</li>}
-                {formData.medicalIntake.pastSurgeries && <li>• Past Surgeries: {formData.medicalIntake.pastSurgeries}</li>}
-                {formData.medicalIntake.smokingStatus && <li>• Smoking: {formData.medicalIntake.smokingStatus}</li>}
-                {formData.medicalIntake.pregnancyStatus && <li>• Pregnancy Status: {formData.medicalIntake.pregnancyStatus}</li>}
-              </ul>
-            </div>
-          )}
         </div>
 
-        {!isOAuthFlow && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-            After creating your account, you'll be redirected to log in with your email and password.
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Medical Summary</h3>
+          <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
+            <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
+            <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
+            <ReviewField label="Emergency Contact" value={formData.medicalIntake.emergency_contact_name ? `${formData.medicalIntake.emergency_contact_name} (${formData.medicalIntake.emergency_contact_phone})` : undefined} />
+            
+            <div className="pt-2 border-t border-border-card/50">
+              <p className="text-text-secondary text-xs mb-1 text-[11px] uppercase font-semibold">Health Details</p>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <Badge label="Allergies" value={formData.medicalIntake.allergies} />
+                <Badge label="Conditions" value={formData.medicalIntake.medical_conditions} />
+                <Badge label="Meds" value={formData.medicalIntake.current_medications} />
+                {!formData.medicalIntake.allergies && !formData.medicalIntake.medical_conditions && (
+                  <span className="italic text-text-secondary text-xs">No special conditions noted.</span>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-        {isOAuthFlow && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-            Your profile will be updated and you'll be redirected to your dashboard.
-          </div>
-        )}
+        </div>
 
         <div className="flex gap-3">
           <button
@@ -206,10 +177,29 @@ export default function SignupConfirmPage() {
             disabled={loading}
             className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-white font-medium py-2 px-4 rounded-lg transition"
           >
-            {loading ? 'Creating...' : isOAuthFlow ? 'Complete Profile' : 'Create Account'}
+            {loading ? 'Processing...' : isOAuthFlow ? 'Complete Profile' : 'Create Account'}
           </button>
         </div>
       </form>
     </div>
+  );
+}
+
+// UI Helpers (Keep these as you had them)
+function ReviewField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <p className="text-text-secondary text-[11px] uppercase font-semibold">{label}</p>
+      <p className="text-text-primary font-medium">{value || 'Not provided'}</p>
+    </div>
+  );
+}
+
+function Badge({ label, value }: { label: string; value?: string }) {
+  if (!value || value === 'None') return null;
+  return (
+    <span className="bg-brand-primary/10 text-brand-primary px-2 py-1 rounded border border-brand-primary/20 text-[10px]">
+      <strong>{label}:</strong> {value}
+    </span>
   );
 }

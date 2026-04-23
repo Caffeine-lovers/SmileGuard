@@ -67,14 +67,33 @@ export default function AuthCallbackPage() {
             }
             
             if (!medicalIntake) {
-              // User has no medical_intake record - always send to register flow
-              // Profile may exist but user still needs to fill form and hit submit
-              // to properly upsert profile + create medical_intake
-              addDebug('No medical intake found - routing to register form for OAuth flow');
-              setMessage('Completing your profile...');
-              await new Promise(resolve => setTimeout(resolve, 500));
-              router.push('/signup/register?oauth=true');
-              return;
+              // User has no medical_intake record - check if profile exists
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (profileError && profileError.code !== 'PGRST116') {
+                addDebug(`Profile query error: ${profileError.message}`);
+              }
+              
+              if (profile) {
+                // Profile exists but no medical_intake - skip register, go to medical
+                addDebug('Profile exists but no medical intake - still routing to register');
+                localStorage.removeItem('oauth_signup_flow');
+                setMessage('Completing your medical information...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                router.push('/signup/register?oauth=true');
+                return;
+              } else {
+                // No profile exists - go to register
+                addDebug('No profile found - user needs to register');
+                setMessage('Completing your profile...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                router.push('/signup/register?oauth=true');
+                return;
+              }
             } else {
               // User has medical_intake record - registration complete
               addDebug('✓ Medical intake found - registration complete');
