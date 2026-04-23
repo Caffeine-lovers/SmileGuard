@@ -55,83 +55,33 @@ export function useAuth() {
         .from("profiles")
         .select("name, email, role")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        if (error.code === "PGRST116") {
-          console.warn("[useAuth] Profile not found, creating from user metadata...");
-          
-          // During immediate post-signup, session may not be ready for getUser()
-          // Instead, try to get current session directly
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (!session?.user) {
-            // Session not ready yet - this is normal during signup
-            // Create a minimal profile from what we know
-            console.warn("[useAuth] Session not ready, creating minimal profile...");
-            const userName = "User";
-            const userRole = "patient";
-          
-            const { error: createError } = await supabase
-              .from("profiles")
-              .insert({
-                id: userId,
-                name: userName,
-                email: "",
-                role: userRole,
-              });
-            
-            if (createError) {
-              console.error("[useAuth] Error creating minimal profile:", createError);
-            }
-            
-            setCurrentUser({
-              id: userId,
-              name: userName,
-              email: "",
-              role: userRole as "patient" | "doctor",
-            });
-            setLoading(false);
-            return;
-          }
+        console.error("[useAuth] Error fetching profile:", error);
+        throw error;
+      }
 
-          const user = session.user;
-          const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
-          const userRole = user.user_metadata?.role || "patient";
+      if (!data) {
+        // Profile doesn't exist yet - get basic user info from auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+        const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+        const userRole = user?.user_metadata?.role || "patient";
 
-          const { data: createdProfile, error: createError } = await supabase
-            .from("profiles")
-            .insert({
-              id: userId,
-              name: userName,
-              email: user.email || "",
-              role: userRole,
-              service: user.user_metadata?.service || "General",
-            })
-            .select()
-            .single();
+        console.log("[useAuth] Profile not found, using auth metadata:", {
+          name: userName,
+          role: userRole,
+        });
 
-          if (createError) {
-            console.error("[useAuth] Error creating profile:", createError);
-            setCurrentUser({
-              id: userId,
-              name: userName,
-              email: user.email || "",
-              role: userRole as "patient" | "doctor",
-            });
-          } else {
-            console.log("[useAuth] Profile created successfully:", createdProfile);
-            setCurrentUser({
-              id: userId,
-              name: createdProfile.name,
-              email: createdProfile.email,
-              role: createdProfile.role,
-            });
-          }
-        } else {
-          throw error;
-        }
+        setCurrentUser({
+          id: userId,
+          name: userName,
+          email: user?.email || "",
+          role: userRole as "patient" | "doctor",
+        });
       } else {
+        // Profile exists - use it
         console.log("[useAuth] Profile fetched successfully:", { name: data.name, role: data.role });
         setCurrentUser({
           id: userId,
@@ -194,7 +144,7 @@ export function useAuth() {
           .from("profiles")
           .select("role, name, email")
           .eq("id", data.user.id)
-          .single();
+          .maybeSingle();
 
         // Determine the user's role - check profile first, then fall back to user_metadata
         const profileRole = profile?.role;
@@ -428,6 +378,48 @@ export function useAuth() {
   };
 
   // ─────────────────────────────────────────
+  // ENSURE PROFILE EXISTS
+  // ─────────────────────────────────────────
+  const ensureProfileExists = async (userId: string, name: string, email: string, role: "patient" | "doctor" = "patient") => {
+    try {
+      console.log("[useAuth] Ensuring profile exists for:", userId);
+      
+      // Check if profile already exists
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (existing) {
+        console.log("[useAuth] Profile already exists");
+        return;
+      }
+
+      // Create profile
+      console.log("[useAuth] Creating profile for:", userId);
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert({
+          id: userId,
+          name,
+          email,
+          role,
+        });
+
+      if (insertError) {
+        console.error("[useAuth] Error creating profile:", insertError);
+        throw insertError;
+      }
+
+      console.log("[useAuth] Profile created successfully");
+    } catch (err) {
+      console.error("[useAuth] Failed to ensure profile exists:", err);
+      throw err;
+    }
+  };
+
+  // ─────────────────────────────────────────
   // LOGOUT
   // ─────────────────────────────────────────
   const logout = async () => {
@@ -454,9 +446,9 @@ export function useAuth() {
         .from("profiles")
         .select("id, role")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code === "PGRST116") {
+      if (!profile) {
         console.warn("[useAuth] Profile not found - trigger may still be running");
         // Wait a moment and try again
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -632,6 +624,7 @@ export function useAuth() {
     updateUserPassword,
     updateProfileData,
     ensureRoleSet,
+    ensureProfileExists,
     signInWithOAuth,
     detectOAuthIdentity,
     linkOAuthIdentity,

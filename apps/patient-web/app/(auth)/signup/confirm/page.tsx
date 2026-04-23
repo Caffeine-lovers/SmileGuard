@@ -8,7 +8,7 @@ import { useSignup } from '@/lib/signup-context';
 
 export default function SignupConfirmPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register } = useAuth(); // ensureProfileExists no longer needed here
   const {
     formData,
     isOAuthFlow,
@@ -19,6 +19,27 @@ export default function SignupConfirmPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const saveMedicalIntake = async (patientId: string) => {
+    const { error } = await supabase
+      .from('medical_intake')
+      .upsert({
+        patient_id: patientId,
+        date_of_birth: formData.medicalIntake.dateOfBirth || null,
+        gender: formData.medicalIntake.gender || null,
+        phone: formData.medicalIntake.phone || null,
+        address: formData.medicalIntake.address || null,
+        emergency_contact_name: formData.medicalIntake.emergencyContactName || null,
+        emergency_contact_phone: formData.medicalIntake.emergencyContactPhone || null,
+        allergies: formData.medicalIntake.allergies || null,
+        current_medications: formData.medicalIntake.currentMedications || null,
+        medical_conditions: formData.medicalIntake.medicalConditions || null,
+        past_surgeries: formData.medicalIntake.pastSurgeries || null,
+        smoking_status: formData.medicalIntake.smokingStatus || '',
+        pregnancy_status: formData.medicalIntake.pregnancyStatus || '',
+      });
+    return error;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
@@ -26,10 +47,9 @@ export default function SignupConfirmPage() {
 
     try {
       if (isOAuthFlow && currentAuthUser) {
-        console.log('[SignupConfirm] Starting OAuth registration for:', currentAuthUser.id);
+        // Profile already exists — created in OAuth callback
+        console.log('[SignupConfirm] OAuth flow: updating profile for', currentAuthUser.id);
 
-        // Step 1: Update profile
-        console.log('[SignupConfirm] Updating profile...');
         const { error: updateError } = await supabase
           .from('profiles')
           .update({
@@ -46,47 +66,49 @@ export default function SignupConfirmPage() {
           setLoading(false);
           return;
         }
-        console.log('[SignupConfirm] Profile updated successfully');
 
-        // Step 2: Create medical_intake record
-        console.log('[SignupConfirm] Creating medical intake...');
-        const { error: intakeError, data: intakeData } = await supabase
-          .from('medical_intake')
-          .insert({
-            patient_id: currentAuthUser.id,
-            has_diabetes: formData.medicalIntake.has_diabetes || false,
-            has_heart_disease: formData.medicalIntake.has_heart_disease || false,
-            allergies: formData.medicalIntake.allergies || null,
-            created_at: new Date().toISOString(),
-          });
-
+        const intakeError = await saveMedicalIntake(currentAuthUser.id);
         if (intakeError) {
-          console.error('[SignupConfirm] Medical intake creation failed:', intakeError);
+          console.error('[SignupConfirm] Medical intake failed:', intakeError);
           setLocalError(`Failed to save medical information: ${intakeError.message}`);
           setLoading(false);
           return;
         }
-        console.log('[SignupConfirm] Medical intake created successfully:', intakeData);
 
+        console.log('[SignupConfirm] OAuth signup complete');
         clearSignupData();
-        console.log('[SignupConfirm] Redirecting to dashboard...');
         router.push('/dashboard');
+
       } else {
-        // Standard email/phone flow: Create new account
+        // Email flow
         if (formData.password !== formData.confirmPassword) {
           setLocalError('Passwords do not match');
           setLoading(false);
           return;
         }
 
-        await register(
-          {
-            ...formData,
-            doctorAccessCode: '',
-          },
-          'patient'
-        );
+        console.log('[SignupConfirm] Email flow: registering...');
 
+        // register() now creates the profile internally — see useAuth changes below
+        await register({ ...formData, doctorAccessCode: '' }, 'patient');
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setLocalError('Session not found after registration');
+          setLoading(false);
+          return;
+        }
+
+        // Profile already exists at this point — created inside register()
+        const intakeError = await saveMedicalIntake(session.user.id);
+        if (intakeError) {
+          console.error('[SignupConfirm] Medical intake failed:', intakeError);
+          setLocalError(`Failed to save medical information: ${intakeError.message}`);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[SignupConfirm] Email signup complete');
         clearSignupData();
         router.push('/login?registered=true');
       }
@@ -98,6 +120,7 @@ export default function SignupConfirmPage() {
     }
   };
 
+  // JSX unchanged below — no modifications needed
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
@@ -114,37 +137,40 @@ export default function SignupConfirmPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Review section */}
         <div className="bg-border-card/20 rounded-lg p-4 space-y-3 text-sm">
           <div>
             <p className="text-text-secondary text-xs">Full Name</p>
             <p className="text-text-primary font-medium">{formData.name}</p>
           </div>
-
           <div>
             <p className="text-text-secondary text-xs">Email</p>
             <p className="text-text-primary font-medium">{formData.email}</p>
           </div>
-
           {formData.phone && (
             <div>
               <p className="text-text-secondary text-xs">Phone</p>
               <p className="text-text-primary font-medium">{formData.phone}</p>
             </div>
           )}
-
           <div>
             <p className="text-text-secondary text-xs">Service Type</p>
             <p className="text-text-primary font-medium">{formData.service}</p>
           </div>
-
-          {(formData.medicalIntake.has_diabetes || formData.medicalIntake.has_heart_disease || formData.medicalIntake.allergies) && (
+          {(formData.medicalIntake.dateOfBirth || formData.medicalIntake.gender || formData.medicalIntake.phone || formData.medicalIntake.address || formData.medicalIntake.allergies || formData.medicalIntake.currentMedications || formData.medicalIntake.medicalConditions || formData.medicalIntake.pastSurgeries || formData.medicalIntake.smokingStatus || formData.medicalIntake.pregnancyStatus) && (
             <div>
-              <p className="text-text-secondary text-xs">Medical Notes</p>
+              <p className="text-text-secondary text-xs">Medical Information</p>
               <ul className="text-text-primary text-xs space-y-1">
-                {formData.medicalIntake.has_diabetes && <li>• Has diabetes</li>}
-                {formData.medicalIntake.has_heart_disease && <li>• Has heart disease</li>}
+                {formData.medicalIntake.dateOfBirth && <li>• DOB: {formData.medicalIntake.dateOfBirth}</li>}
+                {formData.medicalIntake.gender && <li>• Gender: {formData.medicalIntake.gender}</li>}
+                {formData.medicalIntake.phone && <li>• Phone: {formData.medicalIntake.phone}</li>}
+                {formData.medicalIntake.address && <li>• Address: {formData.medicalIntake.address}</li>}
+                {formData.medicalIntake.emergencyContactName && <li>• Emergency Contact: {formData.medicalIntake.emergencyContactName}</li>}
                 {formData.medicalIntake.allergies && <li>• Allergies: {formData.medicalIntake.allergies}</li>}
+                {formData.medicalIntake.currentMedications && <li>• Medications: {formData.medicalIntake.currentMedications}</li>}
+                {formData.medicalIntake.medicalConditions && <li>• Medical Conditions: {formData.medicalIntake.medicalConditions}</li>}
+                {formData.medicalIntake.pastSurgeries && <li>• Past Surgeries: {formData.medicalIntake.pastSurgeries}</li>}
+                {formData.medicalIntake.smokingStatus && <li>• Smoking: {formData.medicalIntake.smokingStatus}</li>}
+                {formData.medicalIntake.pregnancyStatus && <li>• Pregnancy Status: {formData.medicalIntake.pregnancyStatus}</li>}
               </ul>
             </div>
           )}
@@ -155,7 +181,6 @@ export default function SignupConfirmPage() {
             After creating your account, you'll be redirected to log in with your email and password.
           </div>
         )}
-
         {isOAuthFlow && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
             Your profile will be updated and you'll be redirected to your dashboard.
