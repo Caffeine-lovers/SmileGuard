@@ -7,7 +7,18 @@ import { CurrentUser, FormData } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
 import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
-export function useAuth() {
+interface UseAuthOptions {
+  /**
+   * Whether to auto-create a profile row when none is found (PGRST116).
+   * Set to false in patient-web where the signup confirm page owns profile creation.
+   * Defaults to true for native app compatibility.
+   */
+  autoCreateProfile?: boolean;
+}
+
+export function useAuth(options: UseAuthOptions = {}) {
+  const { autoCreateProfile = true } = options;
+
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,26 +32,35 @@ export function useAuth() {
         if (session?.user) {
           fetchProfile(session.user.id);
         } else {
-          console.log("[useAuth] No active session found");
           setLoading(false);
         }
       })
       .catch((err) => {
-        console.error("[useAuth] Error getting session:", err);
+        console.error("[useAuth] Error getting initial session:", err);
         setLoading(false);
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event: AuthChangeEvent, session: Session | null) => {
-        console.log("[useAuth] Auth state changed:", { event: _event, hasSession: !!session, userId: session?.user?.id });
+        console.log("[useAuth] Auth state changed:", {
+          event: _event,
+          hasSession: !!session,
+          userId: session?.user?.id,
+          timestamp: new Date().toISOString(),
+        });
+
         if (_event === "SIGNED_OUT") {
-          console.warn("[useAuth] Session expired or user signed out");
-        }
-        if (session?.user) {
+          setCurrentUser(null);
+          setLoading(false);
+        } else if (session?.user) {
+          if (currentUser?.id === session.user.id) {
+            console.log("[useAuth] currentUser already set for", session.user.id, "- skipping fetch");
+            return;
+          }
           await fetchProfile(session.user.id);
         } else {
-          console.log("[useAuth] Session cleared, user set to null");
           setCurrentUser(null);
+          setLoading(false);
         }
       }
     );
@@ -55,70 +75,50 @@ export function useAuth() {
         .from("profiles")
         .select("name, email, role")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         if (error.code === "PGRST116") {
-          console.warn("[useAuth] Profile not found, creating from user metadata...");
-          
-          // During immediate post-signup, session may not be ready for getUser()
-          // Instead, try to get current session directly
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (!session?.user) {
-            // Session not ready yet - this is normal during signup
-            // Create a minimal profile from what we know
-            console.warn("[useAuth] Session not ready, creating minimal profile...");
-            const userName = "User";
-            const userRole = "patient";
-          
-            const { error: createError } = await supabase
-              .from("profiles")
-              .insert({
-                id: userId,
-                name: userName,
-                email: "",
-                role: userRole,
-              });
-            
-            if (createError) {
-              console.error("[useAuth] Error creating minimal profile:", createError);
-            }
-            
-            setCurrentUser({
-              id: userId,
-              name: userName,
-              email: "",
-              role: userRole as "patient" | "doctor",
-            });
+          // Profile doesn't exist yet
+          if (!autoCreateProfile) {
+            // Web: confirm page owns profile creation — just hydrate from session metadata
+            console.log("[useAuth] Profile not found, autoCreateProfile=false — reading from session metadata only");
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
+            const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+            const userRole = (user?.user_metadata?.role as "patient" | "doctor") || "patient";
+            const userEmail = user?.email || "";
+
+            setCurrentUser({ id: userId, name: userName, email: userEmail, role: userRole });
             setLoading(false);
             return;
           }
 
-          const user = session.user;
-          const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
-          const userRole = user.user_metadata?.role || "patient";
+          // Native: auto-create profile as before
+          console.warn("[useAuth] Profile not found (PGRST116), creating...");
+          const { data: { session } } = await supabase.auth.getSession();
+          const user = session?.user;
+          const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "User";
+          const userRole = user?.user_metadata?.role || "patient";
+          const userEmail = user?.email || "";
 
           const { data: createdProfile, error: createError } = await supabase
             .from("profiles")
-            .insert({
+            .upsert([{
               id: userId,
               name: userName,
-              email: user.email || "",
+              email: userEmail,
               role: userRole,
-              service: user.user_metadata?.service || "General",
-            })
+              service: user?.user_metadata?.service || "General",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }], { onConflict: "id" })
             .select()
             .single();
 
           if (createError) {
-            console.error("[useAuth] Error creating profile:", createError);
-            setCurrentUser({
-              id: userId,
-              name: userName,
-              email: user.email || "",
-              role: userRole as "patient" | "doctor",
-            });
+            console.error("[useAuth] Error creating profile:", createError.message);
+            setCurrentUser({ id: userId, name: userName, email: userEmail, role: userRole as "patient" | "doctor" });
           } else {
             console.log("[useAuth] Profile created successfully:", createdProfile);
             setCurrentUser({
@@ -129,20 +129,17 @@ export function useAuth() {
             });
           }
         } else {
+          console.error("[useAuth] Profile query error:", error.code, error.message);
           throw error;
         }
       } else {
-        console.log("[useAuth] Profile fetched successfully:", { name: data.name, role: data.role });
-        setCurrentUser({
-          id: userId,
-          name: data.name,
-          email: data.email,
-          role: data.role,
-        });
+        console.log("[useAuth] Profile fetched:", { id: userId, name: data.name, role: data.role });
+        setCurrentUser({ id: userId, name: data.name, email: data.email, role: data.role });
       }
     } catch (err) {
-      console.error("[useAuth] Error fetching profile:", err);
+      console.error("[useAuth] Error in fetchProfile:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch profile");
+      setCurrentUser({ id: userId, name: "User", email: "", role: "patient" });
     } finally {
       setLoading(false);
     }
@@ -154,62 +151,28 @@ export function useAuth() {
   const login = async (email: string, password: string, expectedRole: "patient" | "doctor"): Promise<CurrentUser> => {
     setLoading(true);
     setError(null);
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
       if (data.user && data.session) {
-        console.log("[useAuth] ✅ Login successful");
-        console.log("[useAuth] Session received from signInWithPassword:");
-        console.log("  - User ID:", data.user.id);
-        console.log("  - Access Token exists:", !!data.session.access_token);
-        console.log("  - Refresh Token exists:", !!data.session.refresh_token);
-        console.log("  - Expires at:", new Date(data.session.expires_at! * 1000).toISOString());
+        const { error: setSessionError } = await supabase.auth.setSession(data.session);
+        if (setSessionError) console.error("[useAuth] Error setting session:", setSessionError);
 
-        // CRITICAL: Explicitly set the session to ensure it's persisted to AsyncStorage
-        console.log("[useAuth] 🔐 Explicitly setting session on client...");
-        const { error: setError } = await supabase.auth.setSession(data.session);
-        
-        if (setError) {
-          console.error("[useAuth] ❌ Error setting session:", setError);
-        } else {
-          console.log("[useAuth] ✅ Session explicitly set on Supabase client");
-        }
-
-        // Verify session was saved
-        const { data: { session: savedSession } } = await supabase.auth.getSession();
-        if (savedSession?.access_token) {
-          console.log("[useAuth] ✅ SESSION SAVED! Can retrieve from getSession()");
-        } else {
-          console.error("[useAuth] ❌ SESSION NOT SAVED - getSession() returns null");
-        }
-
-        // Fetch profile to get name and email
-        const { data: profile, error: profileError } = await supabase
+        const { data: profile } = await supabase
           .from("profiles")
           .select("role, name, email")
           .eq("id", data.user.id)
-          .single();
+          .maybeSingle();
 
-        // Determine the user's role - check profile first, then fall back to user_metadata
-        const profileRole = profile?.role;
-        const metadataRole = data.user.user_metadata?.role;
-        const userRole = profileRole || metadataRole;
-
-        // Check if user has the right role
+        const userRole = profile?.role || data.user.user_metadata?.role;
         if (userRole !== expectedRole) {
           await supabase.auth.signOut();
           throw new Error(`Access denied. Please log in as a ${expectedRole}.`);
         }
 
         await fetchProfile(data.user.id);
-        
-        // Return the user data
+
         return {
           id: data.user.id,
           name: profile?.name || data.user.user_metadata?.name || "User",
@@ -221,205 +184,108 @@ export function useAuth() {
       throw new Error("Login failed: No user data returned");
     } catch (err) {
       let message = err instanceof Error ? err.message : "Login failed";
-      
-      // Specifically guide users who might have signed up with OAuth
-      // and are now trying to use a password they never set.
       if (message.includes("Invalid login credentials")) {
-        message = "Invalid email or password. If you signed up with Google, please use 'Sign in with Google' above, or click 'Forgot Password' to set a password.";
+        message = "Invalid email or password. If you signed up with Google, please use 'Sign in with Google', or click 'Forgot Password' to set a password.";
       }
-      
       setError(message);
-      console.error("❌ Login error:", message);
-      throw new Error(message); // Throw the improved message
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
   };
 
   // ─────────────────────────────────────────
-  // ACCOUNT LINKING & CONFLICT DETECTION
+  // REGISTER
   // ─────────────────────────────────────────
-  const detectOAuthIdentity = async (email: string): Promise<string | null> => {
-    /**
-     * Attempts to check if an email has OAuth identities without auth context
-     * Returns provider name ('google', 'github') or null if no OAuth found
-     * Note: This is a detection helper; full identity lookup requires admin access
-     */
-    try {
-      // Try signing in with the email to check session state
-      // This won't actually log them in, but may reveal existing identities
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (user?.identities && user.identities.length > 0) {
-        const oauthIdentity = user.identities.find(
-          (id: any) => id.provider !== 'email' && id.provider !== 'phone'
-        );
-        if (oauthIdentity) {
-          console.log(`[useAuth] Found OAuth identity: ${oauthIdentity.provider}`);
-          return oauthIdentity.provider;
-        }
-      }
-      return null;
-    } catch (err) {
-      console.warn("[useAuth] Could not detect OAuth identity");
-      return null;
-    }
-  };
-
-  const linkOAuthIdentity = async (provider: "google" | "github") => {
+  const register = async (formData: FormData, role: "patient" | "doctor") => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.auth.linkIdentity({
-        provider,
-      });
+      if (!formData.email || !formData.password) throw new Error("Email and password are required");
+      if (!formData.name) throw new Error("Name is required");
 
-      if (error) throw error;
-      
-      console.log(`[useAuth] ✅ Account linked with ${provider}`);
-      
-      // Return the URL for OAuth linking
-      return { success: true, url: data?.url };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : `Failed to link ${provider}`;
-      setError(message);
-      console.error(`[useAuth] Linking error:`, message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─────────────────────────────────────────
-  // REGISTER WITH CONFLICT DETECTION
-  // ─────────────────────────────────────────
-  const register = async (
-    formData: FormData,
-    role: "patient" | "doctor"
-  ) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Validate required fields
-      if (!formData.email || !formData.password) {
-        throw new Error("Email and password are required");
-      }
-
-      if (!formData.name) {
-        throw new Error("Name is required");
-      }
-
-      console.log("[useAuth] Starting registration for:", formData.email);
-
-      // Trim and lowercase email
       const normalizedEmail = formData.email.trim().toLowerCase();
-      
-      console.log("[useAuth] Attempting auth signup with email:", normalizedEmail, "role:", role);
+      console.log("[useAuth] Starting registration for:", normalizedEmail);
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password: formData.password,
         options: {
-          data: {
-            name: formData.name,
-            role,
-          },
+          data: { name: formData.name, role },
         },
       });
 
       if (authError) {
-        console.error("[useAuth] ❌ AUTH SIGNUP FAILED");
-        console.error("[useAuth] Error message:", authError.message);
-        console.error("[useAuth] Error code:", (authError as any)?.code);
-        console.error("[useAuth] Error status:", (authError as any)?.status);
-        console.error("[useAuth] Full error object:", authError);
-        
-        // ACCOUNT CONFLICT DETECTION
-        // If "user already exists" error, provide guidance
         if (authError.message?.includes("already exists") || (authError as any)?.status === 422) {
-          const conflictMessage = `This email is already registered. Try signing in with Google or another provider, or log in with your password if you have one.`;
-          console.warn("[useAuth] Account conflict detected:", conflictMessage);
-          throw new Error(conflictMessage);
+          throw new Error("This email is already registered. Try signing in with Google or log in with your password.");
         }
-        
         throw authError;
       }
 
-      if (!authData.user) {
-        throw new Error("Auth signup failed: No user returned");
-      }
+      if (!authData.user) throw new Error("Auth signup failed: No user returned");
 
       console.log("[useAuth] Auth user created:", authData.user.id);
 
-      // Now try to update auth user metadata
-      try {
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: {
-            name: formData.name,
-            role,
-          },
-        });
+      // Create profile immediately after signup
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert([{
+          id: authData.user.id,
+          name: formData.name,
+          email: normalizedEmail,
+          role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }], { onConflict: "id" });
 
-        if (updateError) {
-          console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
-        } else {
-          console.log("[useAuth] User metadata updated successfully");
-        }
-      } catch (metaErr) {
-        console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
+      if (profileError) {
+        console.warn("[useAuth] Failed to create profile (non-fatal):", profileError.message);
+      } else {
+        console.log("[useAuth] Profile created successfully");
       }
 
-      if (authData.user) {
-        console.log("[useAuth] Auth user created, trigger will create profile automatically");
+      setCurrentUser({ id: authData.user.id, name: formData.name, email: normalizedEmail, role });
+      setLoading(false);
+      console.log("[useAuth] Registration complete");
 
-        // Update auth user metadata with name and role
-        try {
-          const { error: updateError } = await supabase.auth.updateUser({
-            data: {
-              name: formData.name,
-              role,
-            },
-          });
-
-          if (updateError) {
-            console.warn("[useAuth] Failed to update user metadata (non-fatal):", updateError);
-          } else {
-            console.log("[useAuth] User metadata updated successfully");
-          }
-        } catch (metaErr) {
-          console.warn("[useAuth] Error updating metadata (continuing anyway):", metaErr);
-        }
-
-        // The Supabase trigger (handle_new_user) has already created the profile
-        // Just need to fetch it and set the current user
-        console.log("[useAuth] Fetching profile created by trigger...");
-        await fetchProfile(authData.user.id);
-        
-        console.log("[useAuth] Registration complete, profile fetched from trigger");
-      }
+      return { id: authData.user.id, name: formData.name, email: normalizedEmail, role };
     } catch (err) {
-      let message = "Registration failed";
-      let detailedError = "";
-      
-      if (err instanceof Error) {
-        message = err.message;
-        detailedError = JSON.stringify(err, null, 2);
-        
-        // Log additional error details
-        if ((err as any).code) {
-          console.error("[useAuth] Error code:", (err as any).code);
-        }
-        if ((err as any).status) {
-          console.error("[useAuth] Error status:", (err as any).status);
-        }
-        
-        console.error("❌ Registration error:", message);
-        console.error("📋 Error details:", detailedError);
-      } else if (typeof err === 'object' && err !== null) {
-        detailedError = JSON.stringify(err, null, 2);
-        console.error("❌ Registration error (object):", detailedError);
+      const message = err instanceof Error ? err.message : "Registration failed";
+      setError(message);
+      console.error("[useAuth] Registration error:", message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // OAUTH SIGN-IN
+  // ─────────────────────────────────────────
+  const signInWithOAuth = async (provider: "google" | "github", redirectTo?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // redirectTo MUST be provided by the caller — no hardcoded default.
+      // patient-web signup: pass /auth/callback?next=/signup/confirm
+      // patient-web login:  pass /auth/callback?next=/dashboard
+      // native:             pass the deep link scheme
+      if (!redirectTo) {
+        throw new Error("redirectTo is required for signInWithOAuth — pass the appropriate callback URL for your platform.");
       }
-      
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+          queryParams: { access_type: "offline", prompt: "consent" },
+        },
+      });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : `${provider} sign-in failed`;
       setError(message);
       throw err;
     } finally {
@@ -428,7 +294,7 @@ export function useAuth() {
   };
 
   // ─────────────────────────────────────────
-  // LOGOUT
+  // REMAINING METHODS (unchanged)
   // ─────────────────────────────────────────
   const logout = async () => {
     setLoading(true);
@@ -436,65 +302,48 @@ export function useAuth() {
       await supabase.auth.signOut();
       setCurrentUser(null);
     } catch (err) {
-      console.error("❌ Logout error:", err);
+      console.error("[useAuth] Logout error:", err);
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // ─────────────────────────────────────────
-  // ENSURE ROLE IS SET (Verification only, no updates due to RLS)
-  // ─────────────────────────────────────────
   const ensureRoleSet = async (userId: string, expectedRole: "patient" | "doctor") => {
     try {
-      console.log(`[useAuth] Verifying role is set for user ${userId} to ${expectedRole}`);
-      
       const { data: profile, error: fetchError } = await supabase
         .from("profiles")
         .select("id, role")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code === "PGRST116") {
-        console.warn("[useAuth] Profile not found - trigger may still be running");
-        // Wait a moment and try again
+      if (fetchError?.code === "PGRST116") {
+        console.warn("[useAuth] Profile not found in ensureRoleSet, retrying...");
         await new Promise(resolve => setTimeout(resolve, 1000));
         return ensureRoleSet(userId, expectedRole);
       } else if (fetchError) {
-        console.error("[useAuth] Error fetching profile:", fetchError);
+        console.error("[useAuth] ensureRoleSet fetch error:", fetchError);
         return false;
       }
 
-      // Profile exists, verify role is correct
-      if (profile && profile.role === expectedRole) {
-        console.log(`[useAuth] ✅ Role is correctly set to ${expectedRole}`);
-        return true;
-      } else if (profile) {
-        console.warn(`[useAuth] ⚠️ Role mismatch: Current ${profile.role} ≠ Expected ${expectedRole}`);
-        console.warn("[useAuth] This may be due to RLS policies or trigger configuration");
-        // Return true anyway - the profile exists with a role, even if it might be wrong
+      if (profile?.role === expectedRole) {
+        console.log(`[useAuth] Role correctly set to ${expectedRole}`);
         return true;
       }
 
-      return false;
+      console.warn(`[useAuth] Role mismatch: ${profile?.role} vs expected ${expectedRole}`);
+      return true; // Profile exists, proceed
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to ensure role";
-      console.error("[useAuth] ensureRoleSet error:", message);
+      console.error("[useAuth] ensureRoleSet error:", err);
       return false;
     }
   };
 
-  // ─────────────────────────────────────────
-  // SIGNUP OTP
-  // ─────────────────────────────────────────
   const sendSignupOtp = async (email: string) => {
     setLoading(true);
     setError(null);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-      });
+      const { error } = await supabase.auth.signInWithOtp({ email: email.trim().toLowerCase() });
       if (error) throw error;
       return { success: true };
     } catch (err) {
@@ -526,7 +375,7 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const { error } = await supabase.from('profiles').update(data).eq('id', userId);
+      const { error } = await supabase.from("profiles").update(data).eq("id", userId);
       if (error) throw error;
       await fetchProfile(userId);
       return { success: true };
@@ -539,25 +388,17 @@ export function useAuth() {
     }
   };
 
-  // ─────────────────────────────────────────
-  // VERIFY OTP
-  // ─────────────────────────────────────────
   const verifyEmailOtp = async (email: string, token: string) => {
     setLoading(true);
     setError(null);
     try {
-      // With signInWithOtp, the type is usually 'email' or 'magiclink'
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token,
         type: "email",
       });
-
       if (error) throw error;
-
-      if (data.session?.user) {
-        await fetchProfile(data.session.user.id);
-      }
+      if (data.session?.user) await fetchProfile(data.session.user.id);
       return { success: true, user: data.user };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Verification failed";
@@ -568,18 +409,13 @@ export function useAuth() {
     }
   };
 
-  // ─────────────────────────────────────────
-  // RESET PASSWORD
-  // ─────────────────────────────────────────
   const resetPassword = async (email: string) => {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/reset-password`,
       });
-
       if (error) throw error;
-
       return { success: true, message: "Password reset email sent" };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Reset failed";
@@ -590,28 +426,30 @@ export function useAuth() {
     }
   };
 
-  // ─────────────────────────────────────────
-  // OAUTH SIGN-IN (Google, GitHub, etc.)
-  // ─────────────────────────────────────────
-  const signInWithOAuth = async (provider: "google" | "github", redirectTo?: string) => {
+  const detectOAuthIdentity = async (_email: string): Promise<string | null> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.identities) {
+        const oauthIdentity = user.identities.find(
+          (id: any) => id.provider !== "email" && id.provider !== "phone"
+        );
+        if (oauthIdentity) return oauthIdentity.provider;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const linkOAuthIdentity = async (provider: "google" | "github") => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: redirectTo || `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`,
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-        },
-      });
-
+      const { data, error } = await supabase.auth.linkIdentity({ provider });
       if (error) throw error;
-      return { success: true };
+      return { success: true, url: data?.url };
     } catch (err) {
-      const message = err instanceof Error ? err.message : `${provider} sign-in failed`;
+      const message = err instanceof Error ? err.message : `Failed to link ${provider}`;
       setError(message);
       throw err;
     } finally {
