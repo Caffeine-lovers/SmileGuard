@@ -19,8 +19,9 @@ export default function SignupConfirmPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  console.log('[SignupConfirm] isOAuthFlow:', isOAuthFlow, '| currentAuthUser:', currentAuthUser?.id ?? 'NULL');
     setLocalError(null);
     setLoading(true);
 
@@ -28,25 +29,28 @@ export default function SignupConfirmPage() {
       if (isOAuthFlow && currentAuthUser) {
         console.log('[SignupConfirm] Starting OAuth registration for:', currentAuthUser.id);
 
-        // Step 1: Update profile
-        console.log('[SignupConfirm] Updating profile...');
-        const { error: updateError } = await supabase
+        // Step 1: Upsert profile (create if not exists)
+        const { error: upsertError } = await supabase
           .from('profiles')
-          .update({
-            name: formData.name,
-            service: formData.service,
-            role: 'patient',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentAuthUser.id);
+          .upsert(
+            {
+              id: currentAuthUser.id,
+              name: formData.name,
+              service: formData.service,
+              role: 'patient',
+              email: formData.email ?? currentAuthUser.email ?? '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
 
-        if (updateError) {
-          console.error('[SignupConfirm] Profile update failed:', updateError);
-          setLocalError(`Failed to update profile: ${updateError.message}`);
+        if (upsertError) {
+          console.error('[SignupConfirm] Profile upsert failed:', upsertError);
+          setLocalError(`Failed to save profile: ${upsertError.message}`);
           setLoading(false);
           return;
         }
-        console.log('[SignupConfirm] Profile updated successfully');
 
         // Step 2: Create medical_intake record
         console.log('[SignupConfirm] Creating medical intake...');

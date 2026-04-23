@@ -10,7 +10,7 @@ export default function SignupMedicalPage() {
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
     router.push('/signup/confirm');
-  };
+
 
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
@@ -18,7 +18,6 @@ export default function SignupMedicalPage() {
         Medical Details
       </h2>
       <p className="text-center text-text-secondary mb-8">
-        Step 2 of 3: Your medical history
       </p>
 
       <form onSubmit={handleNext} className="space-y-4">
