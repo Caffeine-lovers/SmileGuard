@@ -470,7 +470,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     updateUserPassword,
     updateProfileData,
     ensureRoleSet,
-    ensureProfileExists,
     signInWithOAuth,
     detectOAuthIdentity,
     linkOAuthIdentity,
