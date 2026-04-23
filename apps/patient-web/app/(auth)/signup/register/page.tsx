@@ -198,7 +198,7 @@ export default function SignupRegisterPage() {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => window.history.back()}
+            onClick={() => router.push('/login')}
             className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
           >
             Back

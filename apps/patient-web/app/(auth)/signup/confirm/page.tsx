@@ -157,7 +157,7 @@ export default function SignupConfirmPage() {
                 <Badge label="Conditions" value={formData.medicalIntake.medical_conditions} />
                 <Badge label="Meds" value={formData.medicalIntake.current_medications} />
                 {!formData.medicalIntake.allergies && !formData.medicalIntake.medical_conditions && (
-                  <span className="italic text-text-secondary text-xs">No special conditions noted.</span>
+                  <span className="italic text-text-secondary text-xs">No special conditions noted</span>
                 )}
               </div>
             </div>
