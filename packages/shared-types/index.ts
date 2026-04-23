@@ -65,6 +65,8 @@ export interface Patient {
 }
 
 export interface medical_intake {
+  id?: string;
+  patient_id?: string;
   date_of_birth?: string;
   gender?: string;
   phone?: string;
@@ -78,6 +80,8 @@ export interface medical_intake {
   smoking_status?: string;
   pregnancy_status?: string;
   notes?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 

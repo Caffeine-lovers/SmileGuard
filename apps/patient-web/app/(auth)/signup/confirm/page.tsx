@@ -24,18 +24,18 @@ export default function SignupConfirmPage() {
       .from('medical_intake')
       .upsert({
         patient_id: patientId,
-        date_of_birth: formData.medicalIntake.dateOfBirth || null,
+        date_of_birth: formData.medicalIntake.date_of_birth || null,
         gender: formData.medicalIntake.gender || null,
         phone: formData.medicalIntake.phone || null,
         address: formData.medicalIntake.address || null,
-        emergency_contact_name: formData.medicalIntake.emergencyContactName || null,
-        emergency_contact_phone: formData.medicalIntake.emergencyContactPhone || null,
+        emergency_contact_name: formData.medicalIntake.emergency_contact_name || null,
+        emergency_contact_phone: formData.medicalIntake.emergency_contact_phone || null,
         allergies: formData.medicalIntake.allergies || null,
-        current_medications: formData.medicalIntake.currentMedications || null,
-        medical_conditions: formData.medicalIntake.medicalConditions || null,
-        past_surgeries: formData.medicalIntake.pastSurgeries || null,
-        smoking_status: formData.medicalIntake.smokingStatus || '',
-        pregnancy_status: formData.medicalIntake.pregnancyStatus || '',
+        current_medications: formData.medicalIntake.current_medications || null,
+        medical_conditions: formData.medicalIntake.medical_conditions || null,
+        past_surgeries: formData.medicalIntake.past_surgeries || null,
+        smoking_status: formData.medicalIntake.smoking_status || '',
+        pregnancy_status: formData.medicalIntake.pregnancy_status || '',
       });
     return error;
   };
@@ -107,7 +107,7 @@ export default function SignupConfirmPage() {
         );
         
         clearSignupData();
-        router.push('/(patient)/dashboard');
+        router.push('/dashboard');
       }
     } catch (err) {
       console.error('[SignupConfirm] Error details:', err);

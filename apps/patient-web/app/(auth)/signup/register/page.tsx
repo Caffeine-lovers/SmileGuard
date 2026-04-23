@@ -126,7 +126,7 @@ export default function SignupRegisterPage() {
           />
         </div>
 
-        {isOAuthFlow && (
+        {!isOAuthFlow && (
           <>
             <div>
               <label className="block text-sm font-medium text-text-primary mb-2">

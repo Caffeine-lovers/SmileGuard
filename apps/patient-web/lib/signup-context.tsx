@@ -5,6 +5,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 // --- Interfaces ---
 
 export interface MedicalIntakeData {
+  id?: string;
+  patient_id?: string;
   date_of_birth?: string;
   gender?: string;
   phone?: string;
@@ -18,6 +20,8 @@ export interface MedicalIntakeData {
   smoking_status?: string;
   pregnancy_status?: string;
   notes?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SignupFormData {
