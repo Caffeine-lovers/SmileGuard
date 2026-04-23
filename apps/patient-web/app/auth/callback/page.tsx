@@ -58,11 +58,12 @@ export default function AuthCallbackPage() {
               .from('medical_intake')
               .select('id')
               .eq('patient_id', session.user.id)
-              .single();
+              .maybeSingle();
             
-            if (intakeError && intakeError.code !== 'PGRST116') {
-              // PGRST116 = no rows found (expected for new users)
+            if (intakeError) {
               addDebug(`Medical intake query error: ${intakeError.message}`);
+              addDebug(`Error code: ${intakeError.code}`);
+              addDebug(`Error details: ${JSON.stringify(intakeError)}`);
             }
             
             if (!medicalIntake) {
@@ -139,11 +140,12 @@ export default function AuthCallbackPage() {
                   .from('medical_intake')
                   .select('id')
                   .eq('patient_id', session.user.id)
-                  .single();
+                  .maybeSingle();
                 
-                if (intakeError && intakeError.code !== 'PGRST116') {
-                  // PGRST116 = no rows found (expected for new users)
-                  addDebug(`Medical intake query error: ${intakeError.message}`);
+                if (intakeError) {
+                  addDebug(`Medical intake query error (auth state): ${intakeError.message}`);
+                  addDebug(`Error code: ${intakeError.code}`);
+                  addDebug(`Error details: ${JSON.stringify(intakeError)}`);
                 }
                 
                 if (!medicalIntake) {
