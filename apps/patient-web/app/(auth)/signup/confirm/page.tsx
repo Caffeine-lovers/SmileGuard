@@ -26,58 +26,39 @@ export default function SignupConfirmPage() {
 
     try {
       if (isOAuthFlow && currentAuthUser) {
-        console.log('[SignupConfirm] Starting OAuth registration for:', currentAuthUser.id);
-
         // Step 1: Update profile
-        console.log('[SignupConfirm] Updating profile...');
         const { error: updateError } = await supabase
           .from('profiles')
-          .update({
+          .upsert({
+            id: currentAuthUser.id,        
             name: formData.name,
             service: formData.service,
             role: 'patient',
+            email: formData.email ?? currentAuthUser.email ?? '',
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentAuthUser.id);
+          });
 
-        if (updateError) {
-          console.error('[SignupConfirm] Profile update failed:', updateError);
-          setLocalError(`Failed to update profile: ${updateError.message}`);
-          setLoading(false);
-          return;
-        }
-        console.log('[SignupConfirm] Profile updated successfully');
+        if (updateError) throw updateError;
 
         // Step 2: Create medical_intake record
-        console.log('[SignupConfirm] Creating medical intake...');
-        const { error: intakeError, data: intakeData } = await supabase
+        const { error: intakeError } = await supabase
           .from('medical_intake')
           .insert({
             patient_id: currentAuthUser.id,
-            has_diabetes: formData.medicalIntake.has_diabetes || false,
-            has_heart_disease: formData.medicalIntake.has_heart_disease || false,
-            allergies: formData.medicalIntake.allergies || null,
-            created_at: new Date().toISOString(),
+            ...formData.medicalIntake // Spreading the object directly maps the keys
           });
 
-        if (intakeError) {
-          console.error('[SignupConfirm] Medical intake creation failed:', intakeError);
-          setLocalError(`Failed to save medical information: ${intakeError.message}`);
-          setLoading(false);
-          return;
-        }
-        console.log('[SignupConfirm] Medical intake created successfully:', intakeData);
+        if (intakeError) throw intakeError;
 
         clearSignupData();
-        console.log('[SignupConfirm] Redirecting to dashboard...');
         router.push('/dashboard');
       } else {
-        // Standard email/phone flow: Create new account
+        // Standard flow
         if (formData.password !== formData.confirmPassword) {
           setLocalError('Passwords do not match');
           setLoading(false);
           return;
-        }
+        } 
 
         await register(
           {
@@ -86,13 +67,12 @@ export default function SignupConfirmPage() {
           },
           'patient'
         );
-
+        
         clearSignupData();
-        router.push('/login?registered=true');
+        router.push('/(patient)/dashboard');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
-      console.error('[SignupConfirm] Error:', errorMessage);
       setLocalError(errorMessage);
       setLoading(false);
     }
@@ -101,10 +81,10 @@ export default function SignupConfirmPage() {
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
-        Confirm & Create
+        Review & Confirm
       </h2>
-      <p className="text-center text-text-secondary mb-8">
-        Step 3 of 3: Review your information
+      <p className="text-center text-text-secondary mb-8 text-sm">
+        Please verify your details before completing registration.
       </p>
 
       {localError && (
@@ -113,54 +93,39 @@ export default function SignupConfirmPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Review section */}
-        <div className="bg-border-card/20 rounded-lg p-4 space-y-3 text-sm">
-          <div>
-            <p className="text-text-secondary text-xs">Full Name</p>
-            <p className="text-text-primary font-medium">{formData.name}</p>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* ACCOUNT INFORMATION */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Account Information</h3>
+          <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
+            <ReviewField label="Full Name" value={formData.name} />
+            <ReviewField label="Email Address" value={formData.email} />
+            <ReviewField label="Service Interest" value={formData.service} />
           </div>
-
-          <div>
-            <p className="text-text-secondary text-xs">Email</p>
-            <p className="text-text-primary font-medium">{formData.email}</p>
-          </div>
-
-          {formData.phone && (
-            <div>
-              <p className="text-text-secondary text-xs">Phone</p>
-              <p className="text-text-primary font-medium">{formData.phone}</p>
-            </div>
-          )}
-
-          <div>
-            <p className="text-text-secondary text-xs">Service Type</p>
-            <p className="text-text-primary font-medium">{formData.service}</p>
-          </div>
-
-          {(formData.medicalIntake.has_diabetes || formData.medicalIntake.has_heart_disease || formData.medicalIntake.allergies) && (
-            <div>
-              <p className="text-text-secondary text-xs">Medical Notes</p>
-              <ul className="text-text-primary text-xs space-y-1">
-                {formData.medicalIntake.has_diabetes && <li>• Has diabetes</li>}
-                {formData.medicalIntake.has_heart_disease && <li>• Has heart disease</li>}
-                {formData.medicalIntake.allergies && <li>• Allergies: {formData.medicalIntake.allergies}</li>}
-              </ul>
-            </div>
-          )}
         </div>
 
-        {!isOAuthFlow && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-            After creating your account, you'll be redirected to log in with your email and password.
+        {/* MEDICAL INFORMATION */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Medical Summary</h3>
+          <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
+            <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
+            <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
+            <ReviewField label="Emergency Contact" value={`${formData.medicalIntake.emergency_contact_name} (${formData.medicalIntake.emergency_contact_phone})`} />
+            
+            {/* Conditional Medical Flags */}
+            <div className="pt-2 border-t border-border-card/50">
+              <p className="text-text-secondary text-xs mb-1">Health Details</p>
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                <Badge label="Allergies" value={formData.medicalIntake.allergies} />
+                <Badge label="Conditions" value={formData.medicalIntake.medical_conditions} />
+                <Badge label="Meds" value={formData.medicalIntake.current_medications} />
+                {!formData.medicalIntake.allergies && !formData.medicalIntake.medical_conditions && (
+                  <span className="italic text-text-secondary">No special conditions noted.</span>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-
-        {isOAuthFlow && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-            Your profile will be updated and you'll be redirected to your dashboard.
-          </div>
-        )}
+        </div>
 
         <div className="flex gap-3">
           <button
@@ -175,10 +140,30 @@ export default function SignupConfirmPage() {
             disabled={loading}
             className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-white font-medium py-2 px-4 rounded-lg transition"
           >
-            {loading ? 'Creating...' : isOAuthFlow ? 'Complete Profile' : 'Create Account'}
+            {loading ? 'Processing...' : isOAuthFlow ? 'Complete Profile' : 'Create Account'}
           </button>
         </div>
       </form>
     </div>
+  );
+}
+
+// --- Local UI Helpers ---
+
+function ReviewField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <p className="text-text-secondary text-[11px] uppercase font-semibold">{label}</p>
+      <p className="text-text-primary font-medium">{value || 'Not provided'}</p>
+    </div>
+  );
+}
+
+function Badge({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return (
+    <span className="bg-brand-primary/10 text-brand-primary px-2 py-1 rounded border border-brand-primary/20">
+      <strong>{label}:</strong> {value}
+    </span>
   );
 }

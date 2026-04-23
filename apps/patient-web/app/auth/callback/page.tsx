@@ -79,11 +79,11 @@ export default function AuthCallbackPage() {
               
               if (profile) {
                 // Profile exists but no medical_intake - skip register, go to medical
-                addDebug('Profile exists but no medical intake - routing to medical intake');
+                addDebug('Profile exists but no medical intake - still routing to register');
                 localStorage.removeItem('oauth_signup_flow');
                 setMessage('Completing your medical information...');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                router.push('/signup/medical?oauth=true');
+                router.push('/signup/register?oauth=true');
                 return;
               } else {
                 // No profile exists - go to register
