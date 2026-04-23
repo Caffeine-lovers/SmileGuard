@@ -84,7 +84,7 @@ export default function SignupConfirmPage() {
         );
         
         clearSignupData();
-        router.push('/(patient)/dashboard');
+        router.push('/dashboard');
       }
     } catch (err) {
       console.error('[SignupConfirm] Error details:', err);
