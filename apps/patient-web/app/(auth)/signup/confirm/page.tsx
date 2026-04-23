@@ -26,7 +26,7 @@ export default function SignupConfirmPage() {
 
     try {
       if (isOAuthFlow && currentAuthUser) {
-        // Step 1: Update profile
+        // 1. Update Profile
         const { error: updateError } = await supabase
           .from('profiles')
           .upsert({
@@ -40,13 +40,28 @@ export default function SignupConfirmPage() {
 
         if (updateError) throw updateError;
 
-        // Step 2: Create medical_intake record
+        // 2. Map Medical Data (Fixing the 400 error)
+        // We explicitly map keys and convert empty strings to null
+        const medicalData = {
+          patient_id: currentAuthUser.id,
+          date_of_birth: formData.medicalIntake.date_of_birth || null,
+          gender: formData.medicalIntake.gender || null,
+          phone: formData.medicalIntake.phone || null,
+          address: formData.medicalIntake.address || null,
+          emergency_contact_name: formData.medicalIntake.emergency_contact_name || null,
+          emergency_contact_phone: formData.medicalIntake.emergency_contact_phone || null,
+          allergies: formData.medicalIntake.allergies || 'None',
+          current_medications: formData.medicalIntake.current_medications || 'None',
+          medical_conditions: formData.medicalIntake.medical_conditions || 'None',
+          past_surgeries: formData.medicalIntake.past_surgeries || 'None',
+          smoking_status: formData.medicalIntake.smoking_status || null,
+          pregnancy_status: formData.medicalIntake.pregnancy_status || null,
+          notes: formData.medicalIntake.notes || null,
+        };
+
         const { error: intakeError } = await supabase
           .from('medical_intake')
-          .insert({
-            patient_id: currentAuthUser.id,
-            ...formData.medicalIntake // Spreading the object directly maps the keys
-          });
+          .insert(medicalData);
 
         if (intakeError) throw intakeError;
 
@@ -72,6 +87,7 @@ export default function SignupConfirmPage() {
         router.push('/(patient)/dashboard');
       }
     } catch (err) {
+      console.error('[SignupConfirm] Error details:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
       setLocalError(errorMessage);
       setLoading(false);
@@ -94,7 +110,6 @@ export default function SignupConfirmPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* ACCOUNT INFORMATION */}
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Account Information</h3>
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
@@ -104,23 +119,21 @@ export default function SignupConfirmPage() {
           </div>
         </div>
 
-        {/* MEDICAL INFORMATION */}
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Medical Summary</h3>
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
             <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
             <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
-            <ReviewField label="Emergency Contact" value={`${formData.medicalIntake.emergency_contact_name} (${formData.medicalIntake.emergency_contact_phone})`} />
+            <ReviewField label="Emergency Contact" value={formData.medicalIntake.emergency_contact_name ? `${formData.medicalIntake.emergency_contact_name} (${formData.medicalIntake.emergency_contact_phone})` : undefined} />
             
-            {/* Conditional Medical Flags */}
             <div className="pt-2 border-t border-border-card/50">
-              <p className="text-text-secondary text-xs mb-1">Health Details</p>
-              <div className="flex flex-wrap gap-2 text-[11px]">
+              <p className="text-text-secondary text-xs mb-1 text-[11px] uppercase font-semibold">Health Details</p>
+              <div className="flex flex-wrap gap-2 mt-1">
                 <Badge label="Allergies" value={formData.medicalIntake.allergies} />
                 <Badge label="Conditions" value={formData.medicalIntake.medical_conditions} />
                 <Badge label="Meds" value={formData.medicalIntake.current_medications} />
                 {!formData.medicalIntake.allergies && !formData.medicalIntake.medical_conditions && (
-                  <span className="italic text-text-secondary">No special conditions noted.</span>
+                  <span className="italic text-text-secondary text-xs">No special conditions noted.</span>
                 )}
               </div>
             </div>
@@ -148,8 +161,7 @@ export default function SignupConfirmPage() {
   );
 }
 
-// --- Local UI Helpers ---
-
+// UI Helpers (Keep these as you had them)
 function ReviewField({ label, value }: { label: string; value?: string }) {
   return (
     <div>
@@ -160,9 +172,9 @@ function ReviewField({ label, value }: { label: string; value?: string }) {
 }
 
 function Badge({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
+  if (!value || value === 'None') return null;
   return (
-    <span className="bg-brand-primary/10 text-brand-primary px-2 py-1 rounded border border-brand-primary/20">
+    <span className="bg-brand-primary/10 text-brand-primary px-2 py-1 rounded border border-brand-primary/20 text-[10px]">
       <strong>{label}:</strong> {value}
     </span>
   );
