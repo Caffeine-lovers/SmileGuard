@@ -161,19 +161,22 @@ export async function getDoctorsByClinic(clinicName: string): Promise<Doctor[]> 
 }
 
 /**
- * Create or insert a new doctor profile
- * @param doctor - The doctor object to insert
- * @returns Created doctor or null if failed
+ * Create or update a doctor profile (idempotent via UPSERT)
+ * Uses UPSERT to handle the case where a profile already exists.
+ * If a doctor with the same user_id already exists, it will be updated.
+ * This prevents unique constraint violations on repeated calls.
+ * @param doctor - The doctor object to insert or update
+ * @returns Created/updated doctor or null if failed
  */
 export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null> {
   try {
-    // Validate required fields before attempting insert
+    // Validate required fields before attempting upsert
     if (!doctor.user_id) throw new Error("Missing required field: user_id");
     if (!doctor.doctor_name) throw new Error("Missing required field: doctor_name");
     if (!doctor.specialization) throw new Error("Missing required field: specialization");
     if (!doctor.license_number) throw new Error("Missing required field: license_number");
 
-    console.log("[DoctorService] Creating doctor profile with data:", {
+    console.log("[DoctorService] Creating/updating doctor profile with data:", {
       user_id: doctor.user_id,
       doctor_name: doctor.doctor_name,
       specialization: doctor.specialization,
@@ -181,14 +184,16 @@ export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null
       profile_picture_url: doctor.profile_picture_url ? "✓ (URL set)" : "✗ (no URL)",
     });
 
+    // UPSERT: Insert if new, update if exists (keyed on user_id)
+    // This makes the operation idempotent - safe to call multiple times
     const { data, error } = await supabase
       .from("doctors")
-      .insert([doctor])
+      .upsert([doctor], { onConflict: "user_id" })
       .select()
       .single();
 
     if (error) {
-      console.error("[DoctorService] Supabase insert error:", {
+      console.error("[DoctorService] Supabase upsert error:", {
         code: error.code,
         message: error.message,
         details: error.details,
@@ -196,7 +201,7 @@ export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null
       throw new Error(`Database error (${error.code}): ${error.message}`);
     }
 
-    console.log("[DoctorService] Doctor profile created successfully");
+    console.log("[DoctorService] Doctor profile created/updated successfully");
     return data as Doctor;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

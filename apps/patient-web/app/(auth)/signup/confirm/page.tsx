@@ -8,7 +8,7 @@ import { useSignup } from '@/lib/signup-context';
 
 export default function SignupConfirmPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register } = useAuth(); // ensureProfileExists no longer needed here
   const {
     formData,
     isOAuthFlow,
@@ -18,6 +18,27 @@ export default function SignupConfirmPage() {
 
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const saveMedicalIntake = async (patientId: string) => {
+    const { error } = await supabase
+      .from('medical_intake')
+      .upsert({
+        patient_id: patientId,
+        date_of_birth: formData.medicalIntake.dateOfBirth || null,
+        gender: formData.medicalIntake.gender || null,
+        phone: formData.medicalIntake.phone || null,
+        address: formData.medicalIntake.address || null,
+        emergency_contact_name: formData.medicalIntake.emergencyContactName || null,
+        emergency_contact_phone: formData.medicalIntake.emergencyContactPhone || null,
+        allergies: formData.medicalIntake.allergies || null,
+        current_medications: formData.medicalIntake.currentMedications || null,
+        medical_conditions: formData.medicalIntake.medicalConditions || null,
+        past_surgeries: formData.medicalIntake.pastSurgeries || null,
+        smoking_status: formData.medicalIntake.smokingStatus || '',
+        pregnancy_status: formData.medicalIntake.pregnancyStatus || '',
+      });
+    return error;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,8 +86,10 @@ export default function SignupConfirmPage() {
 
         if (intakeError) throw intakeError;
 
+        console.log('[SignupConfirm] OAuth signup complete');
         clearSignupData();
         router.push('/dashboard');
+
       } else {
         // Standard flow
         if (formData.password !== formData.confirmPassword) {
@@ -94,6 +117,7 @@ export default function SignupConfirmPage() {
     }
   };
 
+  // JSX unchanged below — no modifications needed
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
