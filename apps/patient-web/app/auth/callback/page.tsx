@@ -81,7 +81,6 @@ export default function AuthCallbackPage() {
               if (profile) {
                 // Profile exists but no medical_intake - skip register, go to medical
                 addDebug('Profile exists but no medical intake - still routing to register');
-                localStorage.removeItem('oauth_signup_flow');
                 setMessage('Completing your medical information...');
                 await new Promise(resolve => setTimeout(resolve, 500));
                 router.push('/signup/register?oauth=true');
@@ -150,18 +149,42 @@ export default function AuthCallbackPage() {
                 }
                 
                 if (!medicalIntake) {
-                  // User has no medical_intake record - always send to register flow
-                  // Profile may exist but user still needs to fill form and hit submit
-                  addDebug('No medical intake found - routing to register form for OAuth flow');
-                  localStorage.removeItem('oauth_signup_flow');
-                  clearTimeout(timeout);
-                  completed = true;
-                  subscription?.unsubscribe();
-                  setMessage('Completing your profile...');
-                  setTimeout(() => {
-                    router.push('/signup/register?oauth=true');
-                  }, 500);
-                  return;
+                  // User has no medical_intake record - check if profile exists
+                  const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('id', session.user.id)
+                    .single();
+                  
+                  if (profileError && profileError.code !== 'PGRST116') {
+                    addDebug(`Profile query error: ${profileError.message}`);
+                  }
+                  
+                  if (profile) {
+                    // Profile exists but no medical_intake - skip register, go to medical
+                    addDebug('Profile exists but no medical intake - routing to medical intake');
+                    localStorage.add('oauth_signup_flow');
+                    localStorage.setItem('oauth_signup_flow', 'true');
+                    clearTimeout(timeout);
+                    completed = true;
+                    subscription?.unsubscribe();
+                    setMessage('Completing your medical information...');
+                    setTimeout(() => {
+                      router.push('/signup/medical?oauth=true');
+                    }, 500);
+                    return;
+                  } else {
+                    // No profile exists - go to register
+                    addDebug('No profile found - user needs to register');
+                    clearTimeout(timeout);
+                    completed = true;
+                    subscription?.unsubscribe();
+                    setMessage('Completing your profile...');
+                    setTimeout(() => {
+                      router.push('/signup/register?oauth=true');
+                    }, 500);
+                    return;
+                  }
                 } else {
                   // User has medical_intake record - registration complete
                   addDebug('✓ Medical intake found - registration complete');
@@ -209,7 +232,7 @@ export default function AuthCallbackPage() {
         )}
         
         {/* Debug log display */}
-        {debug.length > 0 && (
+        {/* {debug.length > 0 && (
           <div className="mt-6 text-left bg-bg-secondary rounded p-2 max-h-48 overflow-y-auto">
             <p className="text-xs text-text-secondary font-mono mb-2">Debug Log:</p>
             {debug.map((msg, i) => (
@@ -218,7 +241,7 @@ export default function AuthCallbackPage() {
               </p>
             ))}
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );
