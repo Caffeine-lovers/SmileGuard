@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
 import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
+import { createBilling } from '@/lib/paymentService';
+import { SERVICE_PRICES } from '@/lib/outstandingBalanceService';
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
@@ -206,12 +208,29 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const userId = currentUser.id;
     setIsBooking(true);
     try {
+      // Book the appointment
       const result = await bookSlot(userId, '', selectedService.name, selectedDate, selectedTime);
-      if (result.success) {
-        alert('Appointment booked successfully!');
+      if (result.success && result.appointmentId) {
+        console.log('[handleBooking] Appointment created:', result.appointmentId);
+        
+        // Get the service price from SERVICE_PRICES
+        const servicePrice = SERVICE_PRICES[selectedService.name] || selectedService.price || 0;
+        console.log('[handleBooking] Service price:', { service: selectedService.name, price: servicePrice });
+        
+        // Create billing record
+        const billingResult = await createBilling(userId, result.appointmentId, servicePrice);
+        
+        if (billingResult.success) {
+          console.log('[handleBooking] Billing record created:', billingResult.billingId);
+          alert('Appointment booked successfully!');
+        } else {
+          console.warn('[handleBooking] Billing creation failed, but appointment was booked:', billingResult.message);
+          alert('Appointment booked, but billing record could not be created. Please contact support.');
+        }
+        
         if (onSuccess) {
           onSuccess({
-            id: '1',
+            id: result.appointmentId,
             patient_id: userId,
             dentist_id: null,
             service: selectedService.name,

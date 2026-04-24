@@ -70,3 +70,42 @@ export async function getBalance(patientId: string): Promise<number> {
     return 0;
   }
 }
+
+export async function createBilling(
+  patientId: string,
+  appointmentId: string,
+  amount: number
+): Promise<{ success: boolean; message: string; billingId?: string }> {
+  try {
+    const finalAmount = amount; // No discount applied at booking time
+    
+    const { data, error } = await supabase
+      .from('billings')
+      .insert({
+        patient_id: patientId,
+        appointment_id: appointmentId,
+        amount: amount,
+        discount_type: 'none',
+        discount_amount: 0,
+        final_amount: finalAmount,
+        payment_status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select('id');
+
+    if (error) {
+      console.error('Error creating billing:', error);
+      return { success: false, message: `Failed to create billing: ${error.message}` };
+    }
+
+    const billingId = data?.[0]?.id;
+    console.log('[createBilling] Billing record created:', { billingId, patientId, appointmentId, amount });
+
+    return { success: true, message: 'Billing record created', billingId };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create billing';
+    console.error('Error creating billing:', err);
+    return { success: false, message };
+  }
+}

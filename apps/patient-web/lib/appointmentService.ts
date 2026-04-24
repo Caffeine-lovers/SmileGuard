@@ -140,7 +140,7 @@ export async function bookSlot(
   service: string,
   appointmentDate: string,
   appointmentTime: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; appointmentId?: string }> {
   console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
   
   const { data: existing, error: checkError } = await supabase
@@ -156,7 +156,7 @@ export async function bookSlot(
   }
   if (existing && existing.length > 0) return { success: false, message: 'Sorry, this slot was just taken!' };
 
-  const { error: insertError } = await supabase
+  const { data: insertedData, error: insertError } = await supabase
     .from('appointments')
     .insert({
       patient_id: patientId,
@@ -165,7 +165,8 @@ export async function bookSlot(
       appointment_date: appointmentDate,
       appointment_time: appointmentTime,
       status: 'scheduled',
-    });
+    })
+    .select('id');
 
   if (insertError) {
     console.error('Insert Error Detail:', insertError);
@@ -174,7 +175,8 @@ export async function bookSlot(
     return { success: false, message: 'Booking failed. Please try again.' };
   }
 
-  return { success: true, message: 'Appointment booked successfully!' };
+  const appointmentId = insertedData?.[0]?.id;
+  return { success: true, message: 'Appointment booked successfully!', appointmentId };
 }
 
 // ─────────────────────────────────────────
