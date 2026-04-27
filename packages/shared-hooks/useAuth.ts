@@ -182,6 +182,30 @@ export function useAuth(options: UseAuthOptions = {}) {
     }
   };
 
+  const login = async (email: string, password: string, role: "patient" | "doctor") => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (authError) throw authError;
+
+      if (!authData.user) throw new Error("Login failed");
+
+      await fetchProfile(authData.user.id);
+      return authData.user;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login failed";
+      setError(msg);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -197,6 +221,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     loading,
     error,
     register,
+    login,
     logout,
     fetchProfile,
   };

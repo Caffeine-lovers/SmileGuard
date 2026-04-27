@@ -2,13 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 
 export default function SignupConfirmPage() {
   const router = useRouter();
-  const { register } = useAuth(); // ensureProfileExists no longer needed here
   const {
     formData,
     isOAuthFlow,
@@ -26,7 +24,17 @@ export default function SignupConfirmPage() {
 
     try {
       if (isOAuthFlow && currentAuthUser) {
-        // 1. Update Profile
+        // 1. Update password for OAuth user (so they can login with email+password)
+        if (formData.password) {
+          const { error: passwordError } = await supabase.auth.updateUser({
+            password: formData.password,
+          });
+
+          if (passwordError) throw passwordError;
+          console.log('[SignupConfirm] Password set for OAuth user');
+        }
+
+        // 2. Update Profile
         const { error: updateError } = await supabase
           .from('profiles')
           .upsert({
@@ -40,7 +48,7 @@ export default function SignupConfirmPage() {
 
         if (updateError) throw updateError;
 
-        // 2. Map Medical Data (Fixing the 400 error)
+        // 3. Map Medical Data (Fixing the 400 error)
         // We explicitly map keys and convert empty strings to null
         const medicalData = {
           patient_id: currentAuthUser.id,
@@ -70,20 +78,75 @@ export default function SignupConfirmPage() {
         router.push('/dashboard');
 
       } else {
-        // Standard flow
+        // Standard flow (Email/Phone OTP verification)
+        // ⚠️ USER ALREADY EXISTS from OTP verification!
+        // We only create profile and medical_intake here
+        
         if (formData.password !== formData.confirmPassword) {
           setLocalError('Passwords do not match');
           setLoading(false);
           return;
-        } 
+        }
 
-        await register(
-          {
-            ...formData,
-            doctorAccessCode: '',
-          },
-          'patient'
-        );
+        // Get current authenticated user (created by OTP)
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (!authUser) {
+          setLocalError('User session not found. Please verify again.');
+          setLoading(false);
+          return;
+        }
+
+        // 1. Update password (user has empty password from OTP)
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: formData.password,
+        });
+
+        if (passwordError) throw passwordError;
+        console.log('[SignupConfirm] Password set for email user');
+
+        // 2. Create Profile (profile doesn't exist yet)
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authUser.id,
+            name: formData.name,
+            email: formData.email,
+            service: formData.service || 'General',
+            role: 'patient',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        if (profileError) throw profileError;
+        console.log('[SignupConfirm] Profile created');
+
+        // 3. Create Medical Intake
+        const medicalData = {
+          patient_id: authUser.id,
+          date_of_birth: formData.medicalIntake.date_of_birth || null,
+          gender: formData.medicalIntake.gender || null,
+          phone: formData.medicalIntake.phone || null,
+          address: formData.medicalIntake.address || null,
+          emergency_contact_name: formData.medicalIntake.emergency_contact_name || null,
+          emergency_contact_phone: formData.medicalIntake.emergency_contact_phone || null,
+          allergies: formData.medicalIntake.allergies || 'None',
+          current_medications: formData.medicalIntake.current_medications || 'None',
+          medical_conditions: formData.medicalIntake.medical_conditions || 'None',
+          past_surgeries: formData.medicalIntake.past_surgeries || 'None',
+          smoking_status: formData.medicalIntake.smoking_status || null,
+          pregnancy_status: formData.medicalIntake.pregnancy_status || null,
+          notes: formData.medicalIntake.notes || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error: intakeError } = await supabase
+          .from('medical_intake')
+          .insert(medicalData);
+
+        if (intakeError) throw intakeError;
+        console.log('[SignupConfirm] Medical intake created');
         
         clearSignupData();
         router.push('/dashboard');

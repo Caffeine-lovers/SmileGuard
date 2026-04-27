@@ -82,6 +82,17 @@ export default function SignupRegisterPage() {
         setLocalError('Password does not meet requirements');
         return;
       }
+    } else {
+      // For OAuth users, they must set a password for future email/password logins
+      if (!formData.password) {
+        setLocalError('Please set a password for future logins');
+        return;
+      }
+
+      if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
+        setLocalError('Password does not meet requirements');
+        return;
+      }
     }
 
     router.push('/signup/medical');
@@ -126,73 +137,79 @@ export default function SignupRegisterPage() {
           />
         </div>
 
-        {isOAuthFlow || (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => handlePasswordChange(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
-                  onClick={() => setShowPassword(!showPassword)}
-                  tabIndex={-1}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-              <div className="mt-2 text-sm space-y-1">
-                <p className={`${passwordCheck.hasUpperCase ? 'text-green-600' : 'text-text-secondary'}`}>
-                  ✓ Uppercase letter
-                </p>
-                <p className={`${passwordCheck.hasLowerCase ? 'text-green-600' : 'text-text-secondary'}`}>
-                  ✓ Lowercase letter
-                </p>
-                <p className={`${passwordCheck.hasNumber ? 'text-green-600' : 'text-text-secondary'}`}>
-                  ✓ Number
-                </p>
-                <p className={`${passwordCheck.hasSpecialChar ? 'text-green-600' : 'text-text-secondary'}`}>
-                  ✓ Special character
-                </p>
-                <p className={`${passwordCheck.length ? 'text-green-600' : 'text-text-secondary'}`}>
-                  ✓ At least 8 characters
-                </p>
-              </div>
-            </div>
+        {isOAuthFlow && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-blue-800">
+              Please set a password so you can log in with your email address in the future.
+            </p>
+          </div>
+        )}
 
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={(e) => updateFormField('confirmPassword', e.target.value)}
-                  required
-                  className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  tabIndex={-1}
-                >
-                  {showConfirmPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-2">
+            {isOAuthFlow ? 'Set Password for Login' : 'Password'}
+          </label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={(e) => handlePasswordChange(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
+          <div className="mt-2 text-sm space-y-1">
+            <p className={`${passwordCheck.hasUpperCase ? 'text-green-600' : 'text-text-secondary'}`}>
+              ✓ Uppercase letter
+            </p>
+            <p className={`${passwordCheck.hasLowerCase ? 'text-green-600' : 'text-text-secondary'}`}>
+              ✓ Lowercase letter
+            </p>
+            <p className={`${passwordCheck.hasNumber ? 'text-green-600' : 'text-text-secondary'}`}>
+              ✓ Number
+            </p>
+            <p className={`${passwordCheck.hasSpecialChar ? 'text-green-600' : 'text-text-secondary'}`}>
+              ✓ Special character
+            </p>
+            <p className={`${passwordCheck.length ? 'text-green-600' : 'text-text-secondary'}`}>
+              ✓ At least 8 characters
+            </p>
+          </div>
+        </div>
+
+        {!isOAuthFlow && (
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={formData.confirmPassword}
+                onChange={(e) => updateFormField('confirmPassword', e.target.value)}
+                required
+                className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? '🙈' : '👁️'}
+              </button>
             </div>
-          </>
+          </div>
         )}
 
         <div className="flex gap-3">

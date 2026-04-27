@@ -83,14 +83,14 @@ export default function AuthCallbackPage() {
                 addDebug('Profile exists but no medical intake - still routing to register');
                 setMessage('Completing your medical information...');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                router.push('/signup/register?oauth=true');
+                router.push('/signup');
                 return;
               } else {
                 // No profile exists - go to register
                 addDebug('No profile found - user needs to register');
                 setMessage('Completing your profile...');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                router.push('/signup/register?oauth=true');
+                router.push('/signup');
                 return;
               }
             } else {
@@ -161,16 +161,15 @@ export default function AuthCallbackPage() {
                   }
                   
                   if (profile) {
-                    // Profile exists but no medical_intake - skip register, go to medical
-                    addDebug('Profile exists but no medical intake - routing to medical intake');
-                    localStorage.add('oauth_signup_flow');
+                    // Profile exists but no medical_intake - routing to register for password setup
+                    addDebug('Profile exists but no medical intake - routing to register for password setup');
                     localStorage.setItem('oauth_signup_flow', 'true');
                     clearTimeout(timeout);
                     completed = true;
                     subscription?.unsubscribe();
-                    setMessage('Completing your medical information...');
+                    setMessage('Completing your profile...');
                     setTimeout(() => {
-                      router.push('/signup/medical?oauth=true');
+                      router.push('/signup');
                     }, 500);
                     return;
                   } else {
@@ -181,7 +180,7 @@ export default function AuthCallbackPage() {
                     subscription?.unsubscribe();
                     setMessage('Completing your profile...');
                     setTimeout(() => {
-                      router.push('/signup/register?oauth=true');
+                      router.push('/signup');
                     }, 500);
                     return;
                   }
