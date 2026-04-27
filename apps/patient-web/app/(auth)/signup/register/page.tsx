@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 import { PasswordCheck } from '@smileguard/shared-types';
-
 export default function SignupRegisterPage() {
   const router = useRouter();
   const {
@@ -34,6 +33,9 @@ export default function SignupRegisterPage() {
   useEffect(() => {
     const checkOAuthFlow = async () => {
       const params = new URLSearchParams(window.location.search);
+      const errorType = params.get('error');
+    if (errorType === 'no_account') {
+      setLocalError('Please sign up first before signing in');
       if (params.get('oauth') === 'true') {
         const { data: { user } } = await supabase.auth.getUser();
 
@@ -43,6 +45,7 @@ export default function SignupRegisterPage() {
           updateFormField('name', user.user_metadata?.full_name || user.email?.split('@')[0] || '');
         }
       }
+      
     };
 
     checkOAuthFlow();

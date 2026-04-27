@@ -19,26 +19,6 @@ export default function SignupConfirmPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const saveMedicalIntake = async (patientId: string) => {
-    const { error } = await supabase
-      .from('medical_intake')
-      .upsert({
-        patient_id: patientId,
-        date_of_birth: formData.medicalIntake.dateOfBirth || null,
-        gender: formData.medicalIntake.gender || null,
-        phone: formData.medicalIntake.phone || null,
-        address: formData.medicalIntake.address || null,
-        emergency_contact_name: formData.medicalIntake.emergencyContactName || null,
-        emergency_contact_phone: formData.medicalIntake.emergencyContactPhone || null,
-        allergies: formData.medicalIntake.allergies || null,
-        current_medications: formData.medicalIntake.currentMedications || null,
-        medical_conditions: formData.medicalIntake.medicalConditions || null,
-        past_surgeries: formData.medicalIntake.pastSurgeries || null,
-        smoking_status: formData.medicalIntake.smokingStatus || '',
-        pregnancy_status: formData.medicalIntake.pregnancyStatus || '',
-      });
-    return error;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +60,7 @@ export default function SignupConfirmPage() {
           notes: formData.medicalIntake.notes || null,
         };
 
-        const { error: intakeError } = await supabase
+        const { error: intakeError, data: intake } = await supabase
           .from('medical_intake')
           .insert(medicalData);
 

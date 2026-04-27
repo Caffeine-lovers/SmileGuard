@@ -48,8 +48,32 @@ export default function AuthCallbackPage() {
           addDebug(`Session error: ${sessionError.message}`);
         }
         
-        if (session) {
-          addDebug(`✓ Session found for user: ${session.user.email}`);
+       if (session) {
+        addDebug(`✓ Session found for user: ${session.user.email}`);
+        
+        // 1. Check if a profile actually exists in the 'profiles' table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          addDebug(`Profile check error: ${profileError.message}`);
+        }
+
+        // 2. If NO profile exists, this is an "unregistered" attempt
+        if (!profile) {
+          addDebug('Blocking sign-in: No profile found for this auth user.');
+          
+          // IMPORTANT: Clear the session so they aren't "half-logged in"
+          await supabase.auth.signOut();
+          
+          // Redirect to signup with an error flag
+          // Your signup page can then check for ?error=no_account to show the toast
+          router.push('/signup?error=no_account');
+          return;
+        }
           
           // Check if user has completed registration by checking medical_intake record
           // medical_intake exists = user has completed the full registration flow

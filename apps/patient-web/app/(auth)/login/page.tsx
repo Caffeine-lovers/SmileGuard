@@ -33,7 +33,6 @@ export default function LoginPage() {
     setOauthLoading(true);
     setLocalError(null);
     try {
-
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

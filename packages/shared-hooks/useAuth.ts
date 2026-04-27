@@ -132,9 +132,12 @@ export function useAuth(options: UseAuthOptions = {}) {
           console.error("[useAuth] Profile query error:", error.code, error.message);
           throw error;
         }
-      } else {
+      } else if (data) {
         console.log("[useAuth] Profile fetched:", { id: userId, name: data.name, role: data.role });
         setCurrentUser({ id: userId, name: data.name, email: data.email, role: data.role });
+      } else {
+        console.warn("[useAuth] Profile is null, falling back to default user state");
+        setCurrentUser({ id: userId, name: "User", email: "", role: "patient" });
       }
     } catch (err) {
       console.error("[useAuth] Error in fetchProfile:", err);
