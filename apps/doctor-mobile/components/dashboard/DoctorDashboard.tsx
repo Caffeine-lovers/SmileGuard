@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   ScrollView as RNScrollView,
 } from "react-native";
+import AppointmentCard from "./AppointmentCard";
 import { useFocusEffect } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
