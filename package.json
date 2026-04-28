@@ -12,7 +12,8 @@
     "test": "pnpm --filter @smileguard/tests test",
     "test:watch": "pnpm --filter @smileguard/tests test:watch",
     "test:coverage": "pnpm --filter @smileguard/tests test:coverage",
-    "type-check": "pnpm --filter patient-web type-check && pnpm --filter doctor-mobile tsc --noEmit"
+    "type-check": "pnpm --filter patient-web type-check && pnpm --filter doctor-mobile tsc --noEmit",
+    "eas-build-pre-install": "corepack enable"
   },
   "dependencies": {
     "expo": "53.0.0",
@@ -32,3 +33,4 @@
   ],
   "packageManager": "pnpm@9.0.0"
 }
+
