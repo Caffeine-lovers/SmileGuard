@@ -2,10 +2,6 @@
   "name": "smileguard",
   "version": "1.0.0",
   "description": "SmileGuard - AI-powered dental management system",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
     "doctor:start": "pnpm --filter doctor-mobile start",
     "doctor:android": "pnpm --filter doctor-mobile android",
@@ -30,5 +26,9 @@
     "@types/react": "^19.0.0"
   },
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "packageManager": "pnpm@9.0.0"
 }
