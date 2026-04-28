@@ -3,6 +3,7 @@ import { Slot, useRouter } from "expo-router";
 import { supabase } from "@smileguard/supabase-client";
 import { Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { ActivityIndicator, View } from "react-native";
+import { ClinicProvider } from "../../contexts/ClinicContext";
 
 export default function DoctorLayout() {
   const router = useRouter();
@@ -44,5 +45,9 @@ export default function DoctorLayout() {
     );
   }
 
-  return <Slot />;
+  return (
+    <ClinicProvider>
+      <Slot />
+    </ClinicProvider>
+  );
 }
