@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "SmileGuard - AI-powered dental management system",
   "scripts": {
-    "doctor:start": "pnpm --filter doctor-mobile start",
     "doctor:android": "pnpm --filter doctor-mobile android",
     "doctor:ios": "pnpm --filter doctor-mobile ios",
     "patient:dev": "pnpm --filter patient-web dev",
@@ -13,7 +12,8 @@
     "test:watch": "pnpm --filter @smileguard/tests test:watch",
     "test:coverage": "pnpm --filter @smileguard/tests test:coverage",
     "type-check": "pnpm --filter patient-web type-check && pnpm --filter doctor-mobile tsc --noEmit",
-    "eas-build-pre-install": "corepack enable"
+    "eas-build-pre-install": "corepack enable && corepack prepare pnpm@9.0.0 --activate",
+    "doctor:start": "pnpm --filter doctor-mobile start"
   },
   "dependencies": {
     "expo": "53.0.0",

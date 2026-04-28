@@ -6,21 +6,34 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "node": "20.x.x",
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
+      }
     },
     "preview": {
+      "node": "20.x.x",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
+      }
     },
     "production": {
+      "node": "20.x.x",
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
       }
     }
   },
   "submit": {
     "production": {}
   }
+  
 }
