@@ -132,8 +132,9 @@ export default function SignupRegisterPage() {
           <input
             type="email"
             value={formData.email}
-            disabled
-            className="w-full px-4 py-2 border border-border-card rounded-lg bg-gray-100 text-text-secondary outline-none cursor-not-allowed"
+            onChange={(e) => updateFormField('email', e.target.value)}
+            required
+            className="w-full px-4 py-2 border border-border-card rounded-lg bg-gray-100"
           />
         </div>
 
