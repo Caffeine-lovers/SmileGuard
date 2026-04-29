@@ -897,7 +897,7 @@ export default function AppointmentsTab({
             </View>
 
             {/* Weekday Headers */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 }}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
                 // Check if this day is closed based on clinic schedule
                 let isClosed = false;
@@ -909,17 +909,19 @@ export default function AppointmentsTab({
                 }
                 
                 return (
-                  <Text key={day} style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', width: '14.28%', textAlign: 'center', opacity: isClosed ? 0.7 : 1 }}>
-                    {day}
-                  </Text>
+                  <View key={day} style={{ width: '14.28%', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', opacity: isClosed ? 0.7 : 1 }}>
+                      {day}
+                    </Text>
+                  </View>
                 );
               })}
             </View>
 
             {/* Calendar Days */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap:2 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={{ flex: 1, minWidth: '14%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
+                <View key={`empty-${index}`} style={{ width: '14.28%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: '#fafafa', marginBottom: 4 }} />
               ))}
               {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                 const day = index + 1;
@@ -949,8 +951,7 @@ export default function AppointmentsTab({
                     onPress={() => !isUnavailable && setSelectedDate(dateStr)}
                     disabled={isUnavailable}
                     style={{
-                      flex: 1,
-                      minWidth: '14%',
+                      width: '14.28%',
                       height: 55,
                       justifyContent: 'center',
                       alignItems: 'center',
@@ -960,6 +961,7 @@ export default function AppointmentsTab({
                       borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#0b7fab' : '#e0e0e0',
                       opacity: isUnavailable ? 0.6 : 1,
                       position: 'relative',
+                      marginBottom: 4,
                     }}
                   >
                     <Text style={{ position: 'absolute', top: 4, left: 4, fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>

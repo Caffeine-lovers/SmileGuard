@@ -20,6 +20,7 @@ interface Patient {
   id: string;
   name: string;
   email: string;
+  isDummyAccount?: boolean;
 }
 
 interface BillingTabProps {
@@ -34,6 +35,7 @@ interface BillingWithPatientName extends Billing {
 interface AppointmentDetails {
   id: string;
   patient_id: string;
+  dummy_account_id?: string;
   dentist_id: string | null;
   service: string;
   appointment_date: string;
@@ -48,6 +50,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedPatientName, setSelectedPatientName] = useState<string>('');
+  const [selectedPatientIsDummy, setSelectedPatientIsDummy] = useState<boolean>(false);
   const [billings, setBillings] = useState<BillingWithPatientName[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +61,9 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentDetails | null>(null);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [loadingAppointment, setLoadingAppointment] = useState(false);
+  const [selectedBillingForEdit, setSelectedBillingForEdit] = useState<Billing | null>(null);
+  const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
+  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
 
   // Fetch all patients associated with doctor
   useFocusEffect(
@@ -71,47 +77,69 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     try {
       setLoading(true);
       
-      // Get doctor's appointments to find associated patients
-      let query = supabase
+      // Get doctor's appointments to find associated patients (both regular and dummy)
+      const { data: appointments, error: appointmentError } = await supabase
         .from('appointments')
-        .select('patient_id');
-
-      // Filter by dentist_id (which is the doctor's ID)
-      query = query.eq('dentist_id', doctorId);
-
-      const { data: appointments, error: appointmentError } = await query;
+        .select('patient_id, dummy_account_id')
+        .eq('dentist_id', doctorId);
 
       if (appointmentError) {
         console.error('Error fetching appointments:', appointmentError);
         return;
       }
 
-      // Get unique patient IDs from appointments
-      const patientIds = [...new Set((appointments || []).map((a) => a.patient_id).filter(Boolean))];
+      // Get unique patient IDs and dummy account IDs
+      const patientIds = [...new Set((appointments || [])
+        .map((a) => a.patient_id)
+        .filter(Boolean))];
+      
+      const dummyAccountIds = [...new Set((appointments || [])
+        .map((a) => a.dummy_account_id)
+        .filter(Boolean))];
 
-      if (patientIds.length === 0) {
-        setPatients([]);
-        return;
+      const allPatients: Patient[] = [];
+
+      // Fetch regular patient profiles
+      if (patientIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', patientIds);
+
+        if (profileError) {
+          console.error('Error fetching profiles:', profileError);
+        } else {
+          const mappedPatients = (profiles || []).map((p) => ({
+            id: p.id,
+            name: p.name || 'Unknown',
+            email: p.email || '',
+            isDummyAccount: false,
+          }));
+          allPatients.push(...mappedPatients);
+        }
       }
 
-      // Fetch patient profiles
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, name, email')
-        .in('id', patientIds);
+      // Fetch dummy accounts
+      if (dummyAccountIds.length > 0) {
+        const { data: dummyAccounts, error: dummyError } = await supabase
+          .from('dummy_accounts')
+          .select('id, patient_name, email')
+          .in('id', dummyAccountIds);
 
-      if (profileError) {
-        console.error('Error fetching profiles:', profileError);
-        return;
+        if (dummyError) {
+          console.error('Error fetching dummy accounts:', dummyError);
+        } else {
+          const mappedDummyAccounts = (dummyAccounts || []).map((d) => ({
+            id: d.id,
+            name: d.patient_name || 'Unknown',
+            email: d.email || '',
+            isDummyAccount: true,
+          }));
+          allPatients.push(...mappedDummyAccounts);
+        }
       }
 
-      const mappedPatients = (profiles || []).map((p) => ({
-        id: p.id,
-        name: p.name || 'Unknown',
-        email: p.email || '',
-      }));
-
-      setPatients(mappedPatients);
+      setPatients(allPatients);
     } catch (error) {
       console.error('Error loading patients:', error);
       Alert.alert('Error', 'Failed to load patients');
@@ -176,6 +204,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const handleSelectPatient = (patient: Patient) => {
     setSelectedPatientId(patient.id);
     setSelectedPatientName(patient.name);
+    setSelectedPatientIsDummy(patient.isDummyAccount || false);
     setShowPatientModal(false);
     setSearchQuery('');
   };
@@ -239,6 +268,57 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
       case 'pending':
       default:
         return '#f59e0b';
+    }
+  };
+
+  const handleEditPaymentStatus = (billing: Billing) => {
+    // Only allow editing for dummy accounts
+    if (!selectedPatientIsDummy) {
+      Alert.alert('Info', 'Payment status can only be edited for dummy account patients');
+      return;
+    }
+    setSelectedBillingForEdit(billing);
+    setShowPaymentStatusModal(true);
+  };
+
+  const updatePaymentStatus = async (newStatus: 'pending' | 'paid' | 'overdue') => {
+    if (!selectedBillingForEdit || !selectedBillingForEdit.id) {
+      Alert.alert('Error', 'Unable to update billing record');
+      return;
+    }
+
+    try {
+      setUpdatingPaymentStatus(true);
+      
+      const updateData: any = {
+        payment_status: newStatus,
+      };
+
+      if (newStatus === 'paid') {
+        updateData.payment_date = new Date().toISOString();
+        updateData.payment_method = 'cash'; // Default to cash for dummy accounts
+      }
+
+      const { error } = await supabase
+        .from('billings')
+        .update(updateData)
+        .eq('id', selectedBillingForEdit.id);
+
+      if (error) {
+        Alert.alert('Error', `Failed to update payment status: ${error.message}`);
+        return;
+      }
+
+      // Refresh billings
+      await loadPatientBillings();
+      setShowPaymentStatusModal(false);
+      setSelectedBillingForEdit(null);
+      Alert.alert('Success', `Payment status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      Alert.alert('Error', 'Failed to update payment status');
+    } finally {
+      setUpdatingPaymentStatus(false);
     }
   };
 
@@ -559,6 +639,27 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                           )}
                         </View>
 
+                        {/* Edit Button for Dummy Accounts */}
+                        {selectedPatientIsDummy && (
+                          <TouchableOpacity
+                            onPress={() => handleEditPaymentStatus(item)}
+                            style={{
+                              marginTop: 12,
+                              paddingVertical: 10,
+                              paddingHorizontal: 12,
+                              backgroundColor: '#f0f9ff',
+                              borderRadius: 8,
+                              borderWidth: 1,
+                              borderColor: '#0b7fab',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab' }}>
+                              Edit Payment Status
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
                       </View>
                     )}
                   />
@@ -750,7 +851,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Patient ID</Text>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginTop: 4 }}>
-                          {selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
+                          {(selectedAppointment.patient_id || selectedAppointment.dummy_account_id || 'N/A').slice(0, 8).toUpperCase()}
                         </Text>
                       </View>
                     </View>
@@ -864,6 +965,147 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   <Text style={{ fontSize: 14, color: '#666' }}>No appointment data available</Text>
                 </View>
               )}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Payment Status Edit Modal */}
+      <Modal
+        visible={showPaymentStatusModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setShowPaymentStatusModal(false);
+          setSelectedBillingForEdit(null);
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <SafeAreaView style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
+            <ScrollView
+              contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 24, paddingBottom: 32 }}
+            >
+              {/* Header */}
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>
+                  Edit Payment Status
+                </Text>
+                <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                  Bill #{selectedBillingForEdit?.id?.slice(0, 8).toUpperCase()}
+                </Text>
+              </View>
+
+              {/* Amount Info */}
+              {selectedBillingForEdit && (
+                <View
+                  style={{
+                    backgroundColor: '#f9f9f9',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 24,
+                    borderLeftWidth: 4,
+                    borderLeftColor: '#0b7fab',
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <View>
+                      <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Amount</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#0b7fab', marginTop: 4 }}>
+                        ${(selectedBillingForEdit.final_amount || selectedBillingForEdit.amount).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Current Status</Text>
+                      <View
+                        style={{
+                          backgroundColor: getPaymentStatusColor(selectedBillingForEdit.payment_status),
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          marginTop: 4,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff', textTransform: 'capitalize' }}>
+                          {selectedBillingForEdit.payment_status}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Status Options */}
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 }}>
+                Select New Status
+              </Text>
+
+              {['pending', 'paid', 'overdue'].map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  onPress={() => updatePaymentStatus(status as 'pending' | 'paid' | 'overdue')}
+                  disabled={updatingPaymentStatus}
+                  style={{
+                    paddingVertical: 14,
+                    paddingHorizontal: 14,
+                    borderRadius: 10,
+                    borderWidth: 2,
+                    borderColor: getPaymentStatusColor(status),
+                    backgroundColor: selectedBillingForEdit?.payment_status === status ? getPaymentStatusColor(status) : '#fff',
+                    marginBottom: 12,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <View>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: selectedBillingForEdit?.payment_status === status ? '#fff' : '#111', textTransform: 'capitalize' }}>
+                      {status}
+                    </Text>
+                    {status === 'pending' && (
+                      <Text style={{ fontSize: 11, color: selectedBillingForEdit?.payment_status === status ? '#fff' : '#666', marginTop: 2 }}>
+                        Not yet paid
+                      </Text>
+                    )}
+                    {status === 'paid' && (
+                      <Text style={{ fontSize: 11, color: selectedBillingForEdit?.payment_status === status ? '#fff' : '#666', marginTop: 2 }}>
+                        Payment received
+                      </Text>
+                    )}
+                    {status === 'overdue' && (
+                      <Text style={{ fontSize: 11, color: selectedBillingForEdit?.payment_status === status ? '#fff' : '#666', marginTop: 2 }}>
+                        Payment overdue
+                      </Text>
+                    )}
+                  </View>
+                  {updatingPaymentStatus && selectedBillingForEdit?.payment_status === status && (
+                    <ActivityIndicator color={selectedBillingForEdit?.payment_status === status ? '#fff' : '#0b7fab'} />
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              {/* Close Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowPaymentStatusModal(false);
+                  setSelectedBillingForEdit(null);
+                }}
+                disabled={updatingPaymentStatus}
+                style={{
+                  marginTop: 12,
+                  paddingVertical: 14,
+                  borderRadius: 10,
+                  backgroundColor: '#e5e5e5',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Cancel</Text>
+              </TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
         </View>
