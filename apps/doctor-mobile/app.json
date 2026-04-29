@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "SMILEGUARD",
+    "name": "smileguard",
     "slug": "smileguard",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/user.png",
     "scheme": "smileguard",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
@@ -15,29 +15,11 @@
     },
     "android": {
       "package": "com.TurtleStudios.smileguard",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
-        }
-      ],
       [
         "expo-media-library",
         {
