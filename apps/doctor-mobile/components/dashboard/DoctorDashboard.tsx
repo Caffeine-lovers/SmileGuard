@@ -12,10 +12,11 @@ import {
   ActivityIndicator,
   ScrollView as RNScrollView,
 } from "react-native";
+import AppointmentCard from "./AppointmentCard";
 import { useFocusEffect } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import AppointmentCard from "./AppointmentCard";
+import { useClinic } from "../../contexts/ClinicContext";
 import StatCard from "./StatCard";
 import NotificationBell from "./NotificationBell";
 import NotificationCenter from "./NotificationCenter";
@@ -75,6 +76,7 @@ interface DoctorDashboardProps {
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
   const insets = useSafeAreaInsets();
+  const { clinic, loading: clinicLoading } = useClinic();
   
   // ─────────────────────────────────────────
   // NOTIFICATION SYSTEM
@@ -84,10 +86,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
-  
-  // Clinic logo and name state
-  const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
-  const [clinicName, setClinicName] = useState<string>('SmileGuard');
   
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
@@ -479,37 +477,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // ─────────────────────────────────────────
   // LOAD CLINIC LOGO AND NAME
   // ─────────────────────────────────────────
-  useEffect(() => {
-    const loadClinicData = async () => {
-      try {
-        if (!user?.id) return;
-        
-        const { data, error } = await supabase
-          .from('clinic_setup')
-          .select('logo_url, clinic_name')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (error && error.code !== 'PGRST116') {
-          // PGRST116 = no rows (clinic not set up yet, which is expected)
-          console.error('Error loading clinic data:', error);
-          return;
-        }
-        
-        if (data?.logo_url) {
-          setClinicLogoUrl(data.logo_url);
-        }
-        
-        if (data?.clinic_name) {
-          setClinicName(data.clinic_name);
-        }
-      } catch (error) {
-        console.error('Error loading clinic data:', error);
-      }
-    };
-    
-    loadClinicData();
-  }, [user?.id]);
+  // Clinic data is now loaded from ClinicContext and updates in real-time
 
   const handlePress = (apt: DashboardAppointment) => {
     setSelectedPatient(apt);
@@ -1461,15 +1429,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
             {sidebarOpen && (
               <View style={styles.logoSection}>
-                {clinicLogoUrl ? (
+                {clinic?.logo_url ? (
                   <Image
-                    source={{ uri: clinicLogoUrl }}
+                    source={{ uri: clinic.logo_url }}
                     style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }}
                   />
                 ) : (
                   <Text style={styles.logoText}>🦷</Text>
                 )}
-                <Text style={styles.logoTitle}>{clinicName}</Text>
+                <Text style={styles.logoTitle}>{clinic?.clinic_name || 'SmileGuard'}</Text>
               </View>
             )}
 

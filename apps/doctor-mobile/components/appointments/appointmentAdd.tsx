@@ -198,22 +198,40 @@ export default function AppointmentAdd({
         return;
       }
       
+      console.log(`[AppointmentAdd] Authenticated user: ${authUserId}`);
+      
+      // Fetch blockout dates - let RLS policy handle filtering
+      // Don't filter by user_id if it's NULL in the database
       const { data: blockoutData, error: blockoutError } = await supabase
         .from('clinic_blockout_dates')
-        .select('*')
-        .eq('user_id', authUserId);
+        .select('id, blockout_date, is_blocked, reason, user_id')
+        .order('blockout_date', { ascending: true });
       
       if (blockoutError) {
         console.error('❌ Error loading blockout dates:', blockoutError.message);
         return;
       }
       
-      if (blockoutData) {
+      console.log(`[AppointmentAdd] Raw fetch returned ${blockoutData?.length || 0} records`);
+      
+      if (blockoutData && blockoutData.length > 0) {
         setBlockoutDates(blockoutData);
         console.log('✅ Loaded', blockoutData.length, 'blockout dates');
         blockoutData.forEach(b => {
-          console.log(`   📌 Blockout: ${b.blockout_date} - is_blocked: ${b.is_blocked}`);
+          // Show raw database value
+          console.log(`   📌 Raw DB: ${JSON.stringify(b)}`);
+          console.log(`   📌 Blockout Date: "${b.blockout_date}" (type: ${typeof b.blockout_date}) - is_blocked: ${b.is_blocked} - user_id: ${b.user_id || 'NULL'} - reason: ${b.reason || 'N/A'}`);
+          
+          // Try different date formats to help debugging
+          if (b.blockout_date) {
+            const dateObj = new Date(b.blockout_date);
+            const isoString = dateObj.toISOString().split('T')[0];
+            console.log(`   📌 Converted to ISO: ${isoString}`);
+          }
         });
+      } else {
+        console.log('ℹ️ No blockout dates found (check RLS policies and data)');
+        setBlockoutDates([]);
       }
     } catch (error) {
       console.error('❌ Error loading blockout dates:', error);
@@ -520,16 +538,39 @@ export default function AppointmentAdd({
   const isUnavailableDay = (year: number, month: number, day: number): boolean => {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     
+    // Log the check being performed
+    console.log(`[isUnavailableDay] Checking date: ${dateStr} | blockoutDates.length: ${blockoutDates?.length || 0}`);
+    
     // 1. Check specific blockout dates first (highest priority)
-    const blockout = blockoutDates.find(b => b.blockout_date === dateStr);
-    if (blockout) {
-      if (blockout.is_blocked) {
-        console.log(`[AppointmentAdd] Date ${dateStr} is BLOCKED (specific blockout)`);
-        return true;
+    if (blockoutDates && blockoutDates.length > 0) {
+      console.log(`[isUnavailableDay] Searching in ${blockoutDates.length} blockout dates for ${dateStr}`);
+      
+      const blockout = blockoutDates.find(b => {
+        // Handle both DATE type (comes as YYYY-MM-DD string) and ensure proper comparison
+        const blockoutDateStr = typeof b.blockout_date === 'string' 
+          ? b.blockout_date.trim()  // Trim whitespace
+          : new Date(b.blockout_date).toISOString().split('T')[0];
+        
+        const matches = blockoutDateStr === dateStr;
+        if (matches) {
+          console.log(`[isUnavailableDay] ✅ MATCH FOUND: "${blockoutDateStr}" === "${dateStr}"`);
+        }
+        return matches;
+      });
+      
+      if (blockout) {
+        if (blockout.is_blocked) {
+          console.log(`[isUnavailableDay] 🚫 Date ${dateStr} is BLOCKED (specific blockout) - Reason: ${blockout.reason || 'N/A'}`);
+          return true;
+        } else {
+          console.log(`[isUnavailableDay] ✅ Date ${dateStr} is AVAILABLE (blockout override)`);
+          return false;
+        }
       } else {
-        console.log(`[AppointmentAdd] Date ${dateStr} is AVAILABLE (blockout override)`);
-        return false;
+        console.log(`[isUnavailableDay] 🔍 No blockout entry found for ${dateStr}`);
       }
+    } else {
+      console.log(`[isUnavailableDay] ⚠️ blockoutDates is empty or null`);
     }
     
     // 2. Check clinic schedule
@@ -540,6 +581,7 @@ export default function AppointmentAdd({
       const daySchedule = clinicSchedule[dayName as keyof Schedule];
       
       if (daySchedule && daySchedule.isOpen === false) {
+        console.log(`[isUnavailableDay] Date ${dateStr} is UNAVAILABLE (clinic closed on ${dayName})`);
         return true;
       }
     }
@@ -799,9 +841,10 @@ export default function AppointmentAdd({
         const appointment = data[0];
         const servicePrice = getServicePrice(selectedService);
         
-        // For billings table, use appointment_id to link to the appointment (which contains service info)
+        // For billings table, use the patient_id/dummy_account_id from the appointment
+        // This ensures billing is linked correctly to either a regular patient or dummy account
         const billingData: any = {
-          patient_id: selectedPatient,
+          patient_id: appointment.dummy_account_id || appointment.patient_id,
           appointment_id: appointment.id,
           amount: servicePrice,
           final_amount: servicePrice,
@@ -809,6 +852,7 @@ export default function AppointmentAdd({
         };
         
         console.log('💳 Creating billing record:', billingData);
+        console.log('💳 Appointment data:', { patient_id: appointment.patient_id, dummy_account_id: appointment.dummy_account_id });
         
         const { error: billingError } = await supabase
           .from('billings')

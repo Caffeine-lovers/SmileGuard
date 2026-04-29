@@ -140,7 +140,7 @@ export async function bookSlot(
   service: string,
   appointmentDate: string,
   appointmentTime: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; appointmentId?: string }> {
   console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
   
   const { data: existing, error: checkError } = await supabase
@@ -156,7 +156,7 @@ export async function bookSlot(
   }
   if (existing && existing.length > 0) return { success: false, message: 'Sorry, this slot was just taken!' };
 
-  const { error: insertError } = await supabase
+  const { data: insertedData, error: insertError } = await supabase
     .from('appointments')
     .insert({
       patient_id: patientId,
@@ -165,7 +165,8 @@ export async function bookSlot(
       appointment_date: appointmentDate,
       appointment_time: appointmentTime,
       status: 'scheduled',
-    });
+    })
+    .select('id');
 
   if (insertError) {
     console.error('Insert Error Detail:', insertError);
@@ -174,7 +175,8 @@ export async function bookSlot(
     return { success: false, message: 'Booking failed. Please try again.' };
   }
 
-  return { success: true, message: 'Appointment booked successfully!' };
+  const appointmentId = insertedData?.[0]?.id;
+  return { success: true, message: 'Appointment booked successfully!', appointmentId };
 }
 
 // ─────────────────────────────────────────
@@ -342,4 +344,28 @@ export async function getPatientAppointments(
   }
 
   return data || [];
+}
+
+// ─────────────────────────────────────────
+// 8. GET DOCTOR NAME BY DENTIST ID
+// ─────────────────────────────────────────
+export async function getDoctorName(dentistId: string): Promise<string | null> {
+  try {
+    // Fetch doctor name from doctors table using the dentist_id (which is user_id)
+    const { data, error } = await supabase
+      .from('doctors')
+      .select('doctor_name')
+      .eq('user_id', dentistId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching doctor name from doctors table:', error);
+      return null;
+    }
+
+    return data?.doctor_name || null;
+  } catch (error) {
+    console.error('Error getting doctor name:', error);
+    return null;
+  }
 }
