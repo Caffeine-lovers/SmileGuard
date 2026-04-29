@@ -9,8 +9,15 @@
     "useAuth.ts",
     "useNetwork.ts"
   ],
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    }
+  },
+  "packageManager": "pnpm@9.0.0",
   "dependencies": {
-    "@smileguard/shared-types": "*",
+    "@smileguard/shared-types": "workspace:*",
     "@supabase/supabase-js": "^2.95.3",
     "react": "^19.0.0",
     "react-native-screens": "4.20.0"
@@ -20,4 +27,5 @@
   },
   "private": true
 }
+
 

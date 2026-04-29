@@ -5,11 +5,20 @@
   "main": "index.ts",
   "types": "index.ts",
   "files": [
-    "index.ts"
+    "index.ts",
+    "clinic-rules.types.ts"
   ],
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    }
+  },
   "private": true,
+  "packageManager": "pnpm@9.0.0",
   "dependencies": {
     "react-native-screens": "4.20.0"
   }
 }
+
 
