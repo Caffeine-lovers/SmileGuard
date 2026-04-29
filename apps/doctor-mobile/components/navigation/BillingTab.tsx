@@ -77,24 +77,19 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     try {
       setLoading(true);
       
-      // Get doctor's appointments to find associated patients (both regular and dummy)
-      const { data: appointments, error: appointmentError } = await supabase
-        .from('appointments')
-        .select('patient_id, dummy_account_id')
-        .eq('dentist_id', doctorId);
+      // Fetch all billings to get patients with billing records
+      const { data: billingRecords, error: billingError } = await supabase
+        .from('billings')
+        .select('patient_id');
 
-      if (appointmentError) {
-        console.error('Error fetching appointments:', appointmentError);
+      if (billingError) {
+        console.error('Error fetching billings:', billingError);
         return;
       }
 
-      // Get unique patient IDs and dummy account IDs
-      const patientIds = [...new Set((appointments || [])
-        .map((a) => a.patient_id)
-        .filter(Boolean))];
-      
-      const dummyAccountIds = [...new Set((appointments || [])
-        .map((a) => a.dummy_account_id)
+      // Get unique patient IDs from billings
+      const patientIds = [...new Set((billingRecords || [])
+        .map((b) => b.patient_id)
         .filter(Boolean))];
 
       const allPatients: Patient[] = [];
@@ -119,12 +114,12 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
         }
       }
 
-      // Fetch dummy accounts
-      if (dummyAccountIds.length > 0) {
+      // Also fetch dummy accounts that have billing records
+      if (patientIds.length > 0) {
         const { data: dummyAccounts, error: dummyError } = await supabase
           .from('dummy_accounts')
           .select('id, patient_name, email')
-          .in('id', dummyAccountIds);
+          .in('id', patientIds);
 
         if (dummyError) {
           console.error('Error fetching dummy accounts:', dummyError);
