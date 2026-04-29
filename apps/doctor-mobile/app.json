@@ -12,17 +12,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.smileguard.doctor"
-    },
-    "android": {
-      "package": "com.smileguard.doctor",
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE"
-      ]
-    },
     "plugins": [
       "expo-router"
     ],
