@@ -5,16 +5,8 @@
   "main": "index.ts",
   "types": "index.ts",
   "files": [
-    "index.ts",
-    "clinic-rules.service.ts"
+    "index.ts"
   ],
-  "exports": {
-    ".": {
-      "types": "./index.ts",
-      "default": "./index.ts"
-    }
-  },
-  "packageManager": "pnpm@9.0.0",
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
     "react-native-screens": "4.20.0"

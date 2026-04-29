@@ -13,6 +13,10 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+config.resolver.disableHierarchicalLookup = true;
+config.resolver.unstable_enableSymlinks = true;
+config.resolver.unstable_enablePackageExports = false; // ← disables broken exports field
+
 config.resolver.extraNodeModules = {
   '@smileguard/shared-types': path.resolve(workspaceRoot, 'packages/shared-types'),
   '@smileguard/shared-hooks': path.resolve(workspaceRoot, 'packages/shared-hooks'),
