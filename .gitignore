@@ -2,8 +2,6 @@
 
 # ============ Dependencies ============
 node_modules/
-
-
 # ============ Build outputs ============
 dist/
 build/

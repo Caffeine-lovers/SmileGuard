@@ -1,38 +1,32 @@
 {
   "expo": {
-    "name": "smileguard",
-    "slug": "smileguard",
+    "name": "SmileGuard Doctor",
+    "slug": "smileguard-doctor",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/user.png",
-    "scheme": "smileguard",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "sdkVersion": "54.0.0",
-    "platforms": ["ios", "android"],
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smileguard.doctor"
     },
     "android": {
-      "package": "com.TurtleStudios.smileguard",
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "package": "com.smileguard.doctor",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
-          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos."
-        }
-      ]
+      "expo-router"
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "extra": {
-      "router": {},
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {

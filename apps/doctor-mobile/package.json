@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@smileguard/shared-hooks": "*",
-    "@smileguard/shared-types": "*",
-    "@smileguard/supabase-client": "*",
+    "@smileguard/shared-hooks": "workspace:*",
+    "@smileguard/shared-types": "workspace:*",
+    "@smileguard/supabase-client": "workspace:*",
     "babel-plugin-react-compiler": "^1.0.0",
     "expo": "~54.0.33",
     "expo-auth-session": "~7.0.10",
@@ -41,15 +41,14 @@
     "react-native-screens": "4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^2.0.0",
+    "react-native-worklets": "0.5.1",
     "semver": "^7.7.4"
   },
   "devDependencies": {
     "@types/react": "^19.1.10",
-    "@types/react-native": "^0.73.0",
     "eslint": "^8.0.0",
     "typescript": "^5.0.0"
   },
   "private": true,
   "packageManager": "pnpm@9.0.0"
 }
-
