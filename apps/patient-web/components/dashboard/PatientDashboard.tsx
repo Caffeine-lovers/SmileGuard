@@ -147,18 +147,30 @@ export default function PatientDashboard() {
     
     setIsCancelling(true);
     try {
-      const { error } = await supabase
+      // Update appointment status to cancelled
+      const { error: appointmentError } = await supabase
         .from('appointments')
         .update({ status: 'cancelled' })
         .eq('id', selectedAppointmentForCancel.id);
 
-      if (error) throw error;
+      if (appointmentError) throw appointmentError;
+
+      // Delete associated billing record
+      const { error: billingError } = await supabase
+        .from('billings')
+        .delete()
+        .eq('appointment_id', selectedAppointmentForCancel.id);
+
+      if (billingError) {
+        console.warn('Warning: Billing record could not be deleted:', billingError);
+        // Don't throw - appointment was already cancelled, billing might not exist
+      }
 
       // Remove from state
       setAppointments(prev => prev.filter(apt => apt.id !== selectedAppointmentForCancel.id));
       setShowCancelModal(false);
       setSelectedAppointmentForCancel(null);
-      alert('Appointment cancelled successfully');
+      alert('Appointment cancelled and billing removed successfully');
     } catch (error) {
       console.error('Error cancelling appointment:', error);
       alert('Failed to cancel appointment');
@@ -167,22 +179,28 @@ export default function PatientDashboard() {
     }
   };
 
-  const calculateCancellationFee = (appointmentDate: string): { fee: number; isWithinGracePeriod: boolean; isWithinCancellationWindow: boolean } => {
+  const calculateCancellationFee = (appointment: Appointment): { fee: number; isWithinGracePeriod: boolean; isWithinCancellationWindow: boolean } => {
     if (!appointmentRules) {
       return { fee: 0, isWithinGracePeriod: false, isWithinCancellationWindow: false };
     }
 
     const now = new Date();
-    const apptDate = new Date(appointmentDate);
-    const hoursDifference = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // If within grace period, no fee
-    if (appointmentRules.grace_period_enabled && hoursDifference <= appointmentRules.grace_period_hours) {
-      return { fee: 0, isWithinGracePeriod: true, isWithinCancellationWindow: true };
+    // Calculate grace period based on when appointment was created (booked)
+    if (appointmentRules.grace_period_enabled && appointment.created_at) {
+      const createdAt = new Date(appointment.created_at);
+      const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceCreation <= appointmentRules.grace_period_hours) {
+        return { fee: 0, isWithinGracePeriod: true, isWithinCancellationWindow: true };
+      }
     }
 
+    // Calculate cancellation window based on appointment date
+    const apptDate = new Date(appointment.appointment_date);
+    const hoursUntilAppointment = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
     // If still within cancellation window, charge fee
-    if (hoursDifference <= appointmentRules.cancellation_window_hours) {
+    if (hoursUntilAppointment >= -appointmentRules.cancellation_window_hours) {
       return { fee: appointmentRules.cancellation_fee_amount || 0, isWithinGracePeriod: false, isWithinCancellationWindow: true };
     }
 
@@ -324,9 +342,17 @@ export default function PatientDashboard() {
                             <p className="text-xs text-text-secondary mt-1">{formatDate(apt.appointment_date)} at {apt.appointment_time}</p>
                             {apt.notes && <p className="text-xs text-text-secondary mt-2 italic">Notes: {apt.notes}</p>}
                           </div>
-                          <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
-                            Pending
-                          </span>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+                              Pending
+                            </span>
+                            <button
+                              onClick={() => handleCancelClick(apt)}
+                              className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline px-1 py-0.5 transition-colors"
+                            >
+                              Cancel Request
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -368,7 +394,7 @@ export default function PatientDashboard() {
                 <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cancellation Policy</p>
                 
                 {(() => {
-                  const { fee, isWithinGracePeriod, isWithinCancellationWindow } = calculateCancellationFee(selectedAppointmentForCancel.appointment_date);
+                  const { fee, isWithinGracePeriod, isWithinCancellationWindow } = calculateCancellationFee(selectedAppointmentForCancel);
 
                   if (isWithinGracePeriod) {
                     return (
@@ -431,7 +457,7 @@ export default function PatientDashboard() {
                   type="button"
                   onClick={handleConfirmCancel}
                   disabled={isCancelling || (() => {
-                    const { isWithinCancellationWindow } = calculateCancellationFee(selectedAppointmentForCancel.appointment_date);
+                    const { isWithinCancellationWindow } = calculateCancellationFee(selectedAppointmentForCancel);
                     return !isWithinCancellationWindow;
                   })()}
                   className="flex-1 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

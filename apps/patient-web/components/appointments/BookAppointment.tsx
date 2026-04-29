@@ -615,10 +615,10 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
       {/* Rules & Policies Modal */}
       {showRulesModal && appointmentRules && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[9999] p-4 pt-24 pb-8 overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[calc(100vh-8rem)] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex items-center justify-between shrink-0">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex items-start sm:items-center justify-between shrink-0">
               <div>
                 <h2 className="text-2xl font-bold">Booking Rules & Policies</h2>
                 <p className="text-blue-100 text-sm mt-1">What you need to know before booking</p>
