@@ -3,8 +3,6 @@
  * Used by both patient-web and doctor-mobile
  */
 
-import { MedicalIntakeData } from "@/apps/patient-web/lib/signup-context";
-
 // ─────────────────────────────────────────
 // User & Auth Types
 // ─────────────────────────────────────────
@@ -16,6 +14,10 @@ export interface CurrentUser {
   role: "patient" | "doctor";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
+}
+
+export interface MedicalIntakeData {
+  [key: string]: unknown;
 }
 
 export interface FormData {
