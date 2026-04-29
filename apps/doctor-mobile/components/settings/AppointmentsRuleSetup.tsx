@@ -97,6 +97,8 @@ export default function AppointmentsRuleSetup({
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
 
   // Form state
   const [formData, setFormData] = useState<Partial<AppointmentRules>>({
@@ -111,10 +113,32 @@ export default function AppointmentsRuleSetup({
     no_show_penalty_amount: 300,
   });
 
-  // Fetch appointment rules on mount
+  // Fetch user role and appointment rules on mount
   useEffect(() => {
+    fetchUserRole();
     fetchAppointmentRules();
   }, [currentUser?.id]);
+
+  const fetchUserRole = async () => {
+    try {
+      setRoleLoading(true);
+      if (!currentUser?.id) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (error) throw error;
+      setUserRole(data?.role || null);
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      setUserRole(null);
+    } finally {
+      setRoleLoading(false);
+    }
+  };
 
   const fetchAppointmentRules = async () => {
     try {
@@ -214,7 +238,7 @@ export default function AppointmentsRuleSetup({
     setHasChanges(true);
   };
 
-  if (loading) {
+  if (loading || roleLoading) {
     return (
       <View
         style={[
@@ -226,6 +250,9 @@ export default function AppointmentsRuleSetup({
       </View>
     );
   }
+
+  const isDoctor = userRole === 'doctor';
+  const isReadOnly = !isDoctor;
 
   return (
     <ScrollView
@@ -245,9 +272,28 @@ export default function AppointmentsRuleSetup({
           Set Appointment Rules
         </Text>
         <Text style={[styles.subtitle, { color: TEXT_SECONDARY }]}>
-          Configure your appointment policies and settings
+          {isReadOnly
+            ? 'View your appointment policies and settings'
+            : 'Configure your appointment policies and settings'}
         </Text>
       </View>
+
+      {/* Read-Only Notice for Patients */}
+      {isReadOnly && (
+        <View
+          style={[
+            styles.card,
+            styles.policyCard,
+            { borderColor: '#ef4444', backgroundColor: '#fee2e2' },
+          ]}>
+          <Text style={[styles.policyTitle, { color: '#dc2626' }]}>
+            View Only
+          </Text>
+          <Text style={[styles.policyText, { color: '#dc2626' }]}>
+            Only doctors can modify appointment rules. You can view the current rules below.
+          </Text>
+        </View>
+      )}
 
 
 
@@ -266,7 +312,8 @@ export default function AppointmentsRuleSetup({
                   { 
                     borderColor: modifiedFields.has('cancellation_window_hours') ? ACCENT_COLOR : BORDER_COLOR,
                     borderWidth: modifiedFields.has('cancellation_window_hours') ? 2 : 1,
-                    color: TEXT_PRIMARY 
+                    color: TEXT_PRIMARY,
+                    opacity: isReadOnly ? 0.6 : 1,
                   },
                 ]}
                 placeholder="24"
@@ -274,13 +321,14 @@ export default function AppointmentsRuleSetup({
                 keyboardType="number-pad"
                 value={String(formData.cancellation_window_hours || '')}
                 onChangeText={(text) =>
-                  updateField('cancellation_window_hours', text === '' ? NaN : parseInt(text))
+                  !isReadOnly && updateField('cancellation_window_hours', text === '' ? NaN : parseInt(text))
                 }
                 onBlur={() => {
                   if (isNaN(formData.cancellation_window_hours as any)) {
                     updateField('cancellation_window_hours', 24);
                   }
                 }}
+                editable={!isReadOnly}
               />
               <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
                 How many hours before the appointment can patients cancel?
@@ -298,7 +346,8 @@ export default function AppointmentsRuleSetup({
                   { 
                     borderColor: modifiedFields.has('cancellation_fee_amount') ? ACCENT_COLOR : BORDER_COLOR,
                     borderWidth: modifiedFields.has('cancellation_fee_amount') ? 2 : 1,
-                    color: TEXT_PRIMARY 
+                    color: TEXT_PRIMARY,
+                    opacity: isReadOnly ? 0.6 : 1,
                   },
                 ]}
                 placeholder="500"
@@ -306,13 +355,14 @@ export default function AppointmentsRuleSetup({
                 keyboardType="decimal-pad"
                 value={String(formData.cancellation_fee_amount || '')}
                 onChangeText={(text) =>
-                  updateField('cancellation_fee_amount', text === '' ? NaN : parseFloat(text))
+                  !isReadOnly && updateField('cancellation_fee_amount', text === '' ? NaN : parseFloat(text))
                 }
                 onBlur={() => {
                   if (isNaN(formData.cancellation_fee_amount as any)) {
                     updateField('cancellation_fee_amount', 500);
                   }
                 }}
+                editable={!isReadOnly}
               />
               <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
                 Amount charged for late cancellations
@@ -342,11 +392,12 @@ export default function AppointmentsRuleSetup({
                 </View>
                 <Switch
                   value={formData.grace_period_enabled || false}
-                  onValueChange={(value) =>
-                    updateField('grace_period_enabled', value)
-                  }
+                  onValueChange={(value) => {
+                    if (!isReadOnly) updateField('grace_period_enabled', value);
+                  }}
                   trackColor={{ false: '#767577', true: ACCENT_COLOR }}
                   thumbColor={formData.grace_period_enabled ? SUCCESS_COLOR : '#f4f3f4'}
+                  disabled={isReadOnly}
                 />
               </View>
 
@@ -362,7 +413,8 @@ export default function AppointmentsRuleSetup({
                       { 
                         borderColor: modifiedFields.has('grace_period_hours') ? ACCENT_COLOR : BORDER_COLOR,
                         borderWidth: modifiedFields.has('grace_period_hours') ? 2 : 1,
-                        color: TEXT_PRIMARY 
+                        color: TEXT_PRIMARY,
+                        opacity: isReadOnly ? 0.6 : 1,
                       },
                     ]}
                     placeholder="2"
@@ -370,12 +422,15 @@ export default function AppointmentsRuleSetup({
                     keyboardType="number-pad"
                     value={String(formData.grace_period_hours || '')}
                     onChangeText={(text) =>
-                      updateField('grace_period_hours', parseInt(text) || 2)
-                    }                    onBlur={() => {
+                      !isReadOnly && updateField('grace_period_hours', parseInt(text) || 2)
+                    }
+                    onBlur={() => {
                       if (isNaN(formData.grace_period_hours as any)) {
                         updateField('grace_period_hours', 2);
                       }
-                    }}                  />
+                    }}
+                    editable={!isReadOnly}
+                  />
                   <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
                     Duration within which cancellations are free
                   </Text>
@@ -406,11 +461,12 @@ export default function AppointmentsRuleSetup({
                 </View>
                 <Switch
                   value={formData.first_time_cancellation_free || false}
-                  onValueChange={(value) =>
-                    updateField('first_time_cancellation_free', value)
-                  }
+                  onValueChange={(value) => {
+                    if (!isReadOnly) updateField('first_time_cancellation_free', value);
+                  }}
                   trackColor={{ false: '#767577', true: ACCENT_COLOR }}
                   thumbColor={formData.first_time_cancellation_free ? SUCCESS_COLOR : '#f4f3f4'}
+                  disabled={isReadOnly}
                 />
               </View>
             </View>
@@ -429,7 +485,7 @@ export default function AppointmentsRuleSetup({
                 • Cancellation window: {formData.cancellation_window_hours} hours
               </Text>
               <Text style={[styles.policyText, { color: AI_COLOR }]}>
-                • Cancellation fee: ₹{formData.cancellation_fee_amount}
+                • Cancellation fee: ₱{formData.cancellation_fee_amount}
               </Text>
               {formData.grace_period_enabled && (
                 <Text style={[styles.policyText, { color: AI_COLOR }]}>
@@ -471,11 +527,12 @@ export default function AppointmentsRuleSetup({
                 </View>
                 <Switch
                   value={formData.reschedule_allowed || false}
-                  onValueChange={(value) =>
-                    updateField('reschedule_allowed', value)
-                  }
+                  onValueChange={(value) => {
+                    if (!isReadOnly) updateField('reschedule_allowed', value);
+                  }}
                   trackColor={{ false: '#767577', true: ACCENT_COLOR }}
                   thumbColor={formData.reschedule_allowed ? SUCCESS_COLOR : '#f4f3f4'}
+                  disabled={isReadOnly}
                 />
               </View>
 
@@ -491,7 +548,8 @@ export default function AppointmentsRuleSetup({
                       { 
                         borderColor: modifiedFields.has('reschedule_window_hours') ? ACCENT_COLOR : BORDER_COLOR,
                         borderWidth: modifiedFields.has('reschedule_window_hours') ? 2 : 1,
-                        color: TEXT_PRIMARY 
+                        color: TEXT_PRIMARY,
+                        opacity: isReadOnly ? 0.6 : 1,
                       },
                     ]}
                     placeholder="24"
@@ -499,13 +557,14 @@ export default function AppointmentsRuleSetup({
                     keyboardType="number-pad"
                     value={String(formData.reschedule_window_hours || '')}
                     onChangeText={(text) =>
-                      updateField('reschedule_window_hours', text === '' ? NaN : parseInt(text))
+                      !isReadOnly && updateField('reschedule_window_hours', text === '' ? NaN : parseInt(text))
                     }
                     onBlur={() => {
                       if (isNaN(formData.reschedule_window_hours as any)) {
                         updateField('reschedule_window_hours', 24);
                       }
                     }}
+                    editable={!isReadOnly}
                   />
                   <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
                     How many hours before appointment can patients reschedule?
@@ -544,11 +603,12 @@ export default function AppointmentsRuleSetup({
                 </View>
                 <Switch
                   value={formData.no_show_penalty_enabled || false}
-                  onValueChange={(value) =>
-                    updateField('no_show_penalty_enabled', value)
-                  }
+                  onValueChange={(value) => {
+                    if (!isReadOnly) updateField('no_show_penalty_enabled', value);
+                  }}
                   trackColor={{ false: '#767577', true: ACCENT_COLOR }}
                   thumbColor={formData.no_show_penalty_enabled ? SUCCESS_COLOR : '#f4f3f4'}
+                  disabled={isReadOnly}
                 />
               </View>
 
@@ -556,7 +616,7 @@ export default function AppointmentsRuleSetup({
               {formData.no_show_penalty_enabled && (
                 <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
                   <Text style={[styles.label, { color: TEXT_PRIMARY }]}>
-                    No-Show Penalty Amount (₹)
+                    No-Show Penalty Amount (₱)
                   </Text>
                   <TextInput
                     style={[
@@ -564,7 +624,8 @@ export default function AppointmentsRuleSetup({
                       { 
                         borderColor: modifiedFields.has('no_show_penalty_amount') ? ACCENT_COLOR : BORDER_COLOR,
                         borderWidth: modifiedFields.has('no_show_penalty_amount') ? 2 : 1,
-                        color: TEXT_PRIMARY 
+                        color: TEXT_PRIMARY,
+                        opacity: isReadOnly ? 0.6 : 1,
                       },
                     ]}
                     placeholder="300"
@@ -572,13 +633,14 @@ export default function AppointmentsRuleSetup({
                     keyboardType="decimal-pad"
                     value={String(formData.no_show_penalty_amount || '')}
                     onChangeText={(text) =>
-                      updateField('no_show_penalty_amount', text === '' ? NaN : parseFloat(text))
+                      !isReadOnly && updateField('no_show_penalty_amount', text === '' ? NaN : parseFloat(text))
                     }
                     onBlur={() => {
                       if (isNaN(formData.no_show_penalty_amount as any)) {
                         updateField('no_show_penalty_amount', 300);
                       }
                     }}
+                    editable={!isReadOnly}
                   />
                   <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
                     Amount charged for no-shows
@@ -589,38 +651,40 @@ export default function AppointmentsRuleSetup({
           </View>
         </CustomCollapsible>
       </View>
-      <View style={[styles.buttonContainer, { marginBottom: 40 }]}>
-        <TouchableOpacity
-          style={[
-            styles.saveButton, 
-            { 
-              backgroundColor: hasChanges ? ACCENT_COLOR : '#999',
-              opacity: hasChanges ? 1 : 0.6
-            }
-          ]}
-          onPress={handleSave}
-          disabled={!hasChanges || saving}>
-          {saving ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Rules</Text>
-          )}
-        </TouchableOpacity>
-
-        {onClose && (
+      {isDoctor && (
+        <View style={[styles.buttonContainer, { marginBottom: 40 }]}>
           <TouchableOpacity
             style={[
-              styles.cancelButton,
-              { borderColor: BORDER_COLOR },
+              styles.saveButton, 
+              { 
+                backgroundColor: hasChanges ? ACCENT_COLOR : '#999',
+                opacity: hasChanges ? 1 : 0.6
+              }
             ]}
-            onPress={onClose}
-            disabled={saving}>
-            <Text style={[styles.cancelButtonText, { color: TEXT_PRIMARY }]}>
-              Cancel
-            </Text>
+            onPress={handleSave}
+            disabled={!hasChanges || saving}>
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Rules</Text>
+            )}
           </TouchableOpacity>
-        )}
-      </View>
+
+          {onClose && (
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                { borderColor: BORDER_COLOR },
+              ]}
+              onPress={onClose}
+              disabled={saving}>
+              <Text style={[styles.cancelButtonText, { color: TEXT_PRIMARY }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
