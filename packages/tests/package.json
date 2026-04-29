@@ -10,8 +10,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@smileguard/shared-types": "workspace:*",
-    "@smileguard/shared-hooks": "workspace:*"
+    "@smileguard/shared-types": "*",
+    "@smileguard/shared-hooks": "*"
   },
   "devDependencies": {
     "@testing-library/react": "^14.0.0",
@@ -24,3 +24,4 @@
   },
   "packageManager": "pnpm@9.0.0"
 }
+

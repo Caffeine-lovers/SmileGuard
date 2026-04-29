@@ -11,9 +11,9 @@
     "dev:clean": "rm -rf .next && next dev"
   },
   "dependencies": {
-    "@smileguard/shared-hooks": "workspace:*",
-    "@smileguard/shared-types": "workspace:*",
-    "@smileguard/supabase-client": "workspace:*",
+    "@smileguard/shared-hooks": "*",
+    "@smileguard/shared-types": "*",
+    "@smileguard/supabase-client": "*",
     "next": "^16.2.1",
     "qrcode.react": "^1.0.1",
     "react": "^19.0.0",
@@ -31,3 +31,4 @@
   },
   "packageManager": "pnpm@9.0.0"
 }
+

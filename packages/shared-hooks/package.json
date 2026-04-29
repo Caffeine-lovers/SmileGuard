@@ -10,7 +10,7 @@
     "useNetwork.ts"
   ],
   "dependencies": {
-    "@smileguard/shared-types": "workspace:*",
+    "@smileguard/shared-types": "*",
     "@supabase/supabase-js": "^2.95.3",
     "react": "^19.0.0",
     "react-native-screens": "4.20.0"
@@ -20,3 +20,4 @@
   },
   "private": true
 }
+

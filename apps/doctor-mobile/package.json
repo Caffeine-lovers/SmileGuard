@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@smileguard/shared-hooks": "workspace:*",
-    "@smileguard/shared-types": "workspace:*",
-    "@smileguard/supabase-client": "workspace:*",
+    "@smileguard/shared-hooks": "*",
+    "@smileguard/shared-types": "*",
+    "@smileguard/supabase-client": "*",
     "babel-plugin-react-compiler": "^1.0.0",
     "expo": "~54.0.33",
     "expo-auth-session": "~7.0.10",
@@ -52,3 +52,4 @@
   "private": true,
   "packageManager": "pnpm@9.0.0"
 }
+
