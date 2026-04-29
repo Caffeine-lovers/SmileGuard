@@ -7,9 +7,16 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 const config = getDefaultConfig(projectRoot);
 
 config.watchFolders = [workspaceRoot];
+
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+
+config.resolver.extraNodeModules = {
+  '@smileguard/shared-types': path.resolve(workspaceRoot, 'packages/shared-types'),
+  '@smileguard/shared-hooks': path.resolve(workspaceRoot, 'packages/shared-hooks'),
+  '@smileguard/supabase-client': path.resolve(workspaceRoot, 'packages/supabase-client'),
+};
 
 module.exports = config;
