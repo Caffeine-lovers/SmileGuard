@@ -1,14 +1,10 @@
 {
   "expo": {
     "name": "SmileGuard Doctor",
-    "slug": "smileguard",
+    "slug": "1c84a99f-23d3-4e55-94d9-20fcbeca1173",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -19,8 +15,13 @@
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
-        "projectId": "4a094560-0f17-4d14-9fd2-48972bcd9f51"
-      }
+        "projectId": "28981be6-1f0b-4612-95b6-158e6ea1767c"
+      },
+      "router": {}
+    },
+    "owner": "mortart",
+    "android": {
+      "package": "com.smileguard.app"
     }
   }
 }
