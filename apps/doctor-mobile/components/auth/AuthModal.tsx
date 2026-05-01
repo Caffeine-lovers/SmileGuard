@@ -17,6 +17,8 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { CurrentUser } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
+import { makeRedirectUri } from 'expo-auth-session';
+import Constants from "expo-constants";
 
 // CRITICAL: For iOS, handle the auth session completion
 WebBrowser.maybeCompleteAuthSession();
@@ -62,71 +64,51 @@ export default function AuthModal({
   /**
    * Handle Google OAuth Sign-in
    */
-  const handleGoogleOAuth = async () => {
-    try {
-      setLoading(true);
-      console.log("[GoogleOAuth] Starting Google OAuth...");
+const handleGoogleOAuth = async () => {
+  try {
+    setLoading(true);
+    console.log("[GoogleOAuth] Starting Google OAuth...");
 
-      const redirectUri = Linking.createURL("oauth-redirect");
-      console.log("[AuthModal] Redirect URI:", redirectUri);
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectUri,
-          skipBrowserRedirect: true,
-          queryParams: {
-            prompt: "consent",
-          },
+    const redirectUri = makeRedirectUri({
+      scheme: 'smileguard',
+      path: 'oauth-redirect',
+    });
+    console.log("[GoogleOAuth] Redirect URI:", redirectUri);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUri,
+        skipBrowserRedirect: true, // required when using openAuthSessionAsync
+        queryParams: {
+          prompt: "consent",
         },
-      });
+      },
+    });
 
-      if (error) throw error;
+    if (error) throw error;
+    if (!data.url) throw new Error("No OAuth URL returned");
 
-      // Open browser for authentication
-      console.log("[GoogleOAuth] Opening browser for OAuth...");
-      
-      // On Android, WebBrowser.openAuthSessionAsync() may not return when using custom schemes
-      // Use Promise.race() with a timeout so we don't wait forever
-      const browserPromise = WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-      const timeoutPromise = new Promise<{ type: string }>((resolve) => 
-        setTimeout(() => resolve({ type: "timeout" }), 12000)
-      );
-      
-      const result = await Promise.race([browserPromise, timeoutPromise]);
-      console.log("[GoogleOAuth] Browser result:", result.type);
+    console.log("[GoogleOAuth] Opening browser...");
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+    console.log("[GoogleOAuth] Browser result:", result.type);
 
-      // Wait a moment for Supabase to process the session
-      console.log("[GoogleOAuth] Waiting for session to be established...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Check if user is now authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error("[GoogleOAuth] Session error:", sessionError.message);
-        throw sessionError;
-      }
-
-      if (session?.user) {
-        console.log("[GoogleOAuth] ✅ Session found for user:", session.user.email);
-        setLoading(false);
-        // The auth state change listener will detect SIGNED_IN and close the modal
-      } else {
-        console.log("[GoogleOAuth] ⚠️ No session found after browser closed");
-        setLoading(false);
-        throw new Error("Authentication did not complete. Please try again.");
-      }
-    } catch (err) {
-      let errorMessage = "Google sign-in failed.";
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      console.error("[GoogleOAuth] Error:", errorMessage);
-      Alert.alert("Sign-in Error", errorMessage);
-      setLoading(false);
+    if (result.type === 'success' && result.url) {
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+      if (exchangeError) throw exchangeError;
+      onClose(); // close immediately, RootLayout routing handles the rest
+    } else if (result.type === 'cancel' || result.type === 'dismiss') {
+      throw new Error("Sign-in was cancelled.");
     }
-  };
+
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Google sign-in failed.";
+    console.error("[GoogleOAuth] Error:", errorMessage);
+    Alert.alert("Sign-in Error", errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

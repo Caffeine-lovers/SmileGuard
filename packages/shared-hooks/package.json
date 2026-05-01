@@ -13,7 +13,7 @@
     "@smileguard/shared-types": "workspace:*",
     "@supabase/supabase-js": "^2.105.1",
     "react": "19.1.0"
-  },
+  },  
   "peerDependencies": {
     "react": "^19.0.0"
   },

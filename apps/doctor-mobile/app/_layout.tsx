@@ -13,59 +13,58 @@ export default function RootLayout() {
   const segments = useSegments();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [ready, setReady] = useState(false);
+  const [exchangingSession, setExchangingSession] = useState(false);
 
-  // Listen for deep links from OAuth redirects
+  // Handle OAuth deep link redirect
+useEffect(() => {
+  const handleUrl = async (url: string) => {
+    if (!url.includes('oauth-redirect')) return;
+    console.log("[RootLayout] OAuth redirect received:", url);
+    setExchangingSession(true);
+    try {
+      const { error } = await supabase.auth.exchangeCodeForSession(url);
+      if (error) throw error;
+    } catch (err) {
+      console.error("[RootLayout] Exchange failed:", err);
+      setExchangingSession(false);
+    }
+  };
+
+  const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+  Linking.getInitialURL().then((url) => { if (url) handleUrl(url); });
+
+  return () => subscription.remove();
+}, []);
+
+  // Auth state listener
   useEffect(() => {
-    const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log("[RootLayout] Deep link received:", url);
-      if (url.includes('smileguard://redirect')) {
-        console.log("[RootLayout] OAuth redirect detected");
-        // The session will be automatically set by Supabase auth listener
-        // Just log it so we know it arrived
-      }
-    });
-
-    // Also check if app was launched FROM a deep link (cold start)
-    Linking.getInitialURL().then((url) => {
-      if (url && url.includes('smileguard://redirect')) {
-        console.log("[RootLayout] App opened via deep link:", url);
-      }
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       console.log("[RootLayout] Initial session check:", session ? "Found" : "Null");
       if (session?.user) {
-        const role = session.user.user_metadata?.role;
-        console.log("[RootLayout] Initial user role:", role);
         setUser({
           id: session.user.id,
           email: session.user.email!,
           name: session.user.user_metadata?.name,
-          role
+          role: session.user.user_metadata?.role,
         });
       }
       setReady(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: string, session: Session | null) => {
+      (event, session) => {
         console.log("[RootLayout] Auth state changed:", event, session ? "Session Found" : "No Session");
         if (event === "PASSWORD_RECOVERY") {
           router.push("/reset-password");
           return;
         }
         if (session?.user) {
-          const role = session.user.user_metadata?.role;
-          console.log("[RootLayout] Setting user from auth state. Role:", role);
+          console.log("[RootLayout] Setting user. Role:", session.user.user_metadata?.role);
           setUser({
             id: session.user.id,
             email: session.user.email!,
             name: session.user.user_metadata?.name,
-            role
+            role: session.user.user_metadata?.role,
           });
         } else {
           console.log("[RootLayout] Setting user to null");
@@ -77,17 +76,17 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Routing logic
   useEffect(() => {
-    if (!ready) return;
+    // Don't route while session is being exchanged or app isn't ready
+    if (!ready || exchangingSession) return;
 
     const inDoctorGroup = segments[0] === "(doctor)";
     const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
-    const inOAuthRedirect = segments[0] === "oauth-redirect";
 
-    console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
+    console.log("[RootLayout] Routing - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // We only pause routing logic if on reset-password
     if (inResetPassword) return;
 
     if (!user) {
@@ -97,8 +96,7 @@ export default function RootLayout() {
       }
     } else {
       if (!inDoctorGroup && !inSetupProfile) {
-        console.log("[RootLayout] User exists, checking profile before dashboard...");
-        // Check if doctor profile exists before sending to dashboard
+        console.log("[RootLayout] User found, checking doctor profile...");
         supabase
           .from("doctors")
           .select("id")
@@ -106,16 +104,16 @@ export default function RootLayout() {
           .single()
           .then(({ data, error }) => {
             if (error?.code === "PGRST116" || !data) {
-              console.log("[RootLayout] No profile found, routing to /setup-profile");
+              console.log("[RootLayout] No profile, routing to /setup-profile");
               router.replace("/setup-profile");
             } else {
-              console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
+              console.log("[RootLayout] Profile found, routing to dashboard");
               router.replace("/(doctor)/dashboard");
             }
           });
       }
     }
-  }, [user, ready, segments]);
+  }, [user, ready, segments, exchangingSession]);
 
   if (!ready) return null;
 
