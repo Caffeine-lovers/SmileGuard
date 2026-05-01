@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { supabase } from '@smileguard/supabase-client';
 import { useAuth } from '../../hooks/useAuth';
+import { useClinic } from '../../contexts/ClinicContext';
 import { pickImage, uploadClinicLogo, uploadClinicGalleryImage, pickMultipleImages, uploadMultipleClinicGalleryImages } from '../../lib/imageUploadService';
 
 interface ClinicSetupProps {
@@ -73,6 +74,8 @@ export default function ClinicSetup({
   styles: externalStyles,
 }: ClinicSetupProps) {
   const { currentUser } = useAuth();
+  const { refetch: refetchClinic } = useClinic();
+  const [clinicSetupId, setClinicSetupId] = useState<string | null>(null);
   const [clinicData, setClinicData] = useState<ClinicData>({
     clinic_name: '',
     address: '',
@@ -84,6 +87,7 @@ export default function ClinicSetup({
   const [newService, setNewService] = useState('');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [noClinicRecord, setNoClinicRecord] = useState(false);
   const [showServicesSection, setShowServicesSection] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingGalleryImage, setUploadingGalleryImage] = useState(false);
@@ -140,32 +144,30 @@ export default function ClinicSetup({
   // Load clinic data from database on component mount
   useEffect(() => {
     const loadClinicData = async () => {
-      if (!currentUser?.id) {
-        setInitialLoading(false);
-        return;
-      }
-
       try {
-        // Load both clinic_setup and blockout_dates in parallel for faster loading
+        // Load both clinic_setup and blockout_dates without any filters
+        // Any doctor can access the shared clinic data
         const [clinicResponse, blockoutResponse] = await Promise.all([
           supabase
             .from('clinic_setup')
-            .select('clinic_name, address, logo_url, gallery_images, services, schedule')
-            .eq('user_id', currentUser.id)
-            .single(),
+            .select('id, clinic_name, address, logo_url, gallery_images, services, schedule')
+            .limit(1),
           supabase
             .from('clinic_blockout_dates')
             .select('blockout_date, reason, is_blocked')
-            .eq('user_id', currentUser.id)
             .order('blockout_date', { ascending: true }),
         ]);
 
-        const { data, error } = clinicResponse;
+        const { data: clinicArray, error } = clinicResponse;
         const { data: blockoutData, error: blockoutError } = blockoutResponse;
 
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
           console.error('Error loading clinic data:', error);
-        } else if (data) {
+        }
+
+        const data = clinicArray && clinicArray.length > 0 ? clinicArray[0] : null;
+
+        if (data) {
           // Helper to safely parse gallery images
           let galleryImages: string[] = [];
           if (data.gallery_images) {
@@ -192,14 +194,19 @@ export default function ClinicSetup({
             services: data.services || [],
             schedule: data.schedule || defaultSchedule,
           };
+          setClinicSetupId(data.id);
           setClinicData(loadedData);
           setOriginalClinicData(loadedData);
           setChangedFields(new Set());
+          setNoClinicRecord(false);
           
           // Set blockout dates if loaded successfully
           if (!blockoutError && blockoutData) {
             setBlockoutDates(blockoutData);
           }
+        } else {
+          // No record exists - signal to user they need to create one
+          setNoClinicRecord(true);
         }
       } catch (error) {
         console.error('Failed to load clinic data:', error);
@@ -209,7 +216,7 @@ export default function ClinicSetup({
     };
 
     loadClinicData();
-  }, [currentUser?.id]);
+  }, []);
 
   const localStyles = StyleSheet.create({
     container: {
@@ -631,8 +638,6 @@ export default function ClinicSetup({
   };
 
   const handleAddBlockoutDate = async (selectedDate: Date | null, month: number, day: number, year: number) => {
-    if (!currentUser?.id) return;
-
     try {
       // Use the exact values selected to avoid timezone conversion issues
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -648,7 +653,6 @@ export default function ClinicSetup({
       const { error } = await supabase
         .from('clinic_blockout_dates')
         .insert({
-          user_id: currentUser.id,
           blockout_date: dateStr,
           reason: blockoutReason || 'Blocked',
           is_blocked: true,
@@ -672,13 +676,10 @@ export default function ClinicSetup({
   };
 
   const handleRemoveBlockoutDate = async (dateStr: string) => {
-    if (!currentUser?.id) return;
-
     try {
       const { error } = await supabase
         .from('clinic_blockout_dates')
         .delete()
-        .eq('user_id', currentUser.id)
         .eq('blockout_date', dateStr);
 
       if (error) throw error;
@@ -697,15 +698,9 @@ export default function ClinicSetup({
       return;
     }
 
-    if (!currentUser?.id) {
-      Alert.alert('Error', 'User not authenticated');
-      return;
-    }
-
     setLoading(true);
     try {
       const dataToSave = {
-        user_id: currentUser.id,
         clinic_name: clinicData.clinic_name,
         address: clinicData.address,
         logo_url: clinicData.logo_url || null,
@@ -715,12 +710,22 @@ export default function ClinicSetup({
         updated_at: new Date().toISOString(),
       };
 
-      // Try to upsert (insert or update) clinic data
-      const { error } = await supabase
-        .from('clinic_setup')
-        .upsert(dataToSave, {
-          onConflict: 'user_id',
-        });
+      // Check if a record exists and update or insert accordingly
+      let error;
+      if (clinicSetupId) {
+        // Update existing record by id
+        const result = await supabase
+          .from('clinic_setup')
+          .update(dataToSave)
+          .eq('id', clinicSetupId);
+        error = result.error;
+      } else {
+        // Insert new record
+        const result = await supabase
+          .from('clinic_setup')
+          .insert(dataToSave);
+        error = result.error;
+      }
 
       if (error) {
         throw error;
@@ -733,6 +738,10 @@ export default function ClinicSetup({
       // Reset original data to current data after successful save
       setOriginalClinicData(clinicData);
       setChangedFields(new Set());
+      setNoClinicRecord(false);
+
+      // Notify context to refetch clinic data so all doctors see the update
+      await refetchClinic();
 
       Alert.alert('Success', 'Clinic information saved successfully');
       onClose?.();
@@ -749,6 +758,21 @@ export default function ClinicSetup({
       {initialLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#0b7fab" />
+        </View>
+      ) : noClinicRecord ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 16, textAlign: 'center' }}>
+            No Clinic Record Found
+          </Text>
+          <Text style={{ fontSize: 14, color: '#666', marginBottom: 24, textAlign: 'center' }}>
+            This clinic doesn't have setup information yet. Please fill in the clinic details to get started.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#0b7fab', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 }}
+            onPress={() => setNoClinicRecord(false)}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Create Clinic Setup</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <>

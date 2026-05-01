@@ -3,6 +3,8 @@
  * Used by both patient-web and doctor-mobile
  */
 
+import { MedicalIntakeData } from "@/apps/patient-web/lib/signup-context";
+
 // ─────────────────────────────────────────
 // User & Auth Types
 // ─────────────────────────────────────────
@@ -23,7 +25,7 @@ export interface FormData {
   password: string;
   phone?: string;
   nationality?: string;
-  medicalIntake: MedicalIntake;
+  medicalIntake: MedicalIntakeData;
   doctorAccessCode: string;
 }
 
@@ -62,49 +64,23 @@ export interface Patient {
   updated_at?: string;
 }
 
-export interface MedicalIntake {
-  has_diabetes?: boolean;
-  has_heart_disease?: boolean;
-  has_hypertension?: boolean;
-  has_asthma?: boolean;
-  allergies?: string;
-  current_medications?: string;
-  currentMedications?: string; // camelCase alias for current_medications
-  last_checkup?: string;
-  previous_treatments?: string;
-  dateOfBirth?: string;
+export interface medical_intake {
+  date_of_birth?: string;
   gender?: string;
   phone?: string;
   address?: string;
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  medicalConditions?: string;
-  pastSurgeries?: string;
-  smokingStatus?: "never" | "former" | "current";
-  pregnancyStatus?: "yes" | "no" | "na";
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  allergies?: string;
+  current_medications?: string;
+  medical_conditions?: string;
+  past_surgeries?: string;
+  smoking_status?: string;
+  pregnancy_status?: string;
+  notes?: string;
 }
 
-export const EMPTY_MEDICAL_INTAKE: MedicalIntake = {
-  has_diabetes: false,
-  has_heart_disease: false,
-  has_hypertension: false,
-  has_asthma: false,
-  allergies: "",
-  current_medications: "",
-  currentMedications: "",
-  last_checkup: "",
-  previous_treatments: "",
-  dateOfBirth: "",
-  gender: "",
-  phone: "",
-  address: "",
-  emergencyContactName: "",
-  emergencyContactPhone: "",
-  medicalConditions: "",
-  pastSurgeries: "",
-  smokingStatus: "never",
-  pregnancyStatus: "na",
-};
+
 
 // ─────────────────────────────────────────
 // Doctor Types
@@ -147,8 +123,16 @@ export const EMPTY_DOCTOR: Doctor = {
     wednesday: { open: "09:00", close: "17:00" },
     thursday: { open: "09:00", close: "17:00" },
     friday: { open: "09:00", close: "17:00" },
-    saturday: { isClosed: true },
-    sunday: { isClosed: true },
+    saturday: {
+      isClosed: true,
+      open: "",
+      close: ""
+    },
+    sunday: {
+      isClosed: true,
+      open: "",
+      close: ""
+    },
   },
   years_of_experience: 0,
   is_available: true,

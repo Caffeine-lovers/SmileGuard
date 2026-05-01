@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
-import { getPatientAppointments } from '@/lib/appointmentService';
+import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
@@ -16,6 +16,8 @@ export default function PatientDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'scheduled' | 'pending'>('scheduled');
+  const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     console.log("[PatientDashboard] Effect triggered:", { authLoading, currentUserId: currentUser?.id });
@@ -71,6 +73,39 @@ export default function PatientDashboard() {
     fetchData();
   }, [currentUser, authLoading, router]);
 
+  // Fetch doctor names for scheduled appointments
+  useEffect(() => {
+    const fetchDoctorNames = async () => {
+      const scheduledAppts = appointments.filter(apt => apt.dentist_id !== null);
+      const names: Record<string, string> = {};
+
+      for (const apt of scheduledAppts) {
+        if (apt.dentist_id && !doctorNames[apt.dentist_id]) {
+          try {
+            const doctorName = await getDoctorName(apt.dentist_id);
+            console.log(`[PatientDashboard] Fetched doctor name for ${apt.dentist_id}:`, doctorName);
+            if (doctorName) {
+              names[apt.dentist_id] = doctorName;
+            } else {
+              console.warn(`[PatientDashboard] No doctor name found for dentist_id: ${apt.dentist_id}`);
+            }
+          } catch (error) {
+            console.error(`[PatientDashboard] Error fetching doctor name for ${apt.dentist_id}:`, error);
+          }
+        }
+      }
+
+      if (Object.keys(names).length > 0) {
+        console.log('[PatientDashboard] Setting doctor names:', names);
+        setDoctorNames(prev => ({ ...prev, ...names }));
+      }
+    };
+
+    if (appointments.length > 0) {
+      fetchDoctorNames();
+    }
+  }, [appointments, doctorNames]);
+
   // Show loading only while auth is initializing
   if (authLoading) {
     return (
@@ -89,6 +124,10 @@ export default function PatientDashboard() {
     if (!dateStr || dateStr === 'None scheduled') return 'None scheduled';
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
   };
+
+  // Separate scheduled and pending appointments
+  const scheduledAppointments = appointments.filter(apt => apt.dentist_id !== null);
+  const pendingAppointments = appointments.filter(apt => apt.dentist_id === null);
 
   return (
     <div className="p-4 md:p-6 bg-bg-screen min-h-screen max-w-5xl mx-auto">
@@ -111,36 +150,109 @@ export default function PatientDashboard() {
     
       <div className="bg-bg-surface rounded-2xl shadow-sm border border-border-card p-6 mb-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-bold text-text-primary">Upcoming Scheduled Appointments</h2>
+          <h2 className="text-lg font-bold text-text-primary">Appointments</h2>
+          <div className="flex gap-2 bg-bg-notes rounded-xl p-1">
+            <button
+              onClick={() => setActiveTab('scheduled')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === 'scheduled'
+                  ? 'bg-brand-primary text-white'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Scheduled
+            </button>
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                activeTab === 'pending'
+                  ? 'bg-brand-primary text-white'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Pending Requests
+              {pendingAppointments.length > 0 && (
+                <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold ${
+                  activeTab === 'pending' ? 'bg-white/30' : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {pendingAppointments.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
-        {appointments.length > 0 ? (
-          <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
-            {appointments.map((apt, index) => (
-              <div key={apt.id} className="flex gap-4 items-stretch">
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
-                    {index + 1}
+
+        {/* Scheduled Appointments Tab */}
+        {activeTab === 'scheduled' && (
+          <>
+            {scheduledAppointments.length > 0 ? (
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                {scheduledAppointments.map((apt, index) => (
+                  <div key={apt.id} className="flex gap-4 items-stretch">
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
+                        {index + 1}
+                      </div>
+                      {index < scheduledAppointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
+                    </div>
+                    <div className="flex-1 pb-1">
+                      <AppointmentCard
+                        name={apt.dentist_id && doctorNames[apt.dentist_id] ? doctorNames[apt.dentist_id] : 'Assigned Doctor'}
+                        service={apt.service}
+                        time={apt.appointment_time}
+                        date={formatDate(apt.appointment_date)}
+                      />
+                    </div>
                   </div>
-                  {index < appointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
-                </div>
-                <div className="flex-1 pb-1">
-                  <AppointmentCard
-                    name="Your Doctor"
-                    service={apt.service}
-                    time={apt.appointment_time}
-                    date={formatDate(apt.appointment_date)}
-                  />
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-10">
-            <p className="text-text-secondary font-medium">No upcoming appointments</p>
-            <Link href="/appointments" className="text-brand-primary text-sm font-medium mt-2 inline-block hover:underline">
-              Book your first appointment →
-            </Link>
-          </div>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-text-secondary font-medium">No upcoming scheduled appointments</p>
+                <Link href="/appointments" className="text-brand-primary text-sm font-medium mt-2 inline-block hover:underline">
+                  Book your first appointment →
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pending Requests Tab */}
+        {activeTab === 'pending' && (
+          <>
+            {pendingAppointments.length > 0 ? (
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                {pendingAppointments.map((apt, index) => (
+                  <div key={apt.id} className="flex gap-4 items-stretch">
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
+                        {index + 1}
+                      </div>
+                      {index < pendingAppointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
+                    </div>
+                    <div className="flex-1 pb-1">
+                      <div className="bg-bg-notes rounded-xl p-4 border border-yellow-200">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-text-primary">{apt.service}</p>
+                            <p className="text-xs text-text-secondary mt-1">{formatDate(apt.appointment_date)} at {apt.appointment_time}</p>
+                            {apt.notes && <p className="text-xs text-text-secondary mt-2 italic">Notes: {apt.notes}</p>}
+                          </div>
+                          <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+                            Pending
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-text-secondary font-medium">No pending appointment requests</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 

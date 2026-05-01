@@ -333,7 +333,7 @@ export default function SignupVerifyPage() {
               <button
                 type="button"
                 onClick={handleResendOTP}
-                disabled={verificationLoading || (resendCooldownEnd && Date.now() < resendCooldownEnd)}
+                disabled={verificationLoading || (resendCooldownEnd !== null && Date.now() < resendCooldownEnd)}
                 className="text-xs text-brand-primary hover:text-brand-primary/80 disabled:text-text-secondary underline font-medium"
               >
                 {resendCooldownEnd && Date.now() < resendCooldownEnd
