@@ -6,21 +6,18 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
+// Watch the entire monorepo
 config.watchFolders = [workspaceRoot];
 
+// Let pnpm symlinks resolve naturally — no manual extraNodeModules needed
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-config.resolver.disableHierarchicalLookup = true;
-config.resolver.unstable_enableSymlinks = true;
-config.resolver.unstable_enablePackageExports = false; // ← disables broken exports field
-
-config.resolver.extraNodeModules = {
-  '@smileguard/shared-types': path.resolve(workspaceRoot, 'packages/shared-types'),
-  '@smileguard/shared-hooks': path.resolve(workspaceRoot, 'packages/shared-hooks'),
-  '@smileguard/supabase-client': path.resolve(workspaceRoot, 'packages/supabase-client'),
-};
+// Remove the old workarounds that are causing doctor warnings:
+// - disableHierarchicalLookup: true  → causes duplicate native module detection
+// - unstable_enableSymlinks: true    → no longer needed in Expo 54, enabled by default
+// - extraNodeModules manual map      → pnpm symlinks handle this now
 
 module.exports = config;

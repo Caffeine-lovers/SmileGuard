@@ -9,7 +9,8 @@
       "**/*"
     ],
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     "extra": {
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
