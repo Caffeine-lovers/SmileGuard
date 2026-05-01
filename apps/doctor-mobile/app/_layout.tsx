@@ -15,17 +15,77 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [exchangingSession, setExchangingSession] = useState(false);
 
+  const extractAuthParams = (url: string) => {
+    const params = new URLSearchParams();
+    const queryIndex = url.indexOf("?");
+    const hashIndex = url.indexOf("#");
+
+    if (queryIndex >= 0) {
+      const query = url.slice(queryIndex + 1, hashIndex >= 0 ? hashIndex : undefined);
+      const queryParams = new URLSearchParams(query);
+      queryParams.forEach((value, key) => params.set(key, value));
+    }
+
+    if (hashIndex >= 0) {
+      const hash = url.slice(hashIndex + 1);
+      const hashParams = new URLSearchParams(hash);
+      hashParams.forEach((value, key) => params.set(key, value));
+    }
+
+    return {
+      code: params.get("code"),
+      accessToken: params.get("access_token"),
+      refreshToken: params.get("refresh_token"),
+    };
+  };
+
   // Handle OAuth deep link redirect
 useEffect(() => {
   const handleUrl = async (url: string) => {
-    if (!url.includes('oauth-redirect')) return;
+    const isAuthRedirect =
+      url.includes("oauth-redirect") ||
+      url.includes("smileguard://redirect");
+
+    if (!isAuthRedirect) return;
+
     console.log("[RootLayout] OAuth redirect received:", url);
     setExchangingSession(true);
     try {
-      const { error } = await supabase.auth.exchangeCodeForSession(url);
-      if (error) throw error;
+      const {
+        data: { session: existingSession },
+      } = await supabase.auth.getSession();
+
+      if (existingSession?.user) {
+        console.log("[RootLayout] Session already present, skipping callback completion");
+        return;
+      }
+
+      const { code, accessToken, refreshToken } = extractAuthParams(url);
+      console.log("[RootLayout] Callback params:", {
+        hasCode: !!code,
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+      });
+
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw error;
+        return;
+      }
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error) throw error;
+        return;
+      }
+
+      console.log("[RootLayout] Redirect URL had no code/tokens; waiting for auth state change");
     } catch (err) {
       console.error("[RootLayout] Exchange failed:", err);
+    } finally {
       setExchangingSession(false);
     }
   };

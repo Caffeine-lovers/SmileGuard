@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SmileGuard Doctor",
-    "slug": "SmileGuardDoctor",
+    "slug": "smileguard-doctor",
     "version": "1.0.0",
     "scheme": "smileguard",
     "orientation": "portrait",

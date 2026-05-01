@@ -15,14 +15,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Alert } from "react-native";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { useRouter } from "expo-router";
 import { CurrentUser } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
 import { makeRedirectUri } from 'expo-auth-session';
-import Constants from "expo-constants";
+
 
 // CRITICAL: For iOS, handle the auth session completion
-WebBrowser.maybeCompleteAuthSession();
-
 export interface AuthModalProps {
   visible: boolean;
   onClose: () => void;
@@ -34,6 +33,7 @@ export default function AuthModal({
   onClose,
   onSuccess,
 }: AuthModalProps) {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -60,14 +60,80 @@ export default function AuthModal({
 
     return () => subscription.unsubscribe();
   }, [onClose]);
+  const extractAuthParams = (url: string) => {
+    const params = new URLSearchParams();
+    const queryIndex = url.indexOf("?");
+    const hashIndex = url.indexOf("#");
 
+    if (queryIndex >= 0) {
+      const query = url.slice(queryIndex + 1, hashIndex >= 0 ? hashIndex : undefined);
+      const queryParams = new URLSearchParams(query);
+      queryParams.forEach((value, key) => params.set(key, value));
+    }
+
+    if (hashIndex >= 0) {
+      const hash = url.slice(hashIndex + 1);
+      const hashParams = new URLSearchParams(hash);
+      hashParams.forEach((value, key) => params.set(key, value));
+    }
+
+    return {
+      code: params.get("code"),
+      accessToken: params.get("access_token"),
+      refreshToken: params.get("refresh_token"),
+    };
+  };
+
+  const completeOAuthFromUrl = async (url: string) => {
+    const { code, accessToken, refreshToken } = extractAuthParams(url);
+
+    console.log("[GoogleOAuth] Callback params:", {
+      hasCode: !!code,
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+    });
+
+    if (accessToken && refreshToken) {
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) throw error;
+      return;
+    }
+
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(url);
+      if (error) throw error;
+      return;
+    }
+
+    throw new Error("OAuth callback did not include a code or tokens.");
+  };
+
+  const routeAfterAuth = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("user_id", userId)
+      .single();
+
+    if (error?.code === "PGRST116" || !data) {
+      console.log("[GoogleOAuth] No doctor profile; routing to setup");
+      router.replace("/setup-profile");
+      return;
+    }
+
+    console.log("[GoogleOAuth] Doctor profile found; routing to dashboard");
+    router.replace("/(doctor)/dashboard");
+  };
   /**
    * Handle Google OAuth Sign-in
    */
-const handleGoogleOAuth = async () => {
-  try {
-    setLoading(true);
-    console.log("[GoogleOAuth] Starting Google OAuth...");
+  const handleGoogleOAuth = async () => {
+    try {
+      setLoading(true);
+      console.log("[GoogleOAuth] Starting Google OAuth...");
 
     const redirectUri = makeRedirectUri({
       scheme: 'smileguard',
@@ -94,8 +160,26 @@ const handleGoogleOAuth = async () => {
     console.log("[GoogleOAuth] Browser result:", result.type);
 
     if (result.type === 'success' && result.url) {
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
-      if (exchangeError) throw exchangeError;
+      await completeOAuthFromUrl(result.url);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      console.log("[GoogleOAuth] Session present after callback:", !!session?.user);
+
+      if (!session?.user) {
+        throw new Error("OAuth callback completed, but no session was established.");
+      }
+
+      onSuccess({
+        id: session.user.id,
+        email: session.user.email ?? "",
+        name: session.user.user_metadata?.name,
+        role: session.user.user_metadata?.role,
+      });
+
+      await routeAfterAuth(session.user.id);
       onClose(); // close immediately, RootLayout routing handles the rest
     } else if (result.type === 'cancel' || result.type === 'dismiss') {
       throw new Error("Sign-in was cancelled.");
