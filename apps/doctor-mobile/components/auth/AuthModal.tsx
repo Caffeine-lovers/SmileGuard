@@ -83,47 +83,46 @@ export default function AuthModal({
 
       if (error) throw error;
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+      // Open browser for authentication
+      console.log("[GoogleOAuth] Opening browser for OAuth...");
+      
+      // On Android, WebBrowser.openAuthSessionAsync() may not return when using custom schemes
+      // Use Promise.race() with a timeout so we don't wait forever
+      const browserPromise = WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+      const timeoutPromise = new Promise<{ type: string }>((resolve) => 
+        setTimeout(() => resolve({ type: "timeout" }), 12000)
+      );
+      
+      const result = await Promise.race([browserPromise, timeoutPromise]);
+      console.log("[GoogleOAuth] Browser result:", result.type);
 
-      if (result.type === "success") {
-        const extractParams = (urlString: string) => {
-          const queryString = urlString.includes("#") ? urlString.split("#")[1] : urlString.includes("?") ? urlString.split("?")[1] : "";
-          if (!queryString) return {} as Record<string, string>;
-          return queryString.split("&").reduce((acc, current) => {
-            const [key, value] = current.split("=");
-            if (key && value) acc[key] = decodeURIComponent(value);
-            return acc;
-          }, {} as Record<string, string>);
-        };
+      // Wait a moment for Supabase to process the session
+      console.log("[GoogleOAuth] Waiting for session to be established...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const params = extractParams(result.url);
+      // Check if user is now authenticated
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (params.error_description) {
-          throw new Error(params.error_description);
-        }
+      if (sessionError) {
+        console.error("[GoogleOAuth] Session error:", sessionError.message);
+        throw sessionError;
+      }
 
-        if (params.access_token && params.refresh_token) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: params.access_token,
-            refresh_token: params.refresh_token
-          });
-          
-          if (sessionError) throw sessionError;
-
-          console.log("[GoogleOAuth] Session set successfully");
-          // Close the modal - let the file-based routing handle directing to setup-profile or dashboard
-          onClose();
-        } else {
-          throw new Error("No tokens returned from Google");
-        }
-      } else {
+      if (session?.user) {
+        console.log("[GoogleOAuth] ✅ Session found for user:", session.user.email);
         setLoading(false);
+        // The auth state change listener will detect SIGNED_IN and close the modal
+      } else {
+        console.log("[GoogleOAuth] ⚠️ No session found after browser closed");
+        setLoading(false);
+        throw new Error("Authentication did not complete. Please try again.");
       }
     } catch (err) {
       let errorMessage = "Google sign-in failed.";
       if (err instanceof Error) {
         errorMessage = err.message;
       }
+      console.error("[GoogleOAuth] Error:", errorMessage);
       Alert.alert("Sign-in Error", errorMessage);
       setLoading(false);
     }
