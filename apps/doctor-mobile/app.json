@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SmileGuard Doctor",
-    "slug": "1c84a99f-23d3-4e55-94d9-20fcbeca1173",
+    "slug": "smileguard-doctor",
     "version": "1.0.0",
     "scheme": "smileguard",
     "orientation": "portrait",
@@ -16,7 +16,7 @@
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
-        "projectId": "28981be6-1f0b-4612-95b6-158e6ea1767c"
+        "projectId": "8452d18f-d75c-4d8a-9187-bcff1f62d2fb"
       },
       "router": {}
     },

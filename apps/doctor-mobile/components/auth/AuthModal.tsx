@@ -68,7 +68,8 @@ export default function AuthModal({
       console.log("[GoogleOAuth] Starting Google OAuth...");
 
       const redirectUri = Linking.createURL("oauth-redirect");
-      console.log("[AuthModal] Redirect URI:", redirectUri);
+
+      console.log("[GoogleOAuth] redirectUri being sent to Supabase:", redirectUri);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -95,6 +96,12 @@ export default function AuthModal({
       
       const result = await Promise.race([browserPromise, timeoutPromise]);
       console.log("[GoogleOAuth] Browser result:", result.type);
+
+      if ('url' in result) {
+        console.log("[GoogleOAuth] Redirect URL received:", result.url);
+      } else {
+        console.warn("[GoogleOAuth] No URL in result — session may not complete on Android");
+      }
 
       // Wait a moment for Supabase to process the session
       console.log("[GoogleOAuth] Waiting for session to be established...");
