@@ -26,7 +26,7 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        const callbackUrl = new URL("smileguard://auth/callback");
+        const callbackUrl = new URL("myapp://auth/callback");
         callbackUrl.searchParams.set("code", code);
         if (state) {
           callbackUrl.searchParams.set("state", state);
