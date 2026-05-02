@@ -13,6 +13,25 @@
     },
     "android": {
       "package": "com.TurtleStudios.smileguard",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "smileguard",
+              "pathPrefix": "/auth/callback"
+            },
+            {
+              "scheme": "smileguard",
+              "pathPrefix": "/oauth-redirect"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

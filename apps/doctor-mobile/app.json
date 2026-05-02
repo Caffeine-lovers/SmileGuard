@@ -1,10 +1,12 @@
 {
   "expo": {
+    "scheme": "smileguard",
     "name": "SmileGuard Doctor",
-    "slug": "1c84a99f-23d3-4e55-94d9-20fcbeca1173",
+    "slug": "smileguard-doctor",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -15,13 +17,32 @@
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
-        "projectId": "28981be6-1f0b-4612-95b6-158e6ea1767c"
+        "projectId": "f15402f3-529f-45c9-92dc-9f1382d049e1"
       },
       "router": {}
     },
-    "owner": "mortart",
+    "owner": "kyler_lee",
     "android": {
-      "package": "com.smileguard.app"
+      "package": "com.smileguard.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "smileguard",
+              "pathPrefix": "/auth/callback"
+            },
+            {
+              "scheme": "smileguard",
+              "pathPrefix": "/oauth-redirect"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     }
   }
 }
