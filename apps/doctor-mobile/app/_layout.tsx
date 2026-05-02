@@ -11,37 +11,6 @@ import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
 
-// Required for web OAuth flow completion
-WebBrowser.maybeCompleteAuthSession();
-
-const redirectTo = makeRedirectUri();
-
-const createSessionFromUrl = async (url: string) => {
-  try {
-    const { params, errorCode } = QueryParams.getQueryParams(url);
-
-    if (errorCode) throw new Error(errorCode);
-    const { access_token, refresh_token } = params;
-
-    if (!access_token) {
-      console.log("[createSessionFromUrl] No access token found in URL");
-      return;
-    }
-
-    console.log("[createSessionFromUrl] Setting session with tokens from URL");
-    const { data, error } = await supabase.auth.setSession({
-      access_token,
-      refresh_token,
-    });
-    if (error) throw error;
-    console.log("[createSessionFromUrl] Session set successfully");
-    return data.session;
-  } catch (error) {
-    console.error("[createSessionFromUrl] Error:", error);
-    throw error;
-  }
-};
-
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
