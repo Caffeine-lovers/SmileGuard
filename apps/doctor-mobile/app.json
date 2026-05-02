@@ -3,7 +3,7 @@
     "name": "SmileGuard Doctor",
     "slug": "smileguard-doctor",
     "version": "1.0.0",
-    "scheme": "smileguard",
+    "scheme": ["exp+smileguard", "smileguard"],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [

@@ -1,72 +1,99 @@
 import React, { useEffect } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { View, Text, ActivityIndicator } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
 
 /**
- * Deep Link Handler for OAuth Callback
+ * OAuth Redirect Handler for React Native
  * 
- * This route handles the OAuth redirect from Google/other providers.
- * Expo and Supabase redirect back here after the user authenticates.
+ * Tokens are in the URL HASH (#), not query params (?)
+ * exp://10.76.126.32:8081/--/oauth-redirect#access_token=eyJ...&refresh_token=abc...
  * 
- * URL format: smileguard://redirect?code=...&state=...
- * 
- * The deep link handler receives the authorization code, 
- * Supabase's session handler extracts it, and we check for the session.
+ * React Native's useLocalSearchParams() only captures query params, not hash.
+ * We must manually parse the hash fragment and call setSession().
  */
 export default function OAuthRedirect() {
   const router = useRouter();
-  const searchParams = useLocalSearchParams<{ code?: string; error?: string }>();
 
   useEffect(() => {
-    const handleOAuthCallback = async () => {
+    const handleRedirect = async () => {
       try {
-        console.log("[OAuthRedirect] Handler called");
-        console.log("[OAuthRedirect] Search params:", searchParams);
-        
-        // Give Supabase a moment to process the OAuth response
-        // The session hook in _layout will automatically detect the new session
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Get the full URL including hash fragment
+        const url = await Linking.getInitialURL();
+        console.log("[OAuthRedirect] Full URL received:", url);
 
-        // Check if user is now authenticated
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
-        console.log("[OAuthRedirect] Session user email:", session?.user?.email);
-        console.log("[OAuthRedirect] Session user ID:", session?.user?.id);
-
-        if (session?.user) {
-          console.log("✅ OAuth successful, user:", session.user.email);
-          console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
-          
-          // Let the root layout handle the redirection
-          // We just need to give the system a second to process the auth state
-          console.log("[OAuthRedirect] Handing off to _layout...");
-          // We won't replace routes here, to avoid conflicting with _layout routing
-        } else if (searchParams.error) {
-          // OAuth error occurred
-          console.error("❌ OAuth error:", searchParams.error);
-          router.replace("/");
-        } else {
-          // No session yet, redirect back to login
-          console.log("⚠️ No session after redirect");
-          router.replace("/");
+        if (!url) {
+          throw new Error("No URL found in OAuth redirect");
         }
+
+        // Extract the hash fragment (everything after #)
+        const hashIndex = url.indexOf("#");
+        if (hashIndex === -1) {
+          console.error("[OAuthRedirect] No hash fragment in URL, tokens are in query params or missing");
+          console.log("[OAuthRedirect] URL structure:", url);
+          throw new Error("No hash fragment found in redirect URL");
+        }
+
+        const hashPart = url.substring(hashIndex + 1);
+        console.log("[OAuthRedirect] Hash fragment:", hashPart.substring(0, 50) + "...");
+
+        // Parse the hash fragment as URLSearchParams
+        const params = Object.fromEntries(new URLSearchParams(hashPart));
+        console.log("[OAuthRedirect] Extracted param keys:", Object.keys(params));
+
+        const { access_token, refresh_token } = params;
+
+        if (!access_token) {
+          console.error("[OAuthRedirect] No access_token in hash fragment");
+          console.log("[OAuthRedirect] All params:", JSON.stringify(params, null, 2));
+          throw new Error("Missing access_token in redirect URL");
+        }
+
+        if (!refresh_token) {
+          console.warn("[OAuthRedirect] No refresh_token in hash fragment, continuing with access_token only");
+        }
+
+        // Manually set the session with tokens extracted from hash
+        console.log("[OAuthRedirect] Calling supabase.auth.setSession() with extracted tokens...");
+        const { data, error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token: refresh_token || undefined,
+        });
+
+        if (error) {
+          console.error("[OAuthRedirect] Supabase setSession error:", JSON.stringify(error, null, 2));
+          throw error;
+        }
+
+        console.log("[OAuthRedirect] ✅ Session set successfully");
+        console.log("[OAuthRedirect] User email:", data.session?.user?.email);
+        console.log("[OAuthRedirect] User ID:", data.session?.user?.id);
+        console.log("[OAuthRedirect] Token expires at:", data.session?.expires_at);
+
+        // The RootLayout's onAuthStateChange listener will fire with SIGNED_IN event
+        // and automatically route to dashboard
+        console.log("[OAuthRedirect] Handing off to RootLayout routing logic...");
+
       } catch (error) {
-        console.error("❌ Error handling OAuth callback:", error);
-        router.replace("/");
+        console.error("[OAuthRedirect] ❌ OAuth redirect failed:", error instanceof Error ? error.message : String(error));
+        console.error("[OAuthRedirect] Full error:", error);
+        
+        // Redirect back to login on error
+        setTimeout(() => {
+          console.log("[OAuthRedirect] Redirecting to login due to error");
+          router.replace("/");
+        }, 2000);
       }
     };
 
-    handleOAuthCallback();
-  }, [router, searchParams]);
+    handleRedirect();
+  }, [router]);
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" />
-      <Text style={{ marginTop: 16, color: "#999" }}>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+      <ActivityIndicator size="large" color="#0066cc" />
+      <Text style={{ marginTop: 16, color: "#666", fontSize: 14 }}>
         Completing sign-in...
       </Text>
     </View>

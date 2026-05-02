@@ -67,9 +67,24 @@ export default function AuthModal({
       setLoading(true);
       console.log("[GoogleOAuth] Starting Google OAuth...");
 
-      const redirectUri = Linking.createURL("oauth-redirect");
-
-      console.log("[GoogleOAuth] redirectUri being sent to Supabase:", redirectUri);
+      // During development: use full dev URL (exp://IP:port/--/path)
+      // During production (APK): use scheme (smileguard://path)
+      // Linking.createURL() should return the correct one, but in case of multiple schemes,
+      // we explicitly construct the development URL
+      let redirectUri = Linking.createURL("oauth-redirect");
+      
+      // If we're getting 'smileguard://' but should be 'exp://', construct it manually
+      if (redirectUri.startsWith("smileguard://")) {
+        // Try to get the Expo dev server URL
+        const devUrl = await Linking.getInitialURL();
+        if (devUrl && devUrl.includes("exp://")) {
+          // Extract the base URL (exp://IP:port)
+          const baseUrl = devUrl.split("--")[0] + "--";
+          redirectUri = baseUrl + "/oauth-redirect";
+          console.log("[GoogleOAuth] Using dev URL override:", redirectUri);
+        }
+      }
+      console.log("[GoogleOAuth] Final redirect URI:", redirectUri);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -86,43 +101,28 @@ export default function AuthModal({
 
       // Open browser for authentication
       console.log("[GoogleOAuth] Opening browser for OAuth...");
+      console.log("[GoogleOAuth] OAuth URL:", data.url.substring(0, 100) + "...");
       
-      // On Android, WebBrowser.openAuthSessionAsync() may not return when using custom schemes
-      // Use Promise.race() with a timeout so we don't wait forever
+      // Open the browser with a timeout to prevent hanging forever
       const browserPromise = WebBrowser.openAuthSessionAsync(data.url, redirectUri);
       const timeoutPromise = new Promise<{ type: string }>((resolve) => 
-        setTimeout(() => resolve({ type: "timeout" }), 12000)
+        setTimeout(() => {
+          console.warn("[GoogleOAuth] Browser session timeout after 60s");
+          resolve({ type: "timeout" });
+        }, 60000)
       );
-      
+
       const result = await Promise.race([browserPromise, timeoutPromise]);
-      console.log("[GoogleOAuth] Browser result:", result.type);
+      console.log("[GoogleOAuth] Browser result type:", result.type);
 
-      if ('url' in result) {
-        console.log("[GoogleOAuth] Redirect URL received:", result.url);
-      } else {
-        console.warn("[GoogleOAuth] No URL in result — session may not complete on Android");
-      }
-
-      // Wait a moment for Supabase to process the session
-      console.log("[GoogleOAuth] Waiting for session to be established...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Check if user is now authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error("[GoogleOAuth] Session error:", sessionError.message);
-        throw sessionError;
-      }
-
-      if (session?.user) {
-        console.log("[GoogleOAuth] ✅ Session found for user:", session.user.email);
+      if (result.type === "timeout") {
+        console.warn("[GoogleOAuth] Browser timed out, but oauth-redirect may still process the deep link");
+      } else if (result.type === "success" || result.type === "cancel") {
+        console.log("[GoogleOAuth] Browser closed (type: " + result.type + ")");
+      } else if (result.type === "dismiss") {
+        console.warn("[GoogleOAuth] User dismissed the browser");
         setLoading(false);
-        // The auth state change listener will detect SIGNED_IN and close the modal
-      } else {
-        console.log("[GoogleOAuth] ⚠️ No session found after browser closed");
-        setLoading(false);
-        throw new Error("Authentication did not complete. Please try again.");
+        throw new Error("Authentication cancelled");
       }
     } catch (err) {
       let errorMessage = "Google sign-in failed.";

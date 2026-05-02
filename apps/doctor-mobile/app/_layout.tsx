@@ -2,9 +2,6 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as Linking from "expo-linking";
-import { makeRedirectUri } from "expo-auth-session";
-import * as QueryParams from "expo-auth-session/build/QueryParams";
-import * as WebBrowser from "expo-web-browser";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
@@ -18,25 +15,11 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 ``
   // Listen for deep links from OAuth redirects
+  // oauth-redirect.tsx handles the actual token extraction and session setup
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log("[RootLayout] Deep link received:", url);
-      if (url.includes('smileguard://redirect')) {
-        console.log("[RootLayout] OAuth redirect detected, processing session...");
-        createSessionFromUrl(url).catch(err => 
-          console.error("[RootLayout] Failed to create session from URL:", err)
-        );
-      }
-    });
-
-    // Also check if app was launched FROM a deep link (cold start)
-    Linking.getInitialURL().then((url) => {
-      if (url && url.includes('smileguard://redirect')) {
-        console.log("[RootLayout] App opened via deep link, processing session...");
-        createSessionFromUrl(url).catch(err => 
-          console.error("[RootLayout] Failed to create session from URL:", err)
-        );
-      }
+      // oauth-redirect.tsx will handle the token extraction from the hash
     });
 
     return () => subscription.remove();
@@ -94,8 +77,8 @@ export default function RootLayout() {
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // We only pause routing logic if on reset-password
-    if (inResetPassword) return;
+    // We only pause routing logic if on reset-password or oauth-redirect
+    if (inResetPassword || inOAuthRedirect) return;
 
     if (!user) {
       if (inDoctorGroup || inSetupProfile) {
@@ -119,10 +102,13 @@ export default function RootLayout() {
               console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
               router.replace("/(doctor)/dashboard");
             }
+          })
+          .catch((err) => {
+            console.error("[RootLayout] Profile check failed:", err);
           });
       }
     }
-  }, [user, ready, segments]);
+  }, [user, ready, segments, router]);
 
   if (!ready) return null;
 
