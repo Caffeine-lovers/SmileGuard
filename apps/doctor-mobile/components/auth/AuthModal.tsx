@@ -33,7 +33,7 @@ export default function AuthModal({
   onClose,
   onSuccess,
 }: AuthModalProps) {
-  const ENABLE_DIRECT_OAUTH_REDIRECT_TEST = true;
+  const ENABLE_DIRECT_OAUTH_REDIRECT_TEST = false;
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);

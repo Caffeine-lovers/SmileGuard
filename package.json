@@ -20,8 +20,9 @@
     "expo-constants": "~17.1.8",
     "expo-device": "~7.1.4",
     "expo-notifications": "~0.31.5",
-    "react": "^19.1.0",
-    "semver": "^7.7.4"
+    "react": "^19.0.0",
+    "semver": "^7.7.4",
+    "expo-modules-core": "^2.5.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0"
@@ -30,7 +31,7 @@
   "packageManager": "pnpm@9.0.0",
   "pnpm": {
     "overrides": {
-      "react": "19.1.0",
+      "react": "19.0.0",
       "react-native-screens": "4.16.0"
     }
   }
