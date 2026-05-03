@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.TurtleStudios.smileguard",
+      "edgeToEdgeEnabled": false,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -31,7 +32,7 @@
           ]
         }
       ],
-      "edgeToEdgeEnabled": true,
+
       "predictiveBackGestureEnabled": false
     },
     "web": {

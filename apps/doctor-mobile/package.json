@@ -32,7 +32,7 @@
     "expo-symbols": "^0.4.5",
     "expo-web-browser": "^14.2.0",
     "lucide-react-native": "0.475.0",
-    "react": "19.0.0",
+    "react": "19.1.0",
     "react-native": "0.79.6",
     "react-native-gesture-handler": "^2.24.0",
     "react-native-safe-area-context": "^5.4.0",
