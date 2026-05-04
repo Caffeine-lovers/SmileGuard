@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import { View, Text, ActivityIndicator } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
 
@@ -7,61 +7,52 @@ import { supabase } from "@smileguard/supabase-client";
  * Deep Link Handler for OAuth Callback
  * 
  * This route handles the OAuth redirect from Google/other providers.
- * Expo and Supabase redirect back here after the user authenticates.
+ * The URL comes in as: smileguard://oauth-redirect#access_token=...&refresh_token=...
  * 
- * URL format: smileguard://redirect?code=...&state=...
+ * The root layout (_layout.tsx) will detect this deep link and extract
+ * the tokens from the hash fragment, then set the session.
  * 
- * The deep link handler receives the authorization code, 
- * Supabase's session handler extracts it, and we check for the session.
+ * This component just shows a loading state while that happens.
  */
 export default function OAuthRedirect() {
   const router = useRouter();
-  const searchParams = useLocalSearchParams<{ code?: string; error?: string }>();
 
   useEffect(() => {
     const handleOAuthCallback = async () => {
       try {
         console.log("[OAuthRedirect] Handler called");
-        console.log("[OAuthRedirect] Search params:", searchParams);
         
-        // Give Supabase a moment to process the OAuth response
-        // The session hook in _layout will automatically detect the new session
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // The root layout will extract tokens from the hash and set the session.
+        // Wait for the session to be established by the auth state listener.
+        let attempts = 0;
+        const maxAttempts = 20; // 20 * 500ms = 10 seconds max wait
 
-        // Check if user is now authenticated
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        while (attempts < maxAttempts) {
+          const { data: { session } } = await supabase.auth.getSession();
 
-        console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
-        console.log("[OAuthRedirect] Session user email:", session?.user?.email);
-        console.log("[OAuthRedirect] Session user ID:", session?.user?.id);
+          if (session?.user) {
+            console.log("[OAuthRedirect] ✅ Session established:", session.user.email);
+            // The root layout routing logic will handle navigation, so we just wait
+            // Let the auth state change listener in root layout trigger the navigation
+            return;
+          }
 
-        if (session?.user) {
-          console.log("✅ OAuth successful, user:", session.user.email);
-          console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
-          
-          // Let the root layout handle the redirection
-          // We just need to give the system a second to process the auth state
-          console.log("[OAuthRedirect] Handing off to _layout...");
-          // We won't replace routes here, to avoid conflicting with _layout routing
-        } else if (searchParams.error) {
-          // OAuth error occurred
-          console.error("❌ OAuth error:", searchParams.error);
-          router.replace("/");
-        } else {
-          // No session yet, redirect back to login
-          console.log("⚠️ No session after redirect");
-          router.replace("/");
+          attempts++;
+          // Wait before checking again
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
+
+        // If we get here, session was never established
+        console.error("[OAuthRedirect] ❌ Session not established after 10 seconds");
+        router.replace("/");
       } catch (error) {
-        console.error("❌ Error handling OAuth callback:", error);
+        console.error("[OAuthRedirect] Error:", error);
         router.replace("/");
       }
     };
 
     handleOAuthCallback();
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

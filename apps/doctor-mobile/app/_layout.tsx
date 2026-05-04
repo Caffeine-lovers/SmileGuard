@@ -18,17 +18,30 @@ const redirectTo = makeRedirectUri();
 
 const createSessionFromUrl = async (url: string) => {
   try {
-    const { params, errorCode } = QueryParams.getQueryParams(url);
+    // Supabase OAuth sends tokens in the hash fragment (#), not query params (?)
+    // URL format: smileguard://oauth-redirect#access_token=...&refresh_token=...
+    const hashIndex = url.indexOf('#');
+    if (hashIndex === -1) {
+      console.log("[createSessionFromUrl] No hash fragment found in URL");
+      return;
+    }
+
+    // Extract everything after the #
+    const hashFragment = url.substring(hashIndex + 1);
+    console.log("[createSessionFromUrl] Hash fragment:", hashFragment);
+
+    // Parse the hash fragment as query params
+    const { params, errorCode } = QueryParams.getQueryParams(`?${hashFragment}`);
 
     if (errorCode) throw new Error(errorCode);
     const { access_token, refresh_token } = params;
 
     if (!access_token) {
-      console.log("[createSessionFromUrl] No access token found in URL");
+      console.log("[createSessionFromUrl] No access token found in URL hash");
       return;
     }
 
-    console.log("[createSessionFromUrl] Setting session with tokens from URL");
+    console.log("[createSessionFromUrl] Setting session with tokens from hash fragment");
     const { data, error } = await supabase.auth.setSession({
       access_token,
       refresh_token,
@@ -52,7 +65,7 @@ export default function RootLayout() {
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log("[RootLayout] Deep link received:", url);
-      if (url.includes('smileguard://redirect')) {
+      if (url.includes('smileguard://oauth-redirect')) {
         console.log("[RootLayout] OAuth redirect detected, processing session...");
         createSessionFromUrl(url).catch(err => 
           console.error("[RootLayout] Failed to create session from URL:", err)
@@ -62,7 +75,7 @@ export default function RootLayout() {
 
     // Also check if app was launched FROM a deep link (cold start)
     Linking.getInitialURL().then((url) => {
-      if (url && url.includes('smileguard://redirect')) {
+      if (url && url.includes('smileguard://oauth-redirect')) {
         console.log("[RootLayout] App opened via deep link, processing session...");
         createSessionFromUrl(url).catch(err => 
           console.error("[RootLayout] Failed to create session from URL:", err)
