@@ -82,7 +82,7 @@ export default function AuthModal({
         return;
       }
 
-      const redirectUri = Linking.createURL("doctor-mobile/auth/callback");
+      const redirectUri = Linking.createURL("oauth-redirect");
       console.log("[AuthModal] Redirect URI:", redirectUri);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
