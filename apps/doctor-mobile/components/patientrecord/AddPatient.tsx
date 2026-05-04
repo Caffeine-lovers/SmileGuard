@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 
-const PHILIPPINES_PHONE_REGEX = /^\+639\d{3}-\d{3}-\d{4}$/;
+const PHILIPPINES_PHONE_REGEX = /^\+639\d{2}-\d{3}-\d{4}$/;
 
 interface FormData {
   name: string;
@@ -171,28 +171,32 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
     if (cleaned.startsWith('0')) {
       cleaned = cleaned.slice(1);
     }
-    
-    // Only keep up to 10 digits (since prefix already has 9)
-    cleaned = cleaned.slice(0, 10);
-    
-    // Format as XXX-XXX-XXXX (only the digits part)
-    let formatted = cleaned;
-    if (cleaned.length > 3) {
-      // XXX-
-      formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3);
+    // Also remove leading 9 if the user types it since +639 is already there
+    if (cleaned.startsWith('9')) {
+      cleaned = cleaned.slice(1);
     }
-    if (cleaned.length > 6) {
-      // XXX-XXX-
-      formatted = cleaned.slice(0, 3) + '-' + cleaned.slice(3, 6) + '-' + cleaned.slice(6);
+    
+    // Only keep up to 9 digits (since prefix already has +639)
+    cleaned = cleaned.slice(0, 9);
+    
+    // Format as XX-XXX-XXXX
+    let formatted = cleaned;
+    if (cleaned.length > 2) {
+      // XX-
+      formatted = cleaned.slice(0, 2) + '-' + cleaned.slice(2);
+    }
+    if (cleaned.length > 5) {
+      // XX-XXX-
+      formatted = cleaned.slice(0, 2) + '-' + cleaned.slice(2, 5) + '-' + cleaned.slice(5);
     }
     
     const fullNumber = '+639' + formatted;
     handleInputChange('phone', fullNumber);
     
-    // Validate only if input is complete
-    if (cleaned.length === 10) {
+    // Validate only if input is complete (9 digits)
+    if (cleaned.length === 9) {
       if (!PHILIPPINES_PHONE_REGEX.test(fullNumber)) {
-        setPhoneError("Phone must be in format: +639XXX-XXX-XXXX");
+        setPhoneError("Phone must be in format: +639XX-XXX-XXXX");
       } else {
         setPhoneError("");
       }
@@ -243,7 +247,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
 
     // Validate phone format
     if (!PHILIPPINES_PHONE_REGEX.test(formData.phone)) {
-      Alert.alert("Error", "Phone must start with +63 9 and be in format: +639XXX-XXX-XXXX");
+      Alert.alert("Error", "Phone must start with +63 9 and be in format: +639XX-XXX-XXXX");
       return;
     }
 
@@ -440,7 +444,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               <Text style={styles.phonePrefix}>+639</Text>
               <TextInput
                 style={styles.phoneInput}
-                placeholder="XXX-XXX-XXXX"
+                placeholder="XX-XXX-XXXX"
                 placeholderTextColor="#999"
                 keyboardType="phone-pad"
                 value={formData.phone ? formData.phone.replace('+639', '') : ''}
