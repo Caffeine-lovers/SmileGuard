@@ -33,6 +33,8 @@ export default function LoginPage() {
     setOauthLoading(true);
     setLocalError(null);
     try {
+      // Clear any existing signup flow flag to indicate this is a login, not signup
+      localStorage.removeItem('oauth_signup_flow');
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",

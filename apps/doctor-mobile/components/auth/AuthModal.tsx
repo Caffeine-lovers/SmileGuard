@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Alert } from "react-native";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { useRouter } from "expo-router";
 import { CurrentUser } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
 
@@ -32,8 +33,15 @@ export default function AuthModal({
   onClose,
   onSuccess,
 }: AuthModalProps) {
+  const ENABLE_DIRECT_OAUTH_REDIRECT_TEST = false;
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const buttonLabel = ENABLE_DIRECT_OAUTH_REDIRECT_TEST
+    ? "Open OAuth Redirect Test"
+    : loading
+      ? "Signing in..."
+      : "Continue with Google";
 
   // Reset state when modal re-opens
   React.useEffect(() => {
@@ -66,6 +74,13 @@ export default function AuthModal({
     try {
       setLoading(true);
       console.log("[GoogleOAuth] Starting Google OAuth...");
+
+      if (ENABLE_DIRECT_OAUTH_REDIRECT_TEST) {
+        console.log("[AuthModal] Navigating directly to /oauth-redirect for route test");
+        onClose();
+        router.push("/oauth-redirect");
+        return;
+      }
 
       const redirectUri = Linking.createURL("oauth-redirect");
       console.log("[AuthModal] Redirect URI:", redirectUri);
@@ -158,9 +173,7 @@ export default function AuthModal({
                     disabled={loading}
                   >
                     <Text style={styles.googleIcon}>G</Text>
-                    <Text style={styles.googleBtnText}>
-                      {loading ? "Signing in..." : "Continue with Google"}
-                    </Text>
+                    <Text style={styles.googleBtnText}>{buttonLabel}</Text>
                   </TouchableOpacity>
                 </View>
               )}

@@ -79,26 +79,6 @@ export default function SignupMethodPage() {
         >
           📱 Verify with Phone
         </button>
-
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-border-card"></div>
-          <span className="text-text-secondary text-sm">or</span>
-          <div className="flex-1 h-px bg-border-card"></div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleGoogleSignUp}
-          disabled={oauthLoading}
-          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 disabled:bg-gray-100 border border-border-card text-text-primary font-medium py-3 px-4 rounded-lg transition"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-            <g transform="translate(1 1)">
-              <path d="M11 11.5v4.5h6.5m-6.5-9v-4.5h6.5M5.5 11H0M11 0v4.5" stroke="currentColor" strokeWidth="2" />
-            </g>
-          </svg>
-          <span>{oauthLoading ? 'Signing up...' : 'Sign up with Google'}</span>
-        </button>
       </div>
 
       <div className="mt-6 text-center text-sm">
