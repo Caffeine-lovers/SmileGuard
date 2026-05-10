@@ -18,10 +18,28 @@ type AuthUser = CurrentUser & {
   hasMedicalIntake?: boolean;
 };
 
+export interface MedicalIntakeData {
+  patient_id?: string;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  allergies?: string | null;
+  current_medications?: string | null;
+  medical_conditions?: string | null;
+  past_surgeries?: string | null;
+  smoking_status?: string | null;
+  pregnancy_status?: string | null;
+  updated_at?: string;
+}
+
 export function useAuth(options: UseAuthOptions = {}) {
   const { autoCreateProfile = true } = options;
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [medicalIntake, setMedicalIntake] = useState<MedicalIntakeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +64,7 @@ export function useAuth(options: UseAuthOptions = {}) {
         console.log("[useAuth] Auth state change:", _event);
         if (_event === "SIGNED_OUT") {
           setCurrentUser(null);
+          setMedicalIntake(null);
           setLoading(false);
         } else if (session?.user) {
           if (currentUser?.id === session.user.id) return;
@@ -101,6 +120,13 @@ export function useAuth(options: UseAuthOptions = {}) {
           role: data.role as "patient" | "doctor",
           hasMedicalIntake: hasIntake 
         });
+
+        // Cache the medical intake data if available
+        if (hasIntake && intakeArray.length > 0) {
+          setMedicalIntake(intakeArray[0] as MedicalIntakeData);
+        } else {
+          setMedicalIntake(null);
+        }
       } else {
         console.warn("[useAuth] No profile found for UID:", userId);
         if (autoCreateProfile) {
@@ -141,6 +167,8 @@ export function useAuth(options: UseAuthOptions = {}) {
       role: (created?.role || "patient") as "patient" | "doctor",
       hasMedicalIntake: false
     });
+    
+    setMedicalIntake(null);
   };
 
   const register = async (formData: FormData, role: "patient" | "doctor") => {

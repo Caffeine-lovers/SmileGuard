@@ -21,13 +21,6 @@ export const uploadPatientProfilePicture = async (userId: string, file: File) =>
     const publicUrl = publicUrlData.publicUrl;
 
     // 4. Update the Patient's database record with the new URL
-    const { error: dbError } = await supabase
-      .from('patients')
-      .update({ profile_picture_url: publicUrl })
-      .eq('id', userId);
-
-    if (dbError) throw dbError;
-
     return publicUrl;
   } catch (error) {
     console.error('Error uploading profile picture:', error);
