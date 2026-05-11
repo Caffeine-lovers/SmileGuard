@@ -44,10 +44,21 @@ export function useAuth(options: UseAuthOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     console.log("[useAuth] Initializing auth hook...");
+
+    // Anti-hang safety timeout: If Supabase or network gets stuck for > 8s, force unblock
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        console.warn("[useAuth] Session check timed out. Forcing UI to unblock.");
+        setLoading(false);
+      }
+    }, 8000);
+
     supabase.auth
       .getSession()
       .then(({ data: { session } }: { data: { session: Session | null } }) => {
+        if (!isMounted) return;
         if (session?.user) {
           fetchProfile(session.user.id);
         } else {
@@ -55,25 +66,41 @@ export function useAuth(options: UseAuthOptions = {}) {
         }
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.error("[useAuth] Error getting initial session:", err);
         setLoading(false);
       });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event: AuthChangeEvent, session: Session | null) => {
+        if (!isMounted) return;
         console.log("[useAuth] Auth state change:", _event);
+        
+        // As soon as auth state initializes, clear the timeout
+        clearTimeout(safetyTimeout);
+
         if (_event === "SIGNED_OUT") {
           setCurrentUser(null);
           setMedicalIntake(null);
           setLoading(false);
         } else if (session?.user) {
-          if (currentUser?.id === session.user.id) return;
+          if (currentUser?.id === session.user.id) {
+            setLoading(false); // Ensure it unlocks even if cached
+            return;
+          }
           await fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimeout);
+      subscription.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -90,6 +117,7 @@ export function useAuth(options: UseAuthOptions = {}) {
           name, 
           email, 
           role,
+          Avatar_url,
           medical_intake!left (patient_id)
         `)
         .eq("id", userId)
@@ -105,21 +133,17 @@ export function useAuth(options: UseAuthOptions = {}) {
         const intakeArray = data.medical_intake as any[];
         const hasIntake = intakeArray && intakeArray.length > 0;
 
-        console.log("[useAuth] Medical Intake Debug:", {
-          userId,
-          foundProfile: true,
-          rawIntakeData: data.medical_intake,
-          hasIntake,
-          policyHint: "If rawIntakeData is [] but data exists in DB, check RLS SELECT policy on medical_intake table."
-        });
+        // Fetch the fresh session to keep local state up to date
+        const { data: { session } } = await supabase.auth.getSession();
 
         setCurrentUser({ 
           id: userId, 
           name: data.name, 
           email: data.email, 
           role: data.role as "patient" | "doctor",
-          hasMedicalIntake: hasIntake 
-        });
+          profile_picture_url: data.Avatar_url,
+          hasMedicalIntake: hasIntake
+        } as any);
 
         // Cache the medical intake data if available
         if (hasIntake && intakeArray.length > 0) {

@@ -1,27 +1,40 @@
-import { supabase } from '@smileguard/supabase-client'; // adjust import to your monorepo setup
+// apps/patient-web/components/dashboard/uploadPatientProfilePicture.ts
+
+import { supabase } from '@smileguard/supabase-client';
 
 export const uploadPatientProfilePicture = async (userId: string, file: File) => {
   try {
-    // 1. Create a unique path (e.g., profile/user123/profile_1692837.jpg)
-    const fileExt = file.name.split('.').pop();
-    const filePath = `profile/${userId}/profile_${Date.now()}.${fileExt}`;
+    // Uses the bucket folder structure: {userId}/avatar.extension
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const filePath = `${userId}/avatar.${fileExt}`;
 
-    // 2. Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('patient-pictures')
-      .upload(filePath, file, { upsert: true });
+    // Upload to 'avatars' bucket (as per your new rules)
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { 
+        upsert: true,
+        contentType: file.type
+      });
 
     if (uploadError) throw uploadError;
 
-    // 3. Get the public URL for the newly uploaded image
+    // Get the public URL
     const { data: publicUrlData } = supabase.storage
-      .from('patient-pictures')
+      .from('avatars')
       .getPublicUrl(filePath);
 
     const publicUrl = publicUrlData.publicUrl;
 
-    // 4. Update the Patient's database record with the new URL
-    return publicUrl;
+    // Update the 'profiles' table with the url directly
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .update({ Avatar_url: publicUrl })
+      .eq('id', userId);
+
+    if (dbError) throw dbError;
+
+    // Return the URL with a cache-busting timestamp
+    return `${publicUrl}?t=${Date.now()}`;
   } catch (error) {
     console.error('Error uploading profile picture:', error);
     throw error;
