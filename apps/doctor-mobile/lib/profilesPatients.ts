@@ -2,6 +2,69 @@ import { supabase } from '@smileguard/supabase-client';
 import { CurrentUser, MedicalIntake } from '../types/index';
 
 // ─────────────────────────────────────────
+// 0. FETCH PATIENT PROFILE PICTURE FROM STORAGE
+// ─────────────────────────────────────────
+/**
+ * Fetches the most recent profile picture for a patient from Supabase storage
+ * Path structure: patient-pictures/profile/{patientId}/image.jpg
+ * Returns the public URL of the most recent image
+ */
+export async function getPatientProfilePictureUrl(
+  patientId: string
+): Promise<string | null> {
+  try {
+    console.log(`🖼️ Fetching profile picture for patient: ${patientId}`);
+    
+    // List all files in the patient's profile picture folder
+    const { data: files, error: listError } = await supabase.storage
+      .from('patient-pictures')
+      .list(`profile/${patientId}`, {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'created_at', order: 'desc' }, // Most recent first
+      });
+
+    if (listError) {
+      console.log(`⚠️ Error listing profile pictures for patient ${patientId}:`, listError);
+      return null;
+    }
+
+    if (!files || files.length === 0) {
+      console.log(`ℹ️ No profile pictures found for patient ${patientId}`);
+      return null;
+    }
+
+    // Find the first image file with an extension (most recent due to sorting)
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+    const mostRecentFile = files.find(file => 
+      imageExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+    );
+    
+    if (!mostRecentFile) {
+      console.log(`ℹ️ No image files found in profile pictures for patient ${patientId}`);
+      console.log(`📁 Files found:`, files.map(f => f.name));
+      return null;
+    }
+
+    // Get the public URL for the file
+    const { data: publicUrl } = supabase.storage
+      .from('patient-pictures')
+      .getPublicUrl(`profile/${patientId}/${mostRecentFile.name}`);
+
+    if (!publicUrl?.publicUrl) {
+      console.log(`⚠️ Failed to generate public URL for patient ${patientId}`);
+      return null;
+    }
+
+    console.log(`✅ Profile picture URL generated for patient ${patientId}:`, publicUrl.publicUrl);
+    return publicUrl.publicUrl;
+  } catch (error) {
+    console.error(`❌ Exception fetching profile picture for patient ${patientId}:`, error);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────
 // 1. FETCH PATIENT PROFILE
 // ─────────────────────────────────────────
 export async function getPatientProfile(
