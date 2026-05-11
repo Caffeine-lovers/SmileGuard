@@ -81,6 +81,12 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               >
                 Documents
               </Link>
+              <Link   
+                href="/profile" 
+                className="font-medium transition hover:text-brand-primary"
+              >
+                {currentUser.name}
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
@@ -90,13 +96,10 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             >
               Book an Appointment
             </Link>
-            <span className="text-sm text-text-secondary hidden md:block">
-              {currentUser.name}
-            </span>
             <button
               type="button"
               onClick={handleLogout}
-              className="px-4 py-2 bg-brand-danger hover:bg-brand-danger/90 text-text-on-danger rounded-lg transition font-medium"
+              className="px-2 py-3 bg-brand-danger hover:bg-brand-danger/90 text-text-on-danger rounded-lg transition font-medium"
             >
               Logout
             </button>
