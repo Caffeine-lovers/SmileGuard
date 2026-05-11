@@ -23,6 +23,10 @@ export default function PatientDashboard() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] = useState<Appointment | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [selectedAppointmentForReschedule, setSelectedAppointmentForReschedule] = useState<Appointment | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [rescheduleReason, setRescheduleReason] = useState<string>('');
 
   useEffect(() => {
     const fetchAppointmentRules = async () => {
@@ -138,8 +142,16 @@ export default function PatientDashboard() {
   };
 
   const handleRescheduleClick = (appointment: Appointment) => {
-    // TODO: Implement reschedule functionality
-    alert('Reschedule feature coming soon!');
+    const { canReschedule, reason } = calculateRescheduleEligibility(appointment);
+    
+    if (!canReschedule) {
+      alert(`Cannot reschedule: ${reason}`);
+      return;
+    }
+
+    setSelectedAppointmentForReschedule(appointment);
+    setRescheduleReason(reason);
+    setShowRescheduleModal(true);
   };
 
   const handleConfirmCancel = async () => {
@@ -206,6 +218,51 @@ export default function PatientDashboard() {
 
     // Past cancellation window
     return { fee: 0, isWithinGracePeriod: false, isWithinCancellationWindow: false };
+  };
+
+  const calculateRescheduleEligibility = (appointment: Appointment): { canReschedule: boolean; reason: string; isWithinRescheduleWindow: boolean } => {
+    if (!appointmentRules) {
+      return { canReschedule: false, reason: 'Unable to load reschedule rules', isWithinRescheduleWindow: false };
+    }
+
+    const now = new Date();
+    const apptDate = new Date(appointment.appointment_date);
+    const hoursUntilAppointment = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    // Check if reschedule is enabled
+    if (!appointmentRules.reschedule_allowed) {
+      return { canReschedule: false, reason: 'Rescheduling is not available', isWithinRescheduleWindow: false };
+    }
+
+    // Check if appointment is in the past
+    if (hoursUntilAppointment < 0) {
+      return { canReschedule: false, reason: 'Cannot reschedule past appointments', isWithinRescheduleWindow: false };
+    }
+
+    // Check if still within reschedule window
+    if (hoursUntilAppointment < appointmentRules.reschedule_window_hours) {
+      return { canReschedule: false, reason: `You can only reschedule up to ${appointmentRules.reschedule_window_hours} hours before the appointment`, isWithinRescheduleWindow: false };
+    }
+
+    // Within reschedule window and eligible
+    return { canReschedule: true, reason: 'You can reschedule this appointment', isWithinRescheduleWindow: true };
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!selectedAppointmentForReschedule) return;
+    
+    setIsRescheduling(true);
+    try {
+      // Navigate to appointments page to reschedule with appointment ID as query param
+      router.push(`/appointments?rescheduleId=${selectedAppointmentForReschedule.id}`);
+      setShowRescheduleModal(false);
+      setSelectedAppointmentForReschedule(null);
+    } catch (error) {
+      console.error('Error initiating reschedule:', error);
+      alert('Failed to open reschedule page');
+    } finally {
+      setIsRescheduling(false);
+    }
   };
 
   // Show loading only while auth is initializing
@@ -346,12 +403,20 @@ export default function PatientDashboard() {
                             <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
                               Pending
                             </span>
-                            <button
-                              onClick={() => handleCancelClick(apt)}
-                              className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline px-1 py-0.5 transition-colors"
-                            >
-                              Cancel Request
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleRescheduleClick(apt)}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline px-1 py-0.5 transition-colors"
+                              >
+                                Reschedule
+                              </button>
+                              <button
+                                onClick={() => handleCancelClick(apt)}
+                                className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline px-1 py-0.5 transition-colors"
+                              >
+                                Cancel Request
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -463,6 +528,69 @@ export default function PatientDashboard() {
                   className="flex-1 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Appointment Modal */}
+      {showRescheduleModal && selectedAppointmentForReschedule && appointmentRules && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <span className="text-2xl">📅</span> Reschedule Appointment
+              </h2>
+              <p className="text-blue-100 text-sm mt-2">Choose a new date and time for your appointment</p>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4">
+              {/* Appointment Details */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <p className="text-xs text-gray-600 uppercase tracking-wide font-semibold mb-2">Current Appointment</p>
+                <p className="text-sm font-semibold text-gray-900">{selectedAppointmentForReschedule.service}</p>
+                <p className="text-xs text-gray-600 mt-1">{formatDate(selectedAppointmentForReschedule.appointment_date)} at {selectedAppointmentForReschedule.appointment_time}</p>
+              </div>
+
+              {/* Eligibility Info */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm font-semibold text-green-900">✓ Eligible to Reschedule</p>
+                <p className="text-xs text-green-700 mt-1">
+                  You can reschedule this appointment up to {appointmentRules.reschedule_window_hours} hours before the scheduled time.
+                </p>
+              </div>
+
+              {/* Reschedule Window Info */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-blue-900 uppercase mb-2">Rescheduling Policy</p>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• Reschedule up to <span className="font-bold">{appointmentRules.reschedule_window_hours}h</span> before appointment</li>
+                  <li>• No additional fee for rescheduling</li>
+                  <li>• Choose any available time slot</li>
+                </ul>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowRescheduleModal(false)}
+                  disabled={isRescheduling}
+                  className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReschedule}
+                  disabled={isRescheduling}
+                  className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRescheduling ? 'Loading...' : 'Continue to Reschedule'}
                 </button>
               </div>
             </div>
