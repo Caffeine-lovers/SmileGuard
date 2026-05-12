@@ -17,8 +17,8 @@ export async function getPatientProfilePictureUrl(
     
     // List all files in the patient's profile picture folder
     const { data: files, error: listError } = await supabase.storage
-      .from('patient-pictures')
-      .list(`profile/${patientId}`, {
+      .from('avatars')
+      .list(`${patientId}`, {
         limit: 100,
         offset: 0,
         sortBy: { column: 'created_at', order: 'desc' }, // Most recent first
@@ -48,8 +48,8 @@ export async function getPatientProfilePictureUrl(
 
     // Get the public URL for the file
     const { data: publicUrl } = supabase.storage
-      .from('patient-pictures')
-      .getPublicUrl(`profile/${patientId}/${mostRecentFile.name}`);
+      .from('avatars')
+      .getPublicUrl(`${patientId}/${mostRecentFile.name}`);
 
     if (!publicUrl?.publicUrl) {
       console.log(`⚠️ Failed to generate public URL for patient ${patientId}`);

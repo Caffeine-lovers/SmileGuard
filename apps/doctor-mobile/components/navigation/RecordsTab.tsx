@@ -462,7 +462,7 @@ export default function RecordsTab({
         </View>
 
       </View>
-      <ScrollView 
+      <ScrollView   
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16}}
       >
