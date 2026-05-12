@@ -35,6 +35,14 @@ export default function BioDataPage() {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
+  // Sync state correctly based on useAuth hook's currentUser value
+  useEffect(() => {
+    // @ts-ignore - bypassing strict type mapping momentarily since we just added it to useAuth.ts
+    if (currentUser?.profile_picture_url) {
+      // @ts-ignore
+      setProfileImageUrl(currentUser.profile_picture_url);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -148,9 +156,9 @@ export default function BioDataPage() {
         <div className="flex items-center gap-6">
           <div className="flex flex-col items-center">
             <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border-card bg-bg-surface-secondary flex items-center justify-center">
-              {profileImageUrl || currentUser?.user_metadata?.profile_picture_url ? (
+              {profileImageUrl ? (
                 <img 
-                  src={profileImageUrl || currentUser?.user_metadata?.profile_picture_url} 
+                  src={profileImageUrl} 
                   alt="Profile" 
                   className="w-full h-full object-cover"
                 />
@@ -173,9 +181,9 @@ export default function BioDataPage() {
                     setIsUploadingImage(true);
                     const newUrl = await uploadPatientProfilePicture(currentUser.id, file);
                     setProfileImageUrl(newUrl);
-                  } catch (err) {
+                  } catch (err: any) {
                     console.error('Upload failed', err);
-                    alert('Failed to upload image.');
+                    alert(`Failed to upload image: ${err.message || 'Unknown error. Check console.'}`);
                   } finally {
                     setIsUploadingImage(false);
                   }

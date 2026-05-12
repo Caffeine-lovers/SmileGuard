@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo, getPatientBillingInfo, getPatientProfilePictureUrl, type PatientBillingInfo } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -20,6 +20,7 @@ import { formatDateOfBirth } from "../../lib/dateFormatters";
 
 export type AppointmentType = {
   id: string;
+  patient_id?: string; // Actual patient ID for database/storage
   name: string;
   service: string;
   time: string;
@@ -129,6 +130,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [billingInfo, setBillingInfo] = useState<PatientBillingInfo | null>(null);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [scrollY, setScrollY] = useState(0);
@@ -143,25 +145,31 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       setMedicalIntake(null);
       setAppointments([]);
       setBillingInfo(null);
+      setProfilePictureUrl(null);
       setLoading(true);
       
-      // Load new patient data
-      loadPatientData(patient.id);
+      // Use patient_id if available (actual patient ID), otherwise fall back to id
+      const patientIdToUse = patient.patient_id || patient.id;
+      loadPatientData(patientIdToUse);
     }
-  }, [visible, patient?.id]);
+  }, [visible, patient?.id, patient?.patient_id]);
 
   const loadPatientData = async (patientId: string) => {
     try {
-      // Load all three in parallel
-      const [intake, appts, billing] = await Promise.all([
+      // Load all four in parallel
+      const [intake, appts, billing, profilePicUrl] = await Promise.all([
         getPatientMedicalInfo(patientId),
         getPatientAppointments(patientId),
         getPatientBillingInfo(patientId),
+        getPatientProfilePictureUrl(patientId),
       ]);
 
       // Update medical intake
       setMedicalIntake(intake);
+      setProfilePictureUrl(profilePicUrl);
       console.log('✅ Loaded medical intake:', intake);
+      console.log('✅ Loaded profile picture URL:', profilePicUrl);
+      console.log('🖼️ Using patient ID:', patientId);
 
       // Auto-update past appointments to no-show status
       await updatePastAppointmentsToNoShow(appts);
@@ -290,7 +298,13 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           {/* Patient Profile Section */}
           <View style={styles.profileSection}>
             <Image
-              source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+              source={
+                profilePictureUrl 
+                  ? { uri: profilePictureUrl }
+                  : typeof patient.imageUrl === "string" 
+                    ? { uri: patient.imageUrl } 
+                    : patient.imageUrl
+              }
               style={styles.profileImage}
             />
             <Text style={styles.patientName}>{patient.name}</Text>

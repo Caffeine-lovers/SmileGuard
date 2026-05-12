@@ -16,6 +16,7 @@ export interface CurrentUser {
   role: "patient" | "doctor";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
+  profile_picture_url?: string;
 }
 
 export interface FormData {

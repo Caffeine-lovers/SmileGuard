@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getPatientProfilePictureUrl } from './profilesPatients';
 export async function cancelAppointment(
   appointmentId: string
 ): Promise<{ success: boolean; message: string }> {
@@ -159,11 +160,25 @@ export async function getDoctorAppointments(
     // all appointments with dentist_id IS NOT NULL
     const filteredAppointments = appointmentsData;
 
-    // Step 6: Transform appointments with patient names and avatars
+    // Step 6: Fetch profile pictures from storage for all unique patients
+    const profilePictureMap = new Map<string, string | null>();
+    const allPatientIds = [...patientIds, ...dummyAccountIds];
+    
+    console.log('  🖼️ Fetching profile pictures from storage for', allPatientIds.length, 'patients...');
+    for (const patientId of allPatientIds) {
+      if (!profilePictureMap.has(patientId)) {
+        const pictureUrl = await getPatientProfilePictureUrl(patientId);
+        profilePictureMap.set(patientId, pictureUrl);
+      }
+    }
+    console.log('  ✅ Profile pictures fetched');
+
+    // Step 7: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
+      const aptPatientId = apt.dummy_account_id || apt.patient_id;
 
       if (apt.dummy_account_id) {
         // Fetch from dummy_accounts
@@ -172,12 +187,14 @@ export async function getDoctorAppointments(
         console.log(`      Found in map:`, dummyAccount);
         patientName = dummyAccount?.patient_name || apt.dummy_account_id;
         console.log(`      Using patientName: ${patientName}`);
-        patientAvatar = dummyAccount?.avatar_url || null;
+        // Use storage picture first, fall back to dummy account avatar
+        patientAvatar = profilePictureMap.get(apt.dummy_account_id) || dummyAccount?.avatar_url || null;
       } else if (apt.patient_id) {
         // Fetch from profiles
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+        // Use storage picture first, fall back to profile avatar_url
+        patientAvatar = profilePictureMap.get(apt.patient_id) || profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 
       const medicalIntake = medicalIntakeMap.get(apt.patient_id);
@@ -274,6 +291,17 @@ async function fallbackGetDoctorAppointments(
       dummyAccountMap.set(dummy.id, dummy);
     });
 
+    // Fetch profile pictures from storage
+    const profilePictureMap = new Map<string, string | null>();
+    const allPatientIds = [...patientIds, ...dummyAccountIds];
+    console.log('  🖼️ Fetching profile pictures from storage for', allPatientIds.length, 'patients...');
+    for (const patientId of allPatientIds) {
+      if (!profilePictureMap.has(patientId)) {
+        const pictureUrl = await getPatientProfilePictureUrl(patientId);
+        profilePictureMap.set(patientId, pictureUrl);
+      }
+    }
+
     // Transform and return
     return appointmentsData.map((apt: any) => {
       let patientName = 'Unknown Patient';
@@ -282,11 +310,13 @@ async function fallbackGetDoctorAppointments(
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
         patientName = dummyAccount?.patient_name || apt.dummy_account_id;
-        patientAvatar = null;
+        // Use storage picture first
+        patientAvatar = profilePictureMap.get(apt.dummy_account_id) || null;
       } else if (apt.patient_id) {
         const profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+        // Use storage picture first, fall back to profile fields
+        patientAvatar = profilePictureMap.get(apt.patient_id) || profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 
       return {
@@ -377,7 +407,18 @@ export async function getDoctorAppointmentsByDate(
     // Step 5: Show all appointments for this date (don't filter by dentist_id)
     const filteredAppointments = appointmentsData;
 
-    // Step 6: Transform appointments with patient names and avatars
+    // Step 6: Fetch profile pictures from storage
+    const profilePictureMap = new Map<string, string | null>();
+    const allPatientIds = [...patientIds, ...dummyAccountIds];
+    console.log('  🖼️ Fetching profile pictures from storage for', allPatientIds.length, 'patients...');
+    for (const patientId of allPatientIds) {
+      if (!profilePictureMap.has(patientId)) {
+        const pictureUrl = await getPatientProfilePictureUrl(patientId);
+        profilePictureMap.set(patientId, pictureUrl);
+      }
+    }
+
+    // Step 7: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
@@ -395,11 +436,13 @@ export async function getDoctorAppointmentsByDate(
           patientName = apt.dummy_account_id;
         }
         console.log(`    - Final patientName: ${patientName}`);
-        patientAvatar = null;
+        // Use storage picture first
+        patientAvatar = profilePictureMap.get(apt.dummy_account_id) || null;
       } else if (apt.patient_id) {
         const profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+        // Use storage picture first, fall back to profile fields
+        patientAvatar = profilePictureMap.get(apt.patient_id) || profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 
       return {
