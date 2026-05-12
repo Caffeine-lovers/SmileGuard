@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { supabase } from '@smileguard/supabase-client';
 import type { Appointment } from '@/lib/database';
+import type { AppointmentRule } from '@/lib/appointmentRule';
 
 interface CancelAppointmentProps {
   isOpen: boolean;
   appointment: Appointment | null;
-  appointmentRules: any | null;
+  appointmentRules: AppointmentRule | null;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -24,6 +25,18 @@ export default function CancelAppointment({
   const formatDate = (dateStr: string) => {
     if (!dateStr || dateStr === 'None scheduled') return 'None scheduled';
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    if (!dateStr || dateStr === 'None scheduled') return 'None scheduled';
+    return new Date(dateStr).toLocaleString('en-PH', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
   };
 
   const calculateCancellationFee = (): { fee: number; isWithinGracePeriod: boolean; isWithinCancellationWindow: boolean } => {
@@ -101,7 +114,7 @@ export default function CancelAppointment({
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <span className="text-2xl">⚠️</span> Cancel Appointment
+            Cancel Appointment
           </h2>
           <p className="text-red-100 text-sm mt-2">Review cancellation policy before proceeding</p>
         </div>
@@ -115,6 +128,10 @@ export default function CancelAppointment({
             <p className="text-xs text-gray-600 mt-1">
               {formatDate(appointment.appointment_date)} at {appointment.appointment_time}
             </p>
+            <div className="mt-3 pt-3 border-t border-gray-300">
+              <p className="text-xs text-gray-500 font-semibold uppercase mb-1">Booked On</p>
+              <p className="text-xs text-gray-700">{formatDateTime(appointment.created_at || '')}</p>
+            </div>
           </div>
 
           {/* Cancellation Rules */}
@@ -123,7 +140,7 @@ export default function CancelAppointment({
 
             {isWithinGracePeriod && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm font-semibold text-green-900">✓ Within Grace Period</p>
+                <p className="text-sm font-semibold text-green-900">Within Grace Period</p>
                 <p className="text-xs text-green-700 mt-1">
                   You can cancel for free within {appointmentRules.grace_period_hours} hours of booking.
                 </p>
@@ -133,7 +150,7 @@ export default function CancelAppointment({
 
             {isWithinCancellationWindow && !isWithinGracePeriod && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm font-semibold text-yellow-900">⏱️ Cancellation Fee Applies</p>
+                <p className="text-sm font-semibold text-yellow-900">Cancellation Fee Applies</p>
                 <p className="text-xs text-yellow-700 mt-1">
                   You are still within the {appointmentRules.cancellation_window_hours} hour cancellation window. A fee will be charged.
                 </p>
@@ -143,7 +160,7 @@ export default function CancelAppointment({
 
             {!isWithinCancellationWindow && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm font-semibold text-red-900">❌ Past Cancellation Window</p>
+                <p className="text-sm font-semibold text-red-900">Past Cancellation Window</p>
                 <p className="text-xs text-red-700 mt-1">
                   The cancellation window has passed. You can no longer cancel this appointment.
                 </p>
@@ -182,7 +199,7 @@ export default function CancelAppointment({
             <button
               type="button"
               onClick={handleConfirmCancel}
-              disabled={isCancelling || !isWithinCancellationWindow}
+              disabled={isCancelling}
               className="flex-1 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}

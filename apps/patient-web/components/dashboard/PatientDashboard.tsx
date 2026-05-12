@@ -10,8 +10,10 @@ import CancelAppointment from '@/components/appointments/CancelAppointment';
 import ReschedAppointment from '@/components/appointments/ReschedAppointment';
 import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
+import { fetchAppointmentRules } from '@/lib/appointmentRule';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
+import type { AppointmentRule } from '@/lib/appointmentRule';
 
 export default function PatientDashboard() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -21,31 +23,19 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
-  const [appointmentRules, setAppointmentRules] = useState<any | null>(null);
+  const [appointmentRules, setAppointmentRules] = useState<AppointmentRule | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] = useState<Appointment | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedAppointmentForReschedule, setSelectedAppointmentForReschedule] = useState<Appointment | null>(null);
 
   useEffect(() => {
-    const fetchAppointmentRules = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('appointment_rules')
-          .select('*')
-          .single();
-
-        if (error && error.code !== 'PGRST116') {
-          throw error;
-        }
-        setAppointmentRules(data || null);
-      } catch (error) {
-        console.error('Error fetching appointment rules:', error);
-        setAppointmentRules(null);
-      }
+    const loadAppointmentRules = async () => {
+      const rules = await fetchAppointmentRules();
+      setAppointmentRules(rules);
     };
 
-    fetchAppointmentRules();
+    loadAppointmentRules();
   }, []);
 
   useEffect(() => {
@@ -249,7 +239,6 @@ export default function PatientDashboard() {
                         time={apt.appointment_time}
                         date={formatDate(apt.appointment_date)}
                         onCancel={() => handleCancelClick(apt)}
-                        onReschedule={() => handleRescheduleClick(apt)}
                       />
                     </div>
                   </div>
