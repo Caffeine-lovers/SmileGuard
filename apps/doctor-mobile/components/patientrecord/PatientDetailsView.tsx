@@ -247,6 +247,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   if (loading) {
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+        {/* @ts-expect-error - React 19 JSX type compatibility */}
         <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
           {/* Header */}
           <View style={styles.header}>
@@ -274,6 +275,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* @ts-expect-error - React 19 JSX type compatibility */}
       <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
         {/* Header */}
         <View style={styles.header}>

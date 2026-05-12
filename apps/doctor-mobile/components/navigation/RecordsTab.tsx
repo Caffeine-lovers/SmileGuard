@@ -312,6 +312,7 @@ export default function RecordsTab({
     }
   };
   return (
+    // @ts-expect-error - React 19 JSX type compatibility
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
       {/* Header with Current User Name */}
       <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -462,6 +463,7 @@ export default function RecordsTab({
         </View>
 
       </View>
+      {/* @ts-expect-error - React 19 JSX type compatibility */}
       <ScrollView   
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16}}
