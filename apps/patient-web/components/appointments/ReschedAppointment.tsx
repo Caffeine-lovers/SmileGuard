@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Appointment } from '@/lib/database';
+import type { AppointmentRule } from '@/lib/appointmentRule';
 
 interface ReschedAppointmentProps {
   isOpen: boolean;
   appointment: Appointment | null;
-  appointmentRules: any | null;
+  appointmentRules: AppointmentRule | null;
   onClose: () => void;
 }
 
@@ -102,7 +103,7 @@ export default function ReschedAppointment({
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <span className="text-2xl">📅</span> Reschedule Appointment
+            Reschedule Appointment
           </h2>
           <p className="text-blue-100 text-sm mt-2">Choose a new date and time for your appointment</p>
         </div>
@@ -118,14 +119,14 @@ export default function ReschedAppointment({
             </p>
             <div className="mt-3 pt-3 border-t border-gray-300">
               <p className="text-xs text-gray-500 font-semibold uppercase mb-1">Booked On</p>
-              <p className="text-xs text-gray-700">{formatDateTime(appointment.created_at)}</p>
+              <p className="text-xs text-gray-700">{formatDateTime(appointment.created_at || '')}</p>
             </div>
           </div>
 
           {/* Eligibility Info */}
           {canReschedule && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-sm font-semibold text-green-900">✓ Eligible to Reschedule</p>
+              <p className="text-sm font-semibold text-green-900">Eligible to Reschedule</p>
               <p className="text-xs text-green-700 mt-1">
                 You can reschedule this appointment up to {appointmentRules.reschedule_window_hours} hours from when you booked it.
               </p>
@@ -134,7 +135,7 @@ export default function ReschedAppointment({
 
           {!canReschedule && isWithinRescheduleWindow === false && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm font-semibold text-red-900">❌ Not Eligible to Reschedule</p>
+              <p className="text-sm font-semibold text-red-900">Not Eligible to Reschedule</p>
               <p className="text-xs text-red-700 mt-1">
                 Rescheduling is not available for this appointment at the moment.
               </p>
