@@ -24,7 +24,7 @@ interface MedicalIntake {
 
 export default function BioDataPage() {
   const router = useRouter();
-  const { currentUser, medicalIntake, loading: authLoading, setMedicalIntake } = useAuth();
+  const { currentUser, medicalIntake, loading: authLoading, } = useAuth();
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [medicalData, setMedicalData] = useState<MedicalIntake | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -121,7 +121,7 @@ export default function BioDataPage() {
           smoking_status: medicalData.smoking_status,
           pregnancy_status: medicalData.pregnancy_status,
           updated_at: new Date().toISOString(),
-        });
+        },{onConflict: 'patient_id'});
 
       if (saveError) {
         console.error('[BioData] Error saving medical data:', saveError);
@@ -133,7 +133,6 @@ export default function BioDataPage() {
       setSuccess('Bio data saved successfully!');
       
       // Update cache in useAuth hook
-      setMedicalIntake(medicalData as any);
       setIsEditing(false);
       
       // Clear success message after 3 seconds
@@ -192,7 +191,7 @@ export default function BioDataPage() {
             </label>
           </div>
           <div>
-            <h1 className="text-4xl font-bold text-text-primary">{currentUser?.name || currentUser?.user_metadata?.full_name}</h1>
+            <h1 className="text-4xl font-bold text-text-primary">{currentUser?.name || currentUser?.name}</h1>
           </div>
         </div>
         {!isEditing && (
