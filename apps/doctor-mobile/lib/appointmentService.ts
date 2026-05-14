@@ -675,6 +675,14 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
       medicalIntakeMap.set(intake.patient_id, intake);
     });
 
+    // Fetch profile pictures from Supabase Storage
+    const profilePictureMap = new Map();
+    const allPatientIds = [...patientIds, ...dummyAccountIds];
+    for (const patientId of allPatientIds) {
+      const pictureUrl = await getPatientProfilePictureUrl(patientId);
+      profilePictureMap.set(patientId, pictureUrl);
+    }
+
     // Transform appointments with patient names and avatars
     const transformedData = appointmentsData.map((apt: any) => {
       let patientName = 'Unknown Patient';
@@ -684,11 +692,13 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
       if (apt.dummy_account_id) {
         const dummyAccount = dummyAccountMap.get(apt.dummy_account_id);
         patientName = dummyAccount?.patient_name || apt.dummy_account_id;
-        patientAvatar = null;
+        // Use storage picture first, fall back to dummy account avatar
+        patientAvatar = profilePictureMap.get(apt.dummy_account_id) || dummyAccount?.avatar_url || null;
       } else if (apt.patient_id) {
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
-        patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+        // Use storage picture first, fall back to profile fields
+        patientAvatar = profilePictureMap.get(apt.patient_id) || profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 
       const medicalIntake = medicalIntakeMap.get(apt.patient_id);
