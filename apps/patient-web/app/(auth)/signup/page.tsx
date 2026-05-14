@@ -1,15 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 
 export default function SignupMethodPage() {
   const router = useRouter();
-  const { setVerificationMethod, setOtpSentAt, setResendAttempts, setResendCooldownEnd, setIsOAuthFlow } = useSignup();
-  const [oauthLoading, setOauthLoading] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  const { setVerificationMethod, setOtpSentAt, setResendAttempts, setResendCooldownEnd } = useSignup();
 
   const handleChooseMethod = (method: 'email' | 'phone') => {
     setVerificationMethod(method);
@@ -19,34 +15,32 @@ export default function SignupMethodPage() {
     router.push('/signup/verify');
   };
 
-  const handleGoogleSignUp = async () => {
-    setOauthLoading(true);
-    setLocalError(null);
-    try {
-      // Mark as OAuth SIGNUP (not signin) - persist in localStorage
-      setIsOAuthFlow(true);
-      localStorage.setItem('oauth_signup_flow', 'true');
-      
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`,
-        },
-      });
-      if (oauthError) {
-        setLocalError(`Google sign-up failed: ${oauthError.message}`);
-        setOauthLoading(false);
-        setIsOAuthFlow(false);
-        localStorage.removeItem('oauth_signup_flow');
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'An error occurred';
-      setLocalError(`Error: ${msg}`);
-      setOauthLoading(false);
-      setIsOAuthFlow(false);
-      localStorage.removeItem('oauth_signup_flow');
-    }
-  };
+  // Commented out: Google OAuth signup not shown in current UI design
+  // const handleGoogleSignUp = async () => {
+  //   setLocalError(null);
+  //   try {
+  //     // Mark as OAuth SIGNUP (not signin) - persist in localStorage
+  //     setIsOAuthFlow(true);
+  //     localStorage.setItem('oauth_signup_flow', 'true');
+  //     
+  //     const { error: oauthError } = await supabase.auth.signInWithOAuth({
+  //       provider: 'google',
+  //       options: {
+  //         redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`,
+  //       },
+  //     });
+  //     if (oauthError) {
+  //       setLocalError(`Google sign-up failed: ${oauthError.message}`);
+  //       setIsOAuthFlow(false);
+  //       localStorage.removeItem('oauth_signup_flow');
+  //     }
+  //   } catch (err) {
+  //     const msg = err instanceof Error ? err.message : 'An error occurred';
+  //     setLocalError(`Error: ${msg}`);
+  //     setIsOAuthFlow(false);
+  //     localStorage.removeItem('oauth_signup_flow');
+  //   }
+  // };
 
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
@@ -56,12 +50,6 @@ export default function SignupMethodPage() {
       <p className="text-center text-text-secondary mb-8">
         Choose how you'd like to verify your identity
       </p>
-
-      {localError && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
-          {localError}
-        </div>
-      )}
 
       <div className="space-y-4">
         <button

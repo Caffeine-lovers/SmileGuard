@@ -73,7 +73,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [loadingRules, setLoadingRules]               = useState(true);
   const [showRulesModal, setShowRulesModal]            = useState(false);
   const [originalAppointment, setOriginalAppointment] = useState<Appointment | null>(null);
-  const [isRescheduling, setIsRescheduling]           = useState(!!rescheduleId);
+  const [isRescheduling]                             = useState(!!rescheduleId);
 
   console.log('🔴 [DIAGNOSTIC] BookAppointment component RENDERED');
   console.log('🔴 [DIAGNOSTIC] currentUser:', currentUser);
@@ -219,7 +219,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setLoadingUserData(true);
       try {
         const appointments = await getPatientAppointments(userId);
-        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
+        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
         console.error('Error fetching user appointments:', err);
@@ -242,8 +242,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const isDateAvailable = (date: Date): boolean => {
     if (!clinicSchedule) return true; // Default to available if no schedule
     
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
     const day = date.getDate();
     
     const dayOfWeek = date.getDay();
@@ -541,7 +539,11 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const dd = String(date.getDate()).padStart(2, '0');
               const dateString = `${yyyy}-${mm}-${dd}`;
               
-              const isPast = date < new Date(new Date().setHours(0,0,0,0));
+              // Allow booking only from tomorrow onwards (not today)
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              tomorrow.setHours(0, 0, 0, 0);
+              const isPast = date < tomorrow;
               const isClinicClosed = !isDateAvailable(date);
               const isBlockedDate = blockedDates.has(dateString);
               const isFullyBookedDate = isFullyBooked(dateString);
@@ -658,7 +660,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                 : 'bg-border-card text-text-secondary cursor-not-allowed'
             }`}
           >
-            {isBooking ? '⏳ Processing…' : step3Complete ? (isRescheduling ? '✓ Confirm Reschedule' : '✓ Confirm Appointment') : '⬆ Complete all steps'}
+            {isBooking ? '⏳ Processing…' : step3Complete ? (isRescheduling ? 'Confirm Reschedule' : 'Confirm Appointment') : 'Complete all steps'}
           </button>
 
           {(onCancel || isRescheduling) && (

@@ -3,14 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
-import { supabase } from '@smileguard/supabase-client';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
-import CancelAppointment from '@/components/appointments/CancelAppointment';
 import ReschedAppointment from '@/components/appointments/ReschedAppointment';
 import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
-import { fetchAppointmentRules } from '@/lib/appointmentRule';
+import { fetchAppointmentRules, calculateCancellationFee } from '@/lib/appointmentRule';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
 import type { AppointmentRule } from '@/lib/appointmentRule';
@@ -20,12 +18,9 @@ export default function PatientDashboard() {
   const router = useRouter();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
   const [appointmentRules, setAppointmentRules] = useState<AppointmentRule | null>(null);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] = useState<Appointment | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedAppointmentForReschedule, setSelectedAppointmentForReschedule] = useState<Appointment | null>(null);
 
@@ -58,7 +53,6 @@ export default function PatientDashboard() {
 
     // User is authenticated, fetch dashboard data
     async function fetchData() {
-      setLoading(true);
       try {
         if (!currentUser?.id) return;
         const userId = currentUser.id;
@@ -70,11 +64,8 @@ export default function PatientDashboard() {
         console.log("[PatientDashboard] Data fetched successfully:", { appointmentsCount: appts.length, balance });
         
         // Filter only scheduled appointments and sort them by date (assuming they are returned in some order or need sorting)
-        const scheduledAppts = appts.filter(apt => 
-          apt.status === 'scheduled' || 
-          apt.status === 'Scheduled' || 
-          apt.status === 'confirmed' || 
-          apt.status === 'pending'
+        const scheduledAppts = appts.filter(apt =>
+          apt.status === 'scheduled'
         );
         // Sort by date (ascending)
         scheduledAppts.sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
@@ -84,8 +75,6 @@ export default function PatientDashboard() {
         setOutstandingBalance(balance);
       } catch (err) {
         console.error('[PatientDashboard] Error fetching dashboard data:', err);
-      } finally {
-        setLoading(false);
       }
     }
 
@@ -126,8 +115,17 @@ export default function PatientDashboard() {
   }, [appointments, doctorNames]);
 
   const handleCancelClick = (appointment: Appointment) => {
-    setSelectedAppointmentForCancel(appointment);
-    setShowCancelModal(true);
+    if (!appointmentRules) {
+      router.push(`/billing?appointmentId=${appointment.id}&action=cancel`);
+      return;
+    }
+
+    const { fee } = calculateCancellationFee(appointment, appointmentRules);
+    const params = new URLSearchParams();
+    params.append('appointmentId', appointment.id || '');
+    params.append('action', 'cancel');
+    params.append('cancellationFee', fee.toString());
+    router.push(`/billing?${params.toString()}`);
   };
 
   const handleRescheduleClick = (appointment: Appointment) => {
@@ -309,22 +307,6 @@ export default function PatientDashboard() {
           </>
         )}
       </div>
-
-      {/* Cancel Appointment Modal */}
-      <CancelAppointment
-        isOpen={showCancelModal}
-        appointment={selectedAppointmentForCancel}
-        appointmentRules={appointmentRules}
-        onClose={() => {
-          setShowCancelModal(false);
-          setSelectedAppointmentForCancel(null);
-        }}
-        onConfirm={() => {
-          setAppointments(prev => prev.filter(apt => apt.id !== selectedAppointmentForCancel?.id));
-          setShowCancelModal(false);
-          setSelectedAppointmentForCancel(null);
-        }}
-      />
 
       {/* Reschedule Appointment Modal */}
       <ReschedAppointment
