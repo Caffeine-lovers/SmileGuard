@@ -208,7 +208,15 @@ export default function BillingPayment({
 
   // Render CancellationBilling if this is a cancellation request
   if (isCancellation) {
-    return <CancellationBilling />;
+    const appointmentId = searchParams.get('appointmentId');
+    const cancellationFeeParam = searchParams.get('cancellationFee');
+    
+    return (
+      <CancellationBilling 
+        appointmentId={appointmentId || undefined}
+        cancellationFee={cancellationFeeParam ? parseFloat(cancellationFeeParam) : undefined}
+      />
+    );
   }
 
   return (

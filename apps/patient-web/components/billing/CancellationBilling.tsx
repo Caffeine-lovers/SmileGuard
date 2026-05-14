@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
@@ -10,70 +10,138 @@ import { getPatientAppointments } from '@/lib/appointmentService';
 
 interface CancellationBillingProps {
   onCancellationComplete?: () => void;
+  appointmentId?: string;
+  cancellationFee?: number;
 }
 
-export default function CancellationBilling({ onCancellationComplete }: CancellationBillingProps) {
+export default function CancellationBilling({ 
+  onCancellationComplete, 
+  appointmentId: propAppointmentId,
+  cancellationFee: propCancellationFee 
+}: CancellationBillingProps) {
   const { currentUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // Cancellation-specific state
   const [cancellationAppointment, setCancellationAppointment] = useState<Appointment | null>(null);
-  const [cancellationFee, setCancellationFee] = useState(0);
+  const [cancellationFee, setCancellationFee] = useState(propCancellationFee || 0);
   const [paymentMethod, setPaymentMethod] = useState<Billing['payment_method']>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
   const [unpaidAppointments, setUnpaidAppointments] = useState<Appointment[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load unpaid appointments on mount
+  // Try to extract appointment data from URL if available
+  const passedAppointmentData = useMemo(() => {
+    try {
+      const data = searchParams?.get('appointmentData');
+      if (data) {
+        console.log('[CancellationBilling] Found appointment data in params');
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.error('[CancellationBilling] Failed to parse appointmentData from params');
+    }
+    return null;
+  }, [searchParams]);
+
+  // Load unpaid appointments and find cancellation appointment
   useEffect(() => {
-    async function loadAppointments() {
+    async function loadAppointmentsAndSetCancellation() {
       if (!currentUser || !currentUser.id) {
+        console.log('[CancellationBilling] No current user, skipping load');
         setLoadingData(false);
         return;
       }
-      
+
+      // Prefer props over searchParams for reliability
+      const appointmentId = propAppointmentId || searchParams?.get('appointmentId');
+      const cancellationFeeParam = propCancellationFee || parseFloat(searchParams?.get('cancellationFee') || '0');
+
+      console.log('[CancellationBilling] Starting load with params:', { appointmentId, cancellationFeeParam, fromProps: !!propAppointmentId });
+
+      // If params are missing, this is not a cancellation flow
+      if (!appointmentId || !cancellationFeeParam) {
+        console.warn('[CancellationBilling] Missing required cancellation parameters');
+        setError('Missing cancellation parameters. Please try again from the appointments list.');
+        setLoadingData(false);
+        return;
+      }
+
       setLoadingData(true);
+      setError(null);
+      
       try {
         const userId = currentUser.id;
+        console.log('[CancellationBilling] Fetching all appointments for user:', userId);
+        
         const appts = await getPatientAppointments(userId);
         const billings = await getBillings(userId);
+
+        // Normalize ID for comparison (trim whitespace, compare as strings)
+        const normalizedSearchId = String(appointmentId).trim();
+
+        console.log('[CancellationBilling] All appointments:', appts.map(a => ({ id: a.id, status: a.status, service: a.service })));
+        console.log('[CancellationBilling] Looking for appointmentId:', { raw: appointmentId, normalized: normalizedSearchId });
         
+        // First, check if the appointment exists at all
+        const targetApptInAll = appts.find(a => String(a.id).trim() === normalizedSearchId);
+        if (!targetApptInAll) {
+          console.error('[CancellationBilling] Appointment NOT found. Database IDs:', appts.map(a => ({ raw: a.id, trimmed: String(a.id).trim() })));
+          console.error('[CancellationBilling] Searching for:', { raw: appointmentId, trimmed: normalizedSearchId });
+          setError(`Appointment not found in database. ID: ${appointmentId}`);
+          setLoadingData(false);
+          return;
+        }
+
+        console.log('[CancellationBilling] Found appointment in database:', targetApptInAll);
+        
+        // Now check if it's in the unpaid list
         const paidApptIds = new Set(
           billings
             .filter(b => b.payment_status === 'paid' && b.appointment_id)
-            .map(b => b.appointment_id)
+            .map(b => String(b.appointment_id).trim())
         );
         
-        const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
+        console.log('[CancellationBilling] Paid appointment IDs:', Array.from(paidApptIds));
+        console.log('[CancellationBilling] Appointment status:', targetApptInAll.status);
+        console.log('[CancellationBilling] Is appointment paid?', paidApptIds.has(normalizedSearchId));
+        console.log('[CancellationBilling] Is appointment cancelled?', targetApptInAll.status === 'cancelled');
+        
+        const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(String(a.id).trim()));
         setUnpaidAppointments(unpaid);
+
+        // Find the appointment to cancel
+        const targetAppt = unpaid.find(a => String(a.id).trim() === normalizedSearchId);
+
+        if (targetAppt) {
+          console.log('[CancellationBilling] Appointment is unpaid and not cancelled, setting up cancellation');
+          setCancellationFee(cancellationFeeParam);
+          setCancellationAppointment(targetAppt);
+        } else {
+          // Appointment exists but is not eligible for cancellation
+          if (paidApptIds.has(appointmentId)) {
+            console.warn('[CancellationBilling] Appointment has already been paid');
+            setError('This appointment has already been paid and cannot be cancelled.');
+          } else if (targetApptInAll.status === 'cancelled') {
+            console.warn('[CancellationBilling] Appointment is already cancelled');
+            setError('This appointment is already cancelled.');
+          } else {
+            console.warn('[CancellationBilling] Appointment exists but is not eligible for cancellation. Status:', targetApptInAll.status);
+            setError(`This appointment cannot be cancelled (status: ${targetApptInAll.status})`);
+          }
+        }
       } catch (err) {
-        console.error('Error loading appointments:', err);
+        console.error('[CancellationBilling] Error loading appointments:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load appointment data');
       } finally {
         setLoadingData(false);
       }
     }
 
-    loadAppointments();
-  }, [currentUser?.id]);
-
-  // Handle cancellation from query params
-  useEffect(() => {
-    const action = searchParams.get('action');
-    const appointmentId = searchParams.get('appointmentId');
-    const cancellationFeeParam = searchParams.get('cancellationFee');
-
-    if (action === 'cancel' && appointmentId && cancellationFeeParam) {
-      const fee = parseFloat(cancellationFeeParam);
-      setCancellationFee(fee);
-
-      // Find the appointment to cancel
-      const appt = unpaidAppointments.find(a => a.id === appointmentId);
-      if (appt) {
-        setCancellationAppointment(appt);
-      }
-    }
-  }, [searchParams, unpaidAppointments]);
+    loadAppointmentsAndSetCancellation();
+  }, [currentUser?.id, propAppointmentId]);
 
   const handlePayment = async () => {
     if (!cancellationAppointment || !currentUser?.id) {
@@ -143,8 +211,14 @@ export default function CancellationBilling({ onCancellationComplete }: Cancella
         onCancellationComplete();
       }
 
-      // Redirect immediately without delay
-      await router.push('/');
+      // Clear appointment state before navigation to reset component state
+      setCancellationAppointment(null);
+      
+      // Add small delay to ensure database operations complete
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      // Navigate back with replace to prevent back navigation issues
+      router.replace('/');
     } catch (error) {
       console.error('Cancellation error:', error);
       alert(error instanceof Error ? error.message : 'Failed to process cancellation');
@@ -157,6 +231,23 @@ export default function CancellationBilling({ onCancellationComplete }: Cancella
     return (
       <div className="p-6 bg-bg-screen min-h-screen flex items-center justify-center">
         <p className="text-text-secondary">Loading cancellation details...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-bg-screen min-h-screen">
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6 mb-6">
+          <p className="text-red-800 font-semibold mb-2">Error:</p>
+          <p className="text-red-700">{error}</p>
+        </div>
+        <button
+          onClick={() => router.push('/')}
+          className="block mx-auto px-6 py-3 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-primary/90 transition"
+        >
+          Go Back to Dashboard
+        </button>
       </div>
     );
   }

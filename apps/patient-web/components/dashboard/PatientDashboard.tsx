@@ -115,16 +115,40 @@ export default function PatientDashboard() {
   }, [appointments, doctorNames]);
 
   const handleCancelClick = (appointment: Appointment) => {
+    console.log('[PatientDashboard] Cancel clicked for appointment:', {
+      id: appointment.id,
+      service: appointment.service,
+      status: appointment.status,
+      date: appointment.appointment_date,
+    });
+
     if (!appointmentRules) {
+      console.log('[PatientDashboard] No appointment rules, navigating to billing without fee calculation');
       router.push(`/billing?appointmentId=${appointment.id}&action=cancel`);
       return;
     }
 
     const { fee } = calculateCancellationFee(appointment, appointmentRules);
+    console.log('[PatientDashboard] Calculated cancellation fee:', fee);
+    
     const params = new URLSearchParams();
     params.append('appointmentId', appointment.id || '');
     params.append('action', 'cancel');
     params.append('cancellationFee', fee.toString());
+    params.append('appointmentData', JSON.stringify({
+      id: appointment.id,
+      service: appointment.service,
+      appointment_date: appointment.appointment_date,
+      appointment_time: appointment.appointment_time,
+    }));
+    
+    console.log('[PatientDashboard] Navigating to billing with params:', {
+      appointmentId: appointment.id,
+      action: 'cancel',
+      cancellationFee: fee,
+      hasAppointmentData: true,
+    });
+    
     router.push(`/billing?${params.toString()}`);
   };
 
