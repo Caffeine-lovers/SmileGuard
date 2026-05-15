@@ -109,14 +109,16 @@ export default function CancellationBilling({
         console.log('[CancellationBilling] Is appointment paid?', paidApptIds.has(normalizedSearchId));
         console.log('[CancellationBilling] Is appointment cancelled?', targetApptInAll.status === 'cancelled');
         
+        // Include appointments that are not cancelled and not paid
+        // This includes pending appointments without billing records
         const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(String(a.id).trim()));
         setUnpaidAppointments(unpaid);
 
-        // Find the appointment to cancel
+        // Find the appointment to cancel - should be any non-cancelled, non-paid appointment
         const targetAppt = unpaid.find(a => String(a.id).trim() === normalizedSearchId);
 
         if (targetAppt) {
-          console.log('[CancellationBilling] Appointment is unpaid and not cancelled, setting up cancellation');
+          console.log('[CancellationBilling] Appointment is eligible for cancellation (unpaid/pending)', targetAppt);
           setCancellationFee(cancellationFeeParam);
           setCancellationAppointment(targetAppt);
         } else {

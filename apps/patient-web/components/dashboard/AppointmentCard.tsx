@@ -8,13 +8,14 @@ interface AppointmentCardProps {
   service: string;
   time: string;
   date?: string;
+  paymentStatus?: 'paid' | 'pending';
   onClick?: () => void;
   isSelected?: boolean;
   onCancel?: () => void;
   onReschedule?: () => void;
 }
 
-export default function AppointmentCard({ name, service, time, date, onClick, isSelected, onCancel, onReschedule }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, paymentStatus, onClick, isSelected, onCancel, onReschedule }: AppointmentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuCoords, setMenuCoords] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -74,7 +75,14 @@ export default function AppointmentCard({ name, service, time, date, onClick, is
       </div>
       <div className="flex-1">
         <p className="font-semibold text-base text-text-primary truncate">{name}</p>
-        <p className="text-sm text-text-secondary truncate">{service}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-sm text-text-secondary truncate">{service}</p>
+          {paymentStatus && (
+            <span className={`px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0 ${paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+              {paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-right">
         {date && <p className="text-xs font-medium text-text-secondary">{date}</p>}

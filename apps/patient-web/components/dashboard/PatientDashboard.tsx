@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
@@ -9,8 +10,9 @@ import ReschedAppointment from '@/components/appointments/ReschedAppointment';
 import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
 import { fetchAppointmentRules, calculateCancellationFee } from '@/lib/appointmentRule';
+import { getBillings } from '@/lib/paymentService';
 import Link from 'next/link';
-import type { Appointment } from '@/lib/database';
+import type { Appointment, Billing } from '@/lib/database';
 import type { AppointmentRule } from '@/lib/appointmentRule';
 
 export default function PatientDashboard() {
@@ -23,6 +25,9 @@ export default function PatientDashboard() {
   const [appointmentRules, setAppointmentRules] = useState<AppointmentRule | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedAppointmentForReschedule, setSelectedAppointmentForReschedule] = useState<Appointment | null>(null);
+  const [billings, setBillings] = useState<Billing[]>([]);
+  const [openPendingMenu, setOpenPendingMenu] = useState<string | null>(null);
+  const [pendingMenuCoords, setPendingMenuCoords] = useState({ top: 0, right: 0 });
 
   useEffect(() => {
     const loadAppointmentRules = async () => {
@@ -57,9 +62,10 @@ export default function PatientDashboard() {
         if (!currentUser?.id) return;
         const userId = currentUser.id;
         console.log("[PatientDashboard] Starting data fetch for user:", userId);
-        const [appts, balance] = await Promise.all([
+        const [appts, balance, billingData] = await Promise.all([
           getPatientAppointments(userId),
           calculateOutstandingBalance(userId),
+          getBillings(userId),
         ]);
         console.log("[PatientDashboard] Data fetched successfully:", { appointmentsCount: appts.length, balance });
         
@@ -73,6 +79,7 @@ export default function PatientDashboard() {
         console.log("[PatientDashboard] Scheduled/Confirmed appointments:", scheduledAppts.length);
         setAppointments(scheduledAppts);
         setOutstandingBalance(balance);
+        setBillings(billingData);
       } catch (err) {
         console.error('[PatientDashboard] Error fetching dashboard data:', err);
       }
@@ -80,6 +87,23 @@ export default function PatientDashboard() {
 
     fetchData();
   }, [currentUser, authLoading, router]);
+
+  // Close pending menu when clicking outside
+  useEffect(() => {
+    if (!openPendingMenu) return;
+    
+    const handleOutsideClick = () => setOpenPendingMenu(null);
+    
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('scroll', handleOutsideClick, true);
+    window.addEventListener('resize', handleOutsideClick);
+    
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('scroll', handleOutsideClick, true);
+      window.removeEventListener('resize', handleOutsideClick);
+    };
+  }, [openPendingMenu]);
 
   // Fetch doctor names for scheduled appointments
   useEffect(() => {
@@ -184,6 +208,12 @@ export default function PatientDashboard() {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
+  const getAppointmentPaymentStatus = (appointmentId: string | undefined): 'paid' | 'pending' => {
+    if (!appointmentId) return 'pending';
+    const billing = billings.find(b => b.appointment_id === appointmentId);
+    return billing?.payment_status === 'paid' ? 'paid' : 'pending';
+  };
+
   // Separate scheduled and pending appointments
   const scheduledAppointments = appointments.filter(apt => apt.dentist_id !== null);
   const pendingAppointments = appointments.filter(apt => apt.dentist_id === null);
@@ -246,25 +276,29 @@ export default function PatientDashboard() {
           <>
             {scheduledAppointments.length > 0 ? (
               <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
-                {scheduledAppointments.map((apt, index) => (
-                  <div key={apt.id} className="flex gap-4 items-stretch">
-                    <div className="flex flex-col items-center">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
-                        {index + 1}
+                {scheduledAppointments.map((apt, index) => {
+                  const paymentStatus = getAppointmentPaymentStatus(apt.id);
+                  return (
+                    <div key={apt.id} className="flex gap-4 items-stretch">
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
+                          {index + 1}
+                        </div>
+                        {index < scheduledAppointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
                       </div>
-                      {index < scheduledAppointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
+                      <div className="flex-1 pb-1">
+                        <AppointmentCard
+                          name={apt.dentist_id && doctorNames[apt.dentist_id] ? doctorNames[apt.dentist_id] : 'Assigned Doctor'}
+                          service={apt.service}
+                          time={apt.appointment_time}
+                          date={formatDate(apt.appointment_date)}
+                          paymentStatus={paymentStatus}
+                          onCancel={() => handleCancelClick(apt)}
+                        />
+                      </div>
                     </div>
-                    <div className="flex-1 pb-1">
-                      <AppointmentCard
-                        name={apt.dentist_id && doctorNames[apt.dentist_id] ? doctorNames[apt.dentist_id] : 'Assigned Doctor'}
-                        service={apt.service}
-                        time={apt.appointment_time}
-                        date={formatDate(apt.appointment_date)}
-                        onCancel={() => handleCancelClick(apt)}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-10">
@@ -282,46 +316,107 @@ export default function PatientDashboard() {
           <>
             {pendingAppointments.length > 0 ? (
               <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
-                {pendingAppointments.map((apt, index) => (
-                  <div key={apt.id} className="flex gap-4 items-stretch">
-                    <div className="flex flex-col items-center">
-                      <div className="w-8 h-8 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
-                        {index + 1}
+                {pendingAppointments.map((apt, index) => {
+                  const paymentStatus = getAppointmentPaymentStatus(apt.id);
+                  const isMenuOpen = openPendingMenu === apt.id;
+                  
+                  const toggleMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation();
+                    if (isMenuOpen) {
+                      setOpenPendingMenu(null);
+                      return;
+                    }
+                    const button = e.currentTarget;
+                    const rect = button.getBoundingClientRect();
+                    setPendingMenuCoords({
+                      top: rect.bottom + window.scrollY + 4,
+                      right: window.innerWidth - rect.right - window.scrollX
+                    });
+                    setOpenPendingMenu(apt.id || null);
+                  };
+
+                  return (
+                    <div key={apt.id} className="flex gap-4 items-stretch">
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center text-sm font-bold flex-shrink-0 z-10 relative">
+                          {index + 1}
+                        </div>
+                        {index < pendingAppointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
                       </div>
-                      {index < pendingAppointments.length - 1 && <div className="w-0.5 flex-1 bg-gray-100 my-1" />}
-                    </div>
-                    <div className="flex-1 pb-1">
-                      <div className="bg-bg-notes rounded-xl p-4 border border-yellow-200">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-text-primary">{apt.service}</p>
-                            <p className="text-xs text-text-secondary mt-1">{formatDate(apt.appointment_date)} at {apt.appointment_time}</p>
-                            {apt.notes && <p className="text-xs text-text-secondary mt-2 italic">Notes: {apt.notes}</p>}
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
-                              Pending
-                            </span>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleRescheduleClick(apt)}
-                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline px-1 py-0.5 transition-colors"
-                              >
-                                Reschedule
-                              </button>
-                              <button
-                                onClick={() => handleCancelClick(apt)}
-                                className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline px-1 py-0.5 transition-colors"
-                              >
-                                Cancel Request
-                              </button>
+                      <div className="flex-1 pb-1">
+                        <div className="bg-bg-notes rounded-xl p-4 border border-yellow-200">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded whitespace-nowrap">
+                                  Request Pending
+                                </span>
+                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  paymentStatus === 'paid'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-orange-100 text-orange-700'
+                                }`}>
+                                  {paymentStatus === 'paid' ? '✓ Paid' : 'Payment Pending'}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold text-text-primary mt-2">{apt.service}</p>
+                              <p className="text-xs text-text-secondary mt-1">{formatDate(apt.appointment_date)} at {apt.appointment_time}</p>
+                              {apt.notes && <p className="text-xs text-text-secondary mt-2 italic">Notes: {apt.notes}</p>}
                             </div>
+                            <button
+                              type="button"
+                              onClick={toggleMenu}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isMenuOpen ? 'bg-gray-200 text-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="2" />
+                                <circle cx="12" cy="12" r="2" />
+                                <circle cx="12" cy="19" r="2" />
+                              </svg>
+                            </button>
+                            
+                            {isMenuOpen && typeof document !== 'undefined' && createPortal(
+                              <div 
+                                className="absolute bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] min-w-[140px] overflow-hidden"
+                                style={{
+                                  top: `${pendingMenuCoords.top}px`,
+                                  right: `${pendingMenuCoords.right}px`,
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRescheduleClick(apt);
+                                    setOpenPendingMenu(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-blue-50 transition-colors flex items-center gap-2 border-b border-gray-100"
+                                >
+                                  Reschedule
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancelClick(apt);
+                                    setOpenPendingMenu(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                                >
+                                  Cancel Request
+                                </button>
+                              </div>,
+                              document.body
+                            )}
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-10">
