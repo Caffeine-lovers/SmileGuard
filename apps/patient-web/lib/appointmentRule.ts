@@ -9,6 +9,8 @@ export interface AppointmentRule {
   cancellation_fee_amount: number;
   reschedule_allowed: boolean;
   reschedule_window_hours: number;
+  no_show_penalty_enabled?: boolean;
+  no_show_penalty_amount?: number;
   [key: string]: any;
 }
 
@@ -60,4 +62,20 @@ export const calculateCancellationFee = (
 
   // Past cancellation window
   return { fee: 0, isWithinGracePeriod: false, isWithinCancellationWindow: false };
+};
+
+export const calculateNoShowPenalty = (
+  appointment: Appointment,
+  appointmentRules: AppointmentRule
+): { penalty: number; isNoShowPenaltyEnabled: boolean } => {
+  // Check if no-show penalty is enabled
+  if (!appointmentRules.no_show_penalty_enabled) {
+    return { penalty: 0, isNoShowPenaltyEnabled: false };
+  }
+
+  // Return the no-show penalty amount
+  return { 
+    penalty: appointmentRules.no_show_penalty_amount || 0, 
+    isNoShowPenaltyEnabled: true 
+  };
 };

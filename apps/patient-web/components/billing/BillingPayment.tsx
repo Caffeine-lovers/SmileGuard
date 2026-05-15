@@ -10,7 +10,9 @@ import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+import dynamic from 'next/dynamic';
 import CancellationBilling from './CancellationBilling';
+import NoShowBilling from './NoShowBilling';
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -42,6 +44,7 @@ export default function BillingPayment({
   const [billingHistory, setBillingHistory] = useState<Billing[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [isCancellation, setIsCancellation] = useState(false);
+  const [isNoShow, setIsNoShow] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -77,11 +80,13 @@ export default function BillingPayment({
     fetchBillingData();
   }, [currentUser?.id, baseAmount]);
 
-  // Check if this is a cancellation request
+  // Check if this is a cancellation or no-show request
   useEffect(() => {
     const action = searchParams.get('action');
     if (action === 'cancel') {
       setIsCancellation(true);
+    } else if (action === 'no-show') {
+      setIsNoShow(true);
     }
   }, [searchParams]);
 
@@ -205,6 +210,19 @@ export default function BillingPayment({
       setIsProcessing(false);
     }
   };
+
+  // Render NoShowBilling if this is a no-show request
+  if (isNoShow) {
+    const appointmentId = searchParams.get('appointmentId');
+    const noShowPenaltyParam = searchParams.get('noShowPenalty');
+    
+    return (
+      <NoShowBilling 
+        appointmentId={appointmentId || undefined}
+        noShowPenalty={noShowPenaltyParam ? parseFloat(noShowPenaltyParam) : undefined}
+      />
+    );
+  }
 
   // Render CancellationBilling if this is a cancellation request
   if (isCancellation) {

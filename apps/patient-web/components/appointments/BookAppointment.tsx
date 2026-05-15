@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
-import { createBilling } from '@/lib/paymentService';
+import { createBilling, getBillings } from '@/lib/paymentService';
 import { SERVICE_PRICES } from '@/lib/outstandingBalanceService';
 import BookingRules from '@/components/appointments/BookingRules';
 import type { Appointment } from '@/lib/database';
@@ -219,6 +219,39 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setLoadingUserData(true);
       try {
         const appointments = await getPatientAppointments(userId);
+        const billings = await getBillings(userId);
+        
+        // Check for unpaid no-show penalties
+        const unpaidNoShows = appointments.filter(apt => {
+          if (apt.status !== 'no-show') return false;
+          const hasPaid = billings.some(b => 
+            b.appointment_id === apt.id && 
+            b.payment_status === 'paid' &&
+            b.description === 'No-Show Penalty'
+          );
+          return !hasPaid;
+        });
+
+        // If there are unpaid no-shows, redirect to billing page
+        if (unpaidNoShows.length > 0) {
+          console.log('[BookAppointment] Found unpaid no-shows, redirecting to billing:', unpaidNoShows.length);
+          const firstNoShow = unpaidNoShows[0];
+          
+          // Get the penalty amount from appointment rules if available
+          let penalty = 0;
+          if (appointmentRules?.no_show_penalty_amount) {
+            penalty = appointmentRules.no_show_penalty_amount;
+          }
+          
+          const params = new URLSearchParams();
+          params.append('appointmentId', firstNoShow.id || '');
+          params.append('action', 'no-show');
+          params.append('noShowPenalty', penalty.toString());
+          
+          router.push(`/billing?${params.toString()}`);
+          return;
+        }
+
         const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
@@ -228,7 +261,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       }
     }
     fetchUserAppointments();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, appointmentRules]);
 
   const isSlotDisabled = (date: string, time: string) => {
     const taken = isSlotTaken(blockedSlots, date, time);

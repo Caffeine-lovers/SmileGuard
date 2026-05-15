@@ -13,9 +13,11 @@ interface AppointmentCardProps {
   isSelected?: boolean;
   onCancel?: () => void;
   onReschedule?: () => void;
+  onNoShow?: () => void;
+  rescheduleAllowed?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, date, paymentStatus, onClick, isSelected, onCancel, onReschedule }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, paymentStatus, onClick, isSelected, onCancel, onReschedule, onNoShow, rescheduleAllowed }: AppointmentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuCoords, setMenuCoords] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -88,7 +90,7 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
         {date && <p className="text-xs font-medium text-text-secondary">{date}</p>}
         <p className="text-sm font-bold text-brand-danger">{time}</p>
       </div>
-      {(onCancel || onReschedule) && (
+      {(onCancel || onReschedule || onNoShow) && (
         <div className="relative ml-2">
           <button
             ref={buttonRef}
@@ -114,7 +116,7 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {onReschedule && (
+              {onReschedule && rescheduleAllowed && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -124,6 +126,18 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
                   className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-blue-50 transition-colors flex items-center gap-2 border-b border-gray-100"
                 >
                   Reschedule
+                </button>
+              )}
+              {onNoShow && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMenuClick(onNoShow);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors flex items-center gap-2 border-b border-gray-100"
+                >
+                  Mark as No-Show
                 </button>
               )}
               {onCancel && (
