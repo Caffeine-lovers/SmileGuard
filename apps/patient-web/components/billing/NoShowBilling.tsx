@@ -346,8 +346,8 @@ export default function NoShowBilling({
       // Add small delay to ensure database operations complete
       await new Promise((resolve) => setTimeout(resolve, 500));
       
-      // Navigate back to dashboard
-      router.replace('/');
+      // Navigate to dashboard
+      router.push('/');
     } catch (error) {
       console.error('No-show penalty error:', error);
       alert(error instanceof Error ? error.message : 'Failed to process no-show penalty');
@@ -372,7 +372,7 @@ export default function NoShowBilling({
           <p className="text-red-700">{error}</p>
         </div>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.back()}
           className="block mx-auto px-6 py-3 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-primary/90 transition"
         >
           Go Back to Dashboard
@@ -386,7 +386,7 @@ export default function NoShowBilling({
       <div className="p-6 bg-bg-screen min-h-screen">
         <p className="text-text-secondary text-center">Unable to load no-show penalty information.</p>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.back()}
           className="mt-6 block mx-auto px-6 py-3 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-primary/90 transition"
         >
           Go Back to Dashboard
@@ -482,7 +482,7 @@ export default function NoShowBilling({
           <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={() => router.push('/')}
+              onClick={() => router.back()}
               disabled={isProcessing}
               className="flex-1 px-6 py-3 rounded-lg border-2 border-border-card text-text-primary font-semibold hover:bg-bg-notes transition disabled:opacity-50 disabled:cursor-not-allowed"
             >

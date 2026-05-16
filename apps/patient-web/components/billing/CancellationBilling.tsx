@@ -109,31 +109,21 @@ export default function CancellationBilling({
         console.log('[CancellationBilling] Is appointment paid?', paidApptIds.has(normalizedSearchId));
         console.log('[CancellationBilling] Is appointment cancelled?', targetApptInAll.status === 'cancelled');
         
-        // Include appointments that are not cancelled and not paid
-        // This includes pending appointments without billing records
+        // Check if appointment is eligible for cancellation (not cancelled)
+        if (targetApptInAll.status === 'cancelled') {
+          console.warn('[CancellationBilling] Appointment is already cancelled');
+          setError('This appointment is already cancelled.');
+        } else {
+          // Appointment is eligible for cancellation (any non-cancelled status)
+          console.log('[CancellationBilling] Appointment is eligible for cancellation:', targetApptInAll);
+          setError(null); // Clear any previous errors
+          setCancellationFee(cancellationFeeParam);
+          setCancellationAppointment(targetApptInAll);
+        }
+
+        // Include appointments that are not cancelled for unpaid tracking
         const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(String(a.id).trim()));
         setUnpaidAppointments(unpaid);
-
-        // Find the appointment to cancel - should be any non-cancelled, non-paid appointment
-        const targetAppt = unpaid.find(a => String(a.id).trim() === normalizedSearchId);
-
-        if (targetAppt) {
-          console.log('[CancellationBilling] Appointment is eligible for cancellation (unpaid/pending)', targetAppt);
-          setCancellationFee(cancellationFeeParam);
-          setCancellationAppointment(targetAppt);
-        } else {
-          // Appointment exists but is not eligible for cancellation
-          if (paidApptIds.has(appointmentId)) {
-            console.warn('[CancellationBilling] Appointment has already been paid');
-            setError('This appointment has already been paid and cannot be cancelled.');
-          } else if (targetApptInAll.status === 'cancelled') {
-            console.warn('[CancellationBilling] Appointment is already cancelled');
-            setError('This appointment is already cancelled.');
-          } else {
-            console.warn('[CancellationBilling] Appointment exists but is not eligible for cancellation. Status:', targetApptInAll.status);
-            setError(`This appointment cannot be cancelled (status: ${targetApptInAll.status})`);
-          }
-        }
       } catch (err) {
         console.error('[CancellationBilling] Error loading appointments:', err);
         setError(err instanceof Error ? err.message : 'Failed to load appointment data');
@@ -219,8 +209,8 @@ export default function CancellationBilling({
       // Add small delay to ensure database operations complete
       await new Promise((resolve) => setTimeout(resolve, 500));
       
-      // Navigate back with replace to prevent back navigation issues
-      router.replace('/');
+      // Navigate back to previous page
+      router.back();
     } catch (error) {
       console.error('Cancellation error:', error);
       alert(error instanceof Error ? error.message : 'Failed to process cancellation');
@@ -245,7 +235,7 @@ export default function CancellationBilling({
           <p className="text-red-700">{error}</p>
         </div>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.back()}
           className="block mx-auto px-6 py-3 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-primary/90 transition"
         >
           Go Back to Dashboard
@@ -259,7 +249,7 @@ export default function CancellationBilling({
       <div className="p-6 bg-bg-screen min-h-screen">
         <p className="text-text-secondary text-center">Unable to load cancellation information.</p>
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.back()}
           className="mt-6 block mx-auto px-6 py-3 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-primary/90 transition"
         >
           Go Back to Dashboard
@@ -330,7 +320,7 @@ export default function CancellationBilling({
           <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={() => router.push('/')}
+              onClick={() => router.back()}
               disabled={isProcessing}
               className="flex-1 px-6 py-3 rounded-lg border-2 border-border-card text-text-primary font-semibold hover:bg-bg-notes transition disabled:opacity-50 disabled:cursor-not-allowed"
             >

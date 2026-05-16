@@ -29,6 +29,7 @@ export default function PatientDashboard() {
   const [billings, setBillings] = useState<Billing[]>([]);
   const [openPendingMenu, setOpenPendingMenu] = useState<string | null>(null);
   const [pendingMenuCoords, setPendingMenuCoords] = useState({ top: 0, right: 0 });
+  const [unpaidNoShowPenalties, setUnpaidNoShowPenalties] = useState<Appointment[]>([]);
 
   useEffect(() => {
     const loadAppointmentRules = async () => {
@@ -224,6 +225,42 @@ export default function PatientDashboard() {
     router.push(`/billing?${params.toString()}`);
   };
 
+  const handleViewNoShowPenalties = () => {
+    console.log('[PatientDashboard] View no-show penalties clicked', {
+      unpaidPenaltiesCount: unpaidNoShowPenalties.length,
+    });
+    
+    if (unpaidNoShowPenalties.length === 0) {
+      console.log('[PatientDashboard] No unpaid no-show penalties found');
+      return;
+    }
+
+    // Navigate to billing with the first unpaid no-show penalty
+    const firstUnpaidPenalty = unpaidNoShowPenalties[0];
+    
+    if (!appointmentRules) {
+      console.log('[PatientDashboard] No appointment rules, navigating to billing without penalty calculation');
+      router.push(`/billing?appointmentId=${firstUnpaidPenalty.id}&action=no-show`);
+      return;
+    }
+
+    const { penalty } = calculateNoShowPenalty(firstUnpaidPenalty, appointmentRules);
+    console.log('[PatientDashboard] Navigating to pay no-show penalty:', penalty);
+    
+    const params = new URLSearchParams();
+    params.append('appointmentId', firstUnpaidPenalty.id || '');
+    params.append('action', 'no-show');
+    params.append('noShowPenalty', penalty.toString());
+    params.append('appointmentData', JSON.stringify({
+      id: firstUnpaidPenalty.id,
+      service: firstUnpaidPenalty.service,
+      appointment_date: firstUnpaidPenalty.appointment_date,
+      appointment_time: firstUnpaidPenalty.appointment_time,
+    }));
+    
+    router.push(`/billing?${params.toString()}`);
+  };
+
   const checkAndProcessNoShows = async (allAppointments: Appointment[], billingData: Billing[], userId: string) => {
     console.log('[PatientDashboard] Checking for no-shows...');
     
@@ -314,7 +351,9 @@ export default function PatientDashboard() {
 
       if (unpaidNoShows.length > 0) {
         console.log('[PatientDashboard] Found unpaid no-show penalties:', unpaidNoShows.length);
-        // Store in state or show warning (optional - can be handled in the appointments booking flow)
+        setUnpaidNoShowPenalties(unpaidNoShows);
+      } else {
+        setUnpaidNoShowPenalties([]);
       }
 
     } catch (err) {
@@ -377,7 +416,33 @@ export default function PatientDashboard() {
         <StatCard icon="" number={`₱${outstandingBalance.toFixed(2)}`} label="Outstanding Balance" accent="border-brand-primary" href="/billing" />
         <StatCard icon="" number={formatDate(appointments[0]?.appointment_date ?? '')} label="Next Appointment" accent="border-brand-primary" />
       </div>
-    
+
+      {/* Unpaid No-Show Penalty Alert - Only show if there are unpaid penalties */}
+      {unpaidNoShowPenalties.length > 0 && (
+        <div className="bg-red-50 rounded-2xl shadow-sm border border-red-200 p-6 mb-6">
+          <div className="flex gap-3 items-start justify-between">
+            <div className="flex gap-3 flex-1">
+              <div className="text-red-600 text-xl flex-shrink-0 pt-0.5">⚠️</div>
+              <div>
+                <h3 className="font-semibold text-red-900 text-sm">Unpaid No-Show Penalty</h3>
+                <p className="text-red-800 text-sm mt-1">
+                  You have {unpaidNoShowPenalties.length} unpaid no-show penalty/penalties that must be settled before booking new appointments.
+                </p>
+                <p className="text-red-700 text-xs mt-2">
+                  Click below to pay and clear your account.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleViewNoShowPenalties}
+              className="flex-shrink-0 mt-0.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded transition-colors whitespace-nowrap"
+            >
+              Pay Penalty
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-bg-surface rounded-2xl shadow-sm border border-border-card p-6 mb-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold text-text-primary">Appointments</h2>
