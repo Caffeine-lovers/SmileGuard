@@ -8,13 +8,16 @@ interface AppointmentCardProps {
   service: string;
   time: string;
   date?: string;
+  paymentStatus?: 'paid' | 'pending';
   onClick?: () => void;
   isSelected?: boolean;
   onCancel?: () => void;
   onReschedule?: () => void;
+  onNoShow?: () => void;
+  rescheduleAllowed?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, date, onClick, isSelected, onCancel, onReschedule }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, paymentStatus, onClick, isSelected, onCancel, onReschedule, onNoShow, rescheduleAllowed }: AppointmentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuCoords, setMenuCoords] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -74,13 +77,20 @@ export default function AppointmentCard({ name, service, time, date, onClick, is
       </div>
       <div className="flex-1">
         <p className="font-semibold text-base text-text-primary truncate">{name}</p>
-        <p className="text-sm text-text-secondary truncate">{service}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-sm text-text-secondary truncate">{service}</p>
+          {paymentStatus && (
+            <span className={`px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0 ${paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+              {paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-right">
         {date && <p className="text-xs font-medium text-text-secondary">{date}</p>}
         <p className="text-sm font-bold text-brand-danger">{time}</p>
       </div>
-      {(onCancel || onReschedule) && (
+      {(onCancel || onReschedule || onNoShow) && (
         <div className="relative ml-2">
           <button
             ref={buttonRef}
@@ -106,7 +116,7 @@ export default function AppointmentCard({ name, service, time, date, onClick, is
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {onReschedule && (
+              {onReschedule && rescheduleAllowed && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -116,6 +126,18 @@ export default function AppointmentCard({ name, service, time, date, onClick, is
                   className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-blue-50 transition-colors flex items-center gap-2 border-b border-gray-100"
                 >
                   Reschedule
+                </button>
+              )}
+              {onNoShow && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMenuClick(onNoShow);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors flex items-center gap-2 border-b border-gray-100"
+                >
+                  Mark as No-Show
                 </button>
               )}
               {onCancel && (
