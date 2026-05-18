@@ -65,7 +65,7 @@ export default function BookingRules({ isOpen, onClose, appointmentRules }: Book
 
               {appointmentRules.first_time_cancellation_free && (
                 <div className="bg-purple-50 rounded-lg p-3">
-                  <p className="font-semibold text-purple-900">✨ First Cancellation Free</p>
+                  <p className="font-semibold text-purple-900">First Cancellation Free</p>
                   <p className="text-purple-700 mt-1">
                     Your first cancellation will be free, regardless of timing.
                   </p>

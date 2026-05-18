@@ -8,6 +8,7 @@ interface AppointmentCardProps {
   service: string;
   time: string;
   date?: string;
+  createdAt?: string;
   paymentStatus?: 'paid' | 'pending';
   onClick?: () => void;
   isSelected?: boolean;
@@ -15,9 +16,10 @@ interface AppointmentCardProps {
   onReschedule?: () => void;
   onNoShow?: () => void;
   rescheduleAllowed?: boolean;
+  doctorPicture?: string | null;
 }
 
-export default function AppointmentCard({ name, service, time, date, paymentStatus, onClick, isSelected, onCancel, onReschedule, onNoShow, rescheduleAllowed }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, createdAt, paymentStatus, onClick, isSelected, onCancel, onReschedule, onNoShow, rescheduleAllowed, doctorPicture }: AppointmentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuCoords, setMenuCoords] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -72,8 +74,16 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
       }`}
       onClick={onClick}
     >
-      <div className="w-12 h-12 rounded-full bg-bg-avatar-initials text-text-on-avatar font-bold text-sm flex items-center justify-center flex-shrink-0">
-        {initials}
+      <div className="w-12 h-12 rounded-full bg-bg-avatar-initials text-text-on-avatar font-bold text-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
+        {doctorPicture ? (
+          <img 
+            src={doctorPicture} 
+            alt={name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          initials
+        )}
       </div>
       <div className="flex-1">
         <p className="font-semibold text-base text-text-primary truncate">{name}</p>
