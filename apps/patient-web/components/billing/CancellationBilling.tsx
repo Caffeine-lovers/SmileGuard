@@ -7,6 +7,7 @@ import { supabase } from '@smileguard/supabase-client';
 import type { Appointment, Billing } from '@/lib/database';
 import { getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
+import { fetchAppointmentRules } from '@/lib/appointmentRule';
 
 interface CancellationBillingProps {
   onCancellationComplete?: () => void;
@@ -31,6 +32,7 @@ export default function CancellationBilling({
   const [unpaidAppointments, setUnpaidAppointments] = useState<Appointment[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [appointmentRules, setAppointmentRules] = useState<any>(null);
 
   // Try to extract appointment data from URL if available
   const passedAppointmentData = useMemo(() => {
@@ -55,14 +57,19 @@ export default function CancellationBilling({
         return;
       }
 
+      // Fetch appointment rules
+      const rules = await fetchAppointmentRules();
+      setAppointmentRules(rules);
+
       // Prefer props over searchParams for reliability
       const appointmentId = propAppointmentId || searchParams?.get('appointmentId');
-      const cancellationFeeParam = propCancellationFee || parseFloat(searchParams?.get('cancellationFee') || '0');
+      const cancellationFeeParam = propCancellationFee !== undefined ? propCancellationFee : parseFloat(searchParams?.get('cancellationFee') || 'NaN');
 
       console.log('[CancellationBilling] Starting load with params:', { appointmentId, cancellationFeeParam, fromProps: !!propAppointmentId });
 
       // If params are missing, this is not a cancellation flow
-      if (!appointmentId || !cancellationFeeParam) {
+      // Note: cancellationFeeParam can be 0 (valid fee), so check for NaN and null instead
+      if (!appointmentId || isNaN(cancellationFeeParam)) {
         console.warn('[CancellationBilling] Missing required cancellation parameters');
         setError('Missing cancellation parameters. Please try again from the appointments list.');
         setLoadingData(false);
@@ -144,6 +151,29 @@ export default function CancellationBilling({
 
     loadAppointmentsAndSetCancellation();
   }, [currentUser?.id, propAppointmentId]);
+
+  // Helper function to calculate grace period status
+  const getGracePeriodStatus = () => {
+    if (!cancellationAppointment || !appointmentRules) {
+      return { isWithinGrace: false, hoursElapsed: 0, hourGracePeriod: 0, minutesRemaining: 0 };
+    }
+
+    const now = new Date();
+    const createdAt = new Date(cancellationAppointment.created_at || '');
+    const elapsedMs = now.getTime() - createdAt.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+    const graceHours = appointmentRules.grace_period_hours || 0;
+    const isWithinGrace = elapsedHours <= graceHours;
+    const remainingMs = (graceHours * 60 * 60 * 1000) - elapsedMs;
+    const remainingMinutes = Math.max(0, Math.floor(remainingMs / (1000 * 60)));
+
+    return {
+      isWithinGrace,
+      hoursElapsed: Math.floor(elapsedHours),
+      hourGracePeriod: graceHours,
+      minutesRemaining: remainingMinutes,
+    };
+  };
 
   const handlePayment = async () => {
     if (!cancellationAppointment || !currentUser?.id) {
@@ -293,14 +323,64 @@ export default function CancellationBilling({
               })}{' '}
               at {cancellationAppointment.appointment_time}
             </p>
+            {cancellationAppointment.created_at && (
+              <p className="text-xs text-red-600 mt-3 pt-3 border-t border-red-200">
+                <span className="font-semibold">Booked:</span>{' '}
+                {new Date(cancellationAppointment.created_at).toLocaleDateString('en-PH', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            )}
           </div>
+
+          {/* Grace Period Information */}
+          {appointmentRules && (() => {
+            const gracePeriod = getGracePeriodStatus();
+            return (
+              <div className={`border-2 rounded-lg p-4 ${
+                gracePeriod.isWithinGrace
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-orange-50 border-orange-200'
+              }`}>
+                <p className={`text-xs font-bold uppercase tracking-wide mb-2 ${
+                  gracePeriod.isWithinGrace ? 'text-green-700' : 'text-orange-700'
+                }`}>
+                  Grace Period Status
+                </p>
+                <div className="space-y-2 text-xs">
+                  <p className={gracePeriod.isWithinGrace ? 'text-green-900' : 'text-orange-900'}>
+                    <span className="font-semibold">Grace Period Duration:</span> {gracePeriod.hourGracePeriod} hour{gracePeriod.hourGracePeriod !== 1 ? 's' : ''}
+                  </p>
+                  <p className={gracePeriod.isWithinGrace ? 'text-green-900' : 'text-orange-900'}>
+                    <span className="font-semibold">Time Elapsed:</span> {gracePeriod.hoursElapsed} hour{gracePeriod.hoursElapsed !== 1 ? 's' : ''}
+                  </p>
+                  {gracePeriod.isWithinGrace && (
+                    <p className="text-green-900 font-semibold">
+                      You are within the grace period! {gracePeriod.minutesRemaining > 0 ? `${gracePeriod.minutesRemaining} minutes remaining.` : 'Grace period expiring soon!'}
+                    </p>
+                  )}
+                  {!gracePeriod.isWithinGrace && (
+                    <p className="text-orange-900 font-semibold">
+                      Grace period has expired. Cancellation fee applies.
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Cancellation Fee */}
           <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
             <p className="text-xs text-yellow-700 uppercase font-bold tracking-wide mb-2">Cancellation Fee</p>
             <p className="text-3xl font-bold text-yellow-900">₱{cancellationFee.toFixed(2)}</p>
-            <p className="text-sm text-yellow-700 mt-2">
-              This fee applies based on the clinic&apos;s cancellation policy.
+            <p className="text-sm text-yellow-700 mt-3">
+              {cancellationFee === 0 
+                ? 'Free cancellation! You are within the grace period, so no fee applies.'
+                : 'Fee applies because you are cancelling after the grace period has expired.'}
             </p>
           </div>
 

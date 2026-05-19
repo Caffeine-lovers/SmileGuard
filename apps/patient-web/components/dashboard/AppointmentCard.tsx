@@ -8,16 +8,17 @@ interface AppointmentCardProps {
   service: string;
   time: string;
   date?: string;
+  createdAt?: string;
   paymentStatus?: 'paid' | 'pending';
   onClick?: () => void;
   isSelected?: boolean;
   onCancel?: () => void;
   onReschedule?: () => void;
-  onNoShow?: () => void;
   rescheduleAllowed?: boolean;
+  doctorPicture?: string | null;
 }
 
-export default function AppointmentCard({ name, service, time, date, paymentStatus, onClick, isSelected, onCancel, onReschedule, onNoShow, rescheduleAllowed }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, createdAt, paymentStatus, onClick, isSelected, onCancel, onReschedule, rescheduleAllowed, doctorPicture }: AppointmentCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuCoords, setMenuCoords] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -72,8 +73,16 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
       }`}
       onClick={onClick}
     >
-      <div className="w-12 h-12 rounded-full bg-bg-avatar-initials text-text-on-avatar font-bold text-sm flex items-center justify-center flex-shrink-0">
-        {initials}
+      <div className="w-12 h-12 rounded-full bg-bg-avatar-initials text-text-on-avatar font-bold text-sm flex items-center justify-center flex-shrink-0 overflow-hidden">
+        {doctorPicture ? (
+          <img 
+            src={doctorPicture} 
+            alt={name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          initials
+        )}
       </div>
       <div className="flex-1">
         <p className="font-semibold text-base text-text-primary truncate">{name}</p>
@@ -90,7 +99,7 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
         {date && <p className="text-xs font-medium text-text-secondary">{date}</p>}
         <p className="text-sm font-bold text-brand-danger">{time}</p>
       </div>
-      {(onCancel || onReschedule || onNoShow) && (
+      {(onCancel || onReschedule) && (
         <div className="relative ml-2">
           <button
             ref={buttonRef}
@@ -126,18 +135,6 @@ export default function AppointmentCard({ name, service, time, date, paymentStat
                   className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-blue-50 transition-colors flex items-center gap-2 border-b border-gray-100"
                 >
                   Reschedule
-                </button>
-              )}
-              {onNoShow && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMenuClick(onNoShow);
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-amber-600 hover:bg-amber-50 transition-colors flex items-center gap-2 border-b border-gray-100"
-                >
-                  Mark as No-Show
                 </button>
               )}
               {onCancel && (

@@ -9,6 +9,7 @@ import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import ReschedAppointment from '@/components/appointments/ReschedAppointment';
 import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
+import { getDoctorProfilePictureMap } from '@/lib/doctorProfilePicture';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
 import { fetchAppointmentRules, calculateCancellationFee, calculateNoShowPenalty } from '@/lib/appointmentRule';
 import { getBillings } from '@/lib/paymentService';
@@ -23,6 +24,7 @@ export default function PatientDashboard() {
   const [outstandingBalance, setOutstandingBalance] = useState(0);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
+  const [doctorPictures, setDoctorPictures] = useState<Record<string, string | null>>({});
   const [appointmentRules, setAppointmentRules] = useState<AppointmentRule | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedAppointmentForReschedule, setSelectedAppointmentForReschedule] = useState<Appointment | null>(null);
@@ -110,14 +112,16 @@ export default function PatientDashboard() {
     };
   }, [openPendingMenu]);
 
-  // Fetch doctor names for scheduled appointments
+  // Fetch doctor names and pictures for scheduled appointments
   useEffect(() => {
-    const fetchDoctorNames = async () => {
+    const fetchDoctorNamesAndPictures = async () => {
       const scheduledAppts = appointments.filter(apt => apt.dentist_id !== null);
       const names: Record<string, string> = {};
+      const doctorIds: string[] = [];
 
       for (const apt of scheduledAppts) {
         if (apt.dentist_id && !doctorNames[apt.dentist_id]) {
+          doctorIds.push(apt.dentist_id);
           try {
             const doctorName = await getDoctorName(apt.dentist_id);
             console.log(`[PatientDashboard] Fetched doctor name for ${apt.dentist_id}:`, doctorName);
@@ -136,10 +140,22 @@ export default function PatientDashboard() {
         console.log('[PatientDashboard] Setting doctor names:', names);
         setDoctorNames(prev => ({ ...prev, ...names }));
       }
+
+      // Fetch doctor profile pictures in parallel for all doctors with appointments
+      if (doctorIds.length > 0) {
+        try {
+          console.log('[PatientDashboard] Fetching doctor profile pictures for:', doctorIds);
+          const pictureMap = await getDoctorProfilePictureMap(doctorIds);
+          console.log('[PatientDashboard] Fetched doctor pictures:', pictureMap);
+          setDoctorPictures(prev => ({ ...prev, ...pictureMap }));
+        } catch (error) {
+          console.error('[PatientDashboard] Error fetching doctor profile pictures:', error);
+        }
+      }
     };
 
     if (appointments.length > 0) {
-      fetchDoctorNames();
+      fetchDoctorNamesAndPictures();
     }
   }, [appointments, doctorNames]);
 
@@ -184,44 +200,6 @@ export default function PatientDashboard() {
   const handleRescheduleClick = (appointment: Appointment) => {
     setSelectedAppointmentForReschedule(appointment);
     setShowRescheduleModal(true);
-  };
-
-  const handleNoShowClick = (appointment: Appointment) => {
-    console.log('[PatientDashboard] No-Show clicked for appointment:', {
-      id: appointment.id,
-      service: appointment.service,
-      status: appointment.status,
-      date: appointment.appointment_date,
-    });
-
-    if (!appointmentRules) {
-      console.log('[PatientDashboard] No appointment rules, navigating to billing without penalty calculation');
-      router.push(`/billing?appointmentId=${appointment.id}&action=no-show`);
-      return;
-    }
-
-    const { penalty } = calculateNoShowPenalty(appointment, appointmentRules);
-    console.log('[PatientDashboard] Calculated no-show penalty:', penalty);
-    
-    const params = new URLSearchParams();
-    params.append('appointmentId', appointment.id || '');
-    params.append('action', 'no-show');
-    params.append('noShowPenalty', penalty.toString());
-    params.append('appointmentData', JSON.stringify({
-      id: appointment.id,
-      service: appointment.service,
-      appointment_date: appointment.appointment_date,
-      appointment_time: appointment.appointment_time,
-    }));
-    
-    console.log('[PatientDashboard] Navigating to billing with params:', {
-      appointmentId: appointment.id,
-      action: 'no-show',
-      noShowPenalty: penalty,
-      hasAppointmentData: true,
-    });
-    
-    router.push(`/billing?${params.toString()}`);
   };
 
   const checkAndProcessNoShows = async (allAppointments: Appointment[], billingData: Billing[], userId: string) => {
@@ -349,6 +327,11 @@ export default function PatientDashboard() {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
+  const formatCreatedAt = (dateStr: string) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const getAppointmentPaymentStatus = (appointmentId: string | undefined): 'paid' | 'pending' => {
     if (!appointmentId) return 'pending';
     const billing = billings.find(b => b.appointment_id === appointmentId);
@@ -419,6 +402,7 @@ export default function PatientDashboard() {
               <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                 {scheduledAppointments.map((apt, index) => {
                   const paymentStatus = getAppointmentPaymentStatus(apt.id);
+                  const doctorPicture = apt.dentist_id ? doctorPictures[apt.dentist_id] : null;
                   return (
                     <div key={apt.id} className="flex gap-4 items-stretch">
                       <div className="flex flex-col items-center">
@@ -433,11 +417,12 @@ export default function PatientDashboard() {
                           service={apt.service}
                           time={apt.appointment_time}
                           date={formatDate(apt.appointment_date)}
+                          createdAt={formatCreatedAt(apt.created_at || '')}
                           paymentStatus={paymentStatus}
                           onCancel={() => handleCancelClick(apt)}
-                          onNoShow={() => handleNoShowClick(apt)}
                           onReschedule={() => handleRescheduleClick(apt)}
                           rescheduleAllowed={appointmentRules?.reschedule_allowed}
+                          doctorPicture={doctorPicture}
                         />
                       </div>
                     </div>
@@ -505,6 +490,7 @@ export default function PatientDashboard() {
                               </div>
                               <p className="text-sm font-semibold text-text-primary mt-2">{apt.service}</p>
                               <p className="text-xs text-text-secondary mt-1">{formatDate(apt.appointment_date)} at {apt.appointment_time}</p>
+                              {apt.created_at && <p className="text-xs text-text-secondary/70 mt-1">Booked: {formatCreatedAt(apt.created_at)}</p>}
                               {apt.notes && <p className="text-xs text-text-secondary mt-2 italic">Notes: {apt.notes}</p>}
                             </div>
                             <button
