@@ -67,6 +67,7 @@ export interface DashboardAppointment {
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
+  created_at?: string;
 }
 
 interface DoctorDashboardProps {
@@ -116,7 +117,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<DashboardAppointment | null>(null);
   const [originalPatient, setOriginalPatient] = useState<DashboardAppointment | null>(null);
-  const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
+  const [patientSortBy, setPatientSortBy] = useState<'created_at' | 'name' | 'date' | 'service'>('created_at');
   const [patientSortOrder, setPatientSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
   const [expandPatientDetails, setExpandPatientDetails] = useState(false);
@@ -252,46 +253,48 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           }
         }
         
-        const transformedRequests = appointmentRequestsData.map((apt: any) => {
-          // Use dummy account data if available, otherwise use patient profile
-          const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
-            ? dummyAccountsMapRequests[apt.dummy_account_id]
-            : apt.patient_profile;
-          
-          const medicalIntake = medicalData ? {
-            gender: medicalData.gender || '',
-            phone: medicalData.phone || '',
-            address: medicalData.address || '',
-            dateOfBirth: medicalData.date_of_birth || '',
-            emergencyContactName: medicalData.emergency_contact_name || '',
-            emergencyContactPhone: medicalData.emergency_contact_phone || '',
-            allergies: medicalData.alergies || medicalData.allergies || '',
-            currentMedications: medicalData.current_medications || '',
-            medicalConditions: medicalData.medical_conditions || '',
-            pastSurgeries: medicalData.past_surgeries || '',
-            smokingStatus: medicalData.smoking_status || '',
-            pregnancyStatus: medicalData.pregnancy_status || '',
-            notes: medicalData.notes || '',
-          } : null;
-          
-          return {
-            id: apt.id || '',
-            name: apt.patient_name || 'Patient',
-            service: apt.service || '',
-            time: apt.appointment_time || '',
-            date: apt.appointment_date || '',
-            age: 0,
-            gender: medicalData?.gender || '',
-            contact: medicalData?.phone || '',
-            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
-            notes: apt.notes || '',
-            imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
-            patient_id: apt.patient_id,
-            dentist_id: apt.dentist_id,
-            medicalIntake: medicalIntake,
-          };
-        });
+        const transformedRequests = appointmentRequestsData
+          .filter((apt: any) => apt.status !== 'cancelled' && apt.status !== 'no-show')
+          .map((apt: any) => {
+            // Use dummy account data if available, otherwise use patient profile
+            const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
+              ? dummyAccountsMapRequests[apt.dummy_account_id]
+              : apt.patient_profile;
+            
+            const medicalIntake = medicalData ? {
+              gender: medicalData.gender || '',
+              phone: medicalData.phone || '',
+              address: medicalData.address || '',
+              dateOfBirth: medicalData.date_of_birth || '',
+              emergencyContactName: medicalData.emergency_contact_name || '',
+              emergencyContactPhone: medicalData.emergency_contact_phone || '',
+              allergies: medicalData.alergies || medicalData.allergies || '',
+              currentMedications: medicalData.current_medications || '',
+              medicalConditions: medicalData.medical_conditions || '',
+              pastSurgeries: medicalData.past_surgeries || '',
+              smokingStatus: medicalData.smoking_status || '',
+              pregnancyStatus: medicalData.pregnancy_status || '',
+              notes: medicalData.notes || '',
+            } : null;
+            
+            return {
+              id: apt.id || '',
+              name: apt.patient_name || 'Patient',
+              service: apt.service || '',
+              time: apt.appointment_time || '',
+              date: apt.appointment_date || '',
+              age: 0,
+              gender: medicalData?.gender || '',
+              contact: medicalData?.phone || '',
+              email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+              notes: apt.notes || '',
+              imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+              status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+              patient_id: apt.patient_id,
+              dentist_id: apt.dentist_id,
+              medicalIntake: medicalIntake,
+            };
+          });
         setAppointmentRequests(transformedRequests);
       } else {
         setAppointmentRequests([]);
@@ -431,6 +434,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           imageUrl: require('../../assets/images/user.png'),
           status: 'scheduled' as const,
           patient_id: patient.id,
+          created_at: patient.created_at,
         }));
         setPatients(transformedPatients);
 
@@ -615,7 +619,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const sortPatients = (patientsToSort: DashboardAppointment[]): DashboardAppointment[] => {
     const sorted = [...patientsToSort];
-    if (patientSortBy === 'name') {
+    if (patientSortBy === 'created_at') {
+      sorted.sort((a, b) => new Date((b as any).created_at || 0).getTime() - new Date((a as any).created_at || 0).getTime());
+    } else if (patientSortBy === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     } else if (patientSortBy === 'date') {
       sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

@@ -39,37 +39,39 @@ export default function AppointmentsRequestTab({
       const appointmentRequestsData = await getAppointmentRequests();
       
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        const transformedRequests = appointmentRequestsData.map((apt: any) => ({
-          id: apt.id || '',
-          name: apt.patient_name || 'Patient',
-          service: apt.service || '',
-          time: apt.appointment_time || '',
-          date: apt.appointment_date || '',
-          age: 0,
-          gender: apt.patient_profile?.gender || '',
-          contact: apt.patient_profile?.phone || '',
-          email: apt.profiles?.email || '',
-          notes: apt.notes || '',
-          imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
-          patient_id: apt.patient_id,
-          dentist_id: apt.dentist_id,
-          medicalIntake: apt.patient_profile ? {
-            gender: apt.patient_profile.gender || '',
-            phone: apt.patient_profile.phone || '',
-            address: apt.patient_profile.address || '',
-            dateOfBirth: apt.patient_profile.date_of_birth || '',
-            emergencyContactName: apt.patient_profile.emergency_contact_name || '',
-            emergencyContactPhone: apt.patient_profile.emergency_contact_phone || '',
-            allergies: apt.patient_profile.allergies || '',
-            currentMedications: apt.patient_profile.current_medications || '',
-            medicalConditions: apt.patient_profile.medical_conditions || '',
-            pastSurgeries: apt.patient_profile.past_surgeries || '',
-            smokingStatus: apt.patient_profile.smoking_status || '',
-            pregnancyStatus: apt.patient_profile.pregnancy_status || '',
-            notes: apt.patient_profile.notes || '',
-          } : null,
-        }));
+        const transformedRequests = appointmentRequestsData
+          .filter((apt: any) => apt.status !== 'cancelled' && apt.status !== 'no-show')
+          .map((apt: any) => ({
+            id: apt.id || '',
+            name: apt.patient_name || 'Patient',
+            service: apt.service || '',
+            time: apt.appointment_time || '',
+            date: apt.appointment_date || '',
+            age: 0,
+            gender: apt.patient_profile?.gender || '',
+            contact: apt.patient_profile?.phone || '',
+            email: apt.profiles?.email || '',
+            notes: apt.notes || '',
+            imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+            patient_id: apt.patient_id,
+            dentist_id: apt.dentist_id,
+            medicalIntake: apt.patient_profile ? {
+              gender: apt.patient_profile.gender || '',
+              phone: apt.patient_profile.phone || '',
+              address: apt.patient_profile.address || '',
+              dateOfBirth: apt.patient_profile.date_of_birth || '',
+              emergencyContactName: apt.patient_profile.emergency_contact_name || '',
+              emergencyContactPhone: apt.patient_profile.emergency_contact_phone || '',
+              allergies: apt.patient_profile.allergies || '',
+              currentMedications: apt.patient_profile.current_medications || '',
+              medicalConditions: apt.patient_profile.medical_conditions || '',
+              pastSurgeries: apt.patient_profile.past_surgeries || '',
+              smokingStatus: apt.patient_profile.smoking_status || '',
+              pregnancyStatus: apt.patient_profile.pregnancy_status || '',
+              notes: apt.patient_profile.notes || '',
+            } : null,
+          }));
         setAppointmentRequests(transformedRequests);
       } else {
         setAppointmentRequests([]);
