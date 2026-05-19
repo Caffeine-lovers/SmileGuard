@@ -861,9 +861,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                   {/* Stats Panel - from Supabase */}
                   <View style={styles.firstPanel}>
-                    <StatCard number={patients.length} label="Patients" />
-                    <StatCard number={stats.total} label="Appointments" />
-                    <StatCard number={stats.paidBillings} label="Paid Billings" />
+                    <TouchableOpacity onPress={() => setActiveTab('records')}>
+                      <StatCard number={patients.length} label="Patients" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setActiveTab('appointments')}>
+                      <StatCard number={stats.total} label="Appointments" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setActiveTab('billing')}>
+                      <StatCard number={stats.paidBillings} label="Paid Billings" />
+                    </TouchableOpacity>
                   </View>
 
                   <View style={styles.sectionHeader}>
@@ -1340,6 +1346,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     );
                   }
                   notificationState.actions.addNotification(notification);
+                }}
+                onPatientPress={(patientId, patientName) => {
+                  // Find the patient from the patients list
+                  const patient = patients.find(p => p.patient_id === patientId);
+                  if (patient) {
+                    setViewingPatient(patient);
+                    setShowPatientDetails(true);
+                  }
                 }}
               />
             ) : activeTab === 'appointment-requests' ? (

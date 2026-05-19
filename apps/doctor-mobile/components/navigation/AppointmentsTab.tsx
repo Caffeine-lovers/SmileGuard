@@ -39,6 +39,7 @@ interface AppointmentsTabProps {
   doctorId?: string;
   onAppointmentCreated?: (patientName: string, service: string, time: string, appointmentId: string, patientId: string, doctorId: string) => void;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onPatientPress?: (patientId: string, patientName: string) => void;
 }
 
 export default function AppointmentsTab({
@@ -48,6 +49,7 @@ export default function AppointmentsTab({
   doctorId: providedDoctorId,
   onAppointmentCreated,
   onAppointmentStatusUpdated,
+  onPatientPress,
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
@@ -323,6 +325,14 @@ export default function AppointmentsTab({
     if (status === 'cancelled') return '#F44336';
     if (status === 'no-show') return '#9C27B0';
     return '#999';
+  };
+
+  const getAppointmentCountBackgroundColor = (count: number) => {
+    if (count === 0) return '#f9f9f9';
+    if (count === 1) return '#e3f2fd';
+    if (count === 2) return '#bbdefb';
+    if (count >= 3) return '#90caf9';
+    return '#f9f9f9';
   };
 
   const getFilterBadgeColor = () => {
@@ -1120,7 +1130,7 @@ export default function AppointmentsTab({
                       justifyContent: 'center',
                       alignItems: 'center',
                       borderRadius: 10,
-                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : '#f9f9f9',
+                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : getAppointmentCountBackgroundColor(appointmentCount),
                       borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
                       borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#0b7fab' : '#e0e0e0',
                       opacity: isUnavailable ? 0.6 : 1,
@@ -1185,32 +1195,6 @@ export default function AppointmentsTab({
                         <HeroIcon name="xmark" size="xs" color="#fff" />
                       </View>
                     )}
-
-                    {/* Full Badge - Lower Right (3+ Appointments) */}
-                    {!isBlockedSpecific && isFull && !isUnavailable && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          right: 2,
-                          backgroundColor: '#22c55e',
-                          borderRadius: 6,
-                          width: 12,
-                          height: 12,
-                          borderWidth: 1,
-                          borderColor: '#22c55e',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          elevation: 5,
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                        }}
-                      >
-                        <HeroIcon name="check" size="xs" color="#e60b0b" />
-                      </View>
-                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -1255,7 +1239,11 @@ export default function AppointmentsTab({
                 />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 8 }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{appointment.name}</Text>
+                    <TouchableOpacity
+                      onPress={() => onPatientPress?.(appointment.patient_id || appointment.id, appointment.name)}
+                    >
+                      <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#0b7fab', textDecorationLine: 'underline' }}>{appointment.name}</Text>
+                    </TouchableOpacity>
                     {/* Status Badge */}
                     <View
                       style={{
