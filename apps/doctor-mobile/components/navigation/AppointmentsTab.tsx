@@ -15,6 +15,7 @@ import { useFocusEffect } from "expo-router";
 import { useClinic } from "../../contexts/ClinicContext";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
+import { getPatientProfilePictureUrl } from "../../lib/profilesPatients";
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import AppointmentAdd from "../appointments/appointmentAdd";
@@ -27,6 +28,7 @@ type AppointmentType = Appointment;
 type AppointmentWithAccountType = AppointmentType & { 
   accountType?: 'Patient' | 'Dummy',
   patient_avatar?: string,
+  patient_id?: string,
   dummy_account_id?: string
 };
 
@@ -79,6 +81,7 @@ export default function AppointmentsTab({
   const [doctorId, setDoctorId] = useState<string>('');
   const [clinicSchedule, setClinicSchedule] = useState<any>(null);
   const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState<{ [key: string]: string | null }>({});
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
 
@@ -184,6 +187,9 @@ export default function AppointmentsTab({
       imageUrl: 'https://via.placeholder.com/50', // Placeholder
       status: apt.status as any,
       accountType: accountType,
+      patient_id: apt.patient_id,
+      dummy_account_id: apt.dummy_account_id,
+      patient_avatar: apt.patient_avatar,
     };
   };
 
@@ -238,6 +244,19 @@ export default function AppointmentsTab({
             'no-show': filtered.filter(apt => apt.status === 'no-show').length,
           };
           setAllMonthAppointments(filtered);
+          
+          // Fetch profile pictures for all appointments in parallel
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = filtered.map(async (apt) => {
+            // Use patient_id for regular patients, dummy_account_id for dummy accounts
+            const pictureId = apt.patient_id || apt.dummy_account_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
         } else {
           setAllMonthAppointments([]);
         }
@@ -262,6 +281,19 @@ export default function AppointmentsTab({
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
+          
+          // Fetch profile pictures for all appointments in parallel
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = transformed.map(async (apt) => {
+            // Use patient_id for regular patients, dummy_account_id for dummy accounts
+            const pictureId = apt.patient_id || apt.dummy_account_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
         } else {
           setFetchedAppointments([]);
         }
@@ -447,10 +479,24 @@ export default function AppointmentsTab({
       };
       
       // Fetch month appointments
-      getDoctorAppointments(doctorId, startDate, endDate).then(doctorAppointments => {
+      getDoctorAppointments(doctorId, startDate, endDate).then(async (doctorAppointments) => {
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setAllMonthAppointments(transformed);
+          
+          // Fetch profile pictures for all appointments
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = transformed.map(async (apt) => {
+            // Use patient_id for regular patients, dummy_account_id for dummy accounts
+            const pictureId = apt.patient_id || apt.dummy_account_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
+          
           console.log(`✅ Refreshed ${transformed.length} appointments for the month`);
         } else {
           setAllMonthAppointments([]);
@@ -460,10 +506,24 @@ export default function AppointmentsTab({
       });
       
       // Fetch daily appointments
-      getDoctorAppointmentsByDate(doctorId, selectedDate).then(doctorAppointments => {
+      getDoctorAppointmentsByDate(doctorId, selectedDate).then(async (doctorAppointments) => {
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
+          
+          // Fetch profile pictures for all appointments
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = transformed.map(async (apt) => {
+            // Use patient_id for regular patients, dummy_account_id for dummy accounts
+            const pictureId = apt.patient_id || apt.dummy_account_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
+          
           console.log(`✅ Refreshed ${transformed.length} appointments for ${selectedDate}`);
         } else {
           setFetchedAppointments([]);
@@ -502,6 +562,19 @@ export default function AppointmentsTab({
                 if (doctorAppointments.length > 0) {
                   const transformed = doctorAppointments.map(transformBackendAppointment);
                   setFetchedAppointments(transformed);
+                  
+                  // Fetch profile pictures for daily appointments
+                  const pictureUrls: { [key: string]: string | null } = {};
+                  const profilePicturePromises = transformed.map(async (apt) => {
+                    // Use patient_id for regular patients, dummy_account_id for dummy accounts
+                    const pictureId = apt.patient_id || apt.dummy_account_id;
+                    if (pictureId) {
+                      const url = await getPatientProfilePictureUrl(pictureId);
+                      pictureUrls[apt.id] = url;
+                    }
+                  });
+                  await Promise.all(profilePicturePromises);
+                  setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
                 } else {
                   setFetchedAppointments([]);
                 }
@@ -531,6 +604,19 @@ export default function AppointmentsTab({
                   console.log('📊 Status breakdown after cancellation:', statusBreakdown);
                   
                   setAllMonthAppointments(filtered);
+                  
+                  // Fetch profile pictures for month appointments
+                  const pictureUrls: { [key: string]: string | null } = {};
+                  const profilePicturePromises = filtered.map(async (apt) => {
+                    // Use patient_id for regular patients, dummy_account_id for dummy accounts
+                    const pictureId = apt.patient_id || apt.dummy_account_id;
+                    if (pictureId) {
+                      const url = await getPatientProfilePictureUrl(pictureId);
+                      pictureUrls[apt.id] = url;
+                    }
+                  });
+                  await Promise.all(profilePicturePromises);
+                  setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
                 } else {
                   setAllMonthAppointments([]);
                 }
@@ -576,6 +662,19 @@ export default function AppointmentsTab({
     if (dayAppointments.length > 0) {
       const transformed = dayAppointments.map(transformBackendAppointment);
       setFetchedAppointments(transformed);
+      
+      // Fetch profile pictures for daily appointments
+      const pictureUrls: { [key: string]: string | null } = {};
+      const profilePicturePromises = transformed.map(async (apt) => {
+        // Use patient_id for regular patients, dummy_account_id for dummy accounts
+        const pictureId = apt.patient_id || apt.dummy_account_id;
+        if (pictureId) {
+          const url = await getPatientProfilePictureUrl(pictureId);
+          pictureUrls[apt.id] = url;
+        }
+      });
+      await Promise.all(profilePicturePromises);
+      setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
     } else {
       setFetchedAppointments([]);
     }
@@ -592,6 +691,19 @@ export default function AppointmentsTab({
     if (monthAppointments.length > 0) {
       const transformed = monthAppointments.map(transformBackendAppointment);
       setAllMonthAppointments(transformed);
+      
+      // Fetch profile pictures for month appointments
+      const pictureUrls: { [key: string]: string | null } = {};
+      const profilePicturePromises = transformed.map(async (apt) => {
+        // Use patient_id for regular patients, dummy_account_id for dummy accounts
+        const pictureId = apt.patient_id || apt.dummy_account_id;
+        if (pictureId) {
+          const url = await getPatientProfilePictureUrl(pictureId);
+          pictureUrls[apt.id] = url;
+        }
+      });
+      await Promise.all(profilePicturePromises);
+      setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
     }
   };
 
@@ -630,6 +742,19 @@ export default function AppointmentsTab({
         console.log('📊 Status breakdown on refresh:', statusBreakdown);
         
         setAllMonthAppointments(filtered);
+        
+        // Fetch profile pictures for month appointments
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = filtered.map(async (apt) => {
+          // Use patient_id for regular patients, dummy_account_id for dummy accounts
+          const pictureId = apt.patient_id || apt.dummy_account_id;
+          if (pictureId) {
+            const url = await getPatientProfilePictureUrl(pictureId);
+            pictureUrls[apt.id] = url;
+          }
+        });
+        await Promise.all(profilePicturePromises);
+        setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
       } else {
         setAllMonthAppointments([]);
       }
@@ -640,6 +765,19 @@ export default function AppointmentsTab({
       if (dayAppointments.length > 0) {
         const transformed = dayAppointments.map(transformBackendAppointment);
         setFetchedAppointments(transformed);
+        
+        // Fetch profile pictures for daily appointments
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = transformed.map(async (apt) => {
+          // Use patient_id for regular patients, dummy_account_id for dummy accounts
+          const pictureId = apt.patient_id || apt.dummy_account_id;
+          if (pictureId) {
+            const url = await getPatientProfilePictureUrl(pictureId);
+            pictureUrls[apt.id] = url;
+          }
+        });
+        await Promise.all(profilePicturePromises);
+        setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
       } else {
         setFetchedAppointments([]);
       }
@@ -664,6 +802,19 @@ export default function AppointmentsTab({
     if (dayAppointments.length > 0) {
       const transformed = dayAppointments.map(transformBackendAppointment);
       setFetchedAppointments(transformed);
+      
+      // Fetch profile pictures for daily appointments
+      const pictureUrls: { [key: string]: string | null } = {};
+      const profilePicturePromises = transformed.map(async (apt) => {
+        // Use patient_id for regular patients, dummy_account_id for dummy accounts
+        const pictureId = apt.patient_id || apt.dummy_account_id;
+        if (pictureId) {
+          const url = await getPatientProfilePictureUrl(pictureId);
+          pictureUrls[apt.id] = url;
+        }
+      });
+      await Promise.all(profilePicturePromises);
+      setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
     } else {
       setFetchedAppointments([]);
     }
@@ -680,6 +831,19 @@ export default function AppointmentsTab({
     if (monthAppointments.length > 0) {
       const transformed = monthAppointments.map(transformBackendAppointment);
       setAllMonthAppointments(transformed);
+      
+      // Fetch profile pictures for month appointments
+      const pictureUrls: { [key: string]: string | null } = {};
+      const profilePicturePromises = transformed.map(async (apt) => {
+        // Use patient_id for regular patients, dummy_account_id for dummy accounts
+        const pictureId = apt.patient_id || apt.dummy_account_id;
+        if (pictureId) {
+          const url = await getPatientProfilePictureUrl(pictureId);
+          pictureUrls[apt.id] = url;
+        }
+      });
+      await Promise.all(profilePicturePromises);
+      setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
     }
   };
 
@@ -897,7 +1061,7 @@ export default function AppointmentsTab({
             </View>
 
             {/* Weekday Headers */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 }}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
                 // Check if this day is closed based on clinic schedule
                 let isClosed = false;
@@ -909,17 +1073,19 @@ export default function AppointmentsTab({
                 }
                 
                 return (
-                  <Text key={day} style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', width: '14.28%', textAlign: 'center', opacity: isClosed ? 0.7 : 1 }}>
-                    {day}
-                  </Text>
+                  <View key={day} style={{ width: '14.28%', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', opacity: isClosed ? 0.7 : 1 }}>
+                      {day}
+                    </Text>
+                  </View>
                 );
               })}
             </View>
 
             {/* Calendar Days */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap:2 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={{ flex: 1, minWidth: '14%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
+                <View key={`empty-${index}`} style={{ width: '14.28%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: '#fafafa', marginBottom: 4 }} />
               ))}
               {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                 const day = index + 1;
@@ -949,8 +1115,7 @@ export default function AppointmentsTab({
                     onPress={() => !isUnavailable && setSelectedDate(dateStr)}
                     disabled={isUnavailable}
                     style={{
-                      flex: 1,
-                      minWidth: '14%',
+                      width: '14.28%',
                       height: 55,
                       justifyContent: 'center',
                       alignItems: 'center',
@@ -960,6 +1125,7 @@ export default function AppointmentsTab({
                       borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#0b7fab' : '#e0e0e0',
                       opacity: isUnavailable ? 0.6 : 1,
                       position: 'relative',
+                      marginBottom: 4,
                     }}
                   >
                     <Text style={{ position: 'absolute', top: 4, left: 4, fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
@@ -1079,7 +1245,9 @@ export default function AppointmentsTab({
               <View style={{ flexDirection: 'row', alignItems: 'center'}}>
                 <Image
                   source={
-                    appointment.patient_avatar
+                    profilePictureUrls[appointment.id] && typeof profilePictureUrls[appointment.id] === 'string'
+                      ? { uri: profilePictureUrls[appointment.id] as string }
+                      : appointment.patient_avatar
                       ? { uri: appointment.patient_avatar }
                       : require('../../assets/images/user.png')
                   }

@@ -58,7 +58,7 @@ export default function BillingPayment({
           setSelectedAppointment(first);
           const initialAmt = SERVICE_PRICES[first.service] || 0;
           setAmount(initialAmt);
-          const result = calculateDiscount(initialAmt, discountType);
+          const result = calculateDiscount(initialAmt, 'none');
           setDiscountAmount(result.discountAmount);
           setFinalAmount(result.finalAmount);
         }
@@ -70,7 +70,7 @@ export default function BillingPayment({
     }
 
     fetchBillingData();
-  }, [currentUser?.id, baseAmount, discountType]);
+  }, [currentUser?.id, baseAmount]);
 
   const handleAppointmentSelect = (apt: Appointment) => {
     setSelectedAppointment(apt);

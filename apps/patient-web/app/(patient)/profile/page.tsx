@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
+import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatientProfilePicture';
 
 interface MedicalIntake {
   patient_id: string;
@@ -23,13 +24,25 @@ interface MedicalIntake {
 
 export default function BioDataPage() {
   const router = useRouter();
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, medicalIntake, loading: authLoading, setMedicalIntake } = useAuth();
+  const [profileImage, setProfileImage] = useState<File | null>(null);
   const [medicalData, setMedicalData] = useState<MedicalIntake | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  // Sync state correctly based on useAuth hook's currentUser value
+  useEffect(() => {
+    // @ts-ignore - bypassing strict type mapping momentarily since we just added it to useAuth.ts
+    if (currentUser?.profile_picture_url) {
+      // @ts-ignore
+      setProfileImageUrl(currentUser.profile_picture_url);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -38,9 +51,17 @@ export default function BioDataPage() {
     }
 
     if (!authLoading && currentUser) {
-      fetchMedicalData();
+      // Use cached medical data from useAuth hook
+      if (medicalIntake) {
+        console.log('[BioData] Using cached medical data from useAuth');
+        setMedicalData(medicalIntake as MedicalIntake);
+        setLoading(false);
+      } else {
+        // Fetch fresh data if not cached
+        fetchMedicalData();
+      }
     }
-  }, [authLoading, currentUser, router]);
+  }, [authLoading, currentUser, medicalIntake, router]);
 
   const fetchMedicalData = async () => {
     try {
@@ -110,6 +131,9 @@ export default function BioDataPage() {
 
       console.log('[BioData] Medical data saved successfully');
       setSuccess('Bio data saved successfully!');
+      
+      // Update cache in useAuth hook
+      setMedicalIntake(medicalData as any);
       setIsEditing(false);
       
       // Clear success message after 3 seconds
@@ -126,23 +150,50 @@ export default function BioDataPage() {
     setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
   };
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
-          <p className="text-text-primary">Loading your bio data...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-4xl font-bold text-text-primary">Bio Data</h1>
-          <p className="text-text-secondary mt-2">Manage your personal and medical information</p>
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col items-center">
+            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border-card bg-bg-surface-secondary flex items-center justify-center">
+              {profileImageUrl ? (
+                <img 
+                  src={profileImageUrl} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-text-secondary text-sm">No Image</span>
+              )}
+            </div>
+            
+            <label className="mt-2 cursor-pointer text-sm text-brand-primary hover:underline font-medium">
+              {isUploadingImage ? 'Uploading...' : 'Change Picture'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={isUploadingImage}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !currentUser?.id) return;
+                  try {
+                    setIsUploadingImage(true);
+                    const newUrl = await uploadPatientProfilePicture(currentUser.id, file);
+                    setProfileImageUrl(newUrl);
+                  } catch (err: any) {
+                    console.error('Upload failed', err);
+                    alert(`Failed to upload image: ${err.message || 'Unknown error. Check console.'}`);
+                  } finally {
+                    setIsUploadingImage(false);
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <div>
+            <h1 className="text-4xl font-bold text-text-primary">{currentUser?.name || currentUser?.user_metadata?.full_name}</h1>
+          </div>
         </div>
         {!isEditing && (
           <button
