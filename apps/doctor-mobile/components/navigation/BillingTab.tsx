@@ -30,6 +30,7 @@ interface BillingTabProps {
 
 interface BillingWithPatientName extends Billing {
   patient_name?: string;
+  description?: string;
 }
 
 interface AppointmentDetails {
@@ -264,6 +265,22 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
       default:
         return '#f59e0b';
     }
+  };
+
+  const getBillingTypeColor = (description: string): { color: string; bgColor: string } => {
+    if (!description) {
+      return { color: '#0b7fab', bgColor: '#f0f9ff' };
+    }
+
+    const descLower = description.toLowerCase();
+    if (descLower.includes('no-show') || descLower.includes('no show')) {
+      return { color: '#dc2626', bgColor: '#fee2e2' };
+    }
+    if (descLower.includes('cancellation') || descLower.includes('cancelled')) {
+      return { color: '#ea580c', bgColor: '#fed7aa' };
+    }
+    
+    return { color: '#0b7fab', bgColor: '#f0f9ff' };
   };
 
   const handleEditPaymentStatus = (billing: Billing) => {
@@ -556,6 +573,25 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                             </Text>
                           </View>
                         </View>
+
+                        {/* Billing Type Indicator */}
+                        {item.description && (
+                          <View
+                            style={{
+                              backgroundColor: getBillingTypeColor(item.description).bgColor,
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              borderRadius: 8,
+                              marginBottom: 12,
+                              borderLeftWidth: 3,
+                              borderLeftColor: getBillingTypeColor(item.description).color,
+                            }}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: getBillingTypeColor(item.description).color }}>
+                              {item.description}
+                            </Text>
+                          </View>
+                        )}
 
                         {/* Amount Row */}
                         <View
