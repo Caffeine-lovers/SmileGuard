@@ -29,7 +29,7 @@ import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
-import { updatePatientMedicalIntake } from "../../lib/profilesPatients";
+import { updatePatientMedicalIntake, getPatientProfilePictureUrl } from "../../lib/profilesPatients";
 import { supabase } from '@smileguard/supabase-client';
 import { 
   notifyAppointmentStatusChanged,
@@ -123,6 +123,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [expandPatientDetails, setExpandPatientDetails] = useState(false);
   const [viewingPatient, setViewingPatient] = useState<DashboardAppointment | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
+  const [patientProfilePictureUrls, setPatientProfilePictureUrls] = useState<{[key: string]: string | null}>({});
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
@@ -438,8 +439,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         }));
         setPatients(transformedPatients);
 
+        // Fetch profile pictures for all patients in parallel
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = transformedPatients.map(async (patient) => {
+          const url = await getPatientProfilePictureUrl(patient.id);
+          pictureUrls[patient.id] = url;
+        });
+        await Promise.all(profilePicturePromises);
+        setPatientProfilePictureUrls(pictureUrls);
       } else {
         setPatients([]);
+        setPatientProfilePictureUrls({});
 
       }
     } catch (error) {
@@ -1134,7 +1144,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             >
                               <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
                                 <Image
-                                  source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                                  source={
+                                    patientProfilePictureUrls[patient.id]
+                                      ? { uri: patientProfilePictureUrls[patient.id] }
+                                      : (typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl)
+                                  }
                                   style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
                                 />
                                 <View style={{ flex: 1 }}>

@@ -56,8 +56,11 @@ export async function getPatientProfilePictureUrl(
       return null;
     }
 
-    console.log(`✅ Profile picture URL generated for patient ${patientId}:`, publicUrl.publicUrl);
-    return publicUrl.publicUrl;
+    // Add cache-busting timestamp to force fresh image load instead of serving cached version
+    const urlWithCacheBuster = `${publicUrl.publicUrl}?t=${new Date().getTime()}`;
+    
+    console.log(`✅ Profile picture URL generated for patient ${patientId}:`, urlWithCacheBuster);
+    return urlWithCacheBuster;
   } catch (error) {
     console.error(`❌ Exception fetching profile picture for patient ${patientId}:`, error);
     return null;
