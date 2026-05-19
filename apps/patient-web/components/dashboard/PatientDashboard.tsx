@@ -202,44 +202,6 @@ export default function PatientDashboard() {
     setShowRescheduleModal(true);
   };
 
-  const handleNoShowClick = (appointment: Appointment) => {
-    console.log('[PatientDashboard] No-Show clicked for appointment:', {
-      id: appointment.id,
-      service: appointment.service,
-      status: appointment.status,
-      date: appointment.appointment_date,
-    });
-
-    if (!appointmentRules) {
-      console.log('[PatientDashboard] No appointment rules, navigating to billing without penalty calculation');
-      router.push(`/billing?appointmentId=${appointment.id}&action=no-show`);
-      return;
-    }
-
-    const { penalty } = calculateNoShowPenalty(appointment, appointmentRules);
-    console.log('[PatientDashboard] Calculated no-show penalty:', penalty);
-    
-    const params = new URLSearchParams();
-    params.append('appointmentId', appointment.id || '');
-    params.append('action', 'no-show');
-    params.append('noShowPenalty', penalty.toString());
-    params.append('appointmentData', JSON.stringify({
-      id: appointment.id,
-      service: appointment.service,
-      appointment_date: appointment.appointment_date,
-      appointment_time: appointment.appointment_time,
-    }));
-    
-    console.log('[PatientDashboard] Navigating to billing with params:', {
-      appointmentId: appointment.id,
-      action: 'no-show',
-      noShowPenalty: penalty,
-      hasAppointmentData: true,
-    });
-    
-    router.push(`/billing?${params.toString()}`);
-  };
-
   const checkAndProcessNoShows = async (allAppointments: Appointment[], billingData: Billing[], userId: string) => {
     console.log('[PatientDashboard] Checking for no-shows...');
     
@@ -458,7 +420,6 @@ export default function PatientDashboard() {
                           createdAt={formatCreatedAt(apt.created_at || '')}
                           paymentStatus={paymentStatus}
                           onCancel={() => handleCancelClick(apt)}
-                          onNoShow={() => handleNoShowClick(apt)}
                           onReschedule={() => handleRescheduleClick(apt)}
                           rescheduleAllowed={appointmentRules?.reschedule_allowed}
                           doctorPicture={doctorPicture}
