@@ -405,11 +405,12 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
               ) : (
                 <>
                   {(() => {
-                    // Filter: Only show appointments that have been accepted (dentist_id exists)
-                    const acceptedAppointments = appointments.filter((appt: any) => appt.dentist_id);
+                    // Show all appointments regardless of acceptance status
+                    const acceptedAppointments = appointments;
                     const cancelledAppts = acceptedAppointments.filter((appt: any) => appt.status === 'cancelled');
                     const otherAppts = acceptedAppointments.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
-                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other (filtered to show only accepted appointments)`);
+                    
+                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other (showing all appointments)`);
                     
                     return (
                       <>
@@ -432,21 +433,21 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                           </>
                         )}
                         
-                        {/* See More Button - only show if there are more than 3 accepted appointments */}
-                        {acceptedAppointments.length > 3 && (
+                        {/* Show More Button - navigates to AppointmentHistory modal */}
+                        {acceptedAppointments.filter((appt: any) => appt.status !== 'cancelled').length > 3 && (
                           <TouchableOpacity 
                             style={styles.seeMoreButton}
                             onPress={() => setShowAppointmentHistory(true)}
                           >
                             <Text style={styles.seeMoreText}>
-                              See All ({acceptedAppointments.length}) →
+                              See All ({acceptedAppointments.filter((appt: any) => appt.status !== 'cancelled').length}) →
                             </Text>
                           </TouchableOpacity>
                         )}
                         
-                        {/* Show message if no accepted appointments */}
+                        {/* Show message if no appointments */}
                         {acceptedAppointments.length === 0 && (
-                          <Text style={styles.noDataText}>No accepted appointments yet</Text>
+                          <Text style={styles.noDataText}>No appointments found</Text>
                         )}
                       </>
                     );
@@ -598,12 +599,32 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (appt: any) => void }) {
   const formattedDate = appointment.appointment_date && appointment.appointment_time
     ? (() => {
-        const dateStr = appointment.appointment_date; // YYYY-MM-DD
-        const timeStr = appointment.appointment_time; // HH:MM
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const [hour, minute] = timeStr.split(':').map(Number);
-        const date = new Date(year, month - 1, day, hour, minute);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+        try {
+          let dateStr = String(appointment.appointment_date).trim();
+          let timeStr = String(appointment.appointment_time).trim();
+          
+          // Handle ISO format date (e.g., "2024-05-19T10:30:00" or "2024-05-19")
+          if (dateStr.includes('T')) {
+            dateStr = dateStr.split('T')[0];
+          }
+          
+          const dateParts = dateStr.split('-').map(Number);
+          const timeParts = timeStr.split(':').map(Number);
+          
+          const [year, month, day] = dateParts;
+          const [hour, minute] = timeParts;
+          
+          const date = new Date(year, month - 1, day, hour, minute);
+          
+          if (isNaN(date.getTime())) {
+            return 'Invalid date';
+          }
+          
+          return date.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch (error) {
+          console.error('Error formatting appointment date:', error);
+          return 'Invalid date';
+        }
       })()
     : 'Invalid date';
   

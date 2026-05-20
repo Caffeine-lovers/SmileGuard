@@ -67,6 +67,8 @@ export default function RecordsTab({
   const [profilePictureUrls, setProfilePictureUrls] = useState<{ [key: string]: string | null }>({});
   const [swipedDummyId, setSwipedDummyId] = useState<string | null>(null);
   const swipePositions = useRef<{ [key: string]: Animated.Value }>({});
+  const [expandedDummy, setExpandedDummy] = useState(false);
+  const [expandedExisting, setExpandedExisting] = useState(false);
 
   // Note: Session restoration is no longer needed!
   // RLS policies now use auth.role() = 'authenticated' which uses JWT tokens
@@ -489,7 +491,7 @@ export default function RecordsTab({
                     patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
                     patient.contact.includes(quickSearchQuery)
                   )
-                ).map((patient) => (
+                ).slice(0, expandedDummy ? undefined : 3).map((patient) => (
                   <TouchableOpacity
                     key={patient.id}
                     style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12, borderLeftColor: '#4CAF50', borderLeftWidth: 3 }]}
@@ -521,10 +523,33 @@ export default function RecordsTab({
                     </View>
                   </TouchableOpacity>
                 ))}
+                {sortPatients(
+                  dummyPatients.filter((patient) =>
+                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.contact.includes(quickSearchQuery)
+                  )
+                ).length > 3 && (
+                  <TouchableOpacity
+                    onPress={() => setExpandedDummy(!expandedDummy)}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      backgroundColor: '#f0f0f0',
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: '#4CAF50',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#4CAF50' }}>
+                      {expandedDummy ? 'Show Less' : 'Show More'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
-
-            {/* Profiles Patients Section - Show on "All" and "Existing" tabs */}
             {(activeTab === 'all' || activeTab === 'existing') && !loadingSupabase && supabasePatients.length > 0 && (
               <>
                 {activeTab === 'all' && (
@@ -539,7 +564,7 @@ export default function RecordsTab({
                     patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
                     patient.contact.includes(quickSearchQuery)
                   )
-                ).map((patient) => (
+                ).slice(0, expandedExisting ? undefined : 3).map((patient) => (
                   <TouchableOpacity
                     key={patient.id}
                     style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
@@ -571,6 +596,32 @@ export default function RecordsTab({
                     </View>
                   </TouchableOpacity>
                 ))}
+                {sortPatients(
+                  supabasePatients.filter((patient) =>
+                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                    patient.contact.includes(quickSearchQuery)
+                  )
+                ).length > 3 && (
+                  <TouchableOpacity
+                    onPress={() => setExpandedExisting(!expandedExisting)}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      backgroundColor: '#f0f0f0',
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: '#0b7fab',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#0b7fab' }}>
+                      {expandedExisting ? 'Show Less' : 'Show More'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
 

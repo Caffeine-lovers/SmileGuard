@@ -65,6 +65,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [selectedBillingForEdit, setSelectedBillingForEdit] = useState<Billing | null>(null);
   const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
   const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
+  const [penaltyFilter, setPenaltyFilter] = useState<'all' | 'cancellation' | 'no-show'>('all');
 
   // Fetch all patients associated with doctor
   useFocusEffect(
@@ -283,6 +284,25 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     return { color: '#0b7fab', bgColor: '#f0f9ff' };
   };
 
+  const getPenaltyType = (description?: string): 'cancellation' | 'no-show' | 'other' => {
+    if (!description) return 'other';
+    const descLower = description.toLowerCase();
+    if (descLower.includes('no-show') || descLower.includes('no show')) {
+      return 'no-show';
+    }
+    if (descLower.includes('cancellation') || descLower.includes('cancelled')) {
+      return 'cancellation';
+    }
+    return 'other';
+  };
+
+  const getFilteredBillings = (): BillingWithPatientName[] => {
+    if (penaltyFilter === 'all') {
+      return billings;
+    }
+    return billings.filter((billing) => getPenaltyType(billing.description) === penaltyFilter);
+  };
+
   const handleEditPaymentStatus = (billing: Billing) => {
     // Only allow editing for dummy accounts
     if (!selectedPatientIsDummy) {
@@ -498,16 +518,84 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           {/* Billings List */}
           {selectedPatientId ? (
             <>
+              {/* Penalty Filter Buttons */}
+              <View style={{ marginBottom: 16, gap: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#666' }}>
+                  FILTER BY PENALTY TYPE
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  <TouchableOpacity
+                    onPress={() => setPenaltyFilter('all')}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: penaltyFilter === 'all' ? '#0b7fab' : '#ddd',
+                      backgroundColor: penaltyFilter === 'all' ? '#0b7fab' : '#fff',
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: penaltyFilter === 'all' ? '#fff' : '#666',
+                    }}>
+                      All ({billings.length})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setPenaltyFilter('cancellation')}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: penaltyFilter === 'cancellation' ? '#ea580c' : '#ddd',
+                      backgroundColor: penaltyFilter === 'cancellation' ? '#ea580c' : '#fff',
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: penaltyFilter === 'cancellation' ? '#fff' : '#666',
+                    }}>
+                      Cancellation ({billings.filter(b => getPenaltyType(b.description) === 'cancellation').length})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setPenaltyFilter('no-show')}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: penaltyFilter === 'no-show' ? '#dc2626' : '#ddd',
+                      backgroundColor: penaltyFilter === 'no-show' ? '#dc2626' : '#fff',
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: penaltyFilter === 'no-show' ? '#fff' : '#666',
+                    }}>
+                      No-Show ({billings.filter(b => getPenaltyType(b.description) === 'no-show').length})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <View>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 }}>
-                  Billing Records ({billings.length})
+                  Billing Records ({getFilteredBillings().length})
                 </Text>
 
                 {loading ? (
                   <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
                     <ActivityIndicator size="large" color="#0b7fab" />
                   </View>
-                ) : billings.length === 0 ? (
+                ) : getFilteredBillings().length === 0 ? (
                   <View
                     style={{
                       backgroundColor: '#fff',
@@ -519,16 +607,16 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   >
                     <Text style={{ fontSize: 48, marginBottom: 8 }}>📋</Text>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: '#111', marginBottom: 4 }}>
-                      No Billings
+                      {billings.length === 0 ? 'No Billings' : 'No Results'}
                     </Text>
                     <Text style={{ fontSize: 13, color: '#666', textAlign: 'center' }}>
-                      No billing records found for this patient yet.
+                      {billings.length === 0 ? 'No billing records found for this patient yet.' : 'No billing records match the selected filter.'}
                     </Text>
                   </View>
                 ) : (
                   <FlatList
                     scrollEnabled={false}
-                    data={billings}
+                    data={getFilteredBillings()}
                     keyExtractor={(item) => item.id || Math.random().toString()}
                     renderItem={({ item }) => (
                       <View

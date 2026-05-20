@@ -190,49 +190,24 @@ export async function getPatientAppointments(
     patient_id: string;
     service: string;
     appointment_date: string;
+    appointment_time: string;
     status: string;
     notes?: string;
     created_at: string;
   }>
 > {
   try {
-    // First, try using the RPC function to bypass RLS (same as calendar uses)
-    console.log(`🔍 Fetching appointments for patient: ${patientId}`);
+    // Fetch all appointments for this patient directly (bypassing RPC to get ALL appointments including those without dentist_id)
+    console.log(`🔍 Fetching ALL appointments for patient: ${patientId}`);
     
-    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
-      p_start_date: null,
-      p_end_date: null,
-      p_dentist_id: null
-    });
-
-    if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient (check both patient_id for real patients and dummy_account_id for dummy accounts)
-      const patientAppointments = appointmentsData.filter((apt: any) => 
-        apt.patient_id === patientId || apt.dummy_account_id === patientId
-      );
-      
-      if (patientAppointments.length > 0) {
-        const statusBreakdown = {
-          scheduled: patientAppointments.filter(a => a.status === 'scheduled').length,
-          completed: patientAppointments.filter(a => a.status === 'completed').length,
-          cancelled: patientAppointments.filter(a => a.status === 'cancelled').length,
-          'no-show': patientAppointments.filter(a => a.status === 'no-show').length,
-        };
-        console.log(`✅ RPC: Fetched ${patientAppointments.length} appointments for patient ${patientId}. Breakdown:`, statusBreakdown);
-        return patientAppointments;
-      }
-    }
-
-    // Fallback: Direct query with explicit select (check both regular and dummy account appointments)
-    console.log('⚠️ RPC returned no data, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, dummy_account_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
+      .select('id, patient_id, dummy_account_id, service, appointment_date, appointment_time, status, notes, created_at', { count: 'exact' })
       .or(`patient_id.eq.${patientId},dummy_account_id.eq.${patientId}`)
       .order('appointment_date', { ascending: false });
 
     if (error) {
-      console.error(`❌ Direct query error for patient ${patientId}:`, error);
+      console.error(`❌ Error fetching appointments for patient ${patientId}:`, error);
       return [];
     }
 
@@ -249,8 +224,8 @@ export async function getPatientAppointments(
       'no-show': data.filter(a => a.status === 'no-show').length,
       null_status: data.filter(a => !a.status).length,
     };
-    console.log(`✅ Direct query: Fetched ${data.length} appointments for patient ${patientId}. Breakdown:`, statusBreakdown);
-    console.log('📋 Appointments:', data.map(a => ({ id: a.id, service: a.service, status: a.status, date: a.appointment_date })));
+    console.log(`✅ Fetched ${data.length} appointments for patient ${patientId} (including pending). Breakdown:`, statusBreakdown);
+    console.log('📋 Appointments:', data.map(a => ({ id: a.id, service: a.service, status: a.status, date: a.appointment_date, time: a.appointment_time })));
 
     return data || [];
   } catch (error) {

@@ -59,8 +59,13 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
   const formattedDate = (() => {
     try {
       if (appointment.appointment_date && appointment.appointment_time) {
-        const dateStr = String(appointment.appointment_date).trim(); // YYYY-MM-DD
-        const timeStr = String(appointment.appointment_time).trim(); // HH:MM
+        let dateStr = String(appointment.appointment_date).trim();
+        let timeStr = String(appointment.appointment_time).trim();
+        
+        // Handle ISO format date (e.g., "2024-05-19T10:30:00" or "2024-05-19")
+        if (dateStr.includes('T')) {
+          dateStr = dateStr.split('T')[0];
+        }
         
         // Parse date
         const dateParts = dateStr.split('-').map(Number);
