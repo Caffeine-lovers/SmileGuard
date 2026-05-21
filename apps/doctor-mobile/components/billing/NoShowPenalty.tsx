@@ -46,6 +46,9 @@ export default function NoShowPenalty({
   const [selectedBillingForEdit, setSelectedBillingForEdit] = useState<Billing | null>(null);
   const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
   const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
+  const [appointmentBillings, setAppointmentBillings] = useState<Billing[]>([]);
+  const [showBillingHistoryModal, setShowBillingHistoryModal] = useState(false);
+  const [loadingBillingHistory, setLoadingBillingHistory] = useState(false);
 
   // Filter to show only no-show penalties
   const noShowBillings = billings.filter((b) => {
@@ -111,6 +114,31 @@ export default function NoShowPenalty({
       Alert.alert('Error', 'Failed to load appointment details');
     } finally {
       setLoadingAppointment(false);
+    }
+  };
+
+  const loadBillingHistory = async (appointmentId: string) => {
+    try {
+      setLoadingBillingHistory(true);
+      const { data, error } = await supabase
+        .from('billings')
+        .select('*')
+        .eq('appointment_id', appointmentId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching billing history:', error);
+        Alert.alert('Error', 'Failed to load billing history');
+        return;
+      }
+
+      setAppointmentBillings(data || []);
+      setShowBillingHistoryModal(true);
+    } catch (error) {
+      console.error('Error loading billing history:', error);
+      Alert.alert('Error', 'Failed to load billing history');
+    } finally {
+      setLoadingBillingHistory(false);
     }
   };
 
@@ -376,7 +404,7 @@ export default function NoShowPenalty({
 
                     {item.discount_amount ? (
                       <TouchableOpacity
-                        onPress={() => item.appointment_id && loadAppointmentDetails(item.appointment_id)}
+                        onPress={() => item.appointment_id && loadBillingHistory(item.appointment_id)}
                         activeOpacity={0.7}
                       >
                         <View style={{ alignItems: 'flex-end' }}>
@@ -387,7 +415,7 @@ export default function NoShowPenalty({
                             -${item.discount_amount.toFixed(2)}
                           </Text>
                           <Text style={{ fontSize: 9, color: '#0b7fab', marginTop: 4, fontWeight: '600', textDecorationLine: 'underline' }}>
-                            Tap to verify
+                            Tap to verify bill
                           </Text>
                         </View>
                       </TouchableOpacity>
@@ -549,8 +577,9 @@ export default function NoShowPenalty({
             justifyContent: 'flex-end',
           }}
         >
-          <SafeAreaView
+          <View
             style={{
+              flex: 1,
               backgroundColor: '#fff',
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
@@ -566,7 +595,7 @@ export default function NoShowPenalty({
                   marginBottom: 24,
                 }}
               >
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>
                     Appointment Details
                   </Text>
@@ -782,7 +811,222 @@ export default function NoShowPenalty({
                 </View>
               )}
             </ScrollView>
-          </SafeAreaView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Billing History Modal */}
+      <Modal
+        visible={showBillingHistoryModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setShowBillingHistoryModal(false);
+          setAppointmentBillings([]);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }}>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 24, paddingBottom: 32 }}>
+              {/* Header */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 24,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>
+                    Appointment Billing History
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                    View all bills for this appointment
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowBillingHistoryModal(false);
+                    setAppointmentBillings([]);
+                  }}
+                >
+                  <Text style={{ fontSize: 24, color: '#999', fontWeight: '300' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {loadingBillingHistory ? (
+                <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                  <ActivityIndicator size="large" color="#0b7fab" />
+                </View>
+              ) : appointmentBillings.length === 0 ? (
+                <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                  <Text style={{ fontSize: 48, marginBottom: 8 }}>📋</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#111', marginBottom: 4 }}>
+                    No Billing Records
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#666', textAlign: 'center' }}>
+                    No billing records found for this appointment.
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 16 }}>
+                    Records ({appointmentBillings.length})
+                  </Text>
+                  {appointmentBillings.map((bill) => (
+                    <View
+                      key={bill.id}
+                      style={{
+                        backgroundColor: '#f9f9f9',
+                        borderRadius: 12,
+                        padding: 14,
+                        marginBottom: 12,
+                        borderLeftWidth: 4,
+                        borderLeftColor:
+                          bill.payment_status === 'paid'
+                            ? '#10b981'
+                            : bill.payment_status === 'overdue'
+                            ? '#ef4444'
+                            : '#f59e0b',
+                      }}
+                    >
+                      {/* Bill Header */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: 12,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>
+                            Bill #{bill.id?.slice(0, 8).toUpperCase()}
+                          </Text>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: '#111', marginTop: 4 }}>
+                            {bill.description || 'Service Charge'}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            backgroundColor:
+                              bill.payment_status === 'paid'
+                                ? '#10b981'
+                                : bill.payment_status === 'overdue'
+                                ? '#ef4444'
+                                : '#f59e0b',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            marginLeft: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              color: '#fff',
+                              fontWeight: '600',
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {bill.payment_status}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Amount Section */}
+                      <View
+                        style={{
+                          paddingVertical: 12,
+                          borderTopWidth: 1,
+                          borderBottomWidth: 1,
+                          borderColor: '#e5e5e5',
+                          marginBottom: 12,
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <Text style={{ fontSize: 11, color: '#666' }}>Amount</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#111' }}>
+                            ${bill.amount.toFixed(2)}
+                          </Text>
+                        </View>
+                        {bill.discount_amount && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <Text style={{ fontSize: 11, color: '#666' }}>
+                              Discount ({bill.discount_type})
+                            </Text>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#ef4444' }}>
+                              -${bill.discount_amount.toFixed(2)}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Final</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab' }}>
+                            ${(bill.final_amount || bill.amount).toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Payment Details */}
+                      <View style={{ gap: 6 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 11, color: '#666' }}>Created</Text>
+                          <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
+                            {bill.created_at
+                              ? new Date(bill.created_at).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })
+                              : 'N/A'}
+                          </Text>
+                        </View>
+                        {bill.payment_date && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={{ fontSize: 11, color: '#666' }}>Payment Date</Text>
+                            <Text style={{ fontSize: 11, color: '#10b981', fontWeight: '600' }}>
+                              {new Date(bill.payment_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </Text>
+                          </View>
+                        )}
+                        {bill.payment_method && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={{ fontSize: 11, color: '#666' }}>Method</Text>
+                            <Text style={{ fontSize: 11, color: '#111', fontWeight: '500', textTransform: 'capitalize' }}>
+                              {bill.payment_method}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Close Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBillingHistoryModal(false);
+                  setAppointmentBillings([]);
+                }}
+                style={{
+                  marginTop: 24,
+                  paddingVertical: 14,
+                  borderRadius: 10,
+                  backgroundColor: '#0b7fab',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Close</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -803,8 +1047,9 @@ export default function NoShowPenalty({
             justifyContent: 'flex-end',
           }}
         >
-          <SafeAreaView
+          <View
             style={{
+              flex: 1,
               backgroundColor: '#fff',
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
@@ -970,7 +1215,7 @@ export default function NoShowPenalty({
                 <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Cancel</Text>
               </TouchableOpacity>
             </ScrollView>
-          </SafeAreaView>
+          </View>
         </View>
       </Modal>
     </ScrollView>
