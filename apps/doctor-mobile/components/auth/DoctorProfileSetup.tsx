@@ -24,6 +24,8 @@ import { createDoctorProfile } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
 import { supabase } from "@smileguard/supabase-client";
 import { HeroIcon } from "../ui/HeroIcon";
+import { router } from "expo-router/build/exports";
+import { Router } from "lucide-react-native";
 
 export interface DoctorProfileSetupProps {
   onContinue: () => void;
@@ -521,7 +523,14 @@ export default function DoctorProfileSetup({
           {onCancel && (
             <TouchableOpacity
               style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
-              onPress={onCancel}
+              onPress={() => {
+                if (onCancel) {
+                  onCancel(); // call the cancel handler if provided
+                } else {
+                  // fallback: navigate back if no handler passed
+                  router.back();
+                }
+              }}
               disabled={loading}
             >
               <Text style={styles.secondaryBtnText}>Cancel</Text>
