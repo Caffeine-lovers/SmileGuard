@@ -85,7 +85,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                 href="/profile" 
                 className="font-medium transition hover:text-brand-primary"
               >
-                {currentUser.name}
+                Profile
               </Link>
             </nav>
           </div>

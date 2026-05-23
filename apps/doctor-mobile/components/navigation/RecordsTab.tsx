@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Appointment } from "../../data/dashboardData";
 import * as dashboardService from "../../lib/dashboardService";
+import { getPatientProfilePictureUrl } from "../../lib/profilesPatients";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "@smileguard/supabase-client";
 import AddPatient from "../patientrecord/AddPatient";
@@ -63,6 +64,7 @@ export default function RecordsTab({
   const [activeTab, setActiveTab] = useState<AccountTab>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+  const [profilePictureUrls, setProfilePictureUrls] = useState<{ [key: string]: string | null }>({});
   const [swipedDummyId, setSwipedDummyId] = useState<string | null>(null);
   const swipePositions = useRef<{ [key: string]: Animated.Value }>({});
 
@@ -95,6 +97,15 @@ export default function RecordsTab({
         
         console.log('RecordsTab - Mapped profiles patients:', mapped);
         setSupabasePatients(mapped);
+
+        // Fetch profile pictures for all supabase patients in parallel
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = mapped.map(async (patient) => {
+          const url = await getPatientProfilePictureUrl(patient.id);
+          pictureUrls[patient.id] = url;
+        });
+        await Promise.all(profilePicturePromises);
+        setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
       } catch (error) {
         console.error('Error fetching profiles patients:', error);
       } finally {
@@ -191,6 +202,15 @@ export default function RecordsTab({
 
           console.log("RecordsTab - Dummy patients:", mapped);
           setDummyPatients(mapped);
+
+          // Fetch profile pictures for all dummy patients in parallel
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = mapped.map(async (patient) => {
+            const url = await getPatientProfilePictureUrl(patient.id);
+            pictureUrls[patient.id] = url;
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
         } catch (error) {
           console.error("Error in fetchDummyPatients:", error);
         } finally {
@@ -216,11 +236,9 @@ export default function RecordsTab({
       console.log('🔄 Refreshing patient data for user:', currentUser.id);
 
       // Fetch Supabase patients
-      const supabaseData = await getAllPatients();
-      // Filter to show only patients with role='patient'
-      const filteredSupabaseData = supabaseData.filter((patient) => patient.role === 'patient');
-      const mappedSupabase: AppointmentType[] = filteredSupabaseData.map((patient) => ({
-        id: patient.patient_id,
+      const result = await dashboardService.fetchDoctorPatients(currentUser.id);
+      const mappedSupabase: AppointmentType[] = (result.data || []).map((patient: any) => ({
+        id: patient.id,
         name: patient.name || 'Unknown Patient',
         email: patient.email || '',
         service: patient.service || 'General',
@@ -234,6 +252,14 @@ export default function RecordsTab({
         status: 'scheduled' as const,
       }));
       setSupabasePatients(mappedSupabase);
+
+      // Fetch profile pictures for supabase patients
+      const supabasePictureUrls: { [key: string]: string | null } = {};
+      const supabaseProfilePicturePromises = mappedSupabase.map(async (patient) => {
+        const url = await getPatientProfilePictureUrl(patient.id);
+        supabasePictureUrls[patient.id] = url;
+      });
+      await Promise.all(supabaseProfilePicturePromises);
 
       // Fetch dummy patients
       const { data: dummyData, error } = await supabase
@@ -267,6 +293,17 @@ export default function RecordsTab({
           pregnancyStatus: patient.pregnancy_status || "",
         }));
         setDummyPatients(mappedDummy);
+
+        // Fetch profile pictures for dummy patients
+        const dummyPictureUrls: { [key: string]: string | null } = {};
+        const dummyProfilePicturePromises = mappedDummy.map(async (patient) => {
+          const url = await getPatientProfilePictureUrl(patient.id);
+          dummyPictureUrls[patient.id] = url;
+        });
+        await Promise.all(dummyProfilePicturePromises);
+        setProfilePictureUrls((prev) => ({ ...prev, ...supabasePictureUrls, ...dummyPictureUrls }));
+      } else {
+        setProfilePictureUrls((prev) => ({ ...prev, ...supabasePictureUrls }));
       }
     } catch (error) {
       console.error('Error refreshing patients:', error);
@@ -275,6 +312,7 @@ export default function RecordsTab({
     }
   };
   return (
+    // @ts-expect-error - React 19 JSX type compatibility
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
       {/* Header with Current User Name */}
       <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -423,8 +461,13 @@ export default function RecordsTab({
             </Text>
           </TouchableOpacity>
         </View>
+
       </View>
-      <ScrollView style={{ flex: 1, padding: 16 }}>
+      {/* @ts-expect-error - React 19 JSX type compatibility */}
+      <ScrollView   
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16}}
+      >
         {loadingDummy && loadingSupabase ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color="#0b7fab" />
@@ -457,7 +500,13 @@ export default function RecordsTab({
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        source={
+                          profilePictureUrls[patient.id] && typeof profilePictureUrls[patient.id] === 'string'
+                            ? { uri: profilePictureUrls[patient.id] as string }
+                            : typeof patient.imageUrl === "string"
+                            ? { uri: patient.imageUrl }
+                            : patient.imageUrl
+                        }
                         style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
                       />
                       <View style={{ flex: 1 }}>
@@ -501,7 +550,13 @@ export default function RecordsTab({
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                        source={
+                          profilePictureUrls[patient.id] && typeof profilePictureUrls[patient.id] === 'string'
+                            ? { uri: profilePictureUrls[patient.id] as string }
+                            : typeof patient.imageUrl === "string"
+                            ? { uri: patient.imageUrl }
+                            : patient.imageUrl
+                        }
                         style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
                       />
                       <View style={{ flex: 1 }}>

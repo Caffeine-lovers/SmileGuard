@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
-import { createBilling } from '@/lib/paymentService';
+import { createBilling, getBillings } from '@/lib/paymentService';
 import { SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+import BookingRules from '@/components/appointments/BookingRules';
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
@@ -49,6 +52,10 @@ function LockedOverlay({ message }: { message: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BookAppointment({ onSuccess, onCancel }: BookAppointmentProps) {
   const { currentUser } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rescheduleId = searchParams.get('rescheduleId');
+  
   const [selectedService, setSelectedService]         = useState<(typeof SERVICES)[0] | null>(null);
   const [selectedDate, setSelectedDate]               = useState<string>('');
   const [selectedTime, setSelectedTime]               = useState<string>('');
@@ -62,9 +69,73 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
   const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
   const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
+  const [appointmentRules, setAppointmentRules]       = useState<any | null>(null);
+  const [loadingRules, setLoadingRules]               = useState(true);
+  const [showRulesModal, setShowRulesModal]            = useState(false);
+  const [originalAppointment, setOriginalAppointment] = useState<Appointment | null>(null);
+  const [isRescheduling]                             = useState(!!rescheduleId);
 
   console.log('🔴 [DIAGNOSTIC] BookAppointment component RENDERED');
   console.log('🔴 [DIAGNOSTIC] currentUser:', currentUser);
+  console.log('🔴 [DIAGNOSTIC] rescheduleId:', rescheduleId);
+
+  // Fetch appointment details if rescheduling
+  useEffect(() => {
+    if (!rescheduleId) return;
+
+    const fetchAppointmentDetails = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('id', rescheduleId)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setOriginalAppointment(data);
+          // Pre-fill the form with existing appointment data
+          const service = SERVICES.find(s => s.name === data.service);
+          if (service) setSelectedService(service);
+          setSelectedDate(data.appointment_date);
+          setSelectedTime(data.appointment_time);
+          setNotes(data.notes || '');
+          console.log('[BookAppointment] Loaded appointment for rescheduling:', data);
+        }
+      } catch (error) {
+        console.error('[BookAppointment] Error fetching appointment:', error);
+        alert('Failed to load appointment details');
+      }
+    };
+
+    fetchAppointmentDetails();
+  }, [rescheduleId]);
+
+  // Fetch appointment rules on component mount
+  useEffect(() => {
+    const fetchAppointmentRules = async () => {
+      try {
+        setLoadingRules(true);
+        const { data, error } = await supabase
+          .from('appointment_rules')
+          .select('*')
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+        setAppointmentRules(data || null);
+      } catch (error) {
+        console.error('Error fetching appointment rules:', error);
+        setAppointmentRules(null);
+      } finally {
+        setLoadingRules(false);
+      }
+    };
+
+    fetchAppointmentRules();
+  }, []);
 
   const step1Complete = selectedService !== null;
 
@@ -148,7 +219,40 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setLoadingUserData(true);
       try {
         const appointments = await getPatientAppointments(userId);
-        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
+        const billings = await getBillings(userId);
+        
+        // Check for unpaid no-show penalties
+        const unpaidNoShows = appointments.filter(apt => {
+          if (apt.status !== 'no-show') return false;
+          const hasPaid = billings.some(b => 
+            b.appointment_id === apt.id && 
+            b.payment_status === 'paid' &&
+            b.description === 'No-Show Penalty'
+          );
+          return !hasPaid;
+        });
+
+        // If there are unpaid no-shows, redirect to billing page
+        if (unpaidNoShows.length > 0) {
+          console.log('[BookAppointment] Found unpaid no-shows, redirecting to billing:', unpaidNoShows.length);
+          const firstNoShow = unpaidNoShows[0];
+          
+          // Get the penalty amount from appointment rules if available
+          let penalty = 0;
+          if (appointmentRules?.no_show_penalty_amount) {
+            penalty = appointmentRules.no_show_penalty_amount;
+          }
+          
+          const params = new URLSearchParams();
+          params.append('appointmentId', firstNoShow.id || '');
+          params.append('action', 'no-show');
+          params.append('noShowPenalty', penalty.toString());
+          
+          router.push(`/billing?${params.toString()}`);
+          return;
+        }
+
+        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
         console.error('Error fetching user appointments:', err);
@@ -157,7 +261,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       }
     }
     fetchUserAppointments();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, appointmentRules]);
 
   const isSlotDisabled = (date: string, time: string) => {
     const taken = isSlotTaken(blockedSlots, date, time);
@@ -171,8 +275,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const isDateAvailable = (date: Date): boolean => {
     if (!clinicSchedule) return true; // Default to available if no schedule
     
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
     const day = date.getDate();
     
     const dayOfWeek = date.getDay();
@@ -208,45 +310,78 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const userId = currentUser.id;
     setIsBooking(true);
     try {
-      // Book the appointment
-      const result = await bookSlot(userId, '', selectedService.name, selectedDate, selectedTime);
-      if (result.success && result.appointmentId) {
-        console.log('[handleBooking] Appointment created:', result.appointmentId);
-        
-        // Get the service price from SERVICE_PRICES
-        const servicePrice = SERVICE_PRICES[selectedService.name] || selectedService.price || 0;
-        console.log('[handleBooking] Service price:', { service: selectedService.name, price: servicePrice });
-        
-        // Create billing record
-        const billingResult = await createBilling(userId, result.appointmentId, servicePrice);
-        
-        if (billingResult.success) {
-          console.log('[handleBooking] Billing record created:', billingResult.billingId);
-          alert('Appointment booked successfully!');
-        } else {
-          console.warn('[handleBooking] Billing creation failed, but appointment was booked:', billingResult.message);
-          alert('Appointment booked, but billing record could not be created. Please contact support.');
-        }
-        
-        if (onSuccess) {
-          onSuccess({
-            id: result.appointmentId,
-            patient_id: userId,
-            dentist_id: null,
+      if (isRescheduling && originalAppointment) {
+        // Update existing appointment
+        const { error: appointmentError } = await supabase
+          .from('appointments')
+          .update({
             service: selectedService.name,
             appointment_date: selectedDate,
             appointment_time: selectedTime,
             notes: notes || '',
-            status: 'scheduled',
-            created_at: new Date().toISOString(),
-          });
+          })
+          .eq('id', originalAppointment.id);
+
+        if (appointmentError) throw appointmentError;
+
+        // Update billing record if service changed
+        const newPrice = SERVICE_PRICES[selectedService.name] || selectedService.price || 0;
+        const oldPrice = SERVICE_PRICES[originalAppointment.service] || 0;
+
+        if (newPrice !== oldPrice) {
+          const { error: billingError } = await supabase
+            .from('billings')
+            .update({ amount: newPrice })
+            .eq('appointment_id', originalAppointment.id);
+
+          if (billingError) {
+            console.warn('Warning: Billing record could not be updated:', billingError);
+          }
         }
-        setSelectedService(null);
-        setSelectedDate('');
-        setSelectedTime('');
-        setNotes('');
+
+        alert('Appointment rescheduled successfully!');
+        router.push('/dashboard');
       } else {
-        alert(`Booking failed: ${result.message}`);
+        // Create new appointment
+        const result = await bookSlot(userId, '', selectedService.name, selectedDate, selectedTime);
+        if (result.success && result.appointmentId) {
+          console.log('[handleBooking] Appointment created:', result.appointmentId);
+          
+          // Get the service price from SERVICE_PRICES
+          const servicePrice = SERVICE_PRICES[selectedService.name] || selectedService.price || 0;
+          console.log('[handleBooking] Service price:', { service: selectedService.name, price: servicePrice });
+          
+          // Create billing record
+          const billingResult = await createBilling(userId, result.appointmentId, servicePrice);
+          
+          if (billingResult.success) {
+            console.log('[handleBooking] Billing record created:', billingResult.billingId);
+            alert('Appointment booked successfully!');
+          } else {
+            console.warn('[handleBooking] Billing creation failed, but appointment was booked:', billingResult.message);
+            alert('Appointment booked, but billing record could not be created. Please contact support.');
+          }
+          
+          if (onSuccess) {
+            onSuccess({
+              id: result.appointmentId,
+              patient_id: userId,
+              dentist_id: null,
+              service: selectedService.name,
+              appointment_date: selectedDate,
+              appointment_time: selectedTime,
+              notes: notes || '',
+              status: 'scheduled',
+              created_at: new Date().toISOString(),
+            });
+          }
+          setSelectedService(null);
+          setSelectedDate('');
+          setSelectedTime('');
+          setNotes('');
+        } else {
+          alert(`Booking failed: ${result.message}`);
+        }
       }
     } catch (error) {
       console.error('Error booking appointment:', error);
@@ -277,9 +412,27 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     <div className="min-h-screen bg-bg-screen p-4 md:p-6">
 
       {/* Page header */}
-      <div className="mb-5">
-        <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
-        <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">
+            {isRescheduling ? 'Reschedule Your Appointment' : 'Book an Appointment'}
+          </h1>
+          <p className="text-text-secondary text-sm mt-1">
+            {isRescheduling 
+              ? 'Choose a new date and time for your appointment.'
+              : 'Complete each card in order to confirm your visit.'
+            }
+          </p>
+        </div>
+        {!loadingRules && appointmentRules && (
+          <button
+            type="button"
+            onClick={() => setShowRulesModal(true)}
+            className="shrink-0 px-4 py-2.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors text-sm font-bold flex items-center gap-2 shadow-sm whitespace-nowrap self-start sm:self-auto"
+          >
+            View Booking Rules
+          </button>
+        )}
       </div>
 
       {/* Bento grid — 12-column base */}
@@ -419,7 +572,11 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const dd = String(date.getDate()).padStart(2, '0');
               const dateString = `${yyyy}-${mm}-${dd}`;
               
-              const isPast = date < new Date(new Date().setHours(0,0,0,0));
+              // Allow booking only from tomorrow onwards (not today)
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              tomorrow.setHours(0, 0, 0, 0);
+              const isPast = date < tomorrow;
               const isClinicClosed = !isDateAvailable(date);
               const isBlockedDate = blockedDates.has(dateString);
               const isFullyBookedDate = isFullyBooked(dateString);
@@ -536,21 +693,27 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                 : 'bg-border-card text-text-secondary cursor-not-allowed'
             }`}
           >
-            {isBooking ? '⏳ Booking…' : step3Complete ? '✓ Confirm Appointment' : '⬆ Complete all steps'}
+            {isBooking ? '⏳ Processing…' : step3Complete ? (isRescheduling ? 'Confirm Reschedule' : 'Confirm Appointment') : 'Complete all steps'}
           </button>
 
-          {onCancel && (
+          {(onCancel || isRescheduling) && (
             <button
               type="button"
-              onClick={onCancel}
+              onClick={() => {
+                if (isRescheduling) {
+                  router.push('/dashboard');
+                } else if (onCancel) {
+                  onCancel();
+                }
+              }}
               className="w-full py-4 rounded-2xl bg-bg-surface border border-border-card text-text-primary font-semibold text-sm hover:bg-bg-notes transition"
             >
-              Cancel
+              {isRescheduling ? 'Go Back' : 'Cancel'}
             </button>
           )}
 
-          {/* Progress tracker — shown while steps are incomplete */}
-          {!step3Complete && (
+          {/* Progress tracker — shown while steps are incomplete (not shown during reschedule) */}
+          {!step3Complete && !isRescheduling && (
             <div className="bg-bg-notes rounded-2xl border border-border-card p-4">
               <p className="text-xs text-text-secondary font-medium mb-2">Progress</p>
               <div className="space-y-1.5">
@@ -572,6 +735,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
       </div>
+
+      {/* Booking Rules Modal */}
+      <BookingRules 
+        isOpen={showRulesModal} 
+        onClose={() => setShowRulesModal(false)} 
+        appointmentRules={appointmentRules} 
+      />
     </div>
   );
 }

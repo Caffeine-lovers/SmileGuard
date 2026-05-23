@@ -29,7 +29,7 @@ import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
-import { updatePatientMedicalIntake } from "../../lib/profilesPatients";
+import { updatePatientMedicalIntake, getPatientProfilePictureUrl } from "../../lib/profilesPatients";
 import { supabase } from '@smileguard/supabase-client';
 import { 
   notifyAppointmentStatusChanged,
@@ -67,6 +67,7 @@ export interface DashboardAppointment {
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
+  created_at?: string;
 }
 
 interface DoctorDashboardProps {
@@ -116,12 +117,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [isEditingPatient, setIsEditingPatient] = useState(false);
   const [editedPatient, setEditedPatient] = useState<DashboardAppointment | null>(null);
   const [originalPatient, setOriginalPatient] = useState<DashboardAppointment | null>(null);
-  const [patientSortBy, setPatientSortBy] = useState<'name' | 'date' | 'service'>('name');
+  const [patientSortBy, setPatientSortBy] = useState<'created_at' | 'name' | 'date' | 'service'>('created_at');
   const [patientSortOrder, setPatientSortOrder] = useState<'asc' | 'desc'>('asc');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
   const [expandPatientDetails, setExpandPatientDetails] = useState(false);
   const [viewingPatient, setViewingPatient] = useState<DashboardAppointment | null>(null);
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
+  const [patientProfilePictureUrls, setPatientProfilePictureUrls] = useState<{[key: string]: string | null}>({});
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
@@ -252,46 +254,48 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           }
         }
         
-        const transformedRequests = appointmentRequestsData.map((apt: any) => {
-          // Use dummy account data if available, otherwise use patient profile
-          const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
-            ? dummyAccountsMapRequests[apt.dummy_account_id]
-            : apt.patient_profile;
-          
-          const medicalIntake = medicalData ? {
-            gender: medicalData.gender || '',
-            phone: medicalData.phone || '',
-            address: medicalData.address || '',
-            dateOfBirth: medicalData.date_of_birth || '',
-            emergencyContactName: medicalData.emergency_contact_name || '',
-            emergencyContactPhone: medicalData.emergency_contact_phone || '',
-            allergies: medicalData.alergies || medicalData.allergies || '',
-            currentMedications: medicalData.current_medications || '',
-            medicalConditions: medicalData.medical_conditions || '',
-            pastSurgeries: medicalData.past_surgeries || '',
-            smokingStatus: medicalData.smoking_status || '',
-            pregnancyStatus: medicalData.pregnancy_status || '',
-            notes: medicalData.notes || '',
-          } : null;
-          
-          return {
-            id: apt.id || '',
-            name: apt.patient_name || 'Patient',
-            service: apt.service || '',
-            time: apt.appointment_time || '',
-            date: apt.appointment_date || '',
-            age: 0,
-            gender: medicalData?.gender || '',
-            contact: medicalData?.phone || '',
-            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
-            notes: apt.notes || '',
-            imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
-            patient_id: apt.patient_id,
-            dentist_id: apt.dentist_id,
-            medicalIntake: medicalIntake,
-          };
-        });
+        const transformedRequests = appointmentRequestsData
+          .filter((apt: any) => apt.status !== 'cancelled' && apt.status !== 'no-show')
+          .map((apt: any) => {
+            // Use dummy account data if available, otherwise use patient profile
+            const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
+              ? dummyAccountsMapRequests[apt.dummy_account_id]
+              : apt.patient_profile;
+            
+            const medicalIntake = medicalData ? {
+              gender: medicalData.gender || '',
+              phone: medicalData.phone || '',
+              address: medicalData.address || '',
+              dateOfBirth: medicalData.date_of_birth || '',
+              emergencyContactName: medicalData.emergency_contact_name || '',
+              emergencyContactPhone: medicalData.emergency_contact_phone || '',
+              allergies: medicalData.alergies || medicalData.allergies || '',
+              currentMedications: medicalData.current_medications || '',
+              medicalConditions: medicalData.medical_conditions || '',
+              pastSurgeries: medicalData.past_surgeries || '',
+              smokingStatus: medicalData.smoking_status || '',
+              pregnancyStatus: medicalData.pregnancy_status || '',
+              notes: medicalData.notes || '',
+            } : null;
+            
+            return {
+              id: apt.id || '',
+              name: apt.patient_name || 'Patient',
+              service: apt.service || '',
+              time: apt.appointment_time || '',
+              date: apt.appointment_date || '',
+              age: 0,
+              gender: medicalData?.gender || '',
+              contact: medicalData?.phone || '',
+              email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+              notes: apt.notes || '',
+              imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+              status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+              patient_id: apt.patient_id,
+              dentist_id: apt.dentist_id,
+              medicalIntake: medicalIntake,
+            };
+          });
         setAppointmentRequests(transformedRequests);
       } else {
         setAppointmentRequests([]);
@@ -431,11 +435,21 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           imageUrl: require('../../assets/images/user.png'),
           status: 'scheduled' as const,
           patient_id: patient.id,
+          created_at: patient.created_at,
         }));
         setPatients(transformedPatients);
 
+        // Fetch profile pictures for all patients in parallel
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = transformedPatients.map(async (patient) => {
+          const url = await getPatientProfilePictureUrl(patient.id);
+          pictureUrls[patient.id] = url;
+        });
+        await Promise.all(profilePicturePromises);
+        setPatientProfilePictureUrls(pictureUrls);
       } else {
         setPatients([]);
+        setPatientProfilePictureUrls({});
 
       }
     } catch (error) {
@@ -615,7 +629,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const sortPatients = (patientsToSort: DashboardAppointment[]): DashboardAppointment[] => {
     const sorted = [...patientsToSort];
-    if (patientSortBy === 'name') {
+    if (patientSortBy === 'created_at') {
+      sorted.sort((a, b) => new Date((b as any).created_at || 0).getTime() - new Date((a as any).created_at || 0).getTime());
+    } else if (patientSortBy === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     } else if (patientSortBy === 'date') {
       sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -845,9 +861,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                   {/* Stats Panel - from Supabase */}
                   <View style={styles.firstPanel}>
-                    <StatCard number={patients.length} label="Patients" />
-                    <StatCard number={stats.total} label="Appointments" />
-                    <StatCard number={stats.paidBillings} label="Paid Billings" />
+                    <TouchableOpacity onPress={() => setActiveTab('records')}>
+                      <StatCard number={patients.length} label="Patients" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setActiveTab('appointments')}>
+                      <StatCard number={stats.total} label="Appointments" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setActiveTab('billing')}>
+                      <StatCard number={stats.paidBillings} label="Paid Billings" />
+                    </TouchableOpacity>
                   </View>
 
                   <View style={styles.sectionHeader}>
@@ -1128,7 +1150,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             >
                               <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
                                 <Image
-                                  source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                                  source={
+                                    patientProfilePictureUrls[patient.id]
+                                      ? { uri: patientProfilePictureUrls[patient.id] }
+                                      : (typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl)
+                                  }
                                   style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
                                 />
                                 <View style={{ flex: 1 }}>
@@ -1320,6 +1346,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     );
                   }
                   notificationState.actions.addNotification(notification);
+                }}
+                onPatientPress={(patientId, patientName) => {
+                  // Find the patient from the patients list
+                  const patient = patients.find(p => p.patient_id === patientId);
+                  if (patient) {
+                    setViewingPatient(patient);
+                    setShowPatientDetails(true);
+                  }
                 }}
               />
             ) : activeTab === 'appointment-requests' ? (

@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
-import { useSignup } from '@/lib/signup-context';
 
 export default function LoginPage() {
   const router = useRouter();
