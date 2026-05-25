@@ -71,25 +71,8 @@ export default function PatientDetailsEdit({
 
   const handleSave = () => {
     if (editedPatient) {
-      // Validate required fields
-      if (!editedPatient.dateOfBirth || editedPatient.dateOfBirth.trim() === "") {
-        Alert.alert("Validation Error", "Date of Birth is required");
-        return;
-      }
-      if (!editedPatient.gender || editedPatient.gender.trim() === "") {
-        Alert.alert("Validation Error", "Gender is required");
-        return;
-      }
-      if (!editedPatient.address || editedPatient.address.trim() === "") {
-        Alert.alert("Validation Error", "Address is required");
-        return;
-      }
-      if (editedPatient.contact && !PHILIPPINES_PHONE_REGEX.test(editedPatient.contact)) {
-        Alert.alert("Validation Error", "Phone must be in Philippines format: +639XXX-XXX-XXXX");
-        return;
-      }
       onSave(editedPatient);
-      Alert.alert("Success", "Patient information updated successfully.");
+      Alert.alert("Success", "Patient medical information updated successfully.");
       setPhoneError("");
       onClose();
     }
@@ -239,112 +222,64 @@ export default function PatientDetailsEdit({
               style={styles.backIcon}
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Patient</Text>
+          <Text style={styles.headerTitle}>Edit Medical Information</Text>
           <View style={{ width: 30 }} />
         </View>
 
         {/* Edit Form */}
         <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
           <View style={styles.section}>
-            <Text style={styles.label}>
-              Date of Birth: <Text style={styles.requiredAsterisk}>*</Text>
-            </Text>
-            <TouchableOpacity
-              style={[styles.requiredInput, getRequiredFieldStyle(editedPatient.dateOfBirth || '')]}
-              onPress={() => setShowDatePicker(true)}
-            >
+            <Text style={styles.label}>Date of Birth:</Text>
+            <View style={[styles.readOnlyInput]}>
               <Text style={{ color: editedPatient.dateOfBirth ? "#333" : "#999", fontSize: 14 }}>
-                {editedPatient.dateOfBirth || "Select date"}
+                {editedPatient.dateOfBirth || "N/A"}
               </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>
-              Gender: <Text style={styles.requiredAsterisk}>*</Text>
-            </Text>
-            <TouchableOpacity
-              style={[styles.requiredInput, getRequiredFieldStyle(editedPatient.gender || '')]}
-              onPress={() => setShowGenderDropdown(!showGenderDropdown)}
-            >
-              <Text style={{ color: editedPatient.gender ? "#333" : "#999", fontSize: 14 }}>
-                {editedPatient.gender || "Select gender"}
-              </Text>
-            </TouchableOpacity>
-            {showGenderDropdown && (
-              <View style={styles.dropdown}>
-                {GENDER_OPTIONS.map((gender) => (
-                  <TouchableOpacity
-                    key={gender}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setEditedPatient({ ...editedPatient, gender });
-                      setShowGenderDropdown(false);
-                    }}
-                  >
-                    <Text>{gender}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>
-              Phone: <Text style={styles.requiredAsterisk}>*</Text>
-            </Text>
-            <View style={[styles.phoneInputContainer, styles.requiredPhoneContainer, getRequiredFieldStyle(editedPatient.contact || '', !phoneError && PHILIPPINES_PHONE_REGEX.test(editedPatient.contact || '')), phoneError ? { borderColor: "#ff6b6b" } : {}]}>
-              <Text style={styles.phonePrefix}>+639</Text>
-              <TextInput
-                style={styles.phoneInput}
-                value={editedPatient.contact ? editedPatient.contact.replace('+639', '') : ''}
-                onChangeText={handlePhoneChange}
-                placeholder="XX-XXX-XXXX"
-                keyboardType="phone-pad"
-              />
             </View>
-            {phoneError ? (
-              <Text style={styles.errorText}>{phoneError}</Text>
-            ) : null}
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>
-              Address: <Text style={styles.requiredAsterisk}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.requiredInput, getRequiredFieldStyle(editedPatient.address || ''), { minHeight: 60, textAlignVertical: "top" }]}
-              value={editedPatient.address || ""}
-              onChangeText={(text) =>
-                setEditedPatient({ ...editedPatient, address: text })
-              }
-              placeholder="Enter address"
-              multiline
-            />
+            <Text style={styles.label}>Gender:</Text>
+            <View style={[styles.readOnlyInput]}>
+              <Text style={{ color: editedPatient.gender ? "#333" : "#999", fontSize: 14 }}>
+                {editedPatient.gender || "N/A"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Phone:</Text>
+            <View style={[styles.readOnlyInput]}>
+              <Text style={{ color: editedPatient.contact ? "#333" : "#999", fontSize: 14 }}>
+                {editedPatient.contact || "N/A"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Address:</Text>
+            <View style={[styles.readOnlyInput, { minHeight: 60, justifyContent: "flex-start", paddingVertical: 12 }]}>
+              <Text style={{ color: editedPatient.address ? "#333" : "#999", fontSize: 14 }}>
+                {editedPatient.address || "N/A"}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Emergency Contact Name:</Text>
-            <TextInput
-              style={[styles.input, getFieldStyle('emergencyContactName')]}
-              value={editedPatient.emergencyContactName || ""}
-              onChangeText={(text) =>
-                setEditedPatient({ ...editedPatient, emergencyContactName: text })
-              }
-              placeholder="Enter emergency contact name"
-            />
+            <View style={[styles.readOnlyInput]}>
+              <Text style={{ color: editedPatient.emergencyContactName ? "#333" : "#999", fontSize: 14 }}>
+                {editedPatient.emergencyContactName || "N/A"}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Emergency Contact Phone:</Text>
-            <TextInput
-              style={[styles.input, getFieldStyle('emergencyContactPhone')]}
-              value={editedPatient.emergencyContactPhone || ""}
-              onChangeText={handleEmergencyContactPhoneChange}
-              placeholder="Enter phone number (10-11 digits)"
-              keyboardType="phone-pad"
-              maxLength={11}
-            />
+            <View style={[styles.readOnlyInput]}>
+              <Text style={{ color: editedPatient.emergencyContactPhone ? "#333" : "#999", fontSize: 14 }}>
+                {editedPatient.emergencyContactPhone || "N/A"}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -644,6 +579,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: "#fff3e0",
     color: "#333",
+    justifyContent: "center",
+  },
+  readOnlyInput: {
+    borderWidth: 1,
+    borderColor: "#d0d0d0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    backgroundColor: "#f5f5f5",
+    color: "#666",
     justifyContent: "center",
   },
   phoneInputContainer: {

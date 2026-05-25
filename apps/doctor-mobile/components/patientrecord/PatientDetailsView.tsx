@@ -316,10 +316,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Personal Information</Text>
             <View style={styles.infoContainer}>
-              <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
-              <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
+              <DetailRow label="Gender" value={medicalIntake?.gender || patient.gender || "Not specified"} />
+              <DetailRow label="Contact Number" value={medicalIntake?.phone || patient.contact || "Not provided"} />
               <DetailRow label="Email" value={patient.email || "Not provided"} />
-              <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
+              <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || patient.dateOfBirth || "")} />
               {(() => {
                 const calculatedAge = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth);
                 return calculatedAge !== null ? (
@@ -328,7 +328,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                   <DetailRow label="Age" value={patient.age.toString()} />
                 ) : null;
               })()}
-              <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
+              <DetailRow label="Address" value={medicalIntake?.address || patient.address || "Not provided"} />
             </View>
           </View>
 
