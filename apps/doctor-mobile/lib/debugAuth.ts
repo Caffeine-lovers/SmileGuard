@@ -110,8 +110,8 @@ export async function debugAuthSession() {
     console.log('\n🧪 STEP 6: Testing a simple authenticated query...');
     try {
       const { data, error } = await supabase
-        .from('dummy_accounts')
-        .select('id, patient_name')
+        .from('profiles')
+        .select('id, name')
         .limit(1);
       
       if (error) {
@@ -119,7 +119,7 @@ export async function debugAuthSession() {
         console.error('   Error code:', error.code);
         console.error('   Error details:', error);
       } else if (data && data.length > 0) {
-        console.log('✅ Query successful! Can read dummy_accounts');
+        console.log('✅ Query successful! Can read profiles');
         console.log('   Sample record:', data[0]);
       } else {
         console.log('⚠️  Query returned 0 rows (might be RLS filtering or empty table)');

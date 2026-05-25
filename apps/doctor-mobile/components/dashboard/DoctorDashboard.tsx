@@ -235,32 +235,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       // Fetch appointment requests (dentist_id IS NULL)
       const appointmentRequestsData = await getAppointmentRequests();
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        // Fetch all dummy account details for requests
-        let dummyAccountsMapRequests: { [key: string]: any } = {};
-        const dummyRequestIds = appointmentRequestsData
-          .filter((apt: any) => apt.dummy_account_id)
-          .map((apt: any) => apt.dummy_account_id);
-        
-        if (dummyRequestIds.length > 0) {
-          const { data: dummyDetails } = await supabase
-            .from('dummy_accounts')
-            .select('*')
-            .in('id', dummyRequestIds);
-          
-          if (dummyDetails) {
-            dummyDetails.forEach((dummy: any) => {
-              dummyAccountsMapRequests[dummy.id] = dummy;
-            });
-          }
-        }
-        
         const transformedRequests = appointmentRequestsData
           .filter((apt: any) => apt.status !== 'cancelled' && apt.status !== 'no-show')
           .map((apt: any) => {
-            // Use dummy account data if available, otherwise use patient profile
-            const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
-              ? dummyAccountsMapRequests[apt.dummy_account_id]
-              : apt.patient_profile;
+            const medicalData = apt.patient_profile;
             
             const medicalIntake = medicalData ? {
               gender: medicalData.gender || '',
@@ -269,7 +247,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               dateOfBirth: medicalData.date_of_birth || '',
               emergencyContactName: medicalData.emergency_contact_name || '',
               emergencyContactPhone: medicalData.emergency_contact_phone || '',
-              allergies: medicalData.alergies || medicalData.allergies || '',
+              allergies: medicalData.allergies || '',
               currentMedications: medicalData.current_medications || '',
               medicalConditions: medicalData.medical_conditions || '',
               pastSurgeries: medicalData.past_surgeries || '',
@@ -287,7 +265,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               age: 0,
               gender: medicalData?.gender || '',
               contact: medicalData?.phone || '',
-              email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+              email: apt.profiles?.email || '',
               notes: apt.notes || '',
               imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
               status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
@@ -307,40 +285,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);
         
-        // Fetch all dummy account details to populate medical intake
-        let dummyAccountsMap: { [key: string]: any } = {};
-        const dummyAccountIds = rpcAppointments
-          .filter((apt: any) => apt.dummy_account_id)
-          .map((apt: any) => apt.dummy_account_id);
-        
-        if (dummyAccountIds.length > 0) {
-          const { data: allDummyAccounts, error: dummyError } = await supabase.rpc('get_all_dummy_accounts');
-          if (!dummyError && allDummyAccounts) {
-            // Need to fetch full details for each dummy account
-            const { data: dummyDetails } = await supabase
-              .from('dummy_accounts')
-              .select('*')
-              .in('id', dummyAccountIds);
-            
-            if (dummyDetails) {
-              dummyDetails.forEach((dummy: any) => {
-                dummyAccountsMap[dummy.id] = dummy;
-              });
-            }
-          }
-        }
-        
         const transformedAppointments = rpcAppointments.map((apt: any) => {
           console.log(`📐 Transforming appointment ${apt.id}:`, {
             patient_name: apt.patient_name,
-            dummy_account_id: apt.dummy_account_id,
             patient_id: apt.patient_id,
           });
           
-          // Use dummy account data if available, otherwise use patient profile
-          const medicalData = apt.dummy_account_id && dummyAccountsMap[apt.dummy_account_id]
-            ? dummyAccountsMap[apt.dummy_account_id]
-            : apt.patient_profile;
+          const medicalData = apt.patient_profile;
           
           const medicalIntake = medicalData ? {
             gender: medicalData.gender || '',
@@ -349,7 +300,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             dateOfBirth: medicalData.date_of_birth || '',
             emergencyContactName: medicalData.emergency_contact_name || '',
             emergencyContactPhone: medicalData.emergency_contact_phone || '',
-            allergies: medicalData.alergies || medicalData.allergies || '',
+            allergies: medicalData.allergies || '',
             currentMedications: medicalData.current_medications || '',
             medicalConditions: medicalData.medical_conditions || '',
             pastSurgeries: medicalData.past_surgeries || '',
@@ -367,7 +318,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             age: 0,
             gender: medicalData?.gender || '',
             contact: medicalData?.phone || '',
-            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+            email: apt.profiles?.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
             status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
