@@ -247,10 +247,6 @@ function getSubscriptionFilter(tableName: string, doctorId: string): string | nu
       return `patient_id=eq.${doctorId}`;
     case 'doctors':
       return `id=eq.${doctorId}`;
-    case 'dummy_accounts':
-      // Subscribe to all dummy accounts (updated/inserted for this doctor's clinic)
-      // Filter can be added based on clinic_id if needed
-      return null; // No filter - see all dummy accounts
     case 'profiles':
       // Subscribe to all profile updates (can be filtered by role='doctor' if needed)
       return null; // No filter - see all profile changes
@@ -272,7 +268,6 @@ export function subscribeToDoctorNotifications(
     'medical_intake',
     'treatments',
     'billings',
-    'dummy_accounts',
     'profiles',
   ]
 ): (() => void) {

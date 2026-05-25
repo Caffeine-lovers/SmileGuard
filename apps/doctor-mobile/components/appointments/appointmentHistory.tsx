@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPatientAppointments } from "../../lib/profilesPatients";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
-import { formatDateWithTime } from "../../lib/dateFormatters";
 import AppointmentEdit from "./appointmentEdit";
 
 interface AppointmentHistoryProps {
@@ -58,9 +57,9 @@ const categorizeAppointments = (appointments: any[]) => {
 function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (appt: any) => void }) {
   const formattedDate = (() => {
     try {
-      if (appointment.appointment_date && appointment.appointment_time) {
+      if (appointment.appointment_date) {
         const dateStr = String(appointment.appointment_date).trim(); // YYYY-MM-DD
-        const timeStr = String(appointment.appointment_time).trim(); // HH:MM
+        const timeStr = appointment.appointment_time ? String(appointment.appointment_time).trim() : null; // HH:MM (optional)
         
         // Parse date
         const dateParts = dateStr.split('-').map(Number);
@@ -69,15 +68,7 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
           return 'Invalid date format';
         }
         
-        // Parse time
-        const timeParts = timeStr.split(':').map(Number);
-        if (timeParts.length < 2 || timeParts.some(isNaN)) {
-          console.warn('⚠️ Invalid time format:', appointment.appointment_time);
-          return 'Invalid time format';
-        }
-        
         const [year, month, day] = dateParts;
-        const [hour, minute] = timeParts;
         
         // Validate date components
         if (month < 1 || month > 12 || day < 1 || day > 31) {
@@ -85,29 +76,60 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
           return 'Invalid date';
         }
         
-        const date = new Date(year, month - 1, day, hour, minute);
-        
-        // Verify the date is valid
-        if (isNaN(date.getTime())) {
-          console.warn('⚠️ Failed to create valid date:', { year, month, day, hour, minute });
-          return 'Invalid date';
+        // If we have time, parse and use it
+        if (timeStr) {
+          // Parse time
+          const timeParts = timeStr.split(':').map(Number);
+          if (timeParts.length < 2 || timeParts.some(isNaN)) {
+            console.warn('⚠️ Invalid time format:', appointment.appointment_time);
+            // Fall back to date-only format
+            const date = new Date(year, month - 1, day);
+            if (isNaN(date.getTime())) {
+              return 'Invalid date';
+            }
+            return date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            });
+          }
+          
+          const [hour, minute] = timeParts;
+          const date = new Date(year, month - 1, day, hour, minute);
+          
+          // Verify the date is valid
+          if (isNaN(date.getTime())) {
+            console.warn('⚠️ Failed to create valid date:', { year, month, day, hour, minute });
+            return 'Invalid date';
+          }
+          
+          return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+        } else {
+          // No time provided, format date only
+          const date = new Date(year, month - 1, day);
+          if (isNaN(date.getTime())) {
+            console.warn('⚠️ Failed to create valid date:', { year, month, day });
+            return 'Invalid date';
+          }
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
         }
-        
-        return date.toLocaleString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
       }
       
-      console.warn('⚠️ Missing appointment date or time:', {
+      console.warn('⚠️ Missing appointment date:', {
         appointment_date: appointment.appointment_date,
-        appointment_time: appointment.appointment_time,
       });
-      return 'Date/Time not available';
+      return 'Date not available';
     } catch (error) {
       console.error('❌ Error formatting date:', error, { appointment });
       return 'Error formatting date';
