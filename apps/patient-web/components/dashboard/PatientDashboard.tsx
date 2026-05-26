@@ -11,7 +11,7 @@ import ReschedAppointment from '@/components/appointments/ReschedAppointment';
 import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
 import { getDoctorProfilePictureMap } from '@/lib/doctorProfilePicture';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
-import { fetchAppointmentRules, calculateCancellationFee, calculateNoShowPenalty } from '@/lib/appointmentRule';
+import { fetchAppointmentRules, calculateCancellationFee } from '@/lib/appointmentRule';
 import { getBillings } from '@/lib/paymentService';
 import Link from 'next/link';
 import type { Appointment, Billing } from '@/lib/database';
@@ -81,8 +81,7 @@ export default function PatientDashboard() {
 
         console.log("[PatientDashboard] Scheduled/Confirmed appointments:", scheduledAppts.length);
         
-        // Check for no-shows (appointments that are past their time by more than 1 hour and still scheduled)
-        await checkAndProcessNoShows(appts, billingData, userId);
+
 
         setAppointments(scheduledAppts);
         setOutstandingBalance(balance);
@@ -202,103 +201,7 @@ export default function PatientDashboard() {
     setShowRescheduleModal(true);
   };
 
-  const checkAndProcessNoShows = async (allAppointments: Appointment[], billingData: Billing[], userId: string) => {
-    console.log('[PatientDashboard] Checking for no-shows...');
-    
-    const now = new Date();
-    let noShowDetected = false;
-    let noShowAppointmentId = '';
-    let noShowPenalty = 0;
 
-    try {
-      // Check each appointment to see if it should be marked as no-show
-      for (const apt of allAppointments) {
-        // Only check scheduled appointments (skip cancelled appointments)
-        if (apt.status !== 'scheduled') {
-          console.log('[PatientDashboard] Skipping appointment with status:', apt.status);
-          continue;
-        }
-
-        const apptDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
-        const timeDiffHours = (now.getTime() - apptDateTime.getTime()) / (1000 * 60 * 60);
-
-        console.log('[PatientDashboard] Checking appointment:', {
-          id: apt.id,
-          service: apt.service,
-          apptTime: apptDateTime.toISOString(),
-          now: now.toISOString(),
-          hoursPassed: timeDiffHours,
-        });
-
-        // If appointment is more than 1 hour in the past and still scheduled, mark as no-show
-        if (timeDiffHours > 1) {
-          console.log('[PatientDashboard] Appointment is a no-show (more than 1 hour past):', apt.id);
-          noShowDetected = true;
-          noShowAppointmentId = apt.id || '';
-
-          // Calculate the penalty
-          if (appointmentRules) {
-            const { penalty } = calculateNoShowPenalty(apt, appointmentRules);
-            noShowPenalty = penalty;
-          }
-
-          // Update appointment status to no-show in database
-          try {
-            const { error: updateError } = await supabase
-              .from('appointments')
-              .update({ status: 'no-show' })
-              .eq('id', apt.id);
-
-            if (updateError) {
-              console.error('[PatientDashboard] Error updating appointment status to no-show:', updateError);
-            } else {
-              console.log('[PatientDashboard] Successfully marked appointment as no-show:', apt.id);
-            }
-          } catch (err) {
-            console.error('[PatientDashboard] Error updating no-show status:', err);
-          }
-
-          // Stop after finding the first no-show (process one at a time)
-          break;
-        }
-      }
-
-      // If a no-show was detected, redirect to billing page
-      if (noShowDetected && noShowAppointmentId) {
-        console.log('[PatientDashboard] No-show detected, redirecting to billing page...');
-        
-        const params = new URLSearchParams();
-        params.append('appointmentId', noShowAppointmentId);
-        params.append('action', 'no-show');
-        params.append('noShowPenalty', noShowPenalty.toString());
-        
-        // Add small delay to ensure database update completes
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        
-        router.push(`/billing?${params.toString()}`);
-        return;
-      }
-
-      // Check for unpaid no-show penalties that would block new bookings
-      const unpaidNoShows = allAppointments.filter(apt => {
-        if (apt.status !== 'no-show') return false;
-        const hasPaid = billingData.some(b => 
-          b.appointment_id === apt.id && 
-          b.payment_status === 'paid' &&
-          b.description === 'No-Show Penalty'
-        );
-        return !hasPaid;
-      });
-
-      if (unpaidNoShows.length > 0) {
-        console.log('[PatientDashboard] Found unpaid no-show penalties:', unpaidNoShows.length);
-        // Store in state or show warning (optional - can be handled in the appointments booking flow)
-      }
-
-    } catch (err) {
-      console.error('[PatientDashboard] Error checking for no-shows:', err);
-    }
-  };
 
 
 
