@@ -63,14 +63,7 @@ export default function BookingRules({ isOpen, onClose, appointmentRules }: Book
                 </div>
               )}
 
-              {appointmentRules.first_time_cancellation_free && (
-                <div className="bg-purple-50 rounded-lg p-3">
-                  <p className="font-semibold text-purple-900">First Cancellation Free</p>
-                  <p className="text-purple-700 mt-1">
-                    Your first cancellation will be free, regardless of timing.
-                  </p>
-                </div>
-              )}
+
             </div>
           </div>
 
@@ -102,20 +95,7 @@ export default function BookingRules({ isOpen, onClose, appointmentRules }: Book
             </div>
           )}
 
-          {/* No-Show Penalty Section */}
-          {appointmentRules.no_show_penalty_enabled && appointmentRules.no_show_penalty_amount > 0 && (
-            <div>
-              <h3 className="text-lg font-bold text-text-primary mb-3 flex items-center gap-2">
-                No-Show Penalty
-              </h3>
-              <div className="bg-red-50 rounded-lg p-3">
-                <p className="font-semibold text-red-900">Important</p>
-                <p className="text-red-700 mt-1">
-                  If you don't show up for your appointment without cancelling, a penalty of <span className="font-bold text-lg text-red-900">₱{appointmentRules.no_show_penalty_amount}</span> will be charged to your account.
-                </p>
-              </div>
-            </div>
-          )}
+
 
           {/* Summary Section */}
           <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg p-4 border border-blue-200">
@@ -127,9 +107,6 @@ export default function BookingRules({ isOpen, onClose, appointmentRules }: Book
               )}
               {appointmentRules.reschedule_allowed && (
                 <li>Reschedule up to <span className="font-bold">{appointmentRules.reschedule_window_hours}h</span> before</li>
-              )}
-              {appointmentRules.no_show_penalty_enabled && appointmentRules.no_show_penalty_amount > 0 && (
-                <li>No-show penalty: <span className="font-bold">₱{appointmentRules.no_show_penalty_amount}</span></li>
               )}
             </ul>
           </div>

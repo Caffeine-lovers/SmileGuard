@@ -59,11 +59,8 @@ interface AppointmentRules {
   cancellation_fee_amount: number;
   grace_period_enabled: boolean;
   grace_period_hours: number;
-  first_time_cancellation_free: boolean;
   reschedule_allowed: boolean;
   reschedule_window_hours: number;
-  no_show_penalty_enabled: boolean;
-  no_show_penalty_amount: number;
   created_at: string;
   updated_at: string;
 }
@@ -106,11 +103,8 @@ export default function AppointmentsRuleSetup({
     cancellation_fee_amount: 500,
     grace_period_enabled: true,
     grace_period_hours: 2,
-    first_time_cancellation_free: true,
     reschedule_allowed: true,
     reschedule_window_hours: 24,
-    no_show_penalty_enabled: true,
-    no_show_penalty_amount: 300,
   });
 
   // Fetch user role and appointment rules on mount
@@ -163,11 +157,8 @@ export default function AppointmentsRuleSetup({
           cancellation_fee_amount: 500,
           grace_period_enabled: true,
           grace_period_hours: 2,
-          first_time_cancellation_free: true,
           reschedule_allowed: true,
           reschedule_window_hours: 24,
-          no_show_penalty_enabled: true,
-          no_show_penalty_amount: 300,
         });
       }
     } catch (error) {
@@ -191,11 +182,8 @@ export default function AppointmentsRuleSetup({
             cancellation_fee_amount: formData.cancellation_fee_amount,
             grace_period_enabled: formData.grace_period_enabled,
             grace_period_hours: formData.grace_period_hours,
-            first_time_cancellation_free: formData.first_time_cancellation_free,
             reschedule_allowed: formData.reschedule_allowed,
             reschedule_window_hours: formData.reschedule_window_hours,
-            no_show_penalty_enabled: formData.no_show_penalty_enabled,
-            no_show_penalty_amount: formData.no_show_penalty_amount,
           })
           .eq('id', appointmentRules.id);
 
@@ -438,39 +426,6 @@ export default function AppointmentsRuleSetup({
               )}
             </View>
 
-            {/* First-Time Cancellation Free */}
-            <View
-              style={[
-                styles.card,
-                styles.toggleCard,
-                { 
-                  borderColor: modifiedFields.has('first_time_cancellation_free') ? ACCENT_COLOR : BORDER_COLOR, 
-                  borderWidth: modifiedFields.has('first_time_cancellation_free') ? 2 : 1,
-                  backgroundColor: CARD_BG, 
-                  marginBottom: 16 
-                },
-              ]}>
-              <View style={styles.toggleContent}>
-                <View>
-                  <Text style={[styles.label, { color: TEXT_PRIMARY }]}>
-                    First-Time Cancellation Free
-                  </Text>
-                  <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
-                    Don't charge fee for first cancellation
-                  </Text>
-                </View>
-                <Switch
-                  value={formData.first_time_cancellation_free || false}
-                  onValueChange={(value) => {
-                    if (!isReadOnly) updateField('first_time_cancellation_free', value);
-                  }}
-                  trackColor={{ false: '#767577', true: ACCENT_COLOR }}
-                  thumbColor={formData.first_time_cancellation_free ? SUCCESS_COLOR : '#f4f3f4'}
-                  disabled={isReadOnly}
-                />
-              </View>
-            </View>
-
             {/* Current Policy Summary */}
             <View
               style={[
@@ -490,11 +445,6 @@ export default function AppointmentsRuleSetup({
               {formData.grace_period_enabled && (
                 <Text style={[styles.policyText, { color: AI_COLOR }]}>
                   • Grace period: {formData.grace_period_hours} hours (free cancellation)
-                </Text>
-              )}
-              {formData.first_time_cancellation_free && (
-                <Text style={[styles.policyText, { color: AI_COLOR }]}>
-                  • First cancellation is free
                 </Text>
               )}
             </View>
@@ -576,81 +526,6 @@ export default function AppointmentsRuleSetup({
         </CustomCollapsible>
       </View>
 
-      {/* No-Show Penalty */}
-      <View style={[styles.section, { marginTop: 20 }]}>
-        <CustomCollapsible title="No-Show Penalty" accentColor={ACCENT_COLOR} textColor={TEXT_PRIMARY} borderColor={BORDER_COLOR}>
-          <View style={[styles.collapsibleContent, { marginTop: 16 }]}>
-            {/* Enable No-Show Penalty */}
-            <View
-              style={[
-                styles.card,
-                styles.toggleCard,
-                { 
-                  borderColor: modifiedFields.has('no_show_penalty_enabled') ? ACCENT_COLOR : BORDER_COLOR, 
-                  borderWidth: modifiedFields.has('no_show_penalty_enabled') ? 2 : 1,
-                  backgroundColor: CARD_BG, 
-                  marginBottom: 16 
-                },
-              ]}>
-              <View style={styles.toggleContent}>
-                <View>
-                  <Text style={[styles.label, { color: TEXT_PRIMARY }]}>
-                    Enable No-Show Penalty
-                  </Text>
-                  <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
-                    Charge a fee if patient doesn't show up
-                  </Text>
-                </View>
-                <Switch
-                  value={formData.no_show_penalty_enabled || false}
-                  onValueChange={(value) => {
-                    if (!isReadOnly) updateField('no_show_penalty_enabled', value);
-                  }}
-                  trackColor={{ false: '#767577', true: ACCENT_COLOR }}
-                  thumbColor={formData.no_show_penalty_enabled ? SUCCESS_COLOR : '#f4f3f4'}
-                  disabled={isReadOnly}
-                />
-              </View>
-
-              {/* No-Show Penalty Amount (conditional) */}
-              {formData.no_show_penalty_enabled && (
-                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
-                  <Text style={[styles.label, { color: TEXT_PRIMARY }]}>
-                    No-Show Penalty Amount (₱)
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      { 
-                        borderColor: modifiedFields.has('no_show_penalty_amount') ? ACCENT_COLOR : BORDER_COLOR,
-                        borderWidth: modifiedFields.has('no_show_penalty_amount') ? 2 : 1,
-                        color: TEXT_PRIMARY,
-                        opacity: isReadOnly ? 0.6 : 1,
-                      },
-                    ]}
-                    placeholder="300"
-                    placeholderTextColor={TEXT_SECONDARY}
-                    keyboardType="decimal-pad"
-                    value={String(formData.no_show_penalty_amount || '')}
-                    onChangeText={(text) =>
-                      !isReadOnly && updateField('no_show_penalty_amount', text === '' ? NaN : parseFloat(text))
-                    }
-                    onBlur={() => {
-                      if (isNaN(formData.no_show_penalty_amount as any)) {
-                        updateField('no_show_penalty_amount', 300);
-                      }
-                    }}
-                    editable={!isReadOnly}
-                  />
-                  <Text style={[styles.helperText, { color: TEXT_SECONDARY }]}>
-                    Amount charged for no-shows
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </CustomCollapsible>
-      </View>
       {isDoctor && (
         <View style={[styles.buttonContainer, { marginBottom: 40 }]}>
           <TouchableOpacity

@@ -5,21 +5,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
-import { createBilling, getBillings } from '@/lib/paymentService';
+import { createBilling } from '@/lib/paymentService';
 import { SERVICE_PRICES } from '@/lib/outstandingBalanceService';
 import BookingRules from '@/components/appointments/BookingRules';
 import type { Appointment } from '@/lib/database';
 
 const SERVICES = [
-  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
-  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
-  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '' },
-  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '' },
-  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '' },
-  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '' },
-  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '' },
-  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '' },
-  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '' },
+  { id: 'cleaning',   name: 'Cleaning',             price: 1500,  icon: '' },
+  { id: 'whitening',  name: 'Whitening',             price: 5000,  icon: '' },
+  { id: 'fillings',   name: 'Fillings',              price: 2000,  icon: '' },
+  { id: 'root-canal', name: 'Root Canal',            price: 8000,  icon: '' },
+  { id: 'extraction', name: 'Extraction',            price: 1500,  icon: '' },
+  { id: 'braces',     name: 'Braces Consultation',   price: 35000, icon: '' },
+  { id: 'implants',   name: 'Implants Consultation', price: 45000, icon: '' },
+  { id: 'xray',       name: 'X-Ray',                 price: 500,   icon: '' },
+  { id: 'checkup',    name: 'Check-up',              price: 300,   icon: '' },
 ];
 
 interface BookAppointmentProps {
@@ -219,39 +219,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setLoadingUserData(true);
       try {
         const appointments = await getPatientAppointments(userId);
-        const billings = await getBillings(userId);
         
-        // Check for unpaid no-show penalties
-        const unpaidNoShows = appointments.filter(apt => {
-          if (apt.status !== 'no-show') return false;
-          const hasPaid = billings.some(b => 
-            b.appointment_id === apt.id && 
-            b.payment_status === 'paid' &&
-            b.description === 'No-Show Penalty'
-          );
-          return !hasPaid;
-        });
-
-        // If there are unpaid no-shows, redirect to billing page
-        if (unpaidNoShows.length > 0) {
-          console.log('[BookAppointment] Found unpaid no-shows, redirecting to billing:', unpaidNoShows.length);
-          const firstNoShow = unpaidNoShows[0];
-          
-          // Get the penalty amount from appointment rules if available
-          let penalty = 0;
-          if (appointmentRules?.no_show_penalty_amount) {
-            penalty = appointmentRules.no_show_penalty_amount;
-          }
-          
-          const params = new URLSearchParams();
-          params.append('appointmentId', firstNoShow.id || '');
-          params.append('action', 'no-show');
-          params.append('noShowPenalty', penalty.toString());
-          
-          router.push(`/billing?${params.toString()}`);
-          return;
-        }
-
         const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
@@ -463,7 +431,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   <p className={`font-semibold text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
                     {service.name}
                   </p>
-                  <p className="text-xs text-text-secondary mt-0.5">{service.duration} min</p>
                   <p className={`text-xs font-bold mt-2 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
                     ₱{service.price.toLocaleString()}
                   </p>
