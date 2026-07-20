@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "smileguard",
-    "slug": "smileguard-doctor",
+    "slug": "smileguarddoctor",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "smileguard",
@@ -32,15 +32,13 @@
           ]
         }
       ],
-
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": [
-    ],
+    "plugins": [],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
@@ -50,8 +48,9 @@
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
-        "projectId": "7380953f-ba09-42e5-8ab0-952c205fa3d1"
+        "projectId": "aac5b280-91f0-4585-b8ef-5ac7734c049e"
       }
-    }
+    },
+    "owner": "mortart"
   }
 }

@@ -49,6 +49,7 @@ export interface Billing {
   payment_status: 'pending' | 'paid' | 'overdue';
   payment_method?: 'cash' | 'card' | 'gcash' | 'bank-transfer';
   payment_date?: string;
+  description?: string;
   created_at?: string;
   updated_at?: string;
 }

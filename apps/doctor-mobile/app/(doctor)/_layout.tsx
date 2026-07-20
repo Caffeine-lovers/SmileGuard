@@ -4,10 +4,14 @@ import { supabase } from "@smileguard/supabase-client";
 import { Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { ActivityIndicator, View } from "react-native";
 import { ClinicProvider } from "../../contexts/ClinicContext";
+import { usePushNotifications } from "../../hooks/usePushNotifications";
 
 export default function DoctorLayout() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+
+  // Register push notifications now that user is authenticated
+  usePushNotifications();
 
   useEffect(() => {
     // Check initial session

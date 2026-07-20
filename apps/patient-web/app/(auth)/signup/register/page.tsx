@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
-import { PasswordCheck } from '@smileguard/shared-types';
 
 export default function SignupRegisterPage() {
   const router = useRouter();
