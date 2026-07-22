@@ -25,11 +25,13 @@ interface MedicalIntake {
 export default function BioDataPage() {
   const router = useRouter();
   const { currentUser, medicalIntake, loading: authLoading, } = useAuth();
+  const [profileImage, setProfileImage] = useState<File | null>(null);
   const [medicalData, setMedicalData] = useState<MedicalIntake | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -53,6 +55,7 @@ export default function BioDataPage() {
       if (medicalIntake) {
         console.log('[BioData] Using cached medical data from useAuth');
         setMedicalData(medicalIntake as MedicalIntake);
+        setLoading(false);
       } else {
         // Fetch fresh data if not cached
         fetchMedicalData();
@@ -62,6 +65,7 @@ export default function BioDataPage() {
 
   const fetchMedicalData = async () => {
     try {
+      setLoading(true);
       setError(null);
 
       const { data, error: fetchError } = await supabase
@@ -86,6 +90,8 @@ export default function BioDataPage() {
     } catch (err) {
       console.error('[BioData] Error fetching medical data:', err);
       setError('An error occurred while loading medical information');
+    } finally {
+      setLoading(false);
     }
   };
 

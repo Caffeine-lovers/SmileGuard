@@ -10,8 +10,8 @@ import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+import dynamic from 'next/dynamic';
 import CancellationBilling from './CancellationBilling';
-import StripePaymentForm from './StripePaymentForm';
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -27,6 +27,7 @@ export default function BillingPayment({
   onCancel,
 }: BillingPaymentProps) {
   const { currentUser } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [unpaidAppointments, setUnpaidAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -203,33 +204,6 @@ export default function BillingPayment({
       alert('Failed to process payment');
     } finally {
       setIsProcessing(false);
-    }
-  };
-
-  const handleStripeSuccess = async (details: { paymentIntentId: string; amountPaid: number }) => {
-    alert(
-      `Stripe Payment Successful!\nAmount Paid: ₱${details.amountPaid.toFixed(2)}\nStripe PaymentIntent: ${details.paymentIntentId}`
-    );
-
-    if (currentUser?.id) {
-      const userId = currentUser.id;
-      const [balance, billings, appts] = await Promise.all([
-        getBalance(userId),
-        getBillings(userId),
-        getPatientAppointments(userId),
-      ]);
-
-      const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
-      const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
-      const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
-
-      setOutstandingBalance(balance + unpaidApptsSum);
-      setBillingHistory(billings);
-      setUnpaidAppointments(unpaid);
-      setSelectedAppointment(null);
-      setAmount(0);
-      setDiscountType('none');
-      setDiscountProof(null);
     }
   };
 
@@ -448,20 +422,6 @@ export default function BillingPayment({
               </div>
             </div>
           </div>
-
-          {/* Stripe Card Checkout Section */}
-          {paymentMethod === 'card' && currentUser?.id && selectedAppointment && (
-            <StripePaymentForm
-              patientId={currentUser.id}
-              appointmentId={selectedAppointment.id}
-              amount={amount}
-              finalAmount={finalAmount}
-              discountType={discountType}
-              discountAmount={discountAmount}
-              onSuccess={handleStripeSuccess}
-              onCancel={onCancel}
-            />
-          )}
         </div>
       </div>
 
@@ -508,28 +468,26 @@ export default function BillingPayment({
         </div>
       )}
 
-      {/* Action Buttons (for Non-Card Payments) */}
-      {paymentMethod !== 'card' && (
-        <div className="flex flex-col md:flex-row gap-4">
+      {/* Action Buttons */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <button
+          type="button"
+          onClick={handlePayment}
+          disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
+          className="flex-1 p-4 bg-brand-primary text-text-on-avatar font-bold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition text-lg"
+        >
+          {isProcessing ? '⏳ Processing...' : '✓ Pay Now'}
+        </button>
+        {onCancel && (
           <button
             type="button"
-            onClick={handlePayment}
-            disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
-            className="flex-1 p-4 bg-brand-primary text-text-on-avatar font-bold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition text-lg"
+            onClick={onCancel}
+            className="flex-1 p-4 bg-border-card text-text-primary font-semibold rounded-pill hover:bg-border-card/80 transition"
           >
-            {isProcessing ? '⏳ Processing...' : '✓ Pay Now'}
+            Cancel
           </button>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 p-4 bg-border-card text-text-primary font-semibold rounded-pill hover:bg-border-card/80 transition"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
