@@ -109,3 +109,73 @@ export async function createBilling(
     return { success: false, message };
   }
 }
+
+export async function createStripePaymentIntent(payload: {
+  patientId: string;
+  appointmentId?: string;
+  amount: number;
+  finalAmount: number;
+  discountType?: string;
+  discountAmount?: number;
+  currency?: string;
+}): Promise<{
+  success: boolean;
+  clientSecret?: string;
+  paymentIntentId?: string;
+  billingId?: string;
+  message?: string;
+}> {
+  try {
+    const response = await fetch('/api/stripe/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.error || 'Failed to create payment intent',
+      };
+    }
+
+    return {
+      success: true,
+      clientSecret: data.clientSecret,
+      paymentIntentId: data.paymentIntentId,
+      billingId: data.billingId,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error connecting to payment service';
+    return { success: false, message };
+  }
+}
+
+export async function confirmStripePayment(
+  billingId: string,
+  stripePaymentIntentId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { error } = await supabase
+      .from('billings')
+      .update({
+        payment_status: 'paid',
+        payment_method: 'card',
+        payment_date: new Date().toISOString(),
+        stripe_payment_intent_id: stripePaymentIntentId,
+      })
+      .eq('id', billingId);
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true, message: 'Stripe payment recorded successfully' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Payment confirmation failed';
+    return { success: false, message };
+  }
+}
+

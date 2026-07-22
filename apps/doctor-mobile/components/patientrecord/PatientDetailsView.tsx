@@ -63,10 +63,10 @@ const formatDate = (dateStr: string): string => {
 
 const calculateAge = (dateOfBirth: string | undefined): number | null => {
   if (!dateOfBirth) return null;
-  
+
   try {
     let birthDate: Date;
-    
+
     // Handle mm/dd/YYYY format
     if (dateOfBirth.includes('/')) {
       const [month, day, year] = dateOfBirth.split('/');
@@ -75,22 +75,22 @@ const calculateAge = (dateOfBirth: string | undefined): number | null => {
       // Handle ISO date format and other formats
       birthDate = new Date(dateOfBirth);
     }
-    
+
     // Check if date is valid
     if (isNaN(birthDate.getTime())) {
       return null;
     }
-    
+
     const today = new Date();
-    
+
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     // If birthday hasn't occurred yet this year, subtract 1 from age
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     return age >= 0 ? age : null;
   } catch (error) {
     console.error('Error calculating age:', error);
@@ -126,7 +126,7 @@ const categorizeAppointments = (appointments: any[]) => {
   return { past, current, future };
 };
 
-export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit,onMedicalIntakeUpdated, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
+export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit, onMedicalIntakeUpdated, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [billingInfo, setBillingInfo] = useState<PatientBillingInfo | null>(null);
@@ -147,7 +147,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       setBillingInfo(null);
       setProfilePictureUrl(null);
       setLoading(true);
-      
+
       // Use patient_id if available (actual patient ID), otherwise fall back to id
       const patientIdToUse = patient.patient_id || patient.id;
       loadPatientData(patientIdToUse);
@@ -176,7 +176,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
       // Reload appointments to get updated statuses
       const updatedAppts = await getPatientAppointments(patientId);
-      
+
       // Log appointments breakdown
       const statusBreakdown = {
         scheduled: updatedAppts.filter(a => a.status === 'scheduled').length,
@@ -186,7 +186,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       };
       console.log(`✅ Loaded ${updatedAppts.length} appointments. Breakdown:`, statusBreakdown);
       console.log('📋 Filtered cancelled:', updatedAppts.filter(a => a.status === 'cancelled'));
-      
+
       setAppointments(updatedAppts);
 
       // Update billing info
@@ -215,10 +215,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const loadAppointments = async (patientId: string) => {
     try {
       const appts = await getPatientAppointments(patientId);
-      
+
       // Auto-update past appointments to no-show status
       await updatePastAppointmentsToNoShow(appts);
-      
+
       // Reload appointments to get updated statuses
       const updatedAppts = await getPatientAppointments(patientId);
       setAppointments(updatedAppts);
@@ -288,8 +288,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={{ width: 30 }} />
         </View>
 
-        <ScrollView 
-          style={styles.container} 
+        <ScrollView
+          style={styles.container}
           contentContainerStyle={{ paddingBottom: 20 }}
           onScroll={(event) => {
             const offsetY = event.nativeEvent.contentOffset.y;
@@ -301,10 +301,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={styles.profileSection}>
             <Image
               source={
-                profilePictureUrl 
+                profilePictureUrl
                   ? { uri: profilePictureUrl }
-                  : typeof patient.imageUrl === "string" 
-                    ? { uri: patient.imageUrl } 
+                  : typeof patient.imageUrl === "string"
+                    ? { uri: patient.imageUrl }
                     : patient.imageUrl
               }
               style={styles.profileImage}
@@ -409,7 +409,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                     const cancelledAppts = appointments.filter((appt: any) => appt.status === 'cancelled');
                     const otherAppts = appointments.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
                     console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other`);
-                    
+
                     return (
                       <>
                         {/* Show cancelled appointments first if they exist */}
@@ -420,7 +420,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                             ))}
                           </>
                         )}
-                        
+
                         {/* Show other appointments (max 3) */}
                         {otherAppts.length > 0 && (
                           <>
@@ -430,10 +430,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                             ))}
                           </>
                         )}
-                        
+
                         {/* See More Button - only show if there are more than 3 appointments */}
                         {appointments.length > 3 && (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             style={styles.seeMoreButton}
                             onPress={() => setShowAppointmentHistory(true)}
                           >
@@ -442,7 +442,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                             </Text>
                           </TouchableOpacity>
                         )}
-                        
+
                         {/* Show message if no appointments */}
                         {appointments.length === 0 && (
                           <Text style={styles.noDataText}>No appointments found</Text>
@@ -461,6 +461,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             <View style={styles.infoContainer}>
               <DetailRow label="Patient ID" value={patient.id} />
               <DetailRow label="Account Created" value={formatDate(patient.date)} />
+
             </View>
           </View>
         </ScrollView>
@@ -468,8 +469,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
         {/* Footer */}
         <View style={styles.footer}>
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity 
-              style={[styles.closeButtonFull, { backgroundColor: '#0b7fab', flex: 1 }]} 
+            <TouchableOpacity
+              style={[styles.closeButtonFull, { backgroundColor: '#0b7fab', flex: 1 }]}
               onPress={() => {
                 // Merge fresh medicalIntake data with patient to get the latest data
                 const patientWithFreshData: AppointmentType = {
@@ -495,8 +496,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             >
               <Text style={styles.closeButtonText}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.closeButtonFull, { backgroundColor: '#999', flex: 1 }]} 
+            <TouchableOpacity
+              style={[styles.closeButtonFull, { backgroundColor: '#999', flex: 1 }]}
               onPress={onClose}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -599,7 +600,7 @@ function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (a
     if (appointment.appointment_date) {
       const dateStr = appointment.appointment_date; // YYYY-MM-DD
       const timeStr = appointment.appointment_time; // HH:MM (might be missing)
-      
+
       if (timeStr) {
         // If we have time, format with time
         const [year, month, day] = dateStr.split('-').map(Number);
@@ -615,7 +616,7 @@ function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (a
     }
     return 'No date';
   })();
-  
+
   const statusColors: { [key: string]: string } = {
     scheduled: '#FFC107',
     completed: '#4CAF50',
@@ -627,7 +628,7 @@ function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (a
   // Ensure status has a default value and handle null/undefined cases
   const appointmentStatus = appointment.status || 'scheduled';
   const statusColor = statusColors[appointmentStatus] || '#666';
-  
+
   // Format status text: capitalize first letter, handle no-show properly
   const getStatusText = (status: string): string => {
     if (status === 'no-show') return 'No Show';

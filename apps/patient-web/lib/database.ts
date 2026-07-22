@@ -50,6 +50,9 @@ export interface Billing {
   payment_method?: 'cash' | 'card' | 'gcash' | 'bank-transfer';
   payment_date?: string;
   description?: string;
+  stripe_payment_intent_id?: string;
+  stripe_client_secret?: string;
+  stripe_customer_id?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -293,5 +293,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     logout,
     fetchProfile,
     resetPassword,
+    medicalIntake,
   };
 }

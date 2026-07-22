@@ -3,7 +3,23 @@
  * Used by both patient-web and doctor-mobile
  */
 
-import { MedicalIntakeData } from "@/apps/patient-web/lib/signup-context";
+export interface MedicalIntakeData {
+  patient_id?: string;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  allergies?: string | null;
+  current_medications?: string | null;
+  medical_conditions?: string | null;
+  past_surgeries?: string | null;
+  smoking_status?: string | null;
+  pregnancy_status?: string | null;
+  notes?: string | null;
+  updated_at?: string;
+}
 
 // ─────────────────────────────────────────
 // User & Auth Types
@@ -172,6 +188,9 @@ export interface Billing {
   payment_method?: "cash" | "card" | "gcash" | "bank-transfer";
   payment_date?: string;
   description?: string;
+  stripe_payment_intent_id?: string;
+  stripe_client_secret?: string;
+  stripe_customer_id?: string;
   created_at?: string;
   updated_at?: string;
 }
