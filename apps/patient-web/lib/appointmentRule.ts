@@ -45,16 +45,18 @@ export const calculateCancellationFee = (
     }
   }
 
-  // Calculate cancellation window based on appointment date
-  const apptDate = new Date(appointment.appointment_date);
-  const hoursUntilAppointment = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+  // Calculate cancellation window based on appointment date/time
+  const apptDateTime = appointment.appointment_time
+    ? new Date(`${appointment.appointment_date}T${appointment.appointment_time}`)
+    : new Date(appointment.appointment_date);
+  const hoursUntilAppointment = (apptDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-  // If still within cancellation window, charge fee
-  if (hoursUntilAppointment >= -appointmentRules.cancellation_window_hours) {
-    return { 
-      fee: appointmentRules.cancellation_fee_amount || 0, 
-      isWithinGracePeriod: false, 
-      isWithinCancellationWindow: true 
+  // Fee applies when cancelling within the configured window before the appointment
+  if (hoursUntilAppointment >= 0 && hoursUntilAppointment <= appointmentRules.cancellation_window_hours) {
+    return {
+      fee: appointmentRules.cancellation_fee_amount || 0,
+      isWithinGracePeriod: false,
+      isWithinCancellationWindow: true,
     };
   }
 
