@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
@@ -9,6 +10,8 @@ import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+import dynamic from 'next/dynamic';
+import CancellationBilling from './CancellationBilling';
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -24,6 +27,8 @@ export default function BillingPayment({
   onCancel,
 }: BillingPaymentProps) {
   const { currentUser } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [unpaidAppointments, setUnpaidAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [amount, setAmount] = useState<number>(baseAmount || 0);
@@ -37,6 +42,7 @@ export default function BillingPayment({
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [billingHistory, setBillingHistory] = useState<Billing[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [isCancellation, setIsCancellation] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -58,7 +64,7 @@ export default function BillingPayment({
           setSelectedAppointment(first);
           const initialAmt = SERVICE_PRICES[first.service] || 0;
           setAmount(initialAmt);
-          const result = calculateDiscount(initialAmt, discountType);
+          const result = calculateDiscount(initialAmt, 'none');
           setDiscountAmount(result.discountAmount);
           setFinalAmount(result.finalAmount);
         }
@@ -70,7 +76,15 @@ export default function BillingPayment({
     }
 
     fetchBillingData();
-  }, [currentUser?.id, baseAmount, discountType]);
+  }, [currentUser?.id, baseAmount]);
+
+  // Check if this is a cancellation request
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'cancel') {
+      setIsCancellation(true);
+    }
+  }, [searchParams]);
 
   const handleAppointmentSelect = (apt: Appointment) => {
     setSelectedAppointment(apt);
@@ -125,7 +139,7 @@ export default function BillingPayment({
       // Simulate payment processing
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Save billing record to database
+      // Handle regular service payment
       const { error } = await supabase
         .from('billings')
         .insert({
@@ -193,10 +207,25 @@ export default function BillingPayment({
     }
   };
 
+  // Render CancellationBilling if this is a cancellation request
+  if (isCancellation) {
+    const appointmentId = searchParams.get('appointmentId');
+    const cancellationFeeParam = searchParams.get('cancellationFee');
+    
+    return (
+      <CancellationBilling 
+        appointmentId={appointmentId || undefined}
+        cancellationFee={cancellationFeeParam ? parseFloat(cancellationFeeParam) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="p-6 bg-bg-screen min-h-screen">
       <h1 className="text-4xl font-bold text-brand-cyan mb-2">Manage Billing</h1>
-      <p className="text-text-secondary mb-8">View and pay your outstanding balances</p>
+      <p className="text-text-secondary mb-8">
+        View and pay your outstanding balances
+      </p>
 
       {/* Financial Summary Stats */}
       {!loadingData && (
@@ -223,11 +252,11 @@ export default function BillingPayment({
         </div>
       )}
 
-      {/* Payment Form */}
+      {/* Regular Payment Form */}
       <div className="bg-bg-surface rounded-lg shadow-md p-6 mb-8 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.4)]">
-        <h2 className="text-2xl font-bold text-text-primary mb-6">💰 Make Payment</h2>
+            <h2 className="text-2xl font-bold text-text-primary mb-6">💰 Make Payment</h2>
 
-        <div className="space-y-6">
+            <div className="space-y-6">
           {/* Availed Services from Appointments */}
           <div>
             <label className="block text-sm font-semibold text-text-primary mb-3">

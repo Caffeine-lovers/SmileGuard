@@ -40,13 +40,8 @@ export async function calculateOutstandingBalance(userId: string): Promise<numbe
       !paidApptIds.has(a.id)
     );
 
-    console.log("[calculateOutstandingBalance] Unpaid appointments:", unpaid.length);
-
-    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
-    const total = balance + unpaidApptsSum;
-    
-    console.log("[calculateOutstandingBalance] Calculation complete:", { baseBalance: balance, unpaidServices: unpaidApptsSum, total });
-    return total;
+    console.log("[calculateOutstandingBalance] Calculation complete:", { balance });
+    return balance;
   } catch (err) {
     console.error("[calculateOutstandingBalance] Error:", err);
     throw err;
@@ -85,10 +80,8 @@ export async function fetchBillingDataForDashboard(
       !paidApptIds.has(a.id)
     );
 
-    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
-
     const result = {
-      outstandingBalance: balance + unpaidApptsSum,
+      outstandingBalance: balance,
       unpaidAppointments: unpaid,
       billingHistory: billings,
     };

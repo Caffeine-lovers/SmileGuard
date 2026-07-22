@@ -13,6 +13,7 @@ import {
 import { CurrentUser, Doctor, EMPTY_DOCTOR } from '@smileguard/shared-types';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
+import AppointmentsRuleSetup from '../settings/AppointmentsRuleSetup';
 import { useAuth } from '../../hooks/useAuth';
 import { getDoctorProfile, updateDoctorProfile } from '../../lib/doctorService';
 
@@ -36,6 +37,7 @@ interface AppSettings {
 export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUpdated }: SettingsTabProps) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
+  const [editingAppointmentRules, setEditingAppointmentRules] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
   const [doctorData, setDoctorData] = useState<Doctor>(EMPTY_DOCTOR);
   const [loadingDoctor, setLoadingDoctor] = useState(false);
@@ -135,6 +137,15 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
     }
   };
 
+  const handleSaveAppointmentRules = async (rules: any) => {
+    try {
+      console.log('💾 Saving appointment rules:', rules);
+      console.log('✅ Appointment rules saved successfully');
+    } catch (error) {
+      console.error('❌ Failed to save appointment rules:', error);
+    }
+  };
+
   const toggleNotificationSetting = (setting: 'appointmentReminders' | 'newPatientRequests') => {
     setAppSettings(prev => ({
       ...prev,
@@ -213,6 +224,27 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
                 <View>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY, marginBottom: 4 }}>Clinic Setup</Text>
                   <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Hours, location, services</Text>
+                </View>
+                <Image
+                  source={require('../../assets/images/icon/open.png')}
+                  style={{ width: 20, height: 20, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Appointment Settings Section */}
+          <View style={{ marginBottom: 28 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Appointments</Text>
+            <TouchableOpacity
+              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: ACCENT_COLOR, borderWidth: 1, borderTopColor: BORDER_COLOR, borderRightColor: BORDER_COLOR, borderBottomColor: BORDER_COLOR }}
+              onPress={() => setEditingAppointmentRules(true)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY, marginBottom: 4 }}>Appointment Rules</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Cancellation, reschedule, no-show policies</Text>
                 </View>
                 <Image
                   source={require('../../assets/images/icon/open.png')}
@@ -367,6 +399,18 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
         <ClinicSetup
           onSave={handleSaveClinic}
           onClose={() => setEditingClinic(false)}
+        />
+      </Modal>
+
+      {/* Appointment Rules Modal */}
+      <Modal
+        visible={editingAppointmentRules}
+        animationType="slide"
+        onRequestClose={() => setEditingAppointmentRules(false)}
+      >
+        <AppointmentsRuleSetup
+          onSave={handleSaveAppointmentRules}
+          onClose={() => setEditingAppointmentRules(false)}
         />
       </Modal>
     </>

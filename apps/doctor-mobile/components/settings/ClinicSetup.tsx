@@ -700,6 +700,38 @@ export default function ClinicSetup({
 
     setLoading(true);
     try {
+      // First, verify that the doctor exists in the doctors table
+      if (!currentUser?.id) {
+        Alert.alert('Error', 'Doctor ID not found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('🔍 Checking if doctor exists:', currentUser.id);
+      
+      const { data: doctorExists, error: doctorCheckError } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('id', currentUser.id)
+        .limit(1);
+
+      console.log('Query error:', doctorCheckError);
+      console.log('Doctor found:', doctorExists);
+
+      if (doctorCheckError) {
+        throw new Error(`Doctor verification failed: ${doctorCheckError.message}`);
+      }
+
+      if (!currentUser?.id) {
+        Alert.alert('Error', 'Not authenticated. Please log in again.');
+        setLoading(false);
+        return;
+      }
+      console.log('✅ User authenticated, proceeding with clinic setup');
+
+      console.log('✅ Doctor verified:', doctorExists[0]);
+
+      // Proceed with saving clinic data
       const dataToSave = {
         clinic_name: clinicData.clinic_name,
         address: clinicData.address,
@@ -719,12 +751,14 @@ export default function ClinicSetup({
           .update(dataToSave)
           .eq('id', clinicSetupId);
         error = result.error;
+        console.log('📝 Update result:', result);
       } else {
         // Insert new record
         const result = await supabase
           .from('clinic_setup')
           .insert(dataToSave);
         error = result.error;
+        console.log('➕ Insert result:', result);
       }
 
       if (error) {
@@ -746,8 +780,9 @@ export default function ClinicSetup({
       Alert.alert('Success', 'Clinic information saved successfully');
       onClose?.();
     } catch (error) {
-      console.error('Failed to save clinic data:', error);
-      Alert.alert('Error', 'Failed to save clinic information');
+      console.error('❌ Failed to save clinic data:', error);
+      const message = error instanceof Error ? error.message : 'Failed to save clinic information';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }

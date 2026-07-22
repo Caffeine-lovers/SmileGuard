@@ -24,6 +24,8 @@ import { createDoctorProfile } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
 import { supabase } from "@smileguard/supabase-client";
 import { HeroIcon } from "../ui/HeroIcon";
+import { router } from "expo-router/build/exports";
+import { Router } from "lucide-react-native";
 
 export interface DoctorProfileSetupProps {
   onContinue: () => void;
@@ -261,6 +263,7 @@ export default function DoctorProfileSetup({
           <TextInput
             style={styles.input}
             placeholder="Medical License Number (5-7 chars) *"
+            placeholderTextColor="#9ca3af"
             value={doctorData.license_number}
             onChangeText={(text) => updateDoctorData("license_number", text)}
             keyboardType="default"
@@ -391,6 +394,7 @@ export default function DoctorProfileSetup({
           <TextInput
             style={styles.input}
             placeholder="Years of Experience (e.g., 5, 10)"
+            placeholderTextColor="#9ca3af"
             keyboardType="number-pad"
             value={
               doctorData.years_of_experience && doctorData.years_of_experience > 0
@@ -405,6 +409,7 @@ export default function DoctorProfileSetup({
           <TextInput
             style={[styles.input, styles.textAreaInput]}
             placeholder="Professional Bio (optional)"
+            placeholderTextColor="#9ca3af"
             multiline
             numberOfLines={3}
             value={doctorData.bio}
@@ -417,6 +422,7 @@ export default function DoctorProfileSetup({
           <TextInput
             style={styles.input}
             placeholder="Doctor Name *"
+            placeholderTextColor="#9ca3af"
             value={doctorData.doctor_name || ""}
             onChangeText={(text) => updateDoctorData("doctor_name", text)}
           />
@@ -424,6 +430,7 @@ export default function DoctorProfileSetup({
           <TextInput
             style={styles.input}
             placeholder="Doctor Phone"
+            placeholderTextColor="#9ca3af"
             keyboardType="phone-pad"
             value={doctorData.doctor_phone || ""}
             onChangeText={(text) => updateDoctorData("doctor_phone", text)}
@@ -521,7 +528,14 @@ export default function DoctorProfileSetup({
           {onCancel && (
             <TouchableOpacity
               style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
-              onPress={onCancel}
+              onPress={() => {
+                if (onCancel) {
+                  onCancel(); // call the cancel handler if provided
+                } else {
+                  // fallback: navigate back if no handler passed
+                  router.back();
+                }
+              }}
               disabled={loading}
             >
               <Text style={styles.secondaryBtnText}>Cancel</Text>

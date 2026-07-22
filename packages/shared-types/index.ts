@@ -16,6 +16,7 @@ export interface CurrentUser {
   role: "patient" | "doctor";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
+  profile_picture_url?: string;
 }
 
 export interface FormData {
@@ -170,6 +171,7 @@ export interface Billing {
   payment_status: "pending" | "paid" | "overdue";
   payment_method?: "cash" | "card" | "gcash" | "bank-transfer";
   payment_date?: string;
+  description?: string;
   created_at?: string;
   updated_at?: string;
 }

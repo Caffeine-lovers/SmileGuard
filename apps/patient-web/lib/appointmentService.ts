@@ -1,4 +1,5 @@
 import { supabase } from '@smileguard/supabase-client';
+import type { Appointment } from '@/lib/database';
 
 export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
@@ -331,7 +332,7 @@ export function isSlotTaken(
 // ─────────────────────────────────────────
 export async function getPatientAppointments(
   patientId: string
-): Promise<any[]> {
+): Promise<Appointment[]> {
   const { data, error } = await supabase
     .from('appointments')
     .select('*')

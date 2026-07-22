@@ -15,19 +15,18 @@ import { useFocusEffect } from "expo-router";
 import { useClinic } from "../../contexts/ClinicContext";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
+import { getPatientProfilePictureUrl } from "../../lib/profilesPatients";
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
-import AppointmentAdd from "../appointments/appointmentAdd";
 import { HeroIcon } from "../ui/HeroIcon";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
 
-// Extended appointment type with account type info and additional fields from DoctorAppointment
+// Extended appointment type with additional fields from DoctorAppointment
 type AppointmentWithAccountType = AppointmentType & { 
-  accountType?: 'Patient' | 'Dummy',
   patient_avatar?: string,
-  dummy_account_id?: string
+  patient_id?: string
 };
 
 interface AppointmentsTabProps {
@@ -37,6 +36,7 @@ interface AppointmentsTabProps {
   doctorId?: string;
   onAppointmentCreated?: (patientName: string, service: string, time: string, appointmentId: string, patientId: string, doctorId: string) => void;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onPatientPress?: (patientId: string, patientName: string) => void;
 }
 
 export default function AppointmentsTab({
@@ -46,6 +46,7 @@ export default function AppointmentsTab({
   doctorId: providedDoctorId,
   onAppointmentCreated,
   onAppointmentStatusUpdated,
+  onPatientPress,
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
@@ -75,10 +76,10 @@ export default function AppointmentsTab({
   const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [doctorId, setDoctorId] = useState<string>('');
   const [clinicSchedule, setClinicSchedule] = useState<any>(null);
   const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
+  const [profilePictureUrls, setProfilePictureUrls] = useState<{ [key: string]: string | null }>({});
 
   const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
 
@@ -167,9 +168,6 @@ export default function AppointmentsTab({
 
   // Transform backend appointments to match UI format
   const transformBackendAppointment = (apt: DoctorAppointment): AppointmentWithAccountType => {
-    // Determine account type based on which ID is set
-    const accountType = apt.dummy_account_id ? 'Dummy' : 'Patient';
-    
     return {
       id: apt.id,
       name: apt.patient_name || 'Unknown Patient',
@@ -183,7 +181,8 @@ export default function AppointmentsTab({
       notes: apt.notes || '',
       imageUrl: 'https://via.placeholder.com/50', // Placeholder
       status: apt.status as any,
-      accountType: accountType,
+      patient_id: apt.patient_id,
+      patient_avatar: apt.patient_avatar,
     };
   };
 
@@ -238,6 +237,19 @@ export default function AppointmentsTab({
             'no-show': filtered.filter(apt => apt.status === 'no-show').length,
           };
           setAllMonthAppointments(filtered);
+          
+          // Fetch profile pictures for all appointments in parallel
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = filtered.map(async (apt) => {
+            // Use patient_id for profile picture
+            const pictureId = apt.patient_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
         } else {
           setAllMonthAppointments([]);
         }
@@ -262,6 +274,19 @@ export default function AppointmentsTab({
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
+          
+          // Fetch profile pictures for all appointments in parallel
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = transformed.map(async (apt) => {
+            // Use patient_id for profile picture
+            const pictureId = apt.patient_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
         } else {
           setFetchedAppointments([]);
         }
@@ -291,6 +316,14 @@ export default function AppointmentsTab({
     if (status === 'cancelled') return '#F44336';
     if (status === 'no-show') return '#9C27B0';
     return '#999';
+  };
+
+  const getAppointmentCountBackgroundColor = (count: number) => {
+    if (count === 0) return '#f9f9f9';
+    if (count === 1) return '#e3f2fd';
+    if (count === 2) return '#bbdefb';
+    if (count >= 3) return '#90caf9';
+    return '#f9f9f9';
   };
 
   const getFilterBadgeColor = () => {
@@ -447,10 +480,24 @@ export default function AppointmentsTab({
       };
       
       // Fetch month appointments
-      getDoctorAppointments(doctorId, startDate, endDate).then(doctorAppointments => {
+      getDoctorAppointments(doctorId, startDate, endDate).then(async (doctorAppointments) => {
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setAllMonthAppointments(transformed);
+          
+          // Fetch profile pictures for all appointments
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = transformed.map(async (apt) => {
+            // Use patient_id for profile picture
+            const pictureId = apt.patient_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
+          
           console.log(`✅ Refreshed ${transformed.length} appointments for the month`);
         } else {
           setAllMonthAppointments([]);
@@ -460,10 +507,24 @@ export default function AppointmentsTab({
       });
       
       // Fetch daily appointments
-      getDoctorAppointmentsByDate(doctorId, selectedDate).then(doctorAppointments => {
+      getDoctorAppointmentsByDate(doctorId, selectedDate).then(async (doctorAppointments) => {
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
+          
+          // Fetch profile pictures for all appointments
+          const pictureUrls: { [key: string]: string | null } = {};
+          const profilePicturePromises = transformed.map(async (apt) => {
+            // Use patient_id for profile picture
+            const pictureId = apt.patient_id;
+            if (pictureId) {
+              const url = await getPatientProfilePictureUrl(pictureId);
+              pictureUrls[apt.id] = url;
+            }
+          });
+          await Promise.all(profilePicturePromises);
+          setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
+          
           console.log(`✅ Refreshed ${transformed.length} appointments for ${selectedDate}`);
         } else {
           setFetchedAppointments([]);
@@ -502,6 +563,19 @@ export default function AppointmentsTab({
                 if (doctorAppointments.length > 0) {
                   const transformed = doctorAppointments.map(transformBackendAppointment);
                   setFetchedAppointments(transformed);
+                  
+                  // Fetch profile pictures for daily appointments
+                  const pictureUrls: { [key: string]: string | null } = {};
+                  const profilePicturePromises = transformed.map(async (apt) => {
+                    // Use patient_id for profile picture
+                    const pictureId = apt.patient_id;
+                    if (pictureId) {
+                      const url = await getPatientProfilePictureUrl(pictureId);
+                      pictureUrls[apt.id] = url;
+                    }
+                  });
+                  await Promise.all(profilePicturePromises);
+                  setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
                 } else {
                   setFetchedAppointments([]);
                 }
@@ -531,6 +605,19 @@ export default function AppointmentsTab({
                   console.log('📊 Status breakdown after cancellation:', statusBreakdown);
                   
                   setAllMonthAppointments(filtered);
+                  
+                  // Fetch profile pictures for month appointments
+                  const pictureUrls: { [key: string]: string | null } = {};
+                  const profilePicturePromises = filtered.map(async (apt) => {
+                    // Use patient_id for profile picture
+                    const pictureId = apt.patient_id;
+                    if (pictureId) {
+                      const url = await getPatientProfilePictureUrl(pictureId);
+                      pictureUrls[apt.id] = url;
+                    }
+                  });
+                  await Promise.all(profilePicturePromises);
+                  setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
                 } else {
                   setAllMonthAppointments([]);
                 }
@@ -576,6 +663,18 @@ export default function AppointmentsTab({
     if (dayAppointments.length > 0) {
       const transformed = dayAppointments.map(transformBackendAppointment);
       setFetchedAppointments(transformed);
+      
+      // Fetch profile pictures for daily appointments
+      const pictureUrls: { [key: string]: string | null } = {};
+      const profilePicturePromises = transformed.map(async (apt) => {
+        const pictureId = apt.patient_id;
+        if (pictureId) {
+          const url = await getPatientProfilePictureUrl(pictureId);
+          pictureUrls[apt.id] = url;
+        }
+      });
+      await Promise.all(profilePicturePromises);
+      setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
     } else {
       setFetchedAppointments([]);
     }
@@ -592,6 +691,18 @@ export default function AppointmentsTab({
     if (monthAppointments.length > 0) {
       const transformed = monthAppointments.map(transformBackendAppointment);
       setAllMonthAppointments(transformed);
+      
+      // Fetch profile pictures for month appointments
+      const pictureUrls: { [key: string]: string | null } = {};
+      const profilePicturePromises = transformed.map(async (apt) => {
+        const pictureId = apt.patient_id;
+        if (pictureId) {
+          const url = await getPatientProfilePictureUrl(pictureId);
+          pictureUrls[apt.id] = url;
+        }
+      });
+      await Promise.all(profilePicturePromises);
+      setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
     }
   };
 
@@ -630,6 +741,18 @@ export default function AppointmentsTab({
         console.log('📊 Status breakdown on refresh:', statusBreakdown);
         
         setAllMonthAppointments(filtered);
+        
+        // Fetch profile pictures for month appointments
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = filtered.map(async (apt) => {
+          const pictureId = apt.patient_id;
+          if (pictureId) {
+            const url = await getPatientProfilePictureUrl(pictureId);
+            pictureUrls[apt.id] = url;
+          }
+        });
+        await Promise.all(profilePicturePromises);
+        setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
       } else {
         setAllMonthAppointments([]);
       }
@@ -640,6 +763,18 @@ export default function AppointmentsTab({
       if (dayAppointments.length > 0) {
         const transformed = dayAppointments.map(transformBackendAppointment);
         setFetchedAppointments(transformed);
+        
+        // Fetch profile pictures for daily appointments
+        const pictureUrls: { [key: string]: string | null } = {};
+        const profilePicturePromises = transformed.map(async (apt) => {
+          const pictureId = apt.patient_id;
+          if (pictureId) {
+            const url = await getPatientProfilePictureUrl(pictureId);
+            pictureUrls[apt.id] = url;
+          }
+        });
+        await Promise.all(profilePicturePromises);
+        setProfilePictureUrls((prev) => ({ ...prev, ...pictureUrls }));
       } else {
         setFetchedAppointments([]);
       }
@@ -651,35 +786,6 @@ export default function AppointmentsTab({
       Alert.alert('❌ Error', 'Failed to refresh appointments. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Handler for when a new appointment is added
-  const handleAddAppointmentSaved = async () => {
-    console.log('✅ New appointment created, refreshing appointments...');
-    if (!doctorId) return;
-    
-    // Refresh current day appointments
-    const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
-    if (dayAppointments.length > 0) {
-      const transformed = dayAppointments.map(transformBackendAppointment);
-      setFetchedAppointments(transformed);
-    } else {
-      setFetchedAppointments([]);
-    }
-    
-    // Also refresh entire month appointments for calendar
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDate = formatDate(firstDay);
-    const endDate = formatDate(lastDay);
-    
-    const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
-    if (monthAppointments.length > 0) {
-      const transformed = monthAppointments.map(transformBackendAppointment);
-      setAllMonthAppointments(transformed);
     }
   };
 
@@ -741,22 +847,6 @@ export default function AppointmentsTab({
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
           {/* Action Buttons */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => setShowAddModal(true)}
-              disabled={loading}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: loading ? '#ccc' : '#4CAF50',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>Add</Text>
-            </TouchableOpacity>
-
             {/* Refresh Button */}
             <TouchableOpacity
               onPress={handleRefreshAppointments}
@@ -897,7 +987,7 @@ export default function AppointmentsTab({
             </View>
 
             {/* Weekday Headers */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 }}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
                 // Check if this day is closed based on clinic schedule
                 let isClosed = false;
@@ -909,17 +999,19 @@ export default function AppointmentsTab({
                 }
                 
                 return (
-                  <Text key={day} style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', width: '14.28%', textAlign: 'center', opacity: isClosed ? 0.7 : 1 }}>
-                    {day}
-                  </Text>
+                  <View key={day} style={{ width: '14.28%', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', opacity: isClosed ? 0.7 : 1 }}>
+                      {day}
+                    </Text>
+                  </View>
                 );
               })}
             </View>
 
             {/* Calendar Days */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap:2 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={{ flex: 1, minWidth: '14%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
+                <View key={`empty-${index}`} style={{ width: '14.28%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: '#fafafa', marginBottom: 4 }} />
               ))}
               {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                 const day = index + 1;
@@ -949,17 +1041,17 @@ export default function AppointmentsTab({
                     onPress={() => !isUnavailable && setSelectedDate(dateStr)}
                     disabled={isUnavailable}
                     style={{
-                      flex: 1,
-                      minWidth: '14%',
+                      width: '14.28%',
                       height: 55,
                       justifyContent: 'center',
                       alignItems: 'center',
                       borderRadius: 10,
-                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : '#f9f9f9',
+                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : getAppointmentCountBackgroundColor(appointmentCount),
                       borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
                       borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#0b7fab' : '#e0e0e0',
                       opacity: isUnavailable ? 0.6 : 1,
                       position: 'relative',
+                      marginBottom: 4,
                     }}
                   >
                     <Text style={{ position: 'absolute', top: 4, left: 4, fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
@@ -1019,32 +1111,6 @@ export default function AppointmentsTab({
                         <HeroIcon name="xmark" size="xs" color="#fff" />
                       </View>
                     )}
-
-                    {/* Full Badge - Lower Right (3+ Appointments) */}
-                    {!isBlockedSpecific && isFull && !isUnavailable && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          right: 2,
-                          backgroundColor: '#22c55e',
-                          borderRadius: 6,
-                          width: 12,
-                          height: 12,
-                          borderWidth: 1,
-                          borderColor: '#22c55e',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          elevation: 5,
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                        }}
-                      >
-                        <HeroIcon name="check" size="xs" color="#e60b0b" />
-                      </View>
-                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -1079,7 +1145,9 @@ export default function AppointmentsTab({
               <View style={{ flexDirection: 'row', alignItems: 'center'}}>
                 <Image
                   source={
-                    appointment.patient_avatar
+                    profilePictureUrls[appointment.id] && typeof profilePictureUrls[appointment.id] === 'string'
+                      ? { uri: profilePictureUrls[appointment.id] as string }
+                      : appointment.patient_avatar
                       ? { uri: appointment.patient_avatar }
                       : require('../../assets/images/user.png')
                   }
@@ -1087,7 +1155,11 @@ export default function AppointmentsTab({
                 />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 8 }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{appointment.name}</Text>
+                    <TouchableOpacity
+                      onPress={() => onPatientPress?.(appointment.patient_id || appointment.id, appointment.name)}
+                    >
+                      <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#0b7fab', textDecorationLine: 'underline' }}>{appointment.name}</Text>
+                    </TouchableOpacity>
                     {/* Status Badge */}
                     <View
                       style={{
@@ -1103,23 +1175,6 @@ export default function AppointmentsTab({
                          appointment.status === 'cancelled' ? 'Cancelled' : 'No-show'}
                       </Text>
                     </View>
-                  </View>
-                  {/* Account Type Badge Below Name */}
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 6,
-                      backgroundColor: appointment.accountType === 'Dummy' ? '#fff3e0' : '#e3f2fd',
-                      borderWidth: 1,
-                      borderColor: appointment.accountType === 'Dummy' ? '#f57c00' : '#0b7fab',
-                      alignSelf: 'flex-start',
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Text style={{ fontSize: 9, color: appointment.accountType === 'Dummy' ? '#f57c00' : '#0b7fab', fontWeight: '600' }}>
-                      {appointment.accountType === 'Dummy' ? 'Dummy Account' : 'Patient'}
-                    </Text>
                   </View>
                   <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
                   <Text style={{ fontSize: 11, color: '#999' }}>
@@ -1159,15 +1214,7 @@ export default function AppointmentsTab({
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
-
-      {/* AppointmentAdd Modal */}
-      <AppointmentAdd
-        visible={showAddModal}
-        doctorId={doctorId}
-        onClose={() => setShowAddModal(false)}
-        onSave={handleAddAppointmentSaved}
-        onAppointmentCreated={onAppointmentCreated}
-      />
     </SafeAreaView>
   );
 }
+

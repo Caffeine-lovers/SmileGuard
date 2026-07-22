@@ -71,47 +71,43 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     try {
       setLoading(true);
       
-      // Get doctor's appointments to find associated patients
-      let query = supabase
-        .from('appointments')
+      // Fetch all billings to get patients with billing records
+      const { data: billingRecords, error: billingError } = await supabase
+        .from('billings')
         .select('patient_id');
 
-      // Filter by dentist_id (which is the doctor's ID)
-      query = query.eq('dentist_id', doctorId);
-
-      const { data: appointments, error: appointmentError } = await query;
-
-      if (appointmentError) {
-        console.error('Error fetching appointments:', appointmentError);
+      if (billingError) {
+        console.error('Error fetching billings:', billingError);
         return;
       }
 
-      // Get unique patient IDs from appointments
-      const patientIds = [...new Set((appointments || []).map((a) => a.patient_id).filter(Boolean))];
+      // Get unique patient IDs from billings
+      const patientIds = [...new Set((billingRecords || [])
+        .map((b) => b.patient_id)
+        .filter(Boolean))];
 
-      if (patientIds.length === 0) {
-        setPatients([]);
-        return;
+      const allPatients: Patient[] = [];
+
+      // Fetch regular patient profiles
+      if (patientIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', patientIds);
+
+        if (profileError) {
+          console.error('Error fetching profiles:', profileError);
+        } else {
+          const mappedPatients = (profiles || []).map((p) => ({
+            id: p.id,
+            name: p.name || 'Unknown',
+            email: p.email || '',
+          }));
+          allPatients.push(...mappedPatients);
+        }
       }
 
-      // Fetch patient profiles
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, name, email')
-        .in('id', patientIds);
-
-      if (profileError) {
-        console.error('Error fetching profiles:', profileError);
-        return;
-      }
-
-      const mappedPatients = (profiles || []).map((p) => ({
-        id: p.id,
-        name: p.name || 'Unknown',
-        email: p.email || '',
-      }));
-
-      setPatients(mappedPatients);
+      setPatients(allPatients);
     } catch (error) {
       console.error('Error loading patients:', error);
       Alert.alert('Error', 'Failed to load patients');
@@ -241,6 +237,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
         return '#f59e0b';
     }
   };
+
+
 
   const filteredPatients = patients.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -559,6 +557,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                           )}
                         </View>
 
+
+
                       </View>
                     )}
                   />
@@ -750,7 +750,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Patient ID</Text>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginTop: 4 }}>
-                          {selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
+                          {(selectedAppointment.patient_id || 'N/A').slice(0, 8).toUpperCase()}
                         </Text>
                       </View>
                     </View>
@@ -868,6 +868,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           </SafeAreaView>
         </View>
       </Modal>
+
+
     </SafeAreaView>
   );
 }

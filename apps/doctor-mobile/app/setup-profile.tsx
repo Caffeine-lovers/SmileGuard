@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Modal } from "react-native";
 import DoctorProfileSetup from "../components/auth/DoctorProfileSetup";
 import ClinicSetup from "../components/settings/ClinicSetup";
+import { ClinicProvider } from "../contexts/ClinicContext";
 import { useRouter } from "expo-router";
 
 /**
@@ -46,10 +47,12 @@ export default function SetupProfilePage() {
       )}
       
       {step === "clinic" && (
-        <ClinicSetup
-          onClose={handleClinicClose}
-          onSave={handleClinicSave}
-        />
+        <ClinicProvider>
+          <ClinicSetup
+            onClose={handleClinicClose}
+            onSave={handleClinicSave}
+          />
+        </ClinicProvider>
       )}
     </View>
   );

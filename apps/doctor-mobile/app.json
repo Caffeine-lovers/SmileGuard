@@ -1,27 +1,52 @@
 {
   "expo": {
+    "scheme": "smileguard",
     "name": "SmileGuard Doctor",
-    "slug": "1c84a99f-23d3-4e55-94d9-20fcbeca1173",
+    "slug": "smileguarddoctor",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "assetBundlePatterns": [
       "**/*"
     ],
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font",
+      "expo-web-browser",
+      "./expo-plugins/with-firebase-messaging"
     ],
     "extra": {
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
-        "projectId": "28981be6-1f0b-4612-95b6-158e6ea1767c"
+        "projectId": "aac5b280-91f0-4585-b8ef-5ac7734c049e"
       },
       "router": {}
     },
     "owner": "mortart",
     "android": {
-      "package": "com.smileguard.app"
+      "package": "com.smileguard.doctor",
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "smileguard",
+              "pathPrefix": "/auth/callback"
+            },
+            {
+              "scheme": "smileguard",
+              "pathPrefix": "/oauth-redirect"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     }
   }
 }
