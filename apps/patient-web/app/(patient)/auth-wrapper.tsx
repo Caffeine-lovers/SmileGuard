@@ -81,6 +81,12 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               >
                 Documents
               </Link>
+              <Link 
+                href="/profile" 
+                className={`font-medium transition hover:text-brand-primary ${pathname === '/profile' ? 'text-brand-primary' : 'text-text-primary'}`}
+              >
+                Profile
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

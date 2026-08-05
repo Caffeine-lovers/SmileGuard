@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 
 export default function ForgotPasswordPage() {
-  const { resetPassword, loading } = useAuth();
+  const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [errorLocal, setErrorLocal] = useState<string | null>(null);
@@ -20,15 +20,20 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    setLoading(true);
     try {
-      const res = await resetPassword(email);
-      if (res.success) {
-        setMessage('Password reset email sent! Please check your inbox.');
-      }
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) throw error;
+      setMessage('Password reset email sent! Please check your inbox.');
     } catch (err) {
       setErrorLocal(
         err instanceof Error ? err.message : 'Failed to send reset email. Please try again.'
       );
+    } finally {
+      setLoading(false);
     }
   };
 
