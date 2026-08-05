@@ -14,11 +14,14 @@
     "@smileguard/shared-hooks": "workspace:*",
     "@smileguard/shared-types": "workspace:*",
     "@smileguard/supabase-client": "workspace:*",
+    "@stripe/react-stripe-js": "^6.8.0",
+    "@stripe/stripe-js": "^9.13.0",
     "next": "^16.2.1",
     "qrcode.react": "^1.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-native-screens": "4.20.0",
+    "stripe": "^22.4.0",
     "typescript": "^5.9.0"
   },
   "devDependencies": {

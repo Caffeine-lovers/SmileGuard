@@ -47,8 +47,9 @@ export interface Billing {
   discount_amount?: number;
   final_amount: number;
   payment_status: 'pending' | 'paid' | 'overdue';
-  payment_method?: 'cash' | 'card' | 'gcash' | 'bank-transfer';
+  payment_method?: 'cash' | 'card' | 'gcash' | 'bank-transfer' | 'stripe';
   payment_date?: string;
+  stripe_payment_intent_id?: string;
   created_at?: string;
   updated_at?: string;
 }

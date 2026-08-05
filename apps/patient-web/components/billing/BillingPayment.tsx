@@ -2,13 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+<<<<<<< Updated upstream
 import { useAuth } from '@smileguard/shared-hooks';
+=======
+import dynamic from 'next/dynamic';
+import { useAuthContext } from '@/app/providers';
+>>>>>>> Stashed changes
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+
+// Lazy-load Stripe components (only when card payment is selected)
+const StripeProvider = dynamic(
+  () => import('@/components/billing/StripeProvider'),
+  { ssr: false }
+);
+const CardPaymentForm = dynamic(
+  () => import('@/components/billing/CardPaymentForm'),
+  { ssr: false }
+);
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -37,6 +52,11 @@ export default function BillingPayment({
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [billingHistory, setBillingHistory] = useState<Billing[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Stripe-specific state
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
+  const [showStripeForm, setShowStripeForm] = useState(false);
+  const [stripeError, setStripeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -77,6 +97,10 @@ export default function BillingPayment({
     const newAmount = SERVICE_PRICES[apt.service] || 0;
     setAmount(newAmount);
     applyDiscount(newAmount, discountType);
+    // Reset Stripe form if switching appointments
+    setShowStripeForm(false);
+    setStripeClientSecret(null);
+    setStripeError(null);
   };
 
   const applyDiscount = (total: number, type: Billing['discount_type']) => {
@@ -99,6 +123,10 @@ export default function BillingPayment({
     } else {
       setDiscountProof(null);
     }
+
+    // Reset Stripe form when discount changes
+    setShowStripeForm(false);
+    setStripeClientSecret(null);
   };
 
   const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +136,131 @@ export default function BillingPayment({
     }
   };
 
-  const handlePayment = async () => {
+  const refreshBillingData = async () => {
+    if (!currentUser?.id) return;
+    const userId = currentUser.id;
+
+    const [balance, billings, appts] = await Promise.all([
+      getBalance(userId),
+      getBillings(userId),
+      getPatientAppointments(userId),
+    ]);
+
+    const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
+    const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
+    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+
+    setOutstandingBalance(balance + unpaidApptsSum);
+    setBillingHistory(billings);
+    setUnpaidAppointments(unpaid);
+    setSelectedAppointment(null);
+    setAmount(0);
+    setDiscountType('none');
+    setDiscountProof(null);
+    setShowStripeForm(false);
+    setStripeClientSecret(null);
+  };
+
+  // Initiate Stripe card payment
+  const handleStripePayment = async () => {
+    if (!selectedAppointment || !currentUser?.id) {
+      alert('Please select an appointment to pay.');
+      return;
+    }
+
+    if (discountType !== 'none' && !discountProof) {
+      alert('Please upload proof of PWD/Senior ID.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setStripeError(null);
+
+    try {
+      const response = await fetch('/api/stripe/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: finalAmount,
+          appointmentId: selectedAppointment.id,
+          patientId: currentUser.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create payment intent');
+      }
+
+      setStripeClientSecret(data.clientSecret);
+      setShowStripeForm(true);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to initiate card payment';
+      setStripeError(msg);
+      console.error('Stripe payment initiation error:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle successful Stripe payment
+  const handleStripeSuccess = async () => {
+    if (!selectedAppointment || !currentUser?.id) return;
+
+    // Save billing record (webhook also does this, but we do it here for immediate UI update)
+    try {
+      await supabase.from('billings').insert({
+        patient_id: currentUser.id,
+        appointment_id: selectedAppointment.id,
+        amount,
+        discount_type: discountType,
+        discount_amount: discountAmount,
+        final_amount: finalAmount,
+        payment_status: 'paid',
+        payment_method: 'card',
+        payment_date: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Error saving billing after Stripe payment:', err);
+    }
+
+    alert(
+      `Payment Successful!\nAmount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: Card${
+        discountType !== 'none' ? `\nDiscount: -₱${discountAmount.toFixed(2)}` : ''
+      }`
+    );
+
+    if (onSuccess) {
+      onSuccess({
+        patient_id: currentUser.id,
+        appointment_id: selectedAppointment.id,
+        amount,
+        discount_type: discountType,
+        discount_amount: discountAmount,
+        final_amount: finalAmount,
+        payment_status: 'paid',
+        payment_method: 'card',
+        payment_date: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    await refreshBillingData();
+  };
+
+  const handleStripeError = (message: string) => {
+    setStripeError(message);
+  };
+
+  const handleStripeCancelForm = () => {
+    setShowStripeForm(false);
+    setStripeClientSecret(null);
+    setStripeError(null);
+  };
+
+  // Handle non-card payment (existing flow for cash, gcash, bank-transfer)
+  const handleNonCardPayment = async () => {
     if (discountType !== 'none' && !discountProof) {
       alert('Please upload proof of PWD/Senior ID.');
       return;
@@ -122,7 +274,7 @@ export default function BillingPayment({
     const userId = currentUser.id;
     setIsProcessing(true);
     try {
-      // Simulate payment processing
+      // Simulate payment processing for non-card methods
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Save billing record to database
@@ -167,29 +319,20 @@ export default function BillingPayment({
         });
       }
 
-      // Refresh billing data
-      const [balance, billings, appts] = await Promise.all([
-        getBalance(userId),
-        getBillings(userId),
-        getPatientAppointments(userId),
-      ]);
-
-      const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
-      const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
-      const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
-
-      setOutstandingBalance(balance + unpaidApptsSum);
-      setBillingHistory(billings);
-      setUnpaidAppointments(unpaid);
-      setSelectedAppointment(null);
-      setAmount(0);
-      setDiscountType('none');
-      setDiscountProof(null);
+      await refreshBillingData();
     } catch (error) {
       console.error('Error processing payment:', error);
       alert('Failed to process payment');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handlePayment = async () => {
+    if (paymentMethod === 'card') {
+      await handleStripePayment();
+    } else {
+      await handleNonCardPayment();
     }
   };
 
@@ -351,14 +494,22 @@ export default function BillingPayment({
             <div className="grid grid-cols-2 gap-3">
               {[
                 { value: 'cash' as const, label: '💵 Cash' },
-                { value: 'card' as const, label: '💳 Card' },
+                { value: 'card' as const, label: '💳 Card (Stripe)' },
                 { value: 'bank-transfer' as const, label: '🏧 Bank Transfer' },
                 { value: 'gcash' as const, label: '📱 GCash' },
               ].map((option) => (
                 <button
                   type="button"
                   key={option.value}
-                  onClick={() => setPaymentMethod(option.value)}
+                  onClick={() => {
+                    setPaymentMethod(option.value);
+                    // Reset stripe form when switching away from card
+                    if (option.value !== 'card') {
+                      setShowStripeForm(false);
+                      setStripeClientSecret(null);
+                      setStripeError(null);
+                    }
+                  }}
                   className={`p-3 rounded-lg border-2 font-semibold transition ${
                     paymentMethod === option.value
                       ? 'border-green-600 bg-green-50 text-green-700'
@@ -393,8 +544,39 @@ export default function BillingPayment({
               </div>
             </div>
           </div>
+
+          {/* Stripe Error */}
+          {stripeError && (
+            <div className="flex items-center gap-2 p-4 bg-brand-danger/10 border border-brand-danger/30 rounded-lg">
+              <span className="text-brand-danger font-bold">⚠</span>
+              <p className="text-sm font-medium text-brand-danger">{stripeError}</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Stripe Card Payment Form (shown when user clicks Pay Now with card selected) */}
+      {showStripeForm && stripeClientSecret && (
+        <div className="bg-bg-surface rounded-lg shadow-lg p-6 mb-8 border-2 border-brand-primary/30 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.3)]">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-brand-primary/10 rounded-full flex items-center justify-center">
+              <span className="text-xl">💳</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-text-primary">Enter Card Details</h2>
+              <p className="text-sm text-text-secondary">Mastercard, Visa, Debit & Credit accepted</p>
+            </div>
+          </div>
+          <StripeProvider clientSecret={stripeClientSecret}>
+            <CardPaymentForm
+              amount={finalAmount}
+              onSuccess={handleStripeSuccess}
+              onError={handleStripeError}
+              onCancel={handleStripeCancelForm}
+            />
+          </StripeProvider>
+        </div>
+      )}
 
       {/* Billing History */}
       {billingHistory.length > 0 && (
@@ -439,26 +621,28 @@ export default function BillingPayment({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <button
-          type="button"
-          onClick={handlePayment}
-          disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
-          className="flex-1 p-4 bg-brand-primary text-text-on-avatar font-bold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition text-lg"
-        >
-          {isProcessing ? '⏳ Processing...' : '✓ Pay Now'}
-        </button>
-        {onCancel && (
+      {/* Action Buttons — hidden when Stripe form is active */}
+      {!showStripeForm && (
+        <div className="flex flex-col md:flex-row gap-4">
           <button
             type="button"
-            onClick={onCancel}
-            className="flex-1 p-4 bg-border-card text-text-primary font-semibold rounded-pill hover:bg-border-card/80 transition"
+            onClick={handlePayment}
+            disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
+            className="flex-1 p-4 bg-brand-primary text-text-on-avatar font-bold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition text-lg"
           >
-            Cancel
+            {isProcessing ? '⏳ Processing...' : paymentMethod === 'card' ? '💳 Pay with Card' : '✓ Pay Now'}
           </button>
-        )}
-      </div>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 p-4 bg-border-card text-text-primary font-semibold rounded-pill hover:bg-border-card/80 transition"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
