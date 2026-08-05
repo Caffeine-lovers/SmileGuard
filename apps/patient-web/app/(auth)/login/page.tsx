@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
@@ -9,11 +9,22 @@ import { useSignup } from '@/lib/signup-context';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading, error } = useAuth();
+  const { currentUser, login, loading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.hash.includes('error='))) {
+      router.replace(`/auth/callback${window.location.hash}`);
+      return;
+    }
+
+    if (!loading && currentUser) {
+      router.replace('/dashboard');
+    }
+  }, [currentUser, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

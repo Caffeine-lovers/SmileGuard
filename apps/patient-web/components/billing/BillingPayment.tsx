@@ -2,12 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-<<<<<<< Updated upstream
 import { useAuth } from '@smileguard/shared-hooks';
-=======
 import dynamic from 'next/dynamic';
-import { useAuthContext } from '@/app/providers';
->>>>>>> Stashed changes
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
