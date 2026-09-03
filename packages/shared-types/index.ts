@@ -3,7 +3,21 @@
  * Used by both patient-web and doctor-mobile
  */
 
-import { MedicalIntakeData } from "@/apps/patient-web/lib/signup-context";
+export interface MedicalIntakeData {
+  dateOfBirth: string;
+  gender: string;
+  phone: string;
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  allergies: string;
+  currentMedications: string;
+  medicalConditions: string;
+  pastSurgeries: string;
+  smokingStatus: string;
+  pregnancyStatus: string;
+  notes?: string;
+}
 
 // ─────────────────────────────────────────
 // User & Auth Types

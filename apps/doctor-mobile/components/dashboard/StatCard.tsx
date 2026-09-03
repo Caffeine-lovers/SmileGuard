@@ -4,41 +4,66 @@ import { View, Text, StyleSheet } from "react-native";
 interface StatCardProps {
   number: number | string;
   label: string;
+  accent?: string;
 }
 
-export default function StatCard({ number, label }: StatCardProps) {
+const ACCENT_COLORS = ["#0B7FAB", "#38A169", "#D69E2E", "#9B59B6"];
+
+export default function StatCard({ number, label, accent }: StatCardProps) {
+  // Deterministically pick an accent color based on label if not provided
+  const hash = label.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const resolvedAccent = accent ?? ACCENT_COLORS[hash % ACCENT_COLORS.length];
+
   return (
     <View style={[styles.panel, styles.shadow]}>
-      <Text style={styles.statNumber}>{number}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <View style={[styles.accentBar, { backgroundColor: resolvedAccent }]} />
+      <View style={styles.content}>
+        <Text style={[styles.statNumber, { color: resolvedAccent }]}>{number}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     flex: 1,
     minWidth: 100,
-    paddingVertical: 20,
+    borderRadius: 16,
+    flexDirection: "row",
+    overflow: "hidden",
+  },
+  accentBar: {
+    width: 5,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
+  },
+  content: {
+    flex: 1,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
     justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
+    alignItems: "flex-start",
   },
   statNumber: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#0b7fab",
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#718096",
+    marginTop: 2,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   shadow: {
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
+    shadowColor: "#0B7FAB",
+    shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 5,
+    shadowRadius: 10,
+    elevation: 4,
   },
 });

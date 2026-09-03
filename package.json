@@ -13,7 +13,9 @@
     "test:coverage": "pnpm --filter @smileguard/tests test:coverage",
     "type-check": "pnpm --filter patient-web type-check && pnpm --filter doctor-mobile tsc --noEmit",
     "eas-build-pre-install": "corepack enable && corepack prepare pnpm@9.0.0 --activate",
-    "doctor:start": "pnpm --filter doctor-mobile start"
+    "doctor:start": "pnpm --filter doctor-mobile start",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "expo": "53.0.0",
@@ -21,7 +23,8 @@
     "expo-device": "~7.1.4",
     "expo-notifications": "~0.31.5",
     "react": "^19.0.0",
-    "semver": "^7.7.4"
+    "semver": "^7.7.4",
+    "react-native": "0.79.6"
   },
   "devDependencies": {
     "@types/react": "^19.0.0"
@@ -35,6 +38,3 @@
     }
   }
 }
-
-
-

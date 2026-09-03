@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto.js";
 import React from "react";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
@@ -18,16 +19,14 @@ export default function RootLayout() {
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log("[RootLayout] Deep link received:", url);
-      if (url.includes('smileguard://redirect')) {
-        console.log("[RootLayout] OAuth redirect detected");
-        // The session will be automatically set by Supabase auth listener
-        // Just log it so we know it arrived
+      if (url.includes('smileguard://')) {
+        console.log("[RootLayout] OAuth redirect or deep link detected:", url);
       }
     });
 
     // Also check if app was launched FROM a deep link (cold start)
     Linking.getInitialURL().then((url) => {
-      if (url && url.includes('smileguard://redirect')) {
+      if (url && url.includes('smileguard://')) {
         console.log("[RootLayout] App opened via deep link:", url);
       }
     });
@@ -83,20 +82,21 @@ export default function RootLayout() {
     const inDoctorGroup = segments[0] === "(doctor)";
     const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
+    const inCompleteProfile = segments[0] === "complete-profile";
     const inOAuthRedirect = segments[0] === "oauth-redirect";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // We only pause routing logic if on reset-password
-    if (inResetPassword) return;
+    // We pause routing logic if on reset-password or oauth-redirect
+    if (inResetPassword || inOAuthRedirect) return;
 
     if (!user) {
-      if (inDoctorGroup || inSetupProfile) {
+      if (inDoctorGroup || inSetupProfile || inCompleteProfile) {
         console.log("[RootLayout] No user, routing to /");
         router.replace("/");
       }
     } else {
-      if (!inDoctorGroup && !inSetupProfile) {
+      if (!inDoctorGroup && !inSetupProfile && !inCompleteProfile) {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         // Check if doctor profile exists before sending to dashboard
         supabase

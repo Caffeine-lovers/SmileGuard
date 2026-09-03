@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "SmileGuard Doctor",
+    "scheme": "smileguard",
     "slug": "1c84a99f-23d3-4e55-94d9-20fcbeca1173",
     "version": "1.0.0",
     "orientation": "portrait",

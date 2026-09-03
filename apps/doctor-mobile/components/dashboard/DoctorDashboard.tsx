@@ -233,30 +233,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       // Fetch appointment requests (dentist_id IS NULL)
       const appointmentRequestsData = await getAppointmentRequests();
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        // Fetch all dummy account details for requests
-        let dummyAccountsMapRequests: { [key: string]: any } = {};
-        const dummyRequestIds = appointmentRequestsData
-          .filter((apt: any) => apt.dummy_account_id)
-          .map((apt: any) => apt.dummy_account_id);
-        
-        if (dummyRequestIds.length > 0) {
-          const { data: dummyDetails } = await supabase
-            .from('dummy_accounts')
-            .select('*')
-            .in('id', dummyRequestIds);
-          
-          if (dummyDetails) {
-            dummyDetails.forEach((dummy: any) => {
-              dummyAccountsMapRequests[dummy.id] = dummy;
-            });
-          }
-        }
-        
         const transformedRequests = appointmentRequestsData.map((apt: any) => {
-          // Use dummy account data if available, otherwise use patient profile
-          const medicalData = apt.dummy_account_id && dummyAccountsMapRequests[apt.dummy_account_id]
-            ? dummyAccountsMapRequests[apt.dummy_account_id]
-            : apt.patient_profile;
+          const medicalData = apt.patient_profile;
           
           const medicalIntake = medicalData ? {
             gender: medicalData.gender || '',
@@ -283,7 +261,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             age: 0,
             gender: medicalData?.gender || '',
             contact: medicalData?.phone || '',
-            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+            email: apt.profiles?.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
             status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
@@ -303,40 +281,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);
         
-        // Fetch all dummy account details to populate medical intake
-        let dummyAccountsMap: { [key: string]: any } = {};
-        const dummyAccountIds = rpcAppointments
-          .filter((apt: any) => apt.dummy_account_id)
-          .map((apt: any) => apt.dummy_account_id);
-        
-        if (dummyAccountIds.length > 0) {
-          const { data: allDummyAccounts, error: dummyError } = await supabase.rpc('get_all_dummy_accounts');
-          if (!dummyError && allDummyAccounts) {
-            // Need to fetch full details for each dummy account
-            const { data: dummyDetails } = await supabase
-              .from('dummy_accounts')
-              .select('*')
-              .in('id', dummyAccountIds);
-            
-            if (dummyDetails) {
-              dummyDetails.forEach((dummy: any) => {
-                dummyAccountsMap[dummy.id] = dummy;
-              });
-            }
-          }
-        }
-        
         const transformedAppointments = rpcAppointments.map((apt: any) => {
           console.log(`📐 Transforming appointment ${apt.id}:`, {
             patient_name: apt.patient_name,
-            dummy_account_id: apt.dummy_account_id,
             patient_id: apt.patient_id,
           });
           
-          // Use dummy account data if available, otherwise use patient profile
-          const medicalData = apt.dummy_account_id && dummyAccountsMap[apt.dummy_account_id]
-            ? dummyAccountsMap[apt.dummy_account_id]
-            : apt.patient_profile;
+          const medicalData = apt.patient_profile;
           
           const medicalIntake = medicalData ? {
             gender: medicalData.gender || '',
@@ -363,7 +314,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             age: 0,
             gender: medicalData?.gender || '',
             contact: medicalData?.phone || '',
-            email: apt.profiles?.email || (apt.dummy_account_id ? medicalData?.email : '') || '',
+            email: apt.profiles?.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
             status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
@@ -773,9 +724,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   if (loadingAppointments || loadingPatients) {
     return (
       <SafeAreaProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff", justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#0b7fab" />
-          <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 16 }}>Loading dashboard...</Text>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#0D1B2A", justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontSize: 40, marginBottom: 24 }}>🦷</Text>
+          <ActivityIndicator size="large" color="#0B7FAB" />
+          <Text style={{ marginTop: 20, color: 'rgba(255,255,255,0.7)', fontSize: 15, fontWeight: '600', letterSpacing: 0.5 }}>Loading dashboard…</Text>
         </SafeAreaView>
       </SafeAreaProvider>
     );
@@ -783,7 +735,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F4F8" }}>
         <View style={styles.mainContainer}>
           {!sidebarOpen && (
             <TouchableOpacity
@@ -803,11 +755,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             {activeTab === 'dashboard' ? (
               <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.container}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <Text style={[styles.header, { marginBottom: 0 }]}>
-                      Welcome, {doctorProfile.doctor_name || doctorProfile.name}
-                    </Text>
-                    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                  {/* ── Modern Header ── */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#718096', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 2 }}>
+                        Good day 👋
+                      </Text>
+                      <Text style={[styles.header, { textAlign: 'left', fontSize: 22, marginBottom: 0 }]}>
+                        {doctorProfile.doctor_name || doctorProfile.name}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                       <NotificationBell
                         unreadCount={notificationState.unreadCount}
                         onPress={() => setShowNotificationCenter(true)}
@@ -822,57 +780,62 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         style={{
                           width: 44,
                           height: 44,
-                          borderRadius: 8,
-                          backgroundColor: '#E3F2FD',
+                          borderRadius: 12,
+                          backgroundColor: '#FFFFFF',
                           justifyContent: 'center',
                           alignItems: 'center',
-                          borderWidth: 1,
-                          borderColor: '#0b7fab',
+                          shadowColor: '#000',
+                          shadowOpacity: 0.07,
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowRadius: 6,
+                          elevation: 3,
                         }}
                         activeOpacity={0.7}
                       >
                         {isRefreshing ? (
-                          <ActivityIndicator size="small" color="#0b7fab" />
+                          <ActivityIndicator size="small" color="#0B7FAB" />
                         ) : (
                           <Image
                             source={require('../../assets/images/icon/refresh.png')}
-                            style={{ width: 24, height: 24, resizeMode: 'contain' }}
+                            style={{ width: 22, height: 22, resizeMode: 'contain', tintColor: '#0B7FAB' }}
                           />
                         )}
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  {/* Stats Panel - from Supabase */}
+                  {/* ── Stats ── */}
                   <View style={styles.firstPanel}>
-                    <StatCard number={patients.length} label="Patients" />
-                    <StatCard number={stats.total} label="Appointments" />
-                    <StatCard number={stats.paidBillings} label="Paid Billings" />
+                    <StatCard number={patients.length} label="Patients" accent="#0B7FAB" />
+                    <StatCard number={stats.total} label="Appointments" accent="#38A169" />
+                    <StatCard number={stats.paidBillings} label="Paid Billings" accent="#D69E2E" />
                   </View>
 
+                  {/* Section label */}
                   <View style={styles.sectionHeader}>
-                    <Text style={styles.header}>Quick Actions</Text>
+                    <Text style={styles.sectionLabel}>QUICK ACCESS</Text>
+                    <View style={styles.sectionDivider} />
                   </View>
 
                   <View style={styles.dashboardColumns}>
                     {/* Left Column: Today's Appointments */}
                     <View style={styles.column}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.subHeader}>Today's Appointments ({todayAppointments.length}):</Text>
-                        <TouchableOpacity 
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <View>
+                          <Text style={styles.columnLabel}>TODAY'S APPOINTMENTS</Text>
+                          <Text style={{ fontSize: 18, fontWeight: '700', color: '#1A202C' }}>{todayAppointments.length} scheduled</Text>
+                        </View>
+                        <TouchableOpacity
                           onPress={() => setActiveTab('appointments')}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                          style={styles.seeAllBtn}
                         >
-                          <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See all</Text>
-                          <Image
-                            source={require('../../assets/images/icon/open.png')}
-                            style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                          />
+                          <Text style={styles.seeAllText}>See all</Text>
                         </TouchableOpacity>
                       </View>
                       {todayAppointments.length === 0 ? (
-                        <View style={{ padding: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, minHeight: 100 }}>
-                          <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>No appointments for today</Text>
+                        <View style={styles.emptyState}>
+                          <Text style={styles.emptyStateIcon}>📅</Text>
+                          <Text style={styles.emptyStateText}>No appointments for today</Text>
                         </View>
                       ) : (
                         todayAppointments.map((apt, idx) => (
@@ -891,24 +854,26 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                     {/* Right Column: Patient Details */}
                     <View style={styles.column}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.subHeader}>Details:</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <View>
+                          <Text style={styles.columnLabel}>PATIENT DETAILS</Text>
+                          <Text style={{ fontSize: 18, fontWeight: '700', color: '#1A202C' }}>
+                            {selectedPatient ? selectedPatient.name : 'None selected'}
+                          </Text>
+                        </View>
                         {selectedPatient && (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             onPress={handleEditPatient}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            style={styles.seeAllBtn}
                           >
-                            <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>Edit</Text>
-                            <Image
-                              source={require('../../assets/images/icon/open.png')}
-                              style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                            />
+                            <Text style={styles.seeAllText}>Edit</Text>
                           </TouchableOpacity>
                         )}
                       </View>
                       {!selectedPatient ? (
-                        <View style={[styles.detailsCard, styles.shadow, { alignItems: 'center', justifyContent: 'center', minHeight: 150 }]}>
-                          <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>No appointment selected</Text>
+                        <View style={[styles.detailsCard, styles.shadow, styles.emptyState]}>
+                          <Text style={styles.emptyStateIcon}>👤</Text>
+                          <Text style={styles.emptyStateText}>No appointment selected</Text>
                         </View>
                       ) : (
                         <View style={[styles.detailsCard, styles.shadow, { position: 'relative' }]}>
@@ -929,34 +894,36 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           </View>
 
                           {/* Patient Header */}
-                          <View style={{ alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
-                            <Image
-                              source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                              style={{ width: 60, height: 60, borderRadius: 30, marginBottom: 10 }}
-                            />
-                            <Text style={{ fontWeight: "bold", fontSize: 18 }}>
+                          <View style={{ alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#EDF2F7' }}>
+                            <View style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#0B7FAB', overflow: 'hidden', marginBottom: 12, backgroundColor: '#F7FAFC' }}>
+                              <Image
+                                source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
+                                style={{ width: 72, height: 72 }}
+                              />
+                            </View>
+                            <Text style={{ fontWeight: "800", fontSize: 17, color: '#1A202C' }}>
                               {selectedPatient.name}
                             </Text>
                           </View>
 
                           {/* Appointment Details */}
-                          <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>APPOINTMENT DETAILS</Text>
+                          <View style={{ marginBottom: 24 }}>
+                            <Text style={styles.detailSectionLabel}>APPOINTMENT DETAILS</Text>
                             <DetailRow label="Service" value={selectedPatient.service || "Not specified"} />
                             <DetailRow label="Time" value={selectedPatient.time || "Not specified"} />
                             <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
                           </View>
 
                           {/* See More Button */}
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             style={{
-                              paddingVertical: 14,
+                              paddingVertical: 12,
                               paddingHorizontal: 16,
-                              marginBottom: 24,
-                              backgroundColor: expandPatientDetails ? '#E3F2FD' : '#f5f5f5',
-                              borderRadius: 8,
-                              borderWidth: 1,
-                              borderColor: expandPatientDetails ? '#0b7fab' : '#ddd',
+                              marginBottom: 20,
+                              backgroundColor: expandPatientDetails ? '#EBF8FF' : '#F7FAFC',
+                              borderRadius: 12,
+                              borderWidth: 1.5,
+                              borderColor: expandPatientDetails ? '#0B7FAB' : '#E2E8F0',
                               flexDirection: 'row',
                               justifyContent: 'center',
                               alignItems: 'center',
@@ -966,27 +933,19 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           >
                             <Text style={{
                               fontSize: 13,
-                              fontWeight: '600',
-                              color: expandPatientDetails ? '#0b7fab' : '#666',
+                              fontWeight: '700',
+                              color: expandPatientDetails ? '#0B7FAB' : '#718096',
+                              letterSpacing: 0.3,
                             }}>
-                              {expandPatientDetails ? 'Show Less' : 'See More'}
+                              {expandPatientDetails ? 'Show Less' : 'View Full Profile'}
                             </Text>
-                            <Image
-                              source={require('../../assets/images/icon/open.png')}
-                              style={{
-                                width: 16,
-                                height: 16,
-                                resizeMode: 'contain',
-                                transform: [{ rotate: expandPatientDetails ? '180deg' : '0deg' }]
-                              }}
-                            />
                           </TouchableOpacity>
 
                           {/* Contact Information - Expanded */}
                           {expandPatientDetails && (
                             <>
-                              <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>CONTACT INFORMATION</Text>
+                              <View style={{ marginBottom: 24 }}>
+                                <Text style={styles.detailSectionLabel}>CONTACT INFORMATION</Text>
                                 <DetailRow label="Email" value={selectedPatient.email || "Not provided"} />
                                 <DetailRow label="Phone" value={selectedPatient.contact || "Not provided"} />
                               </View>
@@ -994,23 +953,23 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                               {/* Personal Details */}
                               {selectedPatient.medicalIntake && (
                                 <>
-                                  <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>PERSONAL DETAILS</Text>
+                                  <View style={{ marginBottom: 24 }}>
+                                    <Text style={styles.detailSectionLabel}>PERSONAL DETAILS</Text>
                                     <DetailRow label="Gender" value={selectedPatient.medicalIntake.gender || "Not specified"} />
                                     <DetailRow label="Date of Birth" value={formatDateOfBirth(selectedPatient.medicalIntake.dateOfBirth)} />
                                     <DetailRow label="Address" value={selectedPatient.medicalIntake.address || "Not provided"} />
                                   </View>
 
                                   {/* Emergency Contact */}
-                                  <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>EMERGENCY CONTACT</Text>
+                                  <View style={{ marginBottom: 24 }}>
+                                    <Text style={styles.detailSectionLabel}>EMERGENCY CONTACT</Text>
                                     <DetailRow label="Contact Name" value={selectedPatient.medicalIntake.emergencyContactName || "Not provided"} />
                                     <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake.emergencyContactPhone || "Not provided"} />
                                   </View>
 
                                   {/* Medical History */}
-                                  <View style={{ marginHorizontal: 0 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>MEDICAL HISTORY</Text>
+                                  <View style={{ marginBottom: 8 }}>
+                                    <Text style={styles.detailSectionLabel}>MEDICAL HISTORY</Text>
                                     <DetailRow label="Allergies" value={selectedPatient.medicalIntake.allergies || "None"} />
                                     <DetailRow label="Current Medications" value={selectedPatient.medicalIntake.currentMedications || "None"} />
                                     <DetailRow label="Medical Conditions" value={selectedPatient.medicalIntake.medicalConditions || "None"} />
@@ -1030,12 +989,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         animationType="slide"
                         onRequestClose={handleCancelEdit}
                       >
-                        <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
-                            <TouchableOpacity onPress={handleCancelEdit} style={{ marginRight: 12 }}>
+                        <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F4F8" }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#FFFFFF' }}>
+                            <TouchableOpacity onPress={handleCancelEdit} style={{ marginRight: 14, width: 36, height: 36, borderRadius: 10, backgroundColor: '#F0F4F8', justifyContent: 'center', alignItems: 'center' }}>
                               <Image
                                 source={require('../../assets/images/icon/back.png')}
-                                style={{ width: 24, height: 24, resizeMode: 'contain' }}
+                                style={{ width: 20, height: 20, resizeMode: 'contain', tintColor: '#1A202C' }}
                               />
                             </TouchableOpacity>
                             <Text style={styles.editHeader}>Edit Appointment</Text>
@@ -1114,69 +1073,65 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       </Modal>
 
                       {/* Patients List */}
-                      <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients ({patients.length}):</Text>
-                      {patients.length > 0 ? (
-                        <>
-                          {patients.slice(0, 3).map((patient) => (
-                            <TouchableOpacity
-                              key={patient.id}
-                              onPress={() => {
-                                setViewingPatient(patient);
-                                setShowPatientDetails(true);
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
-                                <Image
-                                  source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                                  style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                                />
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
-                                  <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
-                                </View>
-                              </View>
-                            </TouchableOpacity>
-                          ))}
+                      <View style={{ marginTop: 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <View>
+                            <Text style={styles.columnLabel}>RECENT PATIENTS</Text>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1A202C' }}>{patients.length} on record</Text>
+                          </View>
                           {patients.length > 3 && (
-                            <TouchableOpacity 
-                              onPress={() => setActiveTab('records')}
-                              style={{ 
-                                paddingVertical: 12, 
-                                paddingHorizontal: 16,
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                flexDirection: 'row',
-                                gap: 8,
-                                marginTop: 10,
-                                backgroundColor: '#f0f0f0',
-                                borderRadius: 8,
-                              }}
-                            >
-                              <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 14 }}>
-                                See more patients ({patients.length - 3} more)
-                              </Text>
-                              <Image
-                                source={require('../../assets/images/icon/open.png')}
-                                style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                              />
+                            <TouchableOpacity onPress={() => setActiveTab('records')} style={styles.seeAllBtn}>
+                              <Text style={styles.seeAllText}>View all</Text>
                             </TouchableOpacity>
                           )}
-                        </>
-                      ) : (
-                        <Text style={{ fontSize: 12, color: '#999', marginVertical: 10 }}>No patients yet</Text>
-                      )}
+                        </View>
+                        {patients.length > 0 ? (
+                          <>
+                            {patients.slice(0, 3).map((patient) => (
+                              <TouchableOpacity
+                                key={patient.id}
+                                onPress={() => {
+                                  setViewingPatient(patient);
+                                  setShowPatientDetails(true);
+                                }}
+                                activeOpacity={0.75}
+                              >
+                                <View style={[styles.patientRow, styles.shadow]}>
+                                  <View style={styles.patientAvatarWrapper}>
+                                    <Image
+                                      source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                                      style={{ width: 48, height: 48, borderRadius: 24 }}
+                                    />
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={{ fontWeight: '700', fontSize: 14, color: '#1A202C' }}>{patient.name}</Text>
+                                    <Text style={{ fontSize: 12, color: '#718096', marginTop: 2 }}>{patient.email}</Text>
+                                  </View>
+                                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#F0F4F8', justifyContent: 'center', alignItems: 'center' }}>
+                                    <Text style={{ color: '#0B7FAB', fontSize: 16 }}>›</Text>
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </>
+                        ) : (
+                          <View style={[styles.emptyState, { minHeight: 80 }]}>
+                            <Text style={styles.emptyStateIcon}>👥</Text>
+                            <Text style={styles.emptyStateText}>No patients yet</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
 
                   {/* Appointment Requests Section - Show only 3 recent */}
                   {appointmentRequests.length > 0 && (
                     <View style={{ marginBottom: 12 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12}}>
-                        <Text style={[styles.subHeader, { color: '#d32f2f' }]}>
-                          Appointment Requests ({appointmentRequests.length})
-                        </Text>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionLabel}>PENDING REQUESTS</Text>
+                        <View style={styles.sectionDivider} />
                       </View>
+
                       {appointmentRequests.slice(0, 3).map((request) => (
                         <View
                           key={request.id}

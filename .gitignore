@@ -94,3 +94,5 @@ CHANGES-GUIDE.md
 /.env.example
 .env.example
 \n# ============ Large Files ============\n*.pt\n*.onnx
+app.json
+app.json

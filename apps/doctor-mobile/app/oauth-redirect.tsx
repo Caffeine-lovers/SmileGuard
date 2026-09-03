@@ -16,51 +16,63 @@ import { supabase } from "@smileguard/supabase-client";
  */
 export default function OAuthRedirect() {
   const router = useRouter();
-  const searchParams = useLocalSearchParams<{ code?: string; error?: string }>();
+  const searchParams = useLocalSearchParams<{
+    code?: string;
+    error?: string;
+    error_description?: string;
+  }>();
 
   useEffect(() => {
+    let isMounted = true;
+
     const handleOAuthCallback = async () => {
       try {
-        console.log("[OAuthRedirect] Handler called");
-        console.log("[OAuthRedirect] Search params:", searchParams);
-        
-        // Give Supabase a moment to process the OAuth response
-        // The session hook in _layout will automatically detect the new session
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log("[OAuthRedirect] Handler called with searchParams:", searchParams);
 
-        // Check if user is now authenticated
+        if (searchParams.error || searchParams.error_description) {
+          const errorMsg = searchParams.error_description || searchParams.error;
+          console.error("❌ OAuth error in redirect:", errorMsg);
+          if (isMounted) router.replace("/");
+          return;
+        }
+
+        // If code is present in searchParams, exchange it for a session
+        if (searchParams.code) {
+          console.log("[OAuthRedirect] Exchanging PKCE code for session...");
+          const { data, error } = await supabase.auth.exchangeCodeForSession(searchParams.code);
+          if (error) {
+            console.error("[OAuthRedirect] Error exchanging code:", error.message);
+          } else {
+            console.log("✅ [OAuthRedirect] Session established for:", data.user?.email);
+          }
+        }
+
+        // Give the auth state listener in _layout time to detect the session
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
-        console.log("[OAuthRedirect] Session user email:", session?.user?.email);
-        console.log("[OAuthRedirect] Session user ID:", session?.user?.id);
+        console.log("[OAuthRedirect] Session after auth check:", session ? "Found" : "Null");
 
         if (session?.user) {
-          console.log("✅ OAuth successful, user:", session.user.email);
-          console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
-          
-          // Let the root layout handle the redirection
-          // We just need to give the system a second to process the auth state
-          console.log("[OAuthRedirect] Handing off to _layout...");
-          // We won't replace routes here, to avoid conflicting with _layout routing
-        } else if (searchParams.error) {
-          // OAuth error occurred
-          console.error("❌ OAuth error:", searchParams.error);
-          router.replace("/");
-        } else {
-          // No session yet, redirect back to login
-          console.log("⚠️ No session after redirect");
+          console.log("✅ [OAuthRedirect] Auth successful, handing off routing to root _layout");
+        } else if (isMounted) {
+          console.log("⚠️ [OAuthRedirect] No session found after wait, redirecting to /");
           router.replace("/");
         }
       } catch (error) {
         console.error("❌ Error handling OAuth callback:", error);
-        router.replace("/");
+        if (isMounted) router.replace("/");
       }
     };
 
     handleOAuthCallback();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router, searchParams]);
 
   return (

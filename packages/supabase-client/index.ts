@@ -19,11 +19,26 @@ const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY ||
 
 console.log("🔗 Supabase initialized with URL:", SUPABASE_URL.slice(0, 30) + "...");
 
+const getStorage = () => {
+  if (typeof window !== "undefined" && window.localStorage) {
+    return window.localStorage;
+  }
+  try {
+    const AsyncStorageLib = require("@react-native-async-storage/async-storage");
+    return AsyncStorageLib.default || AsyncStorageLib;
+  } catch {
+    return undefined;
+  }
+};
+
+const storage = getStorage();
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
+    storage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: typeof window !== "undefined",
+    detectSessionInUrl: typeof window !== "undefined" && typeof window.location !== "undefined",
   },
 });
 

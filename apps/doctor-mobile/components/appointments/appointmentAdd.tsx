@@ -400,16 +400,6 @@ export default function AppointmentAdd({
         console.error('Error fetching profiles:', profilesError);
       }
 
-      // Fetch from dummy_accounts table
-      const { data: dummyData, error: dummyError } = await supabase
-        .from('dummy_accounts')
-        .select('id, patient_name, email')
-        .order('patient_name', { ascending: true });
-
-      if (dummyError) {
-        console.error('Error fetching dummy accounts:', dummyError);
-      }
-
       // Combine and label the data
       const patients: Patient[] = [];
       
@@ -418,17 +408,6 @@ export default function AppointmentAdd({
           ...profilesData.map((p) => ({
             ...p,
             accountType: 'Patient' as const,
-          }))
-        );
-      }
-      
-      if (dummyData) {
-        patients.push(
-          ...dummyData.map((d) => ({
-            id: d.id,
-            name: d.patient_name,
-            email: d.email,
-            accountType: 'Dummy' as const,
           }))
         );
       }
@@ -762,6 +741,7 @@ export default function AppointmentAdd({
       const isDummyAccount = selectedPatientData?.accountType === 'Dummy';
 
       const appointmentData: any = {
+        patient_id: selectedPatient,
         dentist_id: doctorId,
         service: selectedService,
         appointment_date: appointmentDate,
@@ -769,15 +749,6 @@ export default function AppointmentAdd({
         status: selectedStatus,
         notes: notes || null,
       };
-
-      // Use appropriate column based on account type
-      if (isDummyAccount) {
-        appointmentData.patient_id = null;
-        appointmentData.dummy_account_id = selectedPatient;
-      } else {
-        appointmentData.patient_id = selectedPatient;
-        appointmentData.dummy_account_id = null;
-      }
 
       console.log('📝 Creating appointment:', appointmentData);
 
