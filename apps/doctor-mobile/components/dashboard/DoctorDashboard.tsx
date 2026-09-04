@@ -1351,7 +1351,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               } else {
                 notification = notifyAppointmentStatusChanged(
                   status as 'completed' | 'cancelled' | 'no-show',
-                  patientName,
+                  patientName,  
                   appointmentId,
                   patientId,
                   doctorId
