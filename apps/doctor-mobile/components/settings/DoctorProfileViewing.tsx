@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { X, Camera } from "lucide-react-native";
 import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
 import DoctorProfileEdit from "./DoctorProfileEdit";
 
@@ -158,10 +159,7 @@ export default function DoctorProfileView({
               style={styles.closeBtn}
               onPress={onClose}
             >
-              <Image
-                source={require("../../assets/images/icon/close.png")}
-                style={{ width: 20, height: 20 }}
-              />
+              <X size={20} color="#047857" />
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -201,10 +199,7 @@ export default function DoctorProfileView({
           )}
           {!uploadingImage && (
             <View style={styles.cameraIconContainer}>
-              <Image
-                source={require("../../assets/images/icon/camera.png")}
-                style={styles.cameraIcon}
-              />
+              <Camera size={14} color="#FFFFFF" />
             </View>
           )}
         </TouchableOpacity>
@@ -351,7 +346,7 @@ export default function DoctorProfileView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0f8ff",
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
     paddingVertical: 12,
@@ -373,12 +368,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#0b7fab",
+    color: "#047857",
   },
   editBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
     borderRadius: 6,
   },
   editBtnText: {
@@ -401,11 +396,11 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 16,
     marginBottom: 12,
-    borderColor: "#2bf1ff7d",
-    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderWidth: 1.5,
   },
   profileImageContainer: {
     alignSelf: "center",
@@ -439,7 +434,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
@@ -474,7 +469,7 @@ const styles = StyleSheet.create({
   specialization: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#0b7fab",
+    color: "#047857",
     marginBottom: 4,
   },
   subtext: {
@@ -491,8 +486,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#0b7fab",
+    fontWeight: "700",
+    color: "#047857",
     marginBottom: 10,
     paddingBottom: 6,
     borderBottomColor: "#e5e7eb",
@@ -521,7 +516,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#ECFDF5",
     borderRadius: 4,
   },
   statusText: {
@@ -550,7 +545,7 @@ const styles = StyleSheet.create({
     right: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
     borderRadius: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

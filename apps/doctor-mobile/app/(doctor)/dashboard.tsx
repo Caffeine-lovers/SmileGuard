@@ -1,4 +1,5 @@
 import React from "react";
+import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
 import DoctorDashboard from "../../components/dashboard/DoctorDashboard";
@@ -25,7 +26,11 @@ export default function DoctorDashboardPage() {
   };
 
   if (!user) {
-    return null; // or a loading screen
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color="#10B981" />
+      </View>
+    );
   }
 
   return <DoctorDashboard user={user} onLogout={handleLogout} />;

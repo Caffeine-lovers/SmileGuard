@@ -10,6 +10,7 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ChevronLeft, Calendar } from "lucide-react-native";
 import { getPatientAppointments } from "../../lib/profilesPatients";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateWithTime } from "../../lib/dateFormatters";
@@ -18,7 +19,7 @@ import AppointmentEdit from "./appointmentEdit";
 interface AppointmentHistoryProps {
   patientId: string;
   patientName: string;
-  doctorId: string;
+  doctorId?: string;
   onBack: () => void;
 }
 
@@ -221,11 +222,8 @@ export default function AppointmentHistory({
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f9f9f9' }}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Image
-            source={require('../../assets/images/icon/back.png')}
-            style={{ width: 24, height: 24, resizeMode: 'contain' }}
-          />
+        <TouchableOpacity onPress={onBack} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <ChevronLeft size={24} color="#047857" />
           <Text style={styles.backButton}>Back</Text>
         </TouchableOpacity>
         <View>
@@ -275,15 +273,12 @@ export default function AppointmentHistory({
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#0b7fab" />
+            <ActivityIndicator size="large" color="#10B981" />
             <Text style={styles.loadingText}>Loading appointments...</Text>
           </View>
         ) : filteredAppointments.length === 0 ? (
           <View style={styles.centered}>
-            <Image
-              source={require('../../assets/images/icon/appointment.png')}
-              style={styles.emptyIcon}
-            />
+            <Calendar size={48} color="#94A3B8" style={{ marginBottom: 12 }} />
             <Text style={styles.emptyText}>
               {activeTab === 'all'
                 ? 'No appointments found'
@@ -335,7 +330,7 @@ export default function AppointmentHistory({
         <AppointmentEdit
           visible={showEditModal}
           appointment={editingAppointment}
-          doctorId={doctorId}
+          doctorId={doctorId || editingAppointment.dentist_id || ""}
           onClose={() => {
             setShowEditModal(false);
             setEditingAppointment(null);
@@ -360,14 +355,14 @@ const styles = StyleSheet.create({
   },
   backButton: {
     fontSize: 16,
-    color: '#0b7fab',
+    color: "#047857",
     fontWeight: '600',
     width: 50,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0b7fab',
+    color: "#047857",
     textAlign: 'center',
   },
   headerSubtitle: {
@@ -394,7 +389,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeTab: {
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
   },
   tabText: {
     fontSize: 11,
@@ -419,7 +414,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#0b7fab',
+    color: "#047857",
     fontWeight: '600',
   },
   emptyIcon: {
@@ -434,7 +429,7 @@ const styles = StyleSheet.create({
   categoryTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0b7fab',
+    color: "#047857",
     marginTop: 16,
     marginBottom: 12,
   },
@@ -461,7 +456,7 @@ const styles = StyleSheet.create({
   cardService: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0b7fab',
+    color: "#047857",
     marginBottom: 4,
   },
   cardDate: {
@@ -489,7 +484,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   editButton: {
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,

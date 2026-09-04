@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "SmileGuard Doctor",
-    "slug": "1c84a99f-23d3-4e55-94d9-20fcbeca1173",
+    "slug": "smileguard-doctor",
+    "scheme": "smileguard",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -21,7 +22,7 @@
     },
     "owner": "mortart",
     "android": {
-      "package": "com.smileguard.app"
+      "package": "com.smileguard.doctor"
     }
   }
 }

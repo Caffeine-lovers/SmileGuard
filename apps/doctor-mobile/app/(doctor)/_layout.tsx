@@ -39,8 +39,8 @@ export default function DoctorLayout() {
 
   if (checking) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#0b7fab" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }

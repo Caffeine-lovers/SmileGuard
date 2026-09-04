@@ -29,7 +29,7 @@ export default function Hero({ onOpenPortal }: HeroProps) {
 const styles = StyleSheet.create({
   hero: {
     padding: 60,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#ECFDF5",
     alignItems: "center",
   },
   heroContent: {
@@ -37,29 +37,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   h1: {
-    fontSize: 36,
-    fontWeight: "bold",
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#0F172A",
     textAlign: "center",
     marginBottom: 15,
   },
   p: {
-    fontSize: 18,
-    color: "#4b5563",
+    fontSize: 16,
+    color: "#475569",
     textAlign: "center",
     marginBottom: 30,
+    lineHeight: 22,
   },
   btn: {
     paddingVertical: 14,
     paddingHorizontal: 28,
-    borderRadius: 10,
+    borderRadius: 6,
     alignItems: "center",
   },
   primaryBtn: {
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
+    borderWidth: 1.5,
+    borderTopColor: "#34D399",
+    borderLeftColor: "#34D399",
+    borderBottomColor: "#047857",
+    borderRightColor: "#047857",
     width: "100%",
   },
   btnText: {
     color: "#fff",
     fontWeight: "700",
+    fontSize: 15,
   },
 });

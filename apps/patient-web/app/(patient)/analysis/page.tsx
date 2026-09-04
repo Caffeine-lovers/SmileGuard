@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 
 interface Detection {
   class_id: number;
@@ -25,8 +27,10 @@ const COLORS = [
 ];
 
 export default function AnalysisPage() {
+  const { currentUser } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -65,6 +69,11 @@ export default function AnalysisPage() {
       return;
     }
 
+    if (!consentGiven) {
+      alert('Please grant Data Privacy Consent (RA 10173) before proceeding with the analysis.');
+      return;
+    }
+
     setUploading(true);
     try {
       const endpoint = process.env.NEXT_PUBLIC_SMILEGUARD_ENDPOINT;
@@ -93,6 +102,62 @@ export default function AnalysisPage() {
 
       const data: AnalysisResult = await response.json();
       setResult(data);
+
+      // Debug: log response shape
+      console.log('[Analysis] API response keys:', Object.keys(data));
+      console.log('[Analysis] xai_annotated_image_b64 present:', !!data.xai_annotated_image_b64);
+      console.log('[Analysis] xai_annotated_image_b64 length:', data.xai_annotated_image_b64?.length ?? 0);
+      console.log('[Analysis] Detection count:', data.count);
+
+      // Upload XAI annotated image to Supabase bucket 'Analyzed images'
+      if (data.xai_annotated_image_b64) {
+        try {
+          // Verify we have an active Supabase auth session (required by RLS)
+          const { data: sessionData } = await supabase.auth.getSession();
+          console.log('[Analysis] Supabase session active:', !!sessionData?.session);
+          console.log('[Analysis] Session user ID:', sessionData?.session?.user?.id ?? 'NONE');
+
+          if (!sessionData?.session) {
+            console.error('[Analysis] ❌ No active Supabase session — upload will be blocked by RLS. Skipping.');
+          } else {
+            // Decode base64 to binary
+            const byteCharacters = atob(data.xai_annotated_image_b64);
+            const byteArray = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteArray[i] = byteCharacters.charCodeAt(i);
+            }
+
+            // Determine user identifier for naming format: (current user)_xai
+            const userName = currentUser?.name
+              || sessionData.session.user.user_metadata?.name
+              || currentUser?.id
+              || sessionData.session.user.id
+              || 'unknown';
+            const userIdentifier = userName.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+            const filename = `${userIdentifier}_xai.jpg`;
+
+            console.log(`[Analysis] Uploading XAI image to bucket 'Analyzed images' as '${filename}' (${byteArray.length} bytes)...`);
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('Analyzed images')
+              .upload(filename, byteArray, {
+                contentType: 'image/jpeg',
+                upsert: true,
+              });
+
+            if (uploadError) {
+              console.error('[Analysis] ❌ Supabase storage upload error:', uploadError.message);
+              console.error('[Analysis] Error details:', JSON.stringify(uploadError));
+            } else {
+              console.log('[Analysis] ✅ Successfully uploaded XAI image:', uploadData);
+            }
+          }
+        } catch (uploadErr: any) {
+          console.error('[Analysis] ❌ Exception during XAI upload:', uploadErr.message || uploadErr);
+        }
+      } else {
+        console.warn('[Analysis] ⚠️ No xai_annotated_image_b64 in API response — nothing to upload.');
+      }
     } catch (error: any) {
       console.error('Error uploading image:', error);
       alert(`Failed to analyze image: ${error.message}`);
@@ -121,9 +186,34 @@ export default function AnalysisPage() {
                 className="block mx-auto text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-text-on-avatar hover:file:bg-brand-primary/90 cursor-pointer"
               />
               {selectedFile && (
-                <p className="text-sm text-green-600 mt-2">✓ {selectedFile.name} selected</p>
+                <p className="text-xs font-bold text-emerald-700 mt-2">{selectedFile.name} selected</p>
               )}
               <p className="text-xs text-text-secondary mt-4">JPG, PNG or WebP image (max 5MB)</p>
+            </div>
+          </div>
+
+          {/* Case A: Data Privacy Consent (RA 10173) */}
+          <div className="mb-6 flex flex-col items-center">
+            <div className="w-full max-w-md p-4 bg-bg-card rounded-card border border-border-card text-left transition hover:border-brand-primary/40">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={(e) => setConsentGiven(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-border-card text-brand-primary focus:ring-brand-primary"
+                />
+                <div className="text-xs text-text-primary space-y-1">
+                  <p className="font-semibold text-text-primary">
+                    Data Privacy & AI Processing Consent (RA 10173)
+                  </p>
+                  <p className="text-text-secondary leading-relaxed">
+                    I explicitly consent to SmileGuard collecting, securely storing, and processing my oral photographs using AI for preliminary health screening in compliance with the <strong>Philippine Data Privacy Act of 2012</strong>.
+                  </p>
+                  <p className="text-text-secondary text-[11px] italic">
+                    I understand this AI analysis serves as an informational screening aid and does not replace a clinical diagnosis by a licensed dentist.
+                  </p>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -131,11 +221,16 @@ export default function AnalysisPage() {
           <div className="mb-6 flex flex-col items-center">
             <button
               onClick={handleUpload}
-              disabled={uploading || !selectedFile}
-              className="w-full max-w-md p-3 bg-brand-primary text-text-on-avatar font-semibold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition"
+              disabled={uploading || !selectedFile || !consentGiven}
+              className="w-full max-w-md p-3 bg-brand-primary text-text-on-avatar font-semibold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card disabled:cursor-not-allowed transition"
             >
-              {uploading ? 'Analyzing...' : 'Analyze Image'}
+              {uploading ? 'Analyzing...' : !consentGiven && selectedFile ? 'Consent Required to Analyze' : 'Analyze Image'}
             </button>
+            {!consentGiven && selectedFile && (
+              <p className="text-xs font-bold text-amber-700 mt-2">
+                Please check the consent box above to proceed.
+              </p>
+            )}
           </div>
 
           {/* Results */}

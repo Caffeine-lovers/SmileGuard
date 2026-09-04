@@ -14,6 +14,8 @@ import { updateDoctorAppointmentStatus, getAppointmentRequests } from '../../lib
 import { createManualNotification } from '../../lib/notificationService';
 import { formatAppointmentDate } from '../../lib/dateFormatters';
 import { DashboardAppointment } from '../dashboard/DoctorDashboard';
+import { Inbox, Check, X, RefreshCw } from 'lucide-react-native';
+import { AppColors } from '../../constants/theme';
 
 interface AppointmentsRequestTabProps {
   userId: string;
@@ -156,7 +158,7 @@ export default function AppointmentsRequestTab({
       'Decline Request',
       `Are you sure you want to decline this appointment request with ${request.name}?`,
       [
-        { text: 'Keep', onPress: () => {}, style: 'cancel' },
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
         {
           text: 'Decline',
           onPress: async () => {
@@ -166,8 +168,10 @@ export default function AppointmentsRequestTab({
                 return;
               }
 
-              // Update the appointment status to 'declined'
-              const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId);
+              // Update appointment status to 'declined' and assign the doctor ID
+              const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId, {
+                dentist_id: userId,
+              });
 
               if (!result?.success) {
                 Alert.alert('Error', result?.message || 'Failed to decline appointment');
@@ -176,6 +180,27 @@ export default function AppointmentsRequestTab({
 
               // Remove from requests list
               setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+              // Trigger manual notification for declining request
+              const notification = createManualNotification(
+                'appointment-declined',
+                'Appointment Declined',
+                `You declined the appointment with ${request.name} for ${request.date}`,
+                {
+                  appointmentId: request.id,
+                  patientId: request.patient_id,
+                  action: 'UPDATE',
+                }
+              );
+
+              // Call the callback to add notification to DoctorDashboard
+              if (onRequestAcceptedWithNotification) {
+                onRequestAcceptedWithNotification(notification);
+              }
+
+              if (onRequestAccepted) {
+                onRequestAccepted();
+              }
 
               Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
             } catch (error) {
@@ -191,15 +216,17 @@ export default function AppointmentsRequestTab({
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f8ff' }}>
-        <ActivityIndicator size="large" color="#0b7fab" />
-        <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 16 }}>Loading requests...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: AppColors.background }}>
+        <ActivityIndicator size="large" color={AppColors.primary} />
+        <Text style={{ marginTop: 16, color: AppColors.primaryDark, fontSize: 15, fontWeight: '600' }}>
+          Loading requests...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f0f8ff' }}>
+    <View style={{ flex: 1, backgroundColor: AppColors.background }}>
       {/* Header */}
       <View style={tabStyles.header}>
         <View style={tabStyles.headerContent}>
@@ -218,22 +245,19 @@ export default function AppointmentsRequestTab({
           activeOpacity={0.7}
         >
           {isRefreshing ? (
-            <ActivityIndicator size="small" color="#0b7fab" />
+            <ActivityIndicator size="small" color={AppColors.primary} />
           ) : (
-            <Image
-              source={require('../../assets/images/icon/refresh.png')}
-              style={{ width: 24, height: 24, resizeMode: 'contain' }}
-            />
+            <RefreshCw size={20} color={AppColors.primaryDark} />
           )}
         </TouchableOpacity>
       </View>
 
       {appointmentRequests.length === 0 ? (
         <View style={tabStyles.emptyState}>
-          <Text style={tabStyles.emptyStateIcon}>📭</Text>
+          <Inbox size={48} color={AppColors.textMuted} style={{ marginBottom: 16 }} />
           <Text style={tabStyles.emptyStateTitle}>No Appointment Requests</Text>
           <Text style={tabStyles.emptyStateMessage}>
-            All pending appointments have been processed!
+            All pending appointments have been processed.
           </Text>
         </View>
       ) : (
@@ -280,20 +304,14 @@ export default function AppointmentsRequestTab({
                   onPress={() => handleAcceptAppointmentRequest(request)}
                   style={tabStyles.acceptButton}
                 >
-                  <Image
-                    source={require('../../assets/images/icon/check.png')}
-                    style={{ width: 18, height: 18, resizeMode: 'contain', marginRight: 6 }}
-                  />
+                  <Check size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={tabStyles.acceptButtonText}>Accept</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDeclineAppointmentRequest(request)}
                   style={tabStyles.declineButton}
                 >
-                  <Image
-                    source={require('../../assets/images/icon/close.png')}
-                    style={{ width: 18, height: 18, resizeMode: 'contain', marginRight: 6 }}
-                  />
+                  <X size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={tabStyles.declineButtonText}>Decline</Text>
                 </TouchableOpacity>
               </View>
@@ -312,9 +330,9 @@ const tabStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#E6ECEF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#CBD5E1',
   },
 
   headerContent: {
@@ -325,32 +343,38 @@ const tabStyles = StyleSheet.create({
 
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0b7fab',
+    fontWeight: '800',
+    color: AppColors.primaryDark,
+    letterSpacing: -0.3,
   },
 
   badgeContainer: {
-    backgroundColor: '#ff9800',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: AppColors.primary,
+    borderRadius: 4, // Sharp, defined micro-radius (avoiding soft bordering)
+    borderWidth: 1,
+    borderColor: AppColors.primaryDark,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
 
   badgeText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontWeight: '800',
     fontSize: 12,
   },
 
   refreshButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#E3F2FD',
+    width: 40,
+    height: 40,
+    borderRadius: 4, // Sharp micro-radius
+    backgroundColor: '#DDE4E8',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#0b7fab',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#FFFFFF',
+    borderBottomColor: '#B0BAC5',
+    borderRightColor: '#B0BAC5',
   },
 
   requestsList: {
@@ -369,51 +393,54 @@ const tabStyles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  emptyStateIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-
   emptyStateTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: AppColors.textPrimary,
     marginBottom: 8,
   },
 
   emptyStateMessage: {
     fontSize: 14,
-    color: '#999',
+    color: AppColors.textSecondary,
     textAlign: 'center',
   },
 
   requestCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#E6ECEF',
+    borderRadius: 4, // Sharp defined micro-radius
+    borderTopWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderLeftWidth: 4,
+    borderTopColor: '#FFFFFF',
+    borderRightColor: '#B0BAC5',
+    borderBottomColor: '#B0BAC5',
+    borderLeftColor: AppColors.primary,
     padding: 16,
     marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ff9800',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
+    shadowColor: '#9AA7B5',
+    shadowOffset: { width: 1, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
   },
 
   patientSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#CBD5E1',
   },
 
   patientAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 4, // Crisp defined avatar radius (avoiding circle/soft bordering)
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     marginRight: 12,
   },
 
@@ -423,14 +450,14 @@ const tabStyles = StyleSheet.create({
 
   patientName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: AppColors.textPrimary,
     marginBottom: 4,
   },
 
   patientEmail: {
     fontSize: 12,
-    color: '#999',
+    color: AppColors.textSecondary,
   },
 
   detailsSection: {
@@ -440,27 +467,28 @@ const tabStyles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
 
   detailLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#0b7fab',
+    fontWeight: '700',
+    color: AppColors.primaryDark,
     flex: 0.35,
   },
 
   detailValue: {
     fontSize: 12,
-    color: '#333',
+    color: AppColors.textPrimary,
     flex: 0.65,
     textAlign: 'right',
+    fontWeight: '500',
   },
 
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12,
+    marginTop: 8,
   },
 
   acceptButton: {
@@ -468,15 +496,21 @@ const tabStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: AppColors.primary,
+    paddingVertical: 10,
+    borderRadius: 4, // Crisp defined border
+    borderWidth: 1.5,
+    borderTopColor: '#34D399',
+    borderLeftColor: '#34D399',
+    borderBottomColor: '#047857',
+    borderRightColor: '#047857',
   },
 
   acceptButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 
   declineButton: {
@@ -484,16 +518,20 @@ const tabStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    backgroundColor: AppColors.danger,
+    paddingVertical: 10,
+    borderRadius: 4, // Crisp defined border
+    borderWidth: 1.5,
+    borderTopColor: '#F87171',
+    borderLeftColor: '#F87171',
+    borderBottomColor: '#B91C1C',
+    borderRightColor: '#B91C1C',
   },
 
   declineButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

@@ -33,6 +33,6 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#0b7fab",
+    color: "#10B981",
   },
 });

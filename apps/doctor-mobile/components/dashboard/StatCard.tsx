@@ -4,41 +4,66 @@ import { View, Text, StyleSheet } from "react-native";
 interface StatCardProps {
   number: number | string;
   label: string;
+  icon?: React.ReactNode;
+  accentColor?: string;
+  bgTint?: string;
 }
 
-export default function StatCard({ number, label }: StatCardProps) {
+export default function StatCard({ 
+  number, 
+  label, 
+  icon,
+  accentColor = "#047857",
+  bgTint = "#ECFDF5" 
+}: StatCardProps) {
   return (
-    <View style={[styles.panel, styles.shadow]}>
-      <Text style={styles.statNumber}>{number}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.card}>
+      {icon && (
+        <View style={[styles.iconChip, { backgroundColor: bgTint }]}>
+          {icon}
+        </View>
+      )}
+      <Text style={[styles.statNumber, { color: accentColor }]}>{number}</Text>
+      <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>
+        {label}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: "#ffffff",
+  card: {
     flex: 1,
-    minWidth: 100,
-    paddingVertical: 20,
+    minWidth: 90,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  iconChip: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 12,
+    marginBottom: 8,
   },
   statNumber: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#0b7fab",
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  shadow: {
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 5,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 2,
   },
 });

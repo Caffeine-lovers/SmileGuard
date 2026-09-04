@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { stripe, isStripeConfigured } from '@/lib/stripe';
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isStripeConfigured || !stripe) {
+      return NextResponse.json(
+        {
+          error: 'Stripe card payments are not configured on this server yet. Please use Cash, GCash, or Bank Transfer.',
+          unconfigured: true,
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { amount, billingId, appointmentId, patientId } = body;
 
     // Validate required fields
-    if (!amount || amount <= 0) {
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
       return NextResponse.json(
-        { error: 'Invalid amount' },
+        { error: 'Invalid or missing amount' },
         { status: 400 }
       );
     }

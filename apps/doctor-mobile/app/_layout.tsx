@@ -36,37 +36,55 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+    const processSessionUser = async (sessionUser: any) => {
+      if (!sessionUser) {
+        setUser(null);
+        return;
+      }
+      let role = sessionUser.user_metadata?.role;
+      try {
+        const { data: doc } = await supabase
+          .from("doctors")
+          .select("id")
+          .eq("user_id", sessionUser.id)
+          .maybeSingle();
+
+        if (doc) {
+          role = "doctor";
+          if (sessionUser.user_metadata?.role !== "doctor") {
+            supabase.auth.updateUser({ data: { role: "doctor" } }).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn("[RootLayout] Could not verify doctor record:", err);
+      }
+
+      console.log("[RootLayout] Resolved user role:", role);
+      setUser({
+        id: sessionUser.id,
+        email: sessionUser.email!,
+        name: sessionUser.user_metadata?.name,
+        role: role || "doctor",
+      });
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: Session | null } }) => {
       console.log("[RootLayout] Initial session check:", session ? "Found" : "Null");
       if (session?.user) {
-        const role = session.user.user_metadata?.role;
-        console.log("[RootLayout] Initial user role:", role);
-        setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          name: session.user.user_metadata?.name,
-          role
-        });
+        await processSessionUser(session.user);
       }
       setReady(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: string, session: Session | null) => {
+      async (event: string, session: Session | null) => {
         console.log("[RootLayout] Auth state changed:", event, session ? "Session Found" : "No Session");
         if (event === "PASSWORD_RECOVERY") {
           router.push("/reset-password");
           return;
         }
         if (session?.user) {
-          const role = session.user.user_metadata?.role;
-          console.log("[RootLayout] Setting user from auth state. Role:", role);
-          setUser({
-            id: session.user.id,
-            email: session.user.email!,
-            name: session.user.user_metadata?.name,
-            role
-          });
+          await processSessionUser(session.user);
         } else {
           console.log("[RootLayout] Setting user to null");
           setUser(null);

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { X } from "lucide-react-native";
 import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
@@ -243,10 +244,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose}>
-              <Image
-                source={require("../../assets/images/icon/close.png")}
-                style={{ width: 20, height: 20 }}
-              />
+              <X size={22} color="#047857" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Patient Details</Text>
             <View style={{ width: 30 }} />
@@ -254,8 +252,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
           {/* Loading Screen */}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#0b7fab" />
-            <Text style={{ marginTop: 12, fontSize: 14, color: '#0b7fab', fontWeight: '600' }}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={{ marginTop: 12, fontSize: 14, color: '#047857', fontWeight: '600' }}>
               Loading patient details...
             </Text>
           </View>
@@ -454,7 +452,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
         <View style={styles.footer}>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <TouchableOpacity 
-              style={[styles.closeButtonFull, { backgroundColor: '#0b7fab', flex: 1 }]} 
+              style={[styles.closeButtonFull, { backgroundColor: '#10B981', flex: 1 }]} 
               onPress={() => {
                 // Merge fresh medicalIntake data with patient to get the latest data
                 const patientWithFreshData: AppointmentType = {
@@ -651,11 +649,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0b7fab',
+    color: '#047857',
   },
   closeButton: {
     fontSize: 24,
-    color: '#0b7fab',
+    color: '#047857',
     fontWeight: 'bold',
     width: 30,
     textAlign: 'center',
@@ -700,7 +698,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0b7fab',
+    color: '#047857',
     marginBottom: 12,
   },
   infoContainer: {
@@ -740,7 +738,7 @@ const styles = StyleSheet.create({
   },
   serviceText: {
     fontSize: 14,
-    color: '#0b7fab',
+    color: '#047857',
     fontWeight: '500',
     marginBottom: 4,
   },
@@ -754,7 +752,7 @@ const styles = StyleSheet.create({
   appointmentCategoryTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0b7fab',
+    color: '#047857',
     marginTop: 12,
     marginBottom: 8,
   },
@@ -786,7 +784,7 @@ const styles = StyleSheet.create({
   },
   moreText: {
     fontSize: 12,
-    color: '#0b7fab',
+    color: '#047857',
     fontWeight: '600',
     textAlign: 'center',
     marginTop: 8,
@@ -795,16 +793,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#ECFDF5',
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#0b7fab',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
     alignItems: 'center',
   },
   seeMoreText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#0b7fab',
+    fontWeight: '700',
+    color: '#047857',
   },
   footer: {
     paddingHorizontal: 16,
@@ -814,8 +812,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   closeButtonFull: {
-    backgroundColor: '#0b7fab',
-    borderRadius: 8,
+    backgroundColor: '#10B981',
+    borderRadius: 6,
     paddingVertical: 12,
     alignItems: 'center',
   },

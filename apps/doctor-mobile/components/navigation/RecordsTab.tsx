@@ -21,6 +21,8 @@ import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "@smileguard/supabase-client";
 import AddPatient from "../patientrecord/AddPatient";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAllPatients } from "../../lib/profilesPatients";
+import { RefreshCw, ChevronRight } from "lucide-react-native";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -135,9 +137,17 @@ export default function RecordsTab({
 
           // Verify user has doctor role
           if (currentUser.role !== 'doctor') {
-            console.error('❌ User is not a doctor. Role:', currentUser.role);
-            setLoadingDummy(false);
-            return;
+            const { data: docRecord } = await supabase
+              .from("doctors")
+              .select("id")
+              .eq("user_id", currentUser.id)
+              .maybeSingle();
+
+            if (!docRecord) {
+              console.error('❌ User is not a doctor. Role:', currentUser.role);
+              setLoadingDummy(false);
+              return;
+            }
           }
 
           // Check if a new patient was added
@@ -218,8 +228,8 @@ export default function RecordsTab({
       // Fetch Supabase patients
       const supabaseData = await getAllPatients();
       // Filter to show only patients with role='patient'
-      const filteredSupabaseData = supabaseData.filter((patient) => patient.role === 'patient');
-      const mappedSupabase: AppointmentType[] = filteredSupabaseData.map((patient) => ({
+      const filteredSupabaseData = supabaseData.filter((patient: any) => patient.role === 'patient');
+      const mappedSupabase: AppointmentType[] = filteredSupabaseData.map((patient: any) => ({
         id: patient.patient_id,
         name: patient.name || 'Unknown Patient',
         email: patient.email || '',
@@ -275,10 +285,10 @@ export default function RecordsTab({
     }
   };
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       {/* Header with Current User Name */}
       <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 25, fontWeight: 'bold', color: '#0b7fab', marginBottom: 4 }}>
+        <Text style={{ fontSize: 25, fontWeight: 'bold', color: "#047857", marginBottom: 4 }}>
           Patient Records
         </Text>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -297,10 +307,7 @@ export default function RecordsTab({
             {isRefreshing ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Image
-                source={require('../../assets/images/icon/refresh.png')}
-                style={{ width: 25, height: 25}}
-              />
+              <RefreshCw size={20} color="#fff" />
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -308,7 +315,7 @@ export default function RecordsTab({
             style={{
               paddingHorizontal: 12,
               paddingVertical: 8,
-              backgroundColor: '#0b7fab',
+              backgroundColor: '#10B981',
               borderRadius: 8,
               flexDirection: 'row',
               alignItems: 'center',
@@ -323,7 +330,7 @@ export default function RecordsTab({
         <TextInput
           style={{
             backgroundColor: '#fff',
-            borderColor: '#0b7fab',
+            borderColor: '#10B981',
             borderWidth: 1,
             borderRadius: 8,
             paddingHorizontal: 12,
@@ -345,9 +352,9 @@ export default function RecordsTab({
               paddingHorizontal: 14,
               paddingVertical: 8,
               borderRadius: 20,
-              backgroundColor: activeTab === 'all' ? '#0b7fab' : '#e0e0e0',
+              backgroundColor: activeTab === 'all' ? '#10B981' : '#e0e0e0',
               borderWidth: 1,
-              borderColor: activeTab === 'all' ? '#0b7fab' : '#ccc',
+              borderColor: activeTab === 'all' ? '#10B981' : '#ccc',
             }}
           >
             <Text style={{ fontSize: 12, color: activeTab === 'all' ? '#fff' : '#333', fontWeight: '600' }}>All</Text>
@@ -371,9 +378,9 @@ export default function RecordsTab({
               paddingHorizontal: 14,
               paddingVertical: 8,
               borderRadius: 20,
-              backgroundColor: activeTab === 'existing' ? '#0b7fab' : '#e0e0e0',
+              backgroundColor: activeTab === 'existing' ? '#10B981' : '#e0e0e0',
               borderWidth: 1,
-              borderColor: activeTab === 'existing' ? '#0b7fab' : '#ccc',
+              borderColor: activeTab === 'existing' ? '#10B981' : '#ccc',
             }}
           >
             <Text style={{ fontSize: 12, color: activeTab === 'existing' ? '#fff' : '#333', fontWeight: '600' }}>Existing Profile</Text>
@@ -387,9 +394,9 @@ export default function RecordsTab({
               paddingHorizontal: 12,
               paddingVertical: 6,
               borderRadius: 16,
-              backgroundColor: patientSortBy === 'name' ? '#0b7fab' : '#e0e0e0',
+              backgroundColor: patientSortBy === 'name' ? '#10B981' : '#e0e0e0',
               borderWidth: 1,
-              borderColor: patientSortBy === 'name' ? '#0b7fab' : '#ccc',
+              borderColor: patientSortBy === 'name' ? '#10B981' : '#ccc',
             }}
           >
             <Text style={{ fontSize: 12, color: patientSortBy === 'name' ? '#fff' : '#333', fontWeight: '500' }}>Name</Text>
@@ -400,9 +407,9 @@ export default function RecordsTab({
               paddingHorizontal: 12,
               paddingVertical: 6,
               borderRadius: 16,
-              backgroundColor: patientSortBy === 'date' ? '#0b7fab' : '#e0e0e0',
+              backgroundColor: patientSortBy === 'date' ? '#10B981' : '#e0e0e0',
               borderWidth: 1,
-              borderColor: patientSortBy === 'date' ? '#0b7fab' : '#ccc',
+              borderColor: patientSortBy === 'date' ? '#10B981' : '#ccc',
             }}
           >
             <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date Created</Text>
@@ -427,8 +434,8 @@ export default function RecordsTab({
       <ScrollView style={{ flex: 1, padding: 16 }}>
         {loadingDummy && loadingSupabase ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-            <ActivityIndicator size="large" color="#0b7fab" />
-            <Text style={{ marginTop: 12, color: '#0b7fab', fontSize: 14 }}>Loading patients...</Text>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={{ marginTop: 12, color: "#047857", fontSize: 14 }}>Loading patients...</Text>
           </View>
         ) : (
           <>
@@ -436,7 +443,7 @@ export default function RecordsTab({
             {(activeTab === 'all' || activeTab === 'dummy') && !loadingDummy && dummyPatients.length > 0 && (
               <>
                 {activeTab === 'all' && (
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: "#047857", marginBottom: 12, marginTop: 8 }}>
                     Dummy Accounts
                   </Text>
                 )}
@@ -465,10 +472,7 @@ export default function RecordsTab({
                         <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
                         <Text style={{ fontSize: 12, color: '#4CAF50', fontWeight: '500' }}>Dummy Account</Text>
                       </View>
-                      <Image
-                        source={require('../../assets/images/icon/open.png')}
-                        style={{ width: 18, height: 18, resizeMode: 'contain' }}
-                      />
+                      <ChevronRight size={18} color="#94A3B8" />
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -479,7 +483,7 @@ export default function RecordsTab({
             {(activeTab === 'all' || activeTab === 'existing') && !loadingSupabase && supabasePatients.length > 0 && (
               <>
                 {activeTab === 'all' && (
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#0b7fab', marginBottom: 12, marginTop: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: "#047857", marginBottom: 12, marginTop: 16 }}>
                     Existing Patients
                   </Text>
                 )}
@@ -507,12 +511,9 @@ export default function RecordsTab({
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
                         <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                        <Text style={{ fontSize: 12, color: '#0b7fab', fontWeight: '500' }}>Patient</Text>
+                        <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
                       </View>
-                      <Image
-                        source={require('../../assets/images/icon/open.png')}
-                        style={{ width: 18, height: 18, resizeMode: 'contain' }}
-                      />
+                      <ChevronRight size={18} color="#94A3B8" />
                     </View>
                   </TouchableOpacity>
                 ))}

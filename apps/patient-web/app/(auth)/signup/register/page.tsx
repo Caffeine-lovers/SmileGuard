@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
-import { PasswordCheck } from '@smileguard/shared-types';
+import { Eye, EyeOff, Check, X, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default function SignupRegisterPage() {
   const router = useRouter();
@@ -12,7 +12,6 @@ export default function SignupRegisterPage() {
     formData,
     updateFormField,
     isOAuthFlow,
-    currentAuthUser,
     setCurrentAuthUser,
     showPassword,
     setShowPassword,
@@ -20,7 +19,6 @@ export default function SignupRegisterPage() {
     setShowConfirmPassword,
   } = useSignup();
 
-  const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [passwordCheck, setPasswordCheck] = useState({
     hasUpperCase: false,
@@ -46,7 +44,7 @@ export default function SignupRegisterPage() {
     };
 
     checkOAuthFlow();
-  }, []);
+  }, [setCurrentAuthUser, updateFormField]);
 
   const checkPasswordStrength = (password: string) => {
     return {
@@ -68,7 +66,7 @@ export default function SignupRegisterPage() {
     setLocalError(null);
 
     if (!formData.name) {
-      setLocalError('Please enter your name');
+      setLocalError('Please enter your full legal name');
       return;
     }
 
@@ -79,18 +77,17 @@ export default function SignupRegisterPage() {
       }
 
       if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-        setLocalError('Password does not meet requirements');
+        setLocalError('Password does not meet clinical security requirements');
         return;
       }
     } else {
-      // For OAuth users, they must set a password for future email/password logins
       if (!formData.password) {
         setLocalError('Please set a password for future logins');
         return;
       }
 
       if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-        setLocalError('Password does not meet requirements');
+        setLocalError('Password does not meet clinical security requirements');
         return;
       }
     }
@@ -99,56 +96,69 @@ export default function SignupRegisterPage() {
   };
 
   return (
-    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
-      <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
-        Create Account
-      </h2>
+    <div className="skeuo-panel p-8 border-2 border-slate-300 max-w-md mx-auto">
+      <div className="text-center mb-6">
+        <span className="skeuo-badge skeuo-badge-mint mb-3">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+          Step 2 of 3
+        </span>
+        <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+          Profile Credentials
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
+          Set your legal name and clinic portal credentials
+        </p>
+      </div>
 
       {localError && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
+        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-sm font-semibold">
           {localError}
         </div>
       )}
 
       <form onSubmit={handleNext} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Full Name
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            Full Legal Name
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => updateFormField('name', e.target.value)}
             required
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-            placeholder="John Doe"
+            className="skeuo-input w-full text-sm"
+            placeholder="e.g. Maria Santos"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Email Address
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            Registered Email Address
           </label>
           <input
             type="email"
             value={formData.email}
             onChange={(e) => updateFormField('email', e.target.value)}
             required
-            className="w-full px-4 py-2 border border-border-card rounded-lg bg-gray-100"
+            readOnly={Boolean(isOAuthFlow)}
+            className="skeuo-input w-full text-sm bg-slate-50 text-slate-700 cursor-not-allowed"
           />
         </div>
 
         {isOAuthFlow && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-sm text-blue-800">
-              Please set a password so you can log in with your email address in the future.
+          <div className="bg-emerald-50 border-2 border-emerald-500 rounded-sm p-3 mb-2">
+            <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
+              Credential Setup Required
+            </p>
+            <p className="text-xs text-emerald-700 mt-0.5">
+              Set a portal password so you can sign in directly without Google in the future.
             </p>
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            {isOAuthFlow ? 'Set Password for Login' : 'Password'}
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            {isOAuthFlow ? 'Set Portal Password' : 'Password'}
           </label>
           <div className="relative">
             <input
@@ -156,40 +166,47 @@ export default function SignupRegisterPage() {
               value={formData.password}
               onChange={(e) => handlePasswordChange(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+              className="skeuo-input w-full text-sm pr-10"
               placeholder="••••••••"
             />
             <button
               type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
               onClick={() => setShowPassword(!showPassword)}
               tabIndex={-1}
             >
-              {showPassword ? '🙈' : '👁️'}
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          <div className="mt-2 text-sm space-y-1">
-            <p className={`${passwordCheck.hasUpperCase ? 'text-green-600' : 'text-text-secondary'}`}>
-              ✓ Uppercase letter
-            </p>
-            <p className={`${passwordCheck.hasLowerCase ? 'text-green-600' : 'text-text-secondary'}`}>
-              ✓ Lowercase letter
-            </p>
-            <p className={`${passwordCheck.hasNumber ? 'text-green-600' : 'text-text-secondary'}`}>
-              ✓ Number
-            </p>
-            <p className={`${passwordCheck.hasSpecialChar ? 'text-green-600' : 'text-text-secondary'}`}>
-              ✓ Special character
-            </p>
-            <p className={`${passwordCheck.length ? 'text-green-600' : 'text-text-secondary'}`}>
-              ✓ At least 8 characters
-            </p>
+
+          <div className="mt-3 p-3 bg-slate-50 border border-slate-300 rounded-sm text-xs space-y-1.5">
+            <p className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1">Password Requirements:</p>
+            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasUpperCase ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {passwordCheck.hasUpperCase ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+              <span>At least one uppercase letter (A-Z)</span>
+            </div>
+            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasLowerCase ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {passwordCheck.hasLowerCase ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+              <span>At least one lowercase letter (a-z)</span>
+            </div>
+            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasNumber ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {passwordCheck.hasNumber ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+              <span>At least one number (0-9)</span>
+            </div>
+            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasSpecialChar ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {passwordCheck.hasSpecialChar ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+              <span>At least one special character (!@#$%...)</span>
+            </div>
+            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.length ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {passwordCheck.length ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+              <span>At least 8 characters in length</span>
+            </div>
           </div>
         </div>
 
         {!isOAuthFlow && (
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
               Confirm Password
             </label>
             <div className="relative">
@@ -198,35 +215,36 @@ export default function SignupRegisterPage() {
                 value={formData.confirmPassword}
                 onChange={(e) => updateFormField('confirmPassword', e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                className="skeuo-input w-full text-sm pr-10"
                 placeholder="••••••••"
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 tabIndex={-1}
               >
-                {showConfirmPassword ? '🙈' : '👁️'}
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 pt-4">
           <button
             type="button"
             onClick={() => router.push('/login')}
-            className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
+            className="skeuo-btn-secondary flex-1 py-2.5 text-xs uppercase tracking-wider"
           >
-            Back
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Cancel</span>
           </button>
           <button
             type="submit"
-            disabled={loading}
-            className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-white font-medium py-2 px-4 rounded-lg transition"
+            className="skeuo-btn-primary flex-1 py-2.5 text-xs uppercase tracking-wider"
           >
-            {loading ? 'Loading...' : 'Next: Medical Details'}
+            <span>Proceed to Medical Intake</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </form>

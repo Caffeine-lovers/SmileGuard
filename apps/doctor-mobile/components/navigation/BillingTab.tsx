@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
+import { FileText, X, ChevronDown, RefreshCw } from 'lucide-react-native';
+import { AppColors } from '../../constants/theme';
 
 interface Patient {
   id: string;
@@ -194,10 +196,10 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
         await loadPatientBillings();
       }
       
-      Alert.alert('✅ Refreshed', 'Billing data updated successfully!');
+      Alert.alert('Refreshed', 'Billing data updated successfully!');
     } catch (error) {
-      console.error('❌ Error refreshing billing data:', error);
-      Alert.alert('❌ Error', 'Failed to refresh billing data. Please try again.');
+      console.error('Error refreshing billing data:', error);
+      Alert.alert('Error', 'Failed to refresh billing data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -271,7 +273,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                 paddingHorizontal: 12,
                 paddingVertical: 8,
                 borderRadius: 8,
-                backgroundColor: loading ? '#ccc' : '#0b7fab',
+                backgroundColor: loading ? '#ccc' : '#10B981',
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 6,
@@ -290,7 +292,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
               borderRadius: 12,
               padding: 14,
               borderLeftWidth: 4,
-              borderLeftColor: '#0b7fab',
+              borderLeftColor: '#10B981',
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.1,
@@ -309,7 +311,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                 backgroundColor: '#f0f9ff',
                 borderRadius: 8,
                 borderWidth: 1,
-                borderColor: '#0b7fab',
+                borderColor: '#10B981',
                 flexDirection: 'row',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -323,7 +325,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>ID: {selectedPatientId.slice(0, 8)}...</Text>
                 )}
               </View>
-              <Text style={{ fontSize: 20, color: '#0b7fab' }}>▼</Text>
+              <Text style={{ fontSize: 20, color: "#047857" }}>▼</Text>
             </TouchableOpacity>
           </View>
 
@@ -413,23 +415,28 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
                 {loading ? (
                   <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                    <ActivityIndicator size="large" color="#0b7fab" />
+                    <ActivityIndicator size="large" color="#10B981" />
                   </View>
                 ) : billings.length === 0 ? (
                   <View
                     style={{
-                      backgroundColor: '#fff',
-                      borderRadius: 12,
+                      backgroundColor: '#E6ECEF',
+                      borderRadius: 4,
+                      borderWidth: 1.5,
+                      borderTopColor: '#FFFFFF',
+                      borderLeftColor: '#FFFFFF',
+                      borderBottomColor: '#B0BAC5',
+                      borderRightColor: '#B0BAC5',
                       padding: 24,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Text style={{ fontSize: 48, marginBottom: 8 }}>📋</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#111', marginBottom: 4 }}>
+                    <FileText size={44} color={AppColors.textMuted} style={{ marginBottom: 12 }} />
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: AppColors.textPrimary, marginBottom: 4 }}>
                       No Billings
                     </Text>
-                    <Text style={{ fontSize: 13, color: '#666', textAlign: 'center' }}>
+                    <Text style={{ fontSize: 13, color: AppColors.textSecondary, textAlign: 'center' }}>
                       No billing records found for this patient yet.
                     </Text>
                   </View>
@@ -511,7 +518,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
                           <View style={{ alignItems: 'flex-end' }}>
                             <Text style={{ fontSize: 11, color: '#666' }}>Final Amount</Text>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#0b7fab', marginTop: 2 }}>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: "#047857", marginTop: 2 }}>
                               ${(item.final_amount || item.amount).toFixed(2)}
                             </Text>
                           </View>
@@ -526,7 +533,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                             >
                               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                                 <Text style={{ fontSize: 11, color: '#666' }}>Appointment</Text>
-                                <Text style={{ fontSize: 11, color: '#0b7fab', fontWeight: '600', textDecorationLine: 'underline' }}>
+                                <Text style={{ fontSize: 11, color: "#047857", fontWeight: '600', textDecorationLine: 'underline' }}>
                                   {item.appointment_id.slice(0, 8).toUpperCase()}
                                 </Text>
                               </View>
@@ -597,8 +604,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           <View style={{ padding: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>Select Patient</Text>
-              <TouchableOpacity onPress={() => setShowPatientModal(false)}>
-                <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+              <TouchableOpacity onPress={() => setShowPatientModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color={AppColors.primary} />
               </TouchableOpacity>
             </View>
 
@@ -631,7 +638,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   padding: 14,
                   marginBottom: 12,
                   borderLeftWidth: 3,
-                  borderLeftColor: '#0b7fab',
+                  borderLeftColor: '#10B981',
                 }}
               >
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#111' }}>{item.name}</Text>
@@ -679,14 +686,15 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                     setShowAppointmentModal(false);
                     setSelectedAppointment(null);
                   }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={{ fontSize: 24, color: '#999', fontWeight: '300' }}>✕</Text>
+                  <X size={22} color={AppColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
               {loadingAppointment ? (
                 <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                  <ActivityIndicator size="large" color="#0b7fab" />
+                  <ActivityIndicator size="large" color="#10B981" />
                 </View>
               ) : selectedAppointment ? (
                 <>
@@ -698,7 +706,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       padding: 14,
                       marginBottom: 24,
                       borderLeftWidth: 4,
-                      borderLeftColor: '#0b7fab',
+                      borderLeftColor: '#10B981',
                     }}
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -719,7 +727,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                                 ? '#ef4444'
                                 : selectedAppointment.status === 'no-show'
                                 ? '#f59e0b'
-                                : '#0b7fab',
+                                : '#10B981',
                             paddingHorizontal: 10,
                             paddingVertical: 6,
                             borderRadius: 6,
@@ -749,7 +757,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
                         <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Patient ID</Text>
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: "#047857", marginTop: 4 }}>
                           {selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
                         </Text>
                       </View>
@@ -809,7 +817,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                           borderRadius: 10,
                           padding: 12,
                           borderLeftWidth: 3,
-                          borderLeftColor: '#0b7fab',
+                          borderLeftColor: '#10B981',
                         }}
                       >
                         <Text style={{ fontSize: 12, color: '#333', lineHeight: 18 }}>
@@ -852,7 +860,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       marginTop: 24,
                       paddingVertical: 14,
                       borderRadius: 10,
-                      backgroundColor: '#0b7fab',
+                      backgroundColor: '#10B981',
                       alignItems: 'center',
                     }}
                   >

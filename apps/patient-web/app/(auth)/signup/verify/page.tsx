@@ -55,7 +55,7 @@ export default function SignupVerifyPage() {
 
     try {
       if (verificationMethod === 'email') {
-        const { data, error } = await supabase.auth.signInWithOtp({
+        const { error } = await supabase.auth.signInWithOtp({
           email: verificationEmail,
           options: {
             shouldCreateUser: true,
@@ -78,7 +78,7 @@ export default function SignupVerifyPage() {
 
         const fullPhone = `${countryCode}${cleanedPhone}`;
 
-        const { data, error } = await supabase.auth.signInWithOtp({
+        const { error } = await supabase.auth.signInWithOtp({
           phone: fullPhone,
         });
 
@@ -107,7 +107,7 @@ export default function SignupVerifyPage() {
 
     try {
       if (verificationMethod === 'email') {
-        const { data, error } = await supabase.auth.verifyOtp({
+        const { error } = await supabase.auth.verifyOtp({
           email: verificationEmail,
           token: verificationCode.toString(),
           type: 'email',
@@ -125,7 +125,7 @@ export default function SignupVerifyPage() {
         const cleanedPhone = verificationPhone.replace(/\D/g, '');
         const fullPhone = `${countryCode}${cleanedPhone}`;
 
-        const { data, error } = await supabase.auth.verifyOtp({
+        const { error } = await supabase.auth.verifyOtp({
           phone: fullPhone,
           token: verificationCode.toString(),
           type: 'sms',
@@ -230,7 +230,7 @@ export default function SignupVerifyPage() {
                 </svg>
               </div>
             </div>
-            <h3 className="text-xl font-bold text-text-primary">Verification Successful! ✓</h3>
+            <h3 className="text-xl font-bold text-text-primary">Verification Confirmed</h3>
             <p className="text-text-secondary">Your {verificationMethod} has been verified.</p>
             <p className="text-sm text-text-secondary">Proceeding to registration...</p>
           </div>
@@ -325,7 +325,7 @@ export default function SignupVerifyPage() {
                 ? 'Enter the 6-digit code'
                 : verificationCode.length < 6
                   ? `${6 - verificationCode.length} more digit${6 - verificationCode.length !== 1 ? 's' : ''} needed`
-                  : '✓ Code ready - verifying...'}
+                  : 'Code ready - verifying...'}
             </p>
 
             <div className="mt-4 pt-4 border-t border-border-card">

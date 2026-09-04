@@ -143,10 +143,15 @@ export default function AuthModal({
           >
 
             <View style={styles.stepContent}>
+              <View style={styles.topBar}>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close modal">
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
               {step === 1 && (
                 <View style={{ alignItems: "center" }}>
                   <Text style={styles.appName}>SmileGuard</Text>
-                  <Text style={[styles.h2, { marginTop: 24, marginBottom: 8 }]}>Welcome!</Text>
+                  <Text style={[styles.h2, { marginTop: 20, marginBottom: 8 }]}>Welcome!</Text>
                   
                   <Text style={[styles.subtitle, { marginBottom: 24 }]}>
                     Continue with Google to manage your patients.
@@ -173,24 +178,42 @@ export default function AuthModal({
 }
 
 const styles = StyleSheet.create({
-  modalFull: { flex: 1, padding: 30 },
+  modalFull: { flex: 1, padding: 24, backgroundColor: "#F8FAFC" },
   scrollContent: { flexGrow: 1, justifyContent: "center" },
-  stepContent: {
-    marginTop: 20,
-    borderColor: "#2bf1ff7d",
-    borderWidth: 1,
-    borderRadius: 45,
-    padding: 24,
-    backgroundColor: "#fff",
+  topBar: {
+    width: "100%",
+    alignItems: "flex-end",
+    marginBottom: -10,
   },
-  appName: { fontSize: 28, fontWeight: "700", color: "#0b7fab" },
-  h2: { fontSize: 24, fontWeight: "800", color: "#0f172a", textAlign: "center" },
-  subtitle: { fontSize: 14, color: "#6b7280", textAlign: "center", lineHeight: 20 },
-  btn: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 10, alignItems: "center", width: "100%" },
-  googleBtn: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#d1d5db", flexDirection: "row", justifyContent: "center" },
-  googleIcon: { fontSize: 18, fontWeight: "700", color: "#374151", marginRight: 8 },
-  googleBtnText: { color: "#374151", fontWeight: "600", fontSize: 15 },
-  closeBtn: { padding: 8 },
-  closeBtnText: { fontSize: 20, color: "#6b7280" },
+  stepContent: {
+    borderColor: "#CBD5E1",
+    borderWidth: 1.5,
+    borderRadius: 8,
+    padding: 24,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  appName: { fontSize: 28, fontWeight: "800", color: "#10B981", letterSpacing: -0.5 },
+  h2: { fontSize: 22, fontWeight: "800", color: "#0F172A", textAlign: "center" },
+  subtitle: { fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 20 },
+  btn: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 6, alignItems: "center", width: "100%" },
+  googleBtn: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  googleIcon: { fontSize: 18, fontWeight: "700", color: "#374151", marginRight: 10 },
+  googleBtnText: { color: "#1E293B", fontWeight: "700", fontSize: 15 },
+  closeBtn: {
+    padding: 8,
+    borderRadius: 6,
+  },
+  closeBtnText: { fontSize: 18, color: "#64748B", fontWeight: "600" },
 });
 

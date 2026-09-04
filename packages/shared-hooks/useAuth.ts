@@ -182,7 +182,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     }
   };
 
-  const login = async (email: string, password: string, role: "patient" | "doctor") => {
+  const login = async (email: string, password: string, _role?: "patient" | "doctor") => {
     setLoading(true);
     setError(null);
     try {

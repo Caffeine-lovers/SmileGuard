@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Image as ImageIcon, FileText, FileSpreadsheet, ShieldCheck, Download, ArrowLeft } from 'lucide-react';
 
 interface Document {
   id: string;
@@ -46,73 +47,89 @@ const mockDocuments: Document[] = [
   },
 ];
 
-const typeIcons: Record<Document['type'], string> = {
-  xray: '🖼️',
-  prescription: '📋',
-  report: '📄',
-  insurance: '📊',
+const typeLabels: Record<Document['type'], string> = {
+  xray: 'Diagnostic X-Ray',
+  prescription: 'Medical Prescription',
+  report: 'Clinical Report',
+  insurance: 'Insurance Claim',
 };
 
-const typeLabels: Record<Document['type'], string> = {
-  xray: 'X-Ray',
-  prescription: 'Prescription',
-  report: 'Report',
-  insurance: 'Insurance',
-};
+function getDocIcon(type: Document['type']) {
+  switch (type) {
+    case 'xray':
+      return <ImageIcon className="w-5 h-5 text-emerald-700" />;
+    case 'prescription':
+      return <FileText className="w-5 h-5 text-emerald-700" />;
+    case 'report':
+      return <FileSpreadsheet className="w-5 h-5 text-emerald-700" />;
+    case 'insurance':
+      return <ShieldCheck className="w-5 h-5 text-emerald-700" />;
+  }
+}
 
 export default function DocumentsPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">Medical Documents</h1>
-        <p className="text-gray-600 mb-8">View and download your dental records</p>
+    <div className="min-h-screen p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-6 text-white border-2 border-emerald-950 shadow-md">
+        <span className="skeuo-badge skeuo-badge-mint text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">
+          <ShieldCheck className="w-3 h-3 text-emerald-950" />
+          Encrypted Medical Records
+        </span>
+        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Clinical Documents</h1>
+        <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
+          Secure diagnostic images, prescriptions & treatment reports
+        </p>
+      </div>
 
-        <div className="space-y-3">
-          {mockDocuments.map((doc) => (
-            <div key={doc.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition flex items-center justify-between">
-              <div className="flex items-center gap-4 flex-1">
-                <div className="text-3xl">{typeIcons[doc.type]}</div>
-                <div>
-                  <h3 className="font-semibold text-gray-800">{doc.name}</h3>
-                  <div className="flex gap-4 text-sm text-gray-600">
-                    <span>{typeLabels[doc.type]}</span>
-                    <span>•</span>
-                    <span>{new Date(doc.date).toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span>{doc.size}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">by {doc.dentist}</p>
+      <div className="skeuo-panel p-6 border-2 border-slate-300 space-y-3">
+        {mockDocuments.map((doc) => (
+          <div
+            key={doc.id}
+            className="skeuo-card p-4 rounded-sm border-2 border-slate-300 flex items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3.5 flex-1 min-w-0">
+              <div className="w-10 h-10 rounded-sm bg-emerald-50 border border-emerald-300 flex items-center justify-center shrink-0 shadow-inner">
+                {getDocIcon(doc.type)}
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-sm text-slate-900 truncate">{doc.name}</h3>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5 font-medium">
+                  <span className="font-bold text-emerald-700 uppercase text-[10px]">{typeLabels[doc.type]}</span>
+                  <span>•</span>
+                  <span className="font-mono">{new Date(doc.date).toLocaleDateString()}</span>
+                  <span>•</span>
+                  <span className="font-mono">{doc.size}</span>
+                  <span>•</span>
+                  <span>Attending: {doc.dentist}</span>
                 </div>
               </div>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                Download
-              </button>
             </div>
-          ))}
-        </div>
 
-        {mockDocuments.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-500 mb-4">No documents available yet</p>
-            <p className="text-sm text-gray-600">Your dental records and reports will appear here</p>
+            <button className="skeuo-btn-secondary px-3 py-1.5 text-xs uppercase tracking-wider shrink-0">
+              <Download className="w-3.5 h-3.5 text-slate-700" />
+              <span>Export</span>
+            </button>
           </div>
-        )}
+        ))}
+      </div>
 
-        {/* Info Box */}
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
-          <p className="font-semibold mb-2">Need help?</p>
-          <p>
-            Your medical documents are securely stored and encrypted. You can download them anytime for your personal records or
-            to share with other healthcare providers.
+      {/* Info Notice */}
+      <div className="p-4 bg-emerald-50 border-2 border-emerald-400 rounded-sm text-xs text-emerald-900 flex items-start gap-2.5">
+        <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold uppercase tracking-wide">HIPAA-Compliant Diagnostic Storage</p>
+          <p className="mt-0.5 text-emerald-800">
+            All files are end-to-end encrypted. Documents remain accessible indefinitely for subsequent consultations and dental transfers.
           </p>
         </div>
+      </div>
 
-        {/* Back Link */}
-        <div className="mt-8">
-          <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 font-medium">
-            ← Back to Dashboard
-          </Link>
-        </div>
+      <div>
+        <Link href="/dashboard" className="skeuo-btn-secondary py-2 px-4 text-xs uppercase tracking-wider">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Return to Dashboard</span>
+        </Link>
       </div>
     </div>
   );

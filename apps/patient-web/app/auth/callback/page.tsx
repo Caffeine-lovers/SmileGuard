@@ -8,11 +8,8 @@ export default function AuthCallbackPage() {
   const router = useRouter();
   const [message, setMessage] = useState('Processing authentication...');
   const [error, setError] = useState<string | null>(null);
-  const [debug, setDebug] = useState<string[]>([]);
-
   const addDebug = (msg: string) => {
     console.log('[AUTH CALLBACK]', msg);
-    setDebug(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
   };
 
   useEffect(() => {
@@ -49,7 +46,7 @@ export default function AuthCallbackPage() {
         }
         
         if (session) {
-          addDebug(`✓ Session found for user: ${session.user.email}`);
+          addDebug(`Session found for user: ${session.user.email}`);
           
           // Check if user has completed registration by checking medical_intake record
           // medical_intake exists = user has completed the full registration flow
@@ -95,7 +92,7 @@ export default function AuthCallbackPage() {
               }
             } else {
               // User has medical_intake record - registration complete
-              addDebug('✓ Medical intake found - registration complete');
+              addDebug('Medical intake found - registration complete');
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -105,7 +102,7 @@ export default function AuthCallbackPage() {
           // Clear flag after all checks
           localStorage.removeItem('oauth_signup_flow');
           
-          setMessage('✓ Authentication successful! Redirecting to dashboard...');
+          setMessage('Authentication successful! Redirecting to dashboard...');
           await new Promise(resolve => setTimeout(resolve, 500));
           router.push('/dashboard');
           return;
@@ -132,7 +129,7 @@ export default function AuthCallbackPage() {
             if (completed) return;
             
             if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-              addDebug(`✓ User authenticated: ${session.user.email}`);
+              addDebug(`User authenticated: ${session.user.email}`);
               
               // Check if user has completed registration by checking medical_intake record
               try {
@@ -186,7 +183,7 @@ export default function AuthCallbackPage() {
                   }
                 } else {
                   // User has medical_intake record - registration complete
-                  addDebug('✓ Medical intake found - registration complete');
+                  addDebug('Medical intake found - registration complete');
                 }
               } catch (err) {
                 const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -199,7 +196,7 @@ export default function AuthCallbackPage() {
               clearTimeout(timeout);
               completed = true;
               subscription?.unsubscribe();
-              setMessage('✓ Authentication successful! Redirecting to dashboard...');
+              setMessage('Authentication successful. Redirecting to dashboard...');
               setTimeout(() => {
                 router.push('/dashboard');
               }, 500);
@@ -222,25 +219,14 @@ export default function AuthCallbackPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-bg-surface p-4">
-      <div className="text-center max-w-md">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
-        <p className="text-text-primary font-semibold mb-2">{message}</p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 p-4">
+      <div className="skeuo-panel p-8 text-center max-w-md w-full border-2 border-slate-300">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-200 border-b-emerald-600 mx-auto mb-4"></div>
+        <span className="skeuo-badge skeuo-badge-mint mb-2">Clinic Security Gateway</span>
+        <p className="text-slate-800 font-bold text-sm tracking-wide mt-2">{message}</p>
         {error && (
-          <p className="text-sm text-brand-danger mt-4 mb-6">{error}</p>
+          <p className="text-xs font-semibold text-red-600 mt-4 bg-red-50 p-2 border border-red-300 rounded-sm">{error}</p>
         )}
-        
-        {/* Debug log display */}
-        {/* {debug.length > 0 && (
-          <div className="mt-6 text-left bg-bg-secondary rounded p-2 max-h-48 overflow-y-auto">
-            <p className="text-xs text-text-secondary font-mono mb-2">Debug Log:</p>
-            {debug.map((msg, i) => (
-              <p key={i} className="text-xs text-text-tertiary font-mono">
-                {msg}
-              </p>
-            ))}
-          </div>
-        )} */}
       </div>
     </div>
   );

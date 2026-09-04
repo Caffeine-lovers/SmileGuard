@@ -15,7 +15,7 @@ import {
 import AppointmentCard from "./AppointmentCard";
 import { useFocusEffect } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClinic } from "../../contexts/ClinicContext";
 import StatCard from "./StatCard";
 import NotificationBell from "./NotificationBell";
@@ -42,6 +42,25 @@ import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
+import { 
+  Stethoscope, 
+  X, 
+  Activity, 
+  ShieldCheck, 
+  Menu, 
+  RefreshCw, 
+  Calendar, 
+  Users, 
+  CreditCard, 
+  Settings as SettingsIcon, 
+  LogOut, 
+  ChevronRight, 
+  ChevronLeft,
+  ChevronDown,
+  Clock, 
+  LayoutDashboard 
+} from "lucide-react-native";
+import { AppColors } from "../../constants/theme";
 import {
   SERVICE_OPTIONS,
   GENDER_OPTIONS,
@@ -101,13 +120,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   };
   
   // Sidebar state
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const sidebarAnimatedValue = useRef(new Animated.Value(0)).current;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarAnimatedValue = useRef(new Animated.Value(-280)).current;
   
   useEffect(() => {
     Animated.timing(sidebarAnimatedValue, {
-      toValue: sidebarOpen ? 0 : -260,
-      duration: 300,
+      toValue: sidebarOpen ? 0 : -280,
+      duration: 250,
       useNativeDriver: true,
     }).start();
   }, [sidebarOpen, sidebarAnimatedValue]);
@@ -772,83 +791,96 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // Loading indicator
   if (loadingAppointments || loadingPatients) {
     return (
-      <SafeAreaProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff", justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#0b7fab" />
-          <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 16 }}>Loading dashboard...</Text>
-        </SafeAreaView>
-      </SafeAreaProvider>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC", justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#10B981" />
+        <Text style={{ marginTop: 16, color: '#047857', fontSize: 16, fontWeight: '600' }}>Loading dashboard...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
-        <View style={styles.mainContainer}>
-          {!sidebarOpen && (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <View style={styles.mainContainer}>
+        {/* Modern HeroUI Top App Bar */}
+        <View style={styles.topAppBar}>
+          <TouchableOpacity
+            style={styles.menuIconButton}
+            onPress={() => setSidebarOpen(true)}
+            accessibilityLabel="Open sidebar menu"
+            activeOpacity={0.7}
+          >
+            <Menu size={22} color="#047857" />
+          </TouchableOpacity>
+
+          <View style={styles.topBarCenter}>
+            <Text style={styles.topBarDoctorName} numberOfLines={1}>
+              Dr. {doctorProfile.doctor_name || doctorProfile.name || 'Doctor'}
+            </Text>
+            <Text style={styles.topBarClinic} numberOfLines={1}>
+              {(doctorProfile as any)?.specialization || clinic?.clinic_name || 'SmileGuard'}
+            </Text>
+          </View>
+
+          <View style={styles.topBarRightActions}>
+            <NotificationBell
+              unreadCount={notificationState.unreadCount}
+              onPress={() => setShowNotificationCenter(true)}
+              animateOnNewNotification={true}
+            />
             <TouchableOpacity
-              style={styles.floatingToggleButton}
-              onPress={() => setSidebarOpen(true)}
-              accessibilityLabel="Open sidebar"
-              accessibilityRole="button"
+              onPress={() => {
+                setIsRefreshing(true);
+                refreshDashboardData();
+              }}
+              disabled={isRefreshing}
+              style={styles.topBarRefreshBtn}
+              activeOpacity={0.7}
             >
-              <Image
-                source={require('../../assets/images/icon/open.png')}
-                style={styles.floatingToggleIcon}
-              />
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <RefreshCw size={17} color="#047857" />
+              )}
             </TouchableOpacity>
-          )}
+          </View>
+        </View>
 
-          <View style={styles.contentArea}>
-            {activeTab === 'dashboard' ? (
-              <ScrollView contentContainerStyle={styles.scrollContent}>
-                <View style={styles.container}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <Text style={[styles.header, { marginBottom: 0 }]}>
-                      Welcome, {doctorProfile.doctor_name || doctorProfile.name}
-                    </Text>
-                    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                      <NotificationBell
-                        unreadCount={notificationState.unreadCount}
-                        onPress={() => setShowNotificationCenter(true)}
-                        animateOnNewNotification={true}
-                      />
-                      <TouchableOpacity
-                        onPress={() => {
-                          setIsRefreshing(true);
-                          refreshDashboardData();
-                        }}
-                        disabled={isRefreshing}
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 8,
-                          backgroundColor: '#E3F2FD',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          borderWidth: 1,
-                          borderColor: '#0b7fab',
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        {isRefreshing ? (
-                          <ActivityIndicator size="small" color="#0b7fab" />
-                        ) : (
-                          <Image
-                            source={require('../../assets/images/icon/refresh.png')}
-                            style={{ width: 24, height: 24, resizeMode: 'contain' }}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+        <View style={styles.contentArea}>
+          {activeTab === 'dashboard' ? (
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+              <View style={styles.container}>
+                {/* Greeting Banner */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={styles.welcomeGreeting}>Welcome back,</Text>
+                  <Text style={styles.welcomeName}>
+                    Dr. {doctorProfile.doctor_name || doctorProfile.name || 'Doctor'}
+                  </Text>
+                </View>
 
-                  {/* Stats Panel - from Supabase */}
-                  <View style={styles.firstPanel}>
-                    <StatCard number={patients.length} label="Patients" />
-                    <StatCard number={stats.total} label="Appointments" />
-                    <StatCard number={stats.paidBillings} label="Paid Billings" />
-                  </View>
+                {/* Stats Panel - from Supabase with Iconic Lucide Icons */}
+                <View style={styles.firstPanel}>
+                  <StatCard 
+                    number={patients.length} 
+                    label="Patients" 
+                    icon={<Users size={20} color="#047857" />}
+                    accentColor="#047857"
+                    bgTint="#ECFDF5"
+                  />
+                  <StatCard 
+                    number={stats.total} 
+                    label="Appointments" 
+                    icon={<Calendar size={20} color="#0284C7" />}
+                    accentColor="#0369A1"
+                    bgTint="#E0F2FE"
+                  />
+                  <StatCard 
+                    number={stats.paidBillings} 
+                    label="Paid Billings" 
+                    icon={<CreditCard size={20} color="#7C3AED" />}
+                    accentColor="#6D28D9"
+                    bgTint="#F5F3FF"
+                  />
+                </View>
 
                   <View style={styles.sectionHeader}>
                     <Text style={styles.header}>Quick Actions</Text>
@@ -857,22 +889,26 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   <View style={styles.dashboardColumns}>
                     {/* Left Column: Today's Appointments */}
                     <View style={styles.column}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.subHeader}>Today's Appointments ({todayAppointments.length}):</Text>
+                      <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionTitleGroup}>
+                          <Text style={styles.sectionHeaderTitle}>Today's Appointments</Text>
+                          <View style={styles.pillCountBadge}>
+                            <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
+                          </View>
+                        </View>
                         <TouchableOpacity 
                           onPress={() => setActiveTab('appointments')}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                          style={styles.seeAllBtn}
+                          activeOpacity={0.7}
                         >
-                          <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>See all</Text>
-                          <Image
-                            source={require('../../assets/images/icon/open.png')}
-                            style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                          />
+                          <Text style={styles.seeAllBtnText}>See all</Text>
+                          <ChevronRight size={14} color="#047857" />
                         </TouchableOpacity>
                       </View>
                       {todayAppointments.length === 0 ? (
-                        <View style={{ padding: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, minHeight: 100 }}>
-                          <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>No appointments for today</Text>
+                        <View style={{ padding: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', minHeight: 100 }}>
+                          <Calendar size={28} color="#94A3B8" style={{ marginBottom: 8 }} />
+                          <Text style={{ color: '#64748B', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>No appointments scheduled for today</Text>
                         </View>
                       ) : (
                         todayAppointments.map((apt, idx) => (
@@ -891,24 +927,23 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                     {/* Right Column: Patient Details */}
                     <View style={styles.column}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.subHeader}>Details:</Text>
+                      <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionHeaderTitle}>Patient Details</Text>
                         {selectedPatient && (
                           <TouchableOpacity 
                             onPress={handleEditPatient}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            style={styles.seeAllBtn}
+                            activeOpacity={0.7}
                           >
-                            <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 12 }}>Edit</Text>
-                            <Image
-                              source={require('../../assets/images/icon/open.png')}
-                              style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                            />
+                            <Text style={styles.seeAllBtnText}>Edit</Text>
+                            <ChevronRight size={14} color="#047857" />
                           </TouchableOpacity>
                         )}
                       </View>
                       {!selectedPatient ? (
-                        <View style={[styles.detailsCard, styles.shadow, { alignItems: 'center', justifyContent: 'center', minHeight: 150 }]}>
-                          <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>No appointment selected</Text>
+                        <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 120 }]}>
+                          <Users size={28} color="#94A3B8" style={{ marginBottom: 8 }} />
+                          <Text style={{ color: '#64748B', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>No appointment selected</Text>
                         </View>
                       ) : (
                         <View style={[styles.detailsCard, styles.shadow, { position: 'relative' }]}>
@@ -941,7 +976,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                           {/* Appointment Details */}
                           <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>APPOINTMENT DETAILS</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>APPOINTMENT DETAILS</Text>
                             <DetailRow label="Service" value={selectedPatient.service || "Not specified"} />
                             <DetailRow label="Time" value={selectedPatient.time || "Not specified"} />
                             <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
@@ -953,10 +988,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                               paddingVertical: 14,
                               paddingHorizontal: 16,
                               marginBottom: 24,
-                              backgroundColor: expandPatientDetails ? '#E3F2FD' : '#f5f5f5',
-                              borderRadius: 8,
-                              borderWidth: 1,
-                              borderColor: expandPatientDetails ? '#0b7fab' : '#ddd',
+                              backgroundColor: expandPatientDetails ? '#ECFDF5' : '#F1F5F9',
+                              borderRadius: 6,
+                              borderWidth: 1.5,
+                              borderColor: expandPatientDetails ? '#10B981' : '#CBD5E1',
                               flexDirection: 'row',
                               justifyContent: 'center',
                               alignItems: 'center',
@@ -966,19 +1001,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           >
                             <Text style={{
                               fontSize: 13,
-                              fontWeight: '600',
-                              color: expandPatientDetails ? '#0b7fab' : '#666',
+                              fontWeight: '700',
+                              color: expandPatientDetails ? '#047857' : '#475569',
                             }}>
                               {expandPatientDetails ? 'Show Less' : 'See More'}
                             </Text>
-                            <Image
-                              source={require('../../assets/images/icon/open.png')}
-                              style={{
-                                width: 16,
-                                height: 16,
-                                resizeMode: 'contain',
-                                transform: [{ rotate: expandPatientDetails ? '180deg' : '0deg' }]
-                              }}
+                            <ChevronDown
+                              size={16}
+                              color={expandPatientDetails ? '#047857' : '#475569'}
+                              style={{ transform: [{ rotate: expandPatientDetails ? '180deg' : '0deg' }] }}
                             />
                           </TouchableOpacity>
 
@@ -986,7 +1017,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           {expandPatientDetails && (
                             <>
                               <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>CONTACT INFORMATION</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>CONTACT INFORMATION</Text>
                                 <DetailRow label="Email" value={selectedPatient.email || "Not provided"} />
                                 <DetailRow label="Phone" value={selectedPatient.contact || "Not provided"} />
                               </View>
@@ -995,7 +1026,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                               {selectedPatient.medicalIntake && (
                                 <>
                                   <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>PERSONAL DETAILS</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>PERSONAL DETAILS</Text>
                                     <DetailRow label="Gender" value={selectedPatient.medicalIntake.gender || "Not specified"} />
                                     <DetailRow label="Date of Birth" value={formatDateOfBirth(selectedPatient.medicalIntake.dateOfBirth)} />
                                     <DetailRow label="Address" value={selectedPatient.medicalIntake.address || "Not provided"} />
@@ -1003,14 +1034,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                                   {/* Emergency Contact */}
                                   <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>EMERGENCY CONTACT</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>EMERGENCY CONTACT</Text>
                                     <DetailRow label="Contact Name" value={selectedPatient.medicalIntake.emergencyContactName || "Not provided"} />
                                     <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake.emergencyContactPhone || "Not provided"} />
                                   </View>
 
                                   {/* Medical History */}
                                   <View style={{ marginHorizontal: 0 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginBottom: 12 }}>MEDICAL HISTORY</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>MEDICAL HISTORY</Text>
                                     <DetailRow label="Allergies" value={selectedPatient.medicalIntake.allergies || "None"} />
                                     <DetailRow label="Current Medications" value={selectedPatient.medicalIntake.currentMedications || "None"} />
                                     <DetailRow label="Medical Conditions" value={selectedPatient.medicalIntake.medicalConditions || "None"} />
@@ -1033,10 +1064,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
                             <TouchableOpacity onPress={handleCancelEdit} style={{ marginRight: 12 }}>
-                              <Image
-                                source={require('../../assets/images/icon/back.png')}
-                                style={{ width: 24, height: 24, resizeMode: 'contain' }}
-                              />
+                              <ChevronLeft size={22} color="#0F172A" />
                             </TouchableOpacity>
                             <Text style={styles.editHeader}>Edit Appointment</Text>
                           </View>
@@ -1153,13 +1181,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                                 borderRadius: 8,
                               }}
                             >
-                              <Text style={{ color: '#0b7fab', fontWeight: 'bold', fontSize: 14 }}>
+                              <Text style={{ color: '#047857', fontWeight: 'bold', fontSize: 14 }}>
                                 See more patients ({patients.length - 3} more)
                               </Text>
-                              <Image
-                                source={require('../../assets/images/icon/open.png')}
-                                style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                              />
+                              <ChevronRight size={16} color="#047857" />
                             </TouchableOpacity>
                           )}
                         </>
@@ -1199,7 +1224,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>
                               {request.name}
                             </Text>
-                            <Text style={{ fontWeight: 'bold', fontSize: 12, color: '#0b7fab', marginTop: 4 }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 12, color: '#047857', marginTop: 4 }}>
                               {request.service}
                             </Text>
                             <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
@@ -1254,10 +1279,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           <Text style={{ color: '#ff9800', fontWeight: 'bold', fontSize: 14 }}>
                             See more requests ({appointmentRequests.length - 3} more)
                           </Text>
-                          <Image
-                            source={require('../../assets/images/icon/open.png')}
-                            style={{ width: 16, height: 16, resizeMode: 'contain' }}
-                          />
+                          <ChevronRight size={16} color="#ff9800" />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1406,106 +1428,121 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             }}
           />
 
-          {/* Sidebar */}
+          {/* Backdrop Overlay - behind drawer */}
+          {sidebarOpen && (
+            <TouchableOpacity
+              style={styles.backdropOverlay}
+              onPress={() => setSidebarOpen(false)}
+              activeOpacity={1}
+            />
+          )}
+
+          {/* Sidebar Drawer */}
           <Animated.View
+            pointerEvents={sidebarOpen ? 'auto' : 'none'}
             style={[
               styles.sidebarOverlay,
               {
                 transform: [{ translateX: sidebarAnimatedValue }],
-                top: insets.top,
-                bottom: insets.bottom,
               },
             ]}
           >
-            <TouchableOpacity
-              style={styles.sidebarToggleButton}
-              onPress={() => setSidebarOpen(false)}
-            >
-              <Image
-                source={require('../../assets/images/icon/close.png')}
-                style={styles.sidebarToggleIcon}
-              />
-            </TouchableOpacity>
-
-            {sidebarOpen && (
-              <View style={styles.logoSection}>
+            <View style={styles.sidebarHeader}>
+              <View style={styles.sidebarBrandRow}>
                 {clinic?.logo_url ? (
                   <Image
                     source={{ uri: clinic.logo_url }}
-                    style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }}
+                    style={styles.sidebarBrandLogo}
                   />
                 ) : (
-                  <Text style={styles.logoText}>🦷</Text>
+                  <View style={styles.sidebarBrandIcon}>
+                    <Stethoscope size={22} color="#A7F3D0" />
+                  </View>
                 )}
-                <Text style={styles.logoTitle}>{clinic?.clinic_name || 'SmileGuard'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.logoTitle} numberOfLines={1}>
+                    {clinic?.clinic_name || 'SmileGuard'}
+                  </Text>
+                  <Text style={styles.sidebarSubtitle} numberOfLines={1}>
+                    Doctor Portal
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.sidebarCloseButton}
+                  onPress={() => setSidebarOpen(false)}
+                  accessibilityLabel="Close sidebar"
+                  activeOpacity={0.7}
+                >
+                  <X size={18} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
-            )}
+            </View>
 
             <View style={styles.navItems}>
               <TouchableOpacity
                 style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
-                onPress={() => setActiveTab('dashboard')}
+                onPress={() => {
+                  setActiveTab('dashboard');
+                  setSidebarOpen(false);
+                }}
               >
-                <Image
-                  source={require('../../assets/images/icon/dashboard.png')}
-                  style={styles.navIcon}
-                />
-                {sidebarOpen && <Text style={styles.navLabel}>Dashboard</Text>}
+                <LayoutDashboard size={20} color={activeTab === 'dashboard' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Dashboard</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.navItem, activeTab === 'records' && styles.navItemActive]}
-                onPress={() => setActiveTab('records')}
+                onPress={() => {
+                  setActiveTab('records');
+                  setSidebarOpen(false);
+                }}
               >
-                <Image
-                  source={require('../../assets/images/icon/records.png')}
-                  style={styles.navIcon}
-                />
-                {sidebarOpen && <Text style={styles.navLabel}>Records</Text>}
+                <Users size={20} color={activeTab === 'records' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Records</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.navItem, activeTab === 'appointments' && styles.navItemActive]}
-                onPress={() => setActiveTab('appointments')}
+                onPress={() => {
+                  setActiveTab('appointments');
+                  setSidebarOpen(false);
+                }}
               >
-                <Image
-                  source={require('../../assets/images/icon/appointment.png')}
-                  style={styles.navIcon}
-                />
-                {sidebarOpen && <Text style={styles.navLabel}>Appointments</Text>}
+                <Calendar size={20} color={activeTab === 'appointments' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Appointments</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.navItem, activeTab === 'appointment-requests' && styles.navItemActive]}
-                onPress={() => setActiveTab('appointment-requests')}
+                onPress={() => {
+                  setActiveTab('appointment-requests');
+                  setSidebarOpen(false);
+                }}
               >
-                <Image
-                  source={require('../../assets/images/icon/appointment_request.png')}
-                  style={styles.navIcon}
-                />
-                {sidebarOpen && <Text style={styles.navLabel}>Requests</Text>}
+                <Clock size={20} color={activeTab === 'appointment-requests' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Requests</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
-                onPress={() => setActiveTab('billing')}
+                onPress={() => {
+                  setActiveTab('billing');
+                  setSidebarOpen(false);
+                }}
               >
-                <Image
-                  source={require('../../assets/images/icon/bill.png')}
-                  style={styles.navIcon}
-                />
-                {sidebarOpen && <Text style={styles.navLabel}>Billing</Text>}
+                <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Billing</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
-                onPress={() => setActiveTab('settings')}
+                onPress={() => {
+                  setActiveTab('settings');
+                  setSidebarOpen(false);
+                }}
               >
-                <Image
-                  source={require('../../assets/images/icon/settings.png')}
-                  style={styles.navIcon}
-                />
-                {sidebarOpen && <Text style={styles.navLabel}>Settings</Text>}
+                <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Settings</Text>
               </TouchableOpacity>
             </View>
 
@@ -1518,21 +1555,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 ]);
               }}
             >
-              <Image
-                source={require('../../assets/images/icon/logout.png')}
-                style={styles.navIcon}
-              />
-              {sidebarOpen && <Text style={styles.sidebarLogoutText}>Logout</Text>}
+              <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.sidebarLogoutText}>Logout</Text>
             </TouchableOpacity>
           </Animated.View>
-
-          {sidebarOpen && (
-            <TouchableOpacity
-              style={styles.backdropOverlay}
-              onPress={() => setSidebarOpen(false)}
-              activeOpacity={0}
-            />
-          )}
 
           {/* Loading Overlay for Tab Navigation */}
           {loadingOnTabSwitch && (
@@ -1547,8 +1573,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               alignItems: 'center',
               zIndex: 999,
             }}>
-              <ActivityIndicator size="large" color="#0b7fab" />
-              <Text style={{ marginTop: 16, color: '#0b7fab', fontSize: 14, fontWeight: '600' }}>Loading...</Text>
+              <ActivityIndicator size="large" color="#10B981" />
+              <Text style={{ marginTop: 16, color: '#047857', fontSize: 14, fontWeight: '700' }}>Loading...</Text>
             </View>
           )}
 
@@ -1580,13 +1606,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     style={{
                       width: 32,
                       height: 32,
-                      borderRadius: 8,
-                      backgroundColor: '#f0f0f0',
+                      borderRadius: 4,
+                      backgroundColor: '#DDE4E8',
+                      borderWidth: 1,
+                      borderColor: '#CBD5E1',
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}
                   >
-                    <Text style={{ fontSize: 18, color: '#666' }}>✕</Text>
+                    <X size={18} color="#475569" />
                   </TouchableOpacity>
                 </View>
 
@@ -1606,91 +1634,163 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           </Modal>
         </View>
       </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
+    );
+  }
 
 const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
-    backgroundColor: '#f0f8ff',
+    backgroundColor: '#F8FAFC',
     position: 'relative',
   },
   
+  topAppBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
+    zIndex: 10,
+  },
+
+  menuIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  topBarCenter: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+
+  topBarDoctorName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  topBarClinic: {
+    fontSize: 12,
+    color: '#047857',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+
+  topBarRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  topBarRefreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  welcomeGreeting: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  welcomeName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+
   sidebarOverlay: {
     position: 'absolute',
     left: 0,
-    width: 260,
-    backgroundColor: '#0b7fab',
+    top: 0,
+    bottom: 0,
+    width: 280,
+    backgroundColor: '#064E3B',
     paddingTop: 16,
-    paddingBottom: 16,
+    paddingBottom: 24,
     paddingHorizontal: 16,
     flexDirection: 'column',
     justifyContent: 'space-between',
-    borderRightWidth: 1,
-    borderRightColor: '#0a5f8f',
+    borderRightWidth: 1.5,
+    borderRightColor: '#047857',
     zIndex: 50,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
   },
 
-  floatingToggleButton: {
-    position: 'absolute',
-    left: 12,
-    top: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#0b7fab',
-    justifyContent: 'center',
+  sidebarHeader: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
+  },
+
+  sidebarBrandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 100,
+    gap: 12,
   },
 
-  floatingToggleIcon: {
-    width: 24,
-    height: 24,
-    tintColor: '#fff',
-  },
-
-  backdropOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 40,
-  },
-
-  sidebarToggleButton: {
+  sidebarBrandLogo: {
     width: 40,
     height: 40,
+    borderRadius: 10,
+  },
+
+  sidebarBrandIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sidebarCloseButton: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-
-  sidebarToggleIcon: {
-    width: 20,
-    height: 20,
-    tintColor: '#fff',
-  },
-
-  logoSection: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-
-  logoText: {
-    fontSize: 32,
-    marginBottom: 8,
   },
 
   logoTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+  },
+
+  sidebarSubtitle: {
+    fontSize: 12,
+    color: '#A7F3D0',
+    fontWeight: '500',
+    marginTop: 2,
   },
 
   navItems: {
@@ -1703,25 +1803,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    gap: 12,
   },
 
   navItemActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-
-  navIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
-    resizeMode: 'contain',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
 
   navLabel: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 
   sidebarLogoutBtn: {
@@ -1729,20 +1823,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#ef4444',
-    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
     marginTop: 16,
   },
 
   sidebarLogoutText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+
+  backdropOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 40,
   },
 
   contentArea: {
     flex: 1,
-    marginTop: 35,
   },
 
   scrollContent: {
@@ -1750,30 +1853,83 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    padding: 20,
+    padding: 16,
+  },
+
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  sectionTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+
+  sectionHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  pillCountBadge: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 9999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  pillCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+  },
+
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  seeAllBtnText: {
+    color: '#047857',
+    fontWeight: '700',
+    fontSize: 12,
   },
 
   header: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#0b7fab",
-    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: -0.3,
   },
 
   subHeader: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 8,
   },
 
   sectionHeader: {
     width: "100%",
-    marginTop: 30,
-    marginBottom: 15,
+    marginTop: 24,
+    marginBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-    paddingBottom: 10,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 8,
   },
 
   firstPanel: {
@@ -1781,51 +1937,64 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     width: "100%",
     gap: 10,
-    flexWrap: "wrap",
+    marginBottom: 8,
   },
 
   dashboardColumns: {
-    flexDirection: "row",
+    flexDirection: "column",
     width: "100%",
-    flexWrap: "wrap",
-    gap: 20,
+    gap: 16,
   },
 
   column: {
-    flex: 1,
-    minWidth: 300,
+    width: "100%",
   },
 
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
 
   detailsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
     minHeight: 150,
     justifyContent: "center",
     alignItems: "center",
   },
 
   shadow: {
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 5,
+    shadowColor: "#9AA7B5",
+    shadowOpacity: 0.35,
+    shadowOffset: { width: 1, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   editHeader: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: "700",
+    color: "#0F172A",
   },
 
   editField: {
@@ -1833,19 +2002,20 @@ const styles = StyleSheet.create({
   },
 
   editLabel: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     marginBottom: 8,
-    color: "#555",
+    color: "#475569",
   },
 
   editInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 4,
+    backgroundColor: "#DDE4E8",
     padding: 12,
     fontSize: 14,
-    color: "#333",
+    color: "#0F172A",
   },
 
   editButtonContainer: {
@@ -1857,27 +2027,35 @@ const styles = StyleSheet.create({
   editButton: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 4,
     justifyContent: "center",
     alignItems: "center",
   },
 
   editButtonSave: {
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
+    borderWidth: 1.5,
+    borderTopColor: "#34D399",
+    borderLeftColor: "#34D399",
+    borderBottomColor: "#047857",
+    borderRightColor: "#047857",
   },
 
   editButtonCancel: {
-    backgroundColor: "#ddd",
+    backgroundColor: "#E2E8F0",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
   },
 
   editButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 
   editButtonCancelText: {
-    color: "#333",
+    color: "#475569",
+    fontWeight: "700",
   },
 });
 

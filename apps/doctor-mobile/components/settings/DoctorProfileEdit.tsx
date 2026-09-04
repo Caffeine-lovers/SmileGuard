@@ -13,6 +13,7 @@ import {
   Image,
 } from "react-native";
 import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
+import { X, Check } from "lucide-react-native";
 
 interface DoctorProfileEditProps {
   doctor: Doctor;
@@ -103,10 +104,7 @@ export default function DoctorProfileEdit({
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Edit Doctor Profile</Text>
         <TouchableOpacity onPress={onCancel}>
-          <Image
-            source={require("../../assets/images/icon/close.png")}
-            style={{ width: 20, height: 20 }}
-          />
+          <X size={20} color="#047857" />
         </TouchableOpacity>
       </View>
 
@@ -131,10 +129,7 @@ export default function DoctorProfileEdit({
           <View style={{ marginBottom: 8, marginTop: -4 }}>
             {isValidLicenseNumber(doctorData.license_number) ? (
               <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "500" }}>
-                <Image
-                  source={require("../../assets/images/icon/check.png")}
-                  style={{ width: 16, height: 16, tintColor: "#22c55e" }}
-                />
+                <Check size={16} color="#22c55e" />
                 <Text> Valid license number</Text>
               </Text>
             ) : (
@@ -211,8 +206,8 @@ export default function DoctorProfileEdit({
                       style={[
                         styles.dropdownOptionText,
                         doctorData.specialization === spec && {
-                          color: "#0b7fab",
-                          fontWeight: "600",
+                          color: "#047857",
+                          fontWeight: "700",
                         },
                       ]}
                     >
@@ -354,19 +349,19 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#0b7fab",
+    color: "#047857",
   },
   closeBtn: {
     fontSize: 24,
-    color: "#0b7fab",
+    color: "#047857",
     fontWeight: "bold",
   },
   stepContent: {
-    borderColor: "#2bf1ff7d",
-    borderWidth: 1,
-    borderRadius: 16,
+    borderColor: "#CBD5E1",
+    borderWidth: 1.5,
+    borderRadius: 8,
     padding: 14,
-    backgroundColor: "#f8fbff",
+    backgroundColor: "#FFFFFF",
     marginBottom: 20,
   },
   h2: {
@@ -470,12 +465,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtn: {
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
+    borderWidth: 1.5,
+    borderTopColor: "#34D399",
+    borderLeftColor: "#34D399",
+    borderBottomColor: "#047857",
+    borderRightColor: "#047857",
   },
   secondaryBtn: {
-    backgroundColor: "#f0f0f0",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
   },
   btnText: {
     fontSize: 14,

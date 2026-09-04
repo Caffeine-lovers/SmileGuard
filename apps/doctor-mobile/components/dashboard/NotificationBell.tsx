@@ -57,7 +57,7 @@ export default function NotificationBell({
           animateOnNewNotification && { transform: [{ scale: scaleAnim }] },
         ]}
       >
-        <HeroIcon name="bell" size="md" color="#0b7fab" />
+        <HeroIcon name="bell" size="md" color="#10B981" />
       </Animated.View>
 
       {unreadCount > 0 && (
@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
   bellIconContainer: {
     width: 44,
     height: 44,
-    borderRadius: 8,
-    backgroundColor: '#E3F2FD',
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#0b7fab',
+    borderColor: '#10B981',
   },
 
   bellIcon: {

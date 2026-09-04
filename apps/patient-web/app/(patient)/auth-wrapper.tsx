@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
+import { CalendarPlus, LogOut } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 export default function AuthWrapper({ children }: { children: ReactNode }) {
@@ -89,22 +90,28 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               </Link>
             </nav>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link 
               href="/appointments" 
-              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-lg transition font-medium text-sm hidden md:block"
+              className="skeuo-btn-primary py-2 px-3.5 text-xs uppercase tracking-wider hidden md:inline-flex"
             >
-              Book an Appointment
+              <span className="flex items-center gap-2">
+                <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
+                <span>Book an Appointment</span>
+              </span>
             </Link>
-            <span className="text-sm text-text-secondary hidden md:block">
+            <span className="text-xs font-semibold text-slate-600 hidden md:block">
               {currentUser.name}
             </span>
             <button
               type="button"
               onClick={handleLogout}
-              className="px-4 py-2 bg-brand-danger hover:bg-brand-danger/90 text-text-on-danger rounded-lg transition font-medium"
+              className="skeuo-btn-secondary py-2 px-3 text-xs uppercase tracking-wider text-red-600 hover:text-red-700"
             >
-              Logout
+              <span className="flex items-center gap-1.5">
+                <LogOut className="w-3.5 h-3.5 shrink-0" />
+                <span>Logout</span>
+              </span>
             </button>
           </div>
         </div>

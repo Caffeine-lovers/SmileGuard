@@ -3,6 +3,8 @@
 import { useEffect, createContext, useContext, useState, ReactNode } from 'react';
 import { supabase } from '@smileguard/supabase-client';
 
+import { HeroUIProvider } from '@heroui/react';
+
 interface AuthContextType {
   initialized: boolean;
 }
@@ -22,7 +24,7 @@ export function Providers({ children }: { children: ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-        console.log('[Providers] ✅ Session restored from storage:', session.user.email);
+        console.log('[Providers] Session restored from storage:', session.user.email);
       } else {
         console.log('[Providers] No session found in storage');
       }
@@ -34,9 +36,11 @@ export function Providers({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ initialized }}>
-      {children}
-    </AuthContext.Provider>
+    <HeroUIProvider>
+      <AuthContext.Provider value={{ initialized }}>
+        {children}
+      </AuthContext.Provider>
+    </HeroUIProvider>
   );
 }
 

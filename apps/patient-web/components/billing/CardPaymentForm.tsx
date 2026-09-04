@@ -6,6 +6,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
+import { CreditCard, AlertCircle, Lock, ShieldCheck } from 'lucide-react';
 
 interface CardPaymentFormProps {
   amount: number;
@@ -49,7 +50,6 @@ export default function CardPaymentForm({
       onError(msg);
       setIsProcessing(false);
     } else {
-      // Payment succeeded (no redirect needed)
       onSuccess();
       setIsProcessing(false);
     }
@@ -57,37 +57,38 @@ export default function CardPaymentForm({
 
   return (
     <div className="space-y-6">
-      {/* Card Brand Icons */}
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-sm font-semibold text-text-secondary">Accepted:</span>
-        <div className="flex items-center gap-2">
+      {/* Accepted Card Badges */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Accepted:</span>
+        <div className="flex items-center gap-1.5">
           {/* Mastercard */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-bg-notes rounded-md border border-border-card">
-            <svg width="24" height="16" viewBox="0 0 24 16" fill="none">
+          <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-xs border border-slate-300 shadow-xs">
+            <svg width="20" height="14" viewBox="0 0 24 16" fill="none">
               <circle cx="9" cy="8" r="7" fill="#EB001B" opacity="0.9" />
               <circle cx="15" cy="8" r="7" fill="#F79E1B" opacity="0.9" />
               <path d="M12 2.36a6.98 6.98 0 0 1 2.6 5.44A6.98 6.98 0 0 1 12 13.24a6.98 6.98 0 0 1-2.6-5.44A6.98 6.98 0 0 1 12 2.36z" fill="#FF5F00" />
             </svg>
-            <span className="text-xs font-medium text-text-primary">Mastercard</span>
+            <span className="text-[11px] font-bold text-slate-700">Mastercard</span>
           </div>
           {/* Visa */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-bg-notes rounded-md border border-border-card">
-            <svg width="24" height="16" viewBox="0 0 24 16" fill="none">
-              <rect width="24" height="16" rx="2" fill="#1A1F71" />
+          <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-xs border border-slate-300 shadow-xs">
+            <svg width="20" height="14" viewBox="0 0 24 16" fill="none">
+              <rect width="24" height="16" rx="1" fill="#1A1F71" />
               <text x="12" y="11" textAnchor="middle" fill="white" fontSize="8" fontWeight="bold" fontStyle="italic">VISA</text>
             </svg>
-            <span className="text-xs font-medium text-text-primary">Visa</span>
+            <span className="text-[11px] font-bold text-slate-700">Visa</span>
           </div>
           {/* Debit */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-bg-notes rounded-md border border-border-card">
-            <span className="text-xs font-medium text-text-secondary">💳 Debit</span>
+          <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-xs border border-slate-300 shadow-xs">
+            <CreditCard className="w-3.5 h-3.5 text-slate-600" />
+            <span className="text-[11px] font-bold text-slate-700">Debit / ATM</span>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Stripe PaymentElement handles card number, expiry, CVC */}
-        <div className="bg-bg-surface rounded-xl p-5 border border-border-card">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* PaymentElement container */}
+        <div className="skeuo-panel p-5 border-2 border-slate-300">
           <PaymentElement
             options={{
               layout: 'tabs',
@@ -97,16 +98,19 @@ export default function CardPaymentForm({
 
         {/* Error Message */}
         {errorMessage && (
-          <div className="flex items-center gap-2 p-4 bg-brand-danger/10 border border-brand-danger/30 rounded-lg">
-            <span className="text-brand-danger font-bold">⚠</span>
-            <p className="text-sm font-medium text-brand-danger">{errorMessage}</p>
+          <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-400 rounded-xs text-red-700">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+            <p className="text-xs font-bold">{errorMessage}</p>
           </div>
         )}
 
-        {/* Amount Display */}
-        <div className="flex items-center justify-between p-4 bg-brand-primary/5 rounded-xl border border-brand-primary/20">
-          <span className="font-semibold text-text-primary">Amount to charge:</span>
-          <span className="text-2xl font-bold text-brand-primary">₱{amount.toFixed(2)}</span>
+        {/* Amount Summary */}
+        <div className="flex items-center justify-between p-4 bg-emerald-50/80 rounded-sm border-2 border-emerald-500">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-900 block">Total Due for Billing:</span>
+            <span className="text-[11px] text-emerald-700 font-semibold">Immediate confirmation upon settlement</span>
+          </div>
+          <span className="text-2xl font-black text-emerald-800">₱{amount.toFixed(2)}</span>
         </div>
 
         {/* Action Buttons */}
@@ -114,37 +118,38 @@ export default function CardPaymentForm({
           <button
             type="submit"
             disabled={isProcessing || !stripe || !elements}
-            className="flex-1 p-4 bg-brand-primary text-white font-bold rounded-full hover:bg-brand-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 text-lg flex items-center justify-center gap-2"
+            className="skeuo-btn-primary flex-1 py-3 text-sm uppercase tracking-wider disabled:opacity-50"
           >
             {isProcessing ? (
-              <>
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Processing...
-              </>
+                <span>Processing Card...</span>
+              </span>
             ) : (
-              <>🔒 Pay ₱{amount.toFixed(2)}</>
+              <span className="flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                <span>Pay ₱{amount.toFixed(2)}</span>
+              </span>
             )}
           </button>
+
           <button
             type="button"
             onClick={onCancel}
             disabled={isProcessing}
-            className="px-6 py-4 bg-bg-notes text-text-primary font-semibold rounded-full hover:bg-border-card/50 disabled:opacity-50 transition-all duration-200"
+            className="skeuo-btn-secondary px-6 py-3 text-xs uppercase tracking-wider"
           >
             Cancel
           </button>
         </div>
 
         {/* Security Badge */}
-        <p className="text-center text-xs text-text-secondary flex items-center justify-center gap-1">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0110 0v4" />
-          </svg>
-          Secured by Stripe. Your card details never touch our servers.
+        <p className="text-center text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          Secured by Stripe SSL. Your card details are end-to-end encrypted.
         </p>
       </form>
     </div>

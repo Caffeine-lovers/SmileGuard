@@ -10,6 +10,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ChevronLeft } from "lucide-react-native";
 import { updateDoctorAppointmentStatus } from "../../lib/appointmentService";
 
 interface AppointmentEditProps {
@@ -182,10 +183,7 @@ export default function AppointmentEdit({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose}>
-            <Image
-              source={require('../../assets/images/icon/back.png')}
-              style={styles.backIcon}
-            />
+            <ChevronLeft size={24} color="#047857" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Appointment</Text>
           <View style={{ width: 30 }} />
@@ -309,7 +307,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0b7fab',
+    color: "#047857",
   },
   backIcon: {
     width: 24,
@@ -327,7 +325,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0b7fab',
+    color: "#047857",
     marginBottom: 12,
   },
   label: {
@@ -342,7 +340,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#0b7fab',
+    borderLeftColor: '#10B981',
   },
   detailLabel: {
     fontSize: 12,
@@ -375,16 +373,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   descriptionBox: {
-    backgroundColor: '#f0f8ff',
+    backgroundColor: '#F8FAFC',
     borderRadius: 8,
     padding: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#0b7fab',
+    borderLeftColor: '#10B981',
     marginTop: 12,
   },
   descriptionText: {
     fontSize: 13,
-    color: '#0b7fab',
+    color: "#047857",
     fontWeight: '600',
     lineHeight: 18,
   },
@@ -406,7 +404,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   saveButton: {
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
   },
   cancelButton: {
     backgroundColor: '#e0e0e0',

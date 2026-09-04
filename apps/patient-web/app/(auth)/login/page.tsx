@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
-import { useSignup } from '@/lib/signup-context';
+import { Lock, Mail, LogIn, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,7 +44,6 @@ export default function LoginPage() {
     setOauthLoading(true);
     setLocalError(null);
     try {
-      // Clear any existing signup flow flag to indicate this is a login, not signup
       localStorage.removeItem('oauth_signup_flow');
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -65,14 +64,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card">
-      <h2 className="text-3xl font-bold text-center mb-8 text-text-primary">
-        Patient Login
-      </h2>
+    <div className="skeuo-panel p-8 border-2 border-slate-300">
+      <div className="text-center mb-6">
+        <span className="skeuo-badge skeuo-badge-mint mb-3">SmileGuard Clinic Portal</span>
+        <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+          Patient Authentication
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
+          Access your digital health chart & appointments
+        </p>
+      </div>
 
       {(error || localError) && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
-          {error || localError}
+        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-sm font-semibold flex items-center gap-2">
+          <span>{error || localError}</span>
         </div>
       )}
 
@@ -81,26 +86,28 @@ export default function LoginPage() {
         type="button"
         onClick={handleGoogleSignIn}
         disabled={loading || oauthLoading}
-        className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 disabled:bg-gray-100 border border-border-card text-text-primary font-medium py-2 px-4 rounded-lg transition mb-4"
+        className="skeuo-btn-secondary w-full py-2.5 px-4 mb-5 text-sm"
       >
-        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-          <g transform="translate(1 1)">
-            <path d="M11 11.5v4.5h6.5m-6.5-9v-4.5h6.5M5.5 11H0M11 0v4.5" stroke="currentColor" strokeWidth="2" />
-          </g>
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
         </svg>
-        <span>{oauthLoading ? 'Signing in...' : 'Sign in with Google'}</span>
+        <span>{oauthLoading ? 'Authenticating with Google...' : 'Sign in with Google'}</span>
       </button>
 
       {/* Divider */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="flex-1 h-px bg-border-card"></div>
-        <span className="text-text-secondary text-sm">or continue with email</span>
-        <div className="flex-1 h-px bg-border-card"></div>
+        <div className="flex-1 h-px bg-slate-300"></div>
+        <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">or sign in with email</span>
+        <div className="flex-1 h-px bg-slate-300"></div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <Mail className="w-3.5 h-3.5 text-emerald-600" />
             Email Address
           </label>
           <input
@@ -108,13 +115,14 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition bg-bg-surface text-text-primary"
-            placeholder="you@example.com"
+            className="skeuo-input w-full text-sm"
+            placeholder="patient@example.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-emerald-600" />
             Password
           </label>
           <input
@@ -122,7 +130,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition bg-bg-surface text-text-primary"
+            className="skeuo-input w-full text-sm"
             placeholder="••••••••"
           />
         </div>
@@ -130,25 +138,27 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
+          className="skeuo-btn-primary w-full py-3 text-sm tracking-wide mt-2"
         >
-          {loading ? 'Logging in...' : 'Login'}
+          <LogIn className="w-4 h-4" />
+          <span>{loading ? 'Verifying Credentials...' : 'Secure Sign In'}</span>
         </button>
       </form>
 
       <div className="mt-6 text-center space-y-3">
-        <p className="text-sm text-text-secondary">
-          <Link href="/forgot-password" className="text-text-link hover:underline">
-            Forgot password?
+        <p className="text-xs font-semibold">
+          <Link href="/forgot-password" className="text-emerald-700 hover:text-emerald-900 underline">
+            Forgot your password?
           </Link>
         </p>
-        <div className="pt-3 border-t border-border-card">
-          <p className="text-text-secondary mb-2">Don't have an account?</p>
+        <div className="pt-4 border-t-2 border-slate-200">
+          <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">New Clinic Patient?</p>
           <Link
             href="/signup"
-            className="inline-block bg-brand-primary hover:bg-brand-primary/90 text-white font-medium py-2 px-6 rounded-lg transition"
+            className="skeuo-btn-secondary w-full py-2.5 text-xs tracking-wider uppercase text-emerald-800"
           >
-            Sign up
+            <span>Register New Patient Account</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>

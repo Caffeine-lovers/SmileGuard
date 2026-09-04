@@ -86,10 +86,10 @@ async function saveRecord<T>(
     let result;
     
     if (operation === "INSERT") {
-      result = await supabase.from(table).insert(data).select().single();
+      result = await (supabase.from(table) as any).insert(data).select().single();
     } else {
       const record = data as { id: string };
-      result = await supabase.from(table).update(data).eq("id", record.id).select().single();
+      result = await (supabase.from(table) as any).update(data).eq("id", record.id).select().single();
     }
 
     if (result.error) {

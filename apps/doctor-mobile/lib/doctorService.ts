@@ -168,9 +168,12 @@ export async function getDoctorsByClinic(clinicName: string): Promise<Doctor[]> 
  * @param doctor - The doctor object to insert or update
  * @returns Created/updated doctor or null if failed
  */
-export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null> {
+export async function createDoctorProfile(
+  doctor: Doctor,
+  accessCode?: string
+): Promise<Doctor | null> {
   try {
-    // Validate required fields before attempting upsert
+    // Validate required fields before attempting creation
     if (!doctor.user_id) throw new Error("Missing required field: user_id");
     if (!doctor.doctor_name) throw new Error("Missing required field: doctor_name");
     if (!doctor.specialization) throw new Error("Missing required field: specialization");
@@ -181,11 +184,40 @@ export async function createDoctorProfile(doctor: Doctor): Promise<Doctor | null
       doctor_name: doctor.doctor_name,
       specialization: doctor.specialization,
       license_number: doctor.license_number,
+      has_access_code: !!accessCode,
       profile_picture_url: doctor.profile_picture_url ? "✓ (URL set)" : "✗ (no URL)",
     });
 
-    // UPSERT: Insert if new, update if exists (keyed on user_id)
-    // This makes the operation idempotent - safe to call multiple times
+    // If access code is provided, use the secure atomic complete_doctor_registration RPC
+    if (accessCode && accessCode.trim().length > 0) {
+      console.log("[DoctorService] Calling complete_doctor_registration RPC with code...");
+      const { data, error } = await supabase.rpc("complete_doctor_registration", {
+        p_code: accessCode.trim(),
+        p_doctor_name: doctor.doctor_name,
+        p_specialization: doctor.specialization,
+        p_license_number: doctor.license_number,
+        p_bio: doctor.bio || null,
+        p_profile_picture_url: doctor.profile_picture_url || null,
+      });
+
+      if (error) {
+        console.error("[DoctorService] complete_doctor_registration error:", error);
+        throw new Error(`Database error (${error.code || "RPC"}): ${error.message}`);
+      }
+
+      const result = data as { success: boolean; message?: string; doctor_id?: string };
+      if (!result || !result.success) {
+        throw new Error(result?.message || "Failed to register doctor profile");
+      }
+
+      console.log("[DoctorService] Doctor registered via RPC successfully:", result);
+      return {
+        ...doctor,
+        id: result.doctor_id,
+      } as Doctor;
+    }
+
+    // Fallback UPSERT: For existing doctors or environments without access code requirement
     const { data, error } = await supabase
       .from("doctors")
       .upsert([doctor], { onConflict: "user_id" })

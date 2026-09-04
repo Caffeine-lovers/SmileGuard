@@ -141,7 +141,7 @@ export default function NotificationCenter({
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <HeroIcon name="bell" size="md" color="#0b7fab" />
+            <HeroIcon name="bell" size="md" color="#10B981" />
             <Text style={styles.headerTitle}>Notifications</Text>
           </View>
           {unreadCount > 0 && (
@@ -160,7 +160,7 @@ export default function NotificationCenter({
       {/* Loading State */}
       {isLoading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0b7fab" />
+          <ActivityIndicator size="large" color="#10B981" />
           <Text style={styles.loadingText}>Setting up notifications...</Text>
         </View>
       )}
@@ -281,10 +281,7 @@ export default function NotificationCenter({
                     style={styles.deleteButton}
                     onPress={() => handleDeleteWithConfirm(notification.id)}
                   >
-                    <Image
-                      source={require("../../assets/images/icon/trash.png")}
-                      style={{ width: 18, height: 18, tintColor: "#6b7280" }}
-                    />
+                    <HeroIcon name="trash" size="sm" color="#6b7280" />
                   </TouchableOpacity>
                 </View>
 
@@ -398,13 +395,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#ECFDF5',
   },
 
   headerActionText: {
-    color: '#0b7fab',
+    color: '#047857',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   errorBanner: {
@@ -433,9 +430,9 @@ const styles = StyleSheet.create({
 
   loadingText: {
     marginTop: 12,
-    color: '#0b7fab',
+    color: '#047857',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 
   filterTabs: {
@@ -461,8 +458,8 @@ const styles = StyleSheet.create({
   },
 
   filterTabActive: {
-    backgroundColor: '#0b7fab',
-    borderColor: '#0b7fab',
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
   },
 
   filterTabText: {
@@ -516,8 +513,8 @@ const styles = StyleSheet.create({
   },
 
   notificationCardUnread: {
-    backgroundColor: '#F0F8FF',
-    borderLeftColor: '#0b7fab',
+    backgroundColor: '#ECFDF5',
+    borderLeftColor: '#10B981',
   },
 
   notificationHeader: {
@@ -562,7 +559,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
     flexShrink: 0,
   },
 
