@@ -27,8 +27,7 @@ type AppointmentType = Appointment;
 // Extended appointment type with account type info and additional fields from DoctorAppointment
 type AppointmentWithAccountType = AppointmentType & { 
   accountType?: 'Patient' | 'Dummy',
-  patient_avatar?: string,
-  dummy_account_id?: string
+  patient_avatar?: string
 };
 
 interface AppointmentsTabProps {
@@ -168,9 +167,6 @@ export default function AppointmentsTab({
 
   // Transform backend appointments to match UI format
   const transformBackendAppointment = (apt: DoctorAppointment): AppointmentWithAccountType => {
-    // Determine account type based on which ID is set
-    const accountType = apt.dummy_account_id ? 'Dummy' : 'Patient';
-    
     return {
       id: apt.id,
       name: apt.patient_name || 'Unknown Patient',
@@ -184,7 +180,7 @@ export default function AppointmentsTab({
       notes: apt.notes || '',
       imageUrl: 'https://via.placeholder.com/50', // Placeholder
       status: apt.status as any,
-      accountType: accountType,
+      accountType: 'Patient',
     };
   };
 

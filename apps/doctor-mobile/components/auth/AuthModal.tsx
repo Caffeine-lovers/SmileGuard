@@ -87,7 +87,11 @@ export default function AuthModal({
 
       if (result.type === "success") {
         const extractParams = (urlString: string) => {
-          const queryString = urlString.includes("#") ? urlString.split("#")[1] : urlString.includes("?") ? urlString.split("?")[1] : "";
+          const queryString = urlString.includes("#")
+            ? urlString.split("#")[1]
+            : urlString.includes("?")
+            ? urlString.split("?")[1]
+            : "";
           if (!queryString) return {} as Record<string, string>;
           return queryString.split("&").reduce((acc, current) => {
             const [key, value] = current.split("=");
@@ -97,24 +101,41 @@ export default function AuthModal({
         };
 
         const params = extractParams(result.url);
+        console.log("[GoogleOAuth] Callback received with params:", Object.keys(params));
 
-        if (params.error_description) {
-          throw new Error(params.error_description);
+        if (params.error_description || params.error) {
+          throw new Error(params.error_description || params.error);
         }
 
-        if (params.access_token && params.refresh_token) {
+        // Handle PKCE Authorization Code flow (Supabase v2 default)
+        if (params.code) {
+          console.log("[GoogleOAuth] Exchanging PKCE code for session...");
+          const { data: exchangeData, error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(params.code);
+          if (exchangeError) throw exchangeError;
+          console.log("[GoogleOAuth] PKCE code exchange successful for:", exchangeData.user?.email);
+          onClose();
+        }
+        // Handle Implicit flow tokens (fallback)
+        else if (params.access_token && params.refresh_token) {
+          console.log("[GoogleOAuth] Setting session from access/refresh tokens...");
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: params.access_token,
-            refresh_token: params.refresh_token
+            refresh_token: params.refresh_token,
           });
-          
-          if (sessionError) throw sessionError;
 
+          if (sessionError) throw sessionError;
           console.log("[GoogleOAuth] Session set successfully");
-          // Close the modal - let the file-based routing handle directing to setup-profile or dashboard
           onClose();
         } else {
-          throw new Error("No tokens returned from Google");
+          // Check if session was already established in background
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            console.log("[GoogleOAuth] Active session found via getSession");
+            onClose();
+          } else {
+            throw new Error("No authorization code or tokens returned from Google");
+          }
         }
       } else {
         setLoading(false);
@@ -124,6 +145,7 @@ export default function AuthModal({
       if (err instanceof Error) {
         errorMessage = err.message;
       }
+      console.error("[GoogleOAuth] Error:", err);
       Alert.alert("Sign-in Error", errorMessage);
       setLoading(false);
     }
