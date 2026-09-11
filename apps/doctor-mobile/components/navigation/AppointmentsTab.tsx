@@ -180,7 +180,7 @@ export default function AppointmentsTab({
       notes: apt.notes || '',
       imageUrl: 'https://via.placeholder.com/50', // Placeholder
       status: apt.status as any,
-      accountType: accountType,
+      accountType: 'Patient',
     };
   };
 
