@@ -237,7 +237,7 @@ export default function ClinicSetup({
     sectionTitle: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#0b7fab',
+      color: '#10B981',
       marginBottom: 12,
     },
     card: {
@@ -260,7 +260,7 @@ export default function ClinicSetup({
       marginBottom: 12,
     },
     logoButton: {
-      backgroundColor: '#0b7fab',
+      backgroundColor: '#10B981',
       paddingVertical: 10,
       paddingHorizontal: 20,
       borderRadius: 8,
@@ -296,17 +296,17 @@ export default function ClinicSetup({
       height: 80,
       borderRadius: 8,
       borderWidth: 2,
-      borderColor: '#0b7fab',
+      borderColor: '#10B981',
       borderStyle: 'dashed',
       alignItems: 'center',
       justifyContent: 'center',
     },
     addImageText: {
-      color: '#0b7fab',
+      color: '#10B981',
       fontSize: 28,
     },
     serviceItem: {
-      backgroundColor: '#e3f2fd',
+      backgroundColor: '#ECFDF5',
       borderRadius: 8,
       padding: 12,
       marginBottom: 8,
@@ -315,7 +315,7 @@ export default function ClinicSetup({
       alignItems: 'center',
     },
     serviceText: {
-      color: '#0b7fab',
+      color: '#10B981',
       fontWeight: '500',
       flex: 1,
     },
@@ -338,7 +338,7 @@ export default function ClinicSetup({
       fontSize: 14,
     },
     addServiceButton: {
-      backgroundColor: '#0b7fab',
+      backgroundColor: '#10B981',
       borderRadius: 8,
       paddingHorizontal: 16,
       justifyContent: 'center',
@@ -383,7 +383,7 @@ export default function ClinicSetup({
     },
     saveButton: {
       flex: 1,
-      backgroundColor: '#0b7fab',
+      backgroundColor: '#10B981',
       borderRadius: 8,
       paddingVertical: 12,
       alignItems: 'center',
@@ -757,7 +757,7 @@ export default function ClinicSetup({
     <View style={localStyles.container}>
       {initialLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#0b7fab" />
+          <ActivityIndicator size="large" color="#10B981" />
         </View>
       ) : noClinicRecord ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
@@ -768,7 +768,7 @@ export default function ClinicSetup({
             This clinic doesn't have setup information yet. Please fill in the clinic details to get started.
           </Text>
           <TouchableOpacity
-            style={{ backgroundColor: '#0b7fab', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 }}
+            style={{ backgroundColor: '#10B981', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 }}
             onPress={() => setNoClinicRecord(false)}
           >
             <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Create Clinic Setup</Text>
@@ -875,7 +875,7 @@ export default function ClinicSetup({
                   disabled={uploadingGalleryImage}
                 >
                   {uploadingGalleryImage ? (
-                    <ActivityIndicator color="#0b7fab" />
+                    <ActivityIndicator color="#10B981" />
                   ) : (
                     <Text style={localStyles.addImageText}>+</Text>
                   )}
@@ -901,7 +901,7 @@ export default function ClinicSetup({
               <Text style={localStyles.sectionTitle}>
                 Services Offered {clinicData.services.length > 0 ? `(${clinicData.services.length})` : ''}
               </Text>
-              <Text style={{ fontSize: 18, color: '#0b7fab' }}>
+              <Text style={{ fontSize: 18, color: '#10B981' }}>
                 {showServicesSection ? '−' : '+'}
               </Text>
             </TouchableOpacity>
@@ -996,7 +996,7 @@ export default function ClinicSetup({
                                 flex: 1,
                                 backgroundColor: '#fff',
                                 borderWidth: 1,
-                                borderColor: '#0b7fab',
+                                borderColor: '#10B981',
                                 borderRadius: 8,
                                 padding: 12,
                                 alignItems: 'center',
@@ -1004,7 +1004,7 @@ export default function ClinicSetup({
                               onPress={() => openOpeningTimePicker(day as keyof Schedule)}
                             >
                               <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>From</Text>
-                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#0b7fab' }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#10B981' }}>
                                 {schedule.opening_time}
                               </Text>
                             </TouchableOpacity>
@@ -1013,7 +1013,7 @@ export default function ClinicSetup({
                                 flex: 1,
                                 backgroundColor: '#fff',
                                 borderWidth: 1,
-                                borderColor: '#0b7fab',
+                                borderColor: '#10B981',
                                 borderRadius: 8,
                                 padding: 12,
                                 alignItems: 'center',
@@ -1021,7 +1021,7 @@ export default function ClinicSetup({
                               onPress={() => openClosingTimePicker(day as keyof Schedule)}
                             >
                               <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>To</Text>
-                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#0b7fab' }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: '#10B981' }}>
                                 {schedule.closing_time}
                               </Text>
                             </TouchableOpacity>
@@ -1060,7 +1060,7 @@ export default function ClinicSetup({
                   setShowBlockoutDatePicker(true);
                 }}
                 style={{
-                  backgroundColor: '#0b7fab',
+                  backgroundColor: '#10B981',
                   paddingVertical: 12,
                   paddingHorizontal: 16,
                   borderRadius: 8,
@@ -1181,7 +1181,7 @@ export default function ClinicSetup({
                     setTempHours(h.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1193,7 +1193,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 70,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempHours}
                   onChangeText={(text) => {
@@ -1220,7 +1220,7 @@ export default function ClinicSetup({
                     setTempHours(h.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1237,7 +1237,7 @@ export default function ClinicSetup({
                     setTempMinutes(m.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1249,7 +1249,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 70,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempMinutes}
                   onChangeText={(text) => {
@@ -1276,7 +1276,7 @@ export default function ClinicSetup({
                     setTempMinutes(m.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1286,7 +1286,7 @@ export default function ClinicSetup({
                   style={{ padding: 12 }}
                   onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1298,7 +1298,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 70,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempPeriod}
                   editable={false}
@@ -1307,7 +1307,7 @@ export default function ClinicSetup({
                   style={{ padding: 12 }}
                   onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1329,7 +1329,7 @@ export default function ClinicSetup({
               <TouchableOpacity
                 style={{
                   flex: 1,
-                  backgroundColor: '#0b7fab',
+                  backgroundColor: '#10B981',
                   borderRadius: 8,
                   paddingVertical: 12,
                   alignItems: 'center',
@@ -1369,7 +1369,7 @@ export default function ClinicSetup({
                     setTempHours(h.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1381,7 +1381,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 70,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempHours}
                   onChangeText={(text) => {
@@ -1408,7 +1408,7 @@ export default function ClinicSetup({
                     setTempHours(h.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1425,7 +1425,7 @@ export default function ClinicSetup({
                     setTempMinutes(m.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1437,7 +1437,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 70,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempMinutes}
                   onChangeText={(text) => {
@@ -1464,7 +1464,7 @@ export default function ClinicSetup({
                     setTempMinutes(m.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1474,7 +1474,7 @@ export default function ClinicSetup({
                   style={{ padding: 12 }}
                   onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1486,7 +1486,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 70,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempPeriod}
                   editable={false}
@@ -1495,7 +1495,7 @@ export default function ClinicSetup({
                   style={{ padding: 12 }}
                   onPress={() => setTempPeriod(tempPeriod === 'AM' ? 'PM' : 'AM')}
                 >
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1517,7 +1517,7 @@ export default function ClinicSetup({
               <TouchableOpacity
                 style={{
                   flex: 1,
-                  backgroundColor: '#0b7fab',
+                  backgroundColor: '#10B981',
                   borderRadius: 8,
                   paddingVertical: 12,
                   alignItems: 'center',
@@ -1551,7 +1551,7 @@ export default function ClinicSetup({
               style={{
                 backgroundColor: '#f5f5f5',
                 borderWidth: 2,
-                borderColor: '#0b7fab',
+                borderColor: '#10B981',
                 borderRadius: 12,
                 padding: 16,
                 marginBottom: 12,
@@ -1567,7 +1567,7 @@ export default function ClinicSetup({
                 setPendingImageUploadType(null);
               }}
             >
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0b7fab' }}>Square (1:1)</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#10B981' }}>Square (1:1)</Text>
               <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Fixed square aspect ratio</Text>
             </TouchableOpacity>
 
@@ -1575,7 +1575,7 @@ export default function ClinicSetup({
               style={{
                 backgroundColor: '#f5f5f5',
                 borderWidth: 2,
-                borderColor: '#0b7fab',
+                borderColor: '#10B981',
                 borderRadius: 12,
                 padding: 16,
                 marginBottom: 20,
@@ -1591,7 +1591,7 @@ export default function ClinicSetup({
                 setPendingImageUploadType(null);
               }}
             >
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0b7fab' }}>Free Form</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#10B981' }}>Free Form</Text>
               <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>Crop any size you want</Text>
             </TouchableOpacity>
 
@@ -1643,7 +1643,7 @@ export default function ClinicSetup({
                     setTempBlockoutMonth(m.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1655,7 +1655,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 50,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempBlockoutMonth}
                   onChangeText={(text) => {
@@ -1701,7 +1701,7 @@ export default function ClinicSetup({
                     setTempBlockoutMonth(m.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1717,7 +1717,7 @@ export default function ClinicSetup({
                     setTempBlockoutDay(d.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1729,7 +1729,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 50,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempBlockoutDay}
                   onChangeText={(text) => {
@@ -1779,7 +1779,7 @@ export default function ClinicSetup({
                     setTempBlockoutDay(d.toString());
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1794,7 +1794,7 @@ export default function ClinicSetup({
                     setTempBlockoutYear((y + 1).toString());
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▲</Text>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>▲</Text>
                 </TouchableOpacity>
                 <TextInput
                   style={{
@@ -1806,7 +1806,7 @@ export default function ClinicSetup({
                     fontWeight: 'bold',
                     textAlign: 'center',
                     width: 60,
-                    color: '#0b7fab',
+                    color: '#10B981',
                   }}
                   value={tempBlockoutYear}
                   onChangeText={(text) => {
@@ -1837,7 +1837,7 @@ export default function ClinicSetup({
                     setTempBlockoutYear((y - 1).toString());
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0b7fab' }}>▼</Text>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#10B981' }}>▼</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1882,7 +1882,7 @@ export default function ClinicSetup({
               <TouchableOpacity
                 style={{
                   flex: 1,
-                  backgroundColor: '#0b7fab',
+                  backgroundColor: '#10B981',
                   borderRadius: 8,
                   paddingVertical: 12,
                   alignItems: 'center',

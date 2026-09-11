@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { X } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
@@ -373,12 +374,12 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <ScrollView style={{ flex: 1 }}>
         {/* Header */}
         <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderBottomColor: "#ddd", borderBottomWidth: 2 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ fontSize: 25, fontWeight: "bold", color: "#0b7fab", marginBottom: 4 }}>
+            <Text style={{ fontSize: 25, fontWeight: "bold", color: "#047857", marginBottom: 4 }}>
               Add New Patient
             </Text>
             <TouchableOpacity onPress={() => {
@@ -388,10 +389,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 router.back();
               }
             }}>
-              <Image
-                source={require("../../assets/images/icon/close.png")}
-                style={{ width: 20, height: 20, tintColor: "#0b7fab" }}
-              />
+              <X size={20} color="#047857" />
             </TouchableOpacity>
           </View>
         </View>
@@ -483,10 +481,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
                   <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Gender</Text>
                   <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                    <Image
-                      source={require("../../assets/images/icon/close.png")}
-                      style={{ width: 20, height: 20, tintColor: "#0b7fab" }}
-                    />
+                    <X size={20} color="#047857" />
                   </TouchableOpacity>
                 </View>
                 {genderOptions.map((option) => (
@@ -498,7 +493,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                       setShowGenderPicker(false);
                     }}
                   >
-                    <Text style={{ fontSize: 14, color: formData.gender === option ? '#0b7fab' : '#333', fontWeight: formData.gender === option ? '600' : '400' }}>
+                    <Text style={{ fontSize: 14, color: formData.gender === option ? '#10B981' : '#333', fontWeight: formData.gender === option ? '600' : '400' }}>
                       {option}
                     </Text>
                   </TouchableOpacity>
@@ -509,7 +504,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
 
           {/* Medical Information Section */}
           <View style={{ borderTopWidth: 1, borderTopColor: "#ddd", paddingTop: 16, marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: "#0b7fab", marginBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#047857", marginBottom: 12 }}>
               Medical Information
             </Text>
 
@@ -559,7 +554,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 Emergency Contact Name
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab" }]}
+                style={[styles.input, { borderColor: "#10B981" }]}
                 placeholder="Enter name"
                 placeholderTextColor="#999"
                 value={formData.emergencyContactName}
@@ -574,7 +569,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 Emergency Contact Phone
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab" }]}
+                style={[styles.input, { borderColor: "#10B981" }]}
                 placeholder="Enter phone number"
                 placeholderTextColor="#999"
                 keyboardType="phone-pad"
@@ -591,7 +586,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 Allergies
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                style={[styles.input, { borderColor: "#10B981", height: 80, textAlignVertical: "top" }]}
                 placeholder="List any allergies (comma separated)"
                 placeholderTextColor="#999"
                 multiline
@@ -608,7 +603,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 Current Medications
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                style={[styles.input, { borderColor: "#10B981", height: 80, textAlignVertical: "top" }]}
                 placeholder="List current medications"
                 placeholderTextColor="#999"
                 multiline
@@ -625,7 +620,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 Medical Conditions
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                style={[styles.input, { borderColor: "#10B981", height: 80, textAlignVertical: "top" }]}
                 placeholder="List any medical conditions"
                 placeholderTextColor="#999"
                 multiline
@@ -642,7 +637,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                 Past Surgeries
               </Text>
               <TextInput
-                style={[styles.input, { borderColor: "#0b7fab", height: 80, textAlignVertical: "top" }]}
+                style={[styles.input, { borderColor: "#10B981", height: 80, textAlignVertical: "top" }]}
                 placeholder="List any past surgeries"
                 placeholderTextColor="#999"
                 multiline
@@ -681,7 +676,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Smoking Status</Text>
                     <TouchableOpacity onPress={() => setShowSmokingStatusPicker(false)}>
-                      <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                      <Text style={{ fontSize: 18, color: "#047857", fontWeight: '600' }}>✕</Text>
                     </TouchableOpacity>
                   </View>
                   {smokingStatusOptions.map((option) => (
@@ -693,7 +688,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                         setShowSmokingStatusPicker(false);
                       }}
                     >
-                      <Text style={{ fontSize: 14, color: formData.smokingStatus === option ? '#0b7fab' : '#333', fontWeight: formData.smokingStatus === option ? '600' : '400' }}>
+                      <Text style={{ fontSize: 14, color: formData.smokingStatus === option ? '#10B981' : '#333', fontWeight: formData.smokingStatus === option ? '600' : '400' }}>
                         {option.charAt(0).toUpperCase() + option.slice(1)}
                       </Text>
                     </TouchableOpacity>
@@ -732,7 +727,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Pregnancy Status</Text>
                     <TouchableOpacity onPress={() => setShowPregnancyStatusPicker(false)}>
-                      <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: '600' }}>✕</Text>
+                      <Text style={{ fontSize: 18, color: "#047857", fontWeight: '600' }}>✕</Text>
                     </TouchableOpacity>
                   </View>
                   {pregnancyStatusOptions.map((option) => (
@@ -744,7 +739,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                         setShowPregnancyStatusPicker(false);
                       }}
                     >
-                      <Text style={{ fontSize: 14, color: formData.pregnancyStatus === option ? '#0b7fab' : '#333', fontWeight: formData.pregnancyStatus === option ? '600' : '400' }}>
+                      <Text style={{ fontSize: 14, color: formData.pregnancyStatus === option ? '#10B981' : '#333', fontWeight: formData.pregnancyStatus === option ? '600' : '400' }}>
                         {option.toUpperCase()}
                       </Text>
                     </TouchableOpacity>
@@ -760,7 +755,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               Medical Notes
             </Text>
             <TextInput
-              style={[styles.input, { borderColor: "#0b7fab", height: 100, textAlignVertical: "top" }]}
+              style={[styles.input, { borderColor: "#10B981", height: 100, textAlignVertical: "top" }]}
               placeholder="Enter any relevant medical notes"
               placeholderTextColor="#999"
               multiline
@@ -785,9 +780,9 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#0b7fab" />
+                <ActivityIndicator color="#10B981" />
               ) : (
-                <Text style={{ color: "#0b7fab", fontWeight: "600", fontSize: 14 }}>Cancel</Text>
+                <Text style={{ color: "#047857", fontWeight: "600", fontSize: 14 }}>Cancel</Text>
               )}
             </TouchableOpacity>
 
@@ -817,11 +812,11 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
               {/* Header */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' }}>
                 <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                  <Text style={{ fontSize: 14, color: '#0b7fab', fontWeight: '600' }}>Cancel</Text>
+                  <Text style={{ fontSize: 14, color: "#047857", fontWeight: '600' }}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>Select Date of Birth</Text>
                 <TouchableOpacity onPress={handleDatePickerConfirm}>
-                  <Text style={{ fontSize: 14, color: '#0b7fab', fontWeight: '600' }}>Done</Text>
+                  <Text style={{ fontSize: 14, color: "#047857", fontWeight: '600' }}>Done</Text>
                 </TouchableOpacity>
               </View>
 
@@ -837,7 +832,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                         style={{ paddingVertical: 10, alignItems: 'center' }}
                         onPress={() => setSelectedYear(year)}
                       >
-                        <Text style={{ fontSize: 16, color: selectedYear === year ? '#0b7fab' : '#999', fontWeight: selectedYear === year ? '600' : '400' }}>
+                        <Text style={{ fontSize: 16, color: selectedYear === year ? '#10B981' : '#999', fontWeight: selectedYear === year ? '600' : '400' }}>
                           {year}
                         </Text>
                       </TouchableOpacity>
@@ -862,7 +857,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                           }
                         }}
                       >
-                        <Text style={{ fontSize: 16, color: selectedMonth === month ? '#0b7fab' : '#999', fontWeight: selectedMonth === month ? '600' : '400' }}>
+                        <Text style={{ fontSize: 16, color: selectedMonth === month ? '#10B981' : '#999', fontWeight: selectedMonth === month ? '600' : '400' }}>
                           {String(month).padStart(2, '0')}
                         </Text>
                       </TouchableOpacity>
@@ -880,7 +875,7 @@ export default function AddPatient({ onPatientAdded }: AddPatientProps = {}) {
                         style={{ paddingVertical: 10, alignItems: 'center' }}
                         onPress={() => setSelectedDay(day)}
                       >
-                        <Text style={{ fontSize: 16, color: selectedDay === day ? '#0b7fab' : '#999', fontWeight: selectedDay === day ? '600' : '400' }}>
+                        <Text style={{ fontSize: 16, color: selectedDay === day ? '#10B981' : '#999', fontWeight: selectedDay === day ? '600' : '400' }}>
                           {String(day).padStart(2, '0')}
                         </Text>
                       </TouchableOpacity>
@@ -904,7 +899,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 14,
     color: "#333",
-    borderColor: "#0b7fab",
+    borderColor: "#10B981",
   },
   phoneInputContainer: {
     flexDirection: 'row',
@@ -935,12 +930,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cancelButton: {
-    backgroundColor: "#e8f4f8",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#0b7fab",
+    borderColor: "#10B981",
   },
   submitButton: {
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
   },
   submitButtonDisabled: {
     backgroundColor: "#ccc",

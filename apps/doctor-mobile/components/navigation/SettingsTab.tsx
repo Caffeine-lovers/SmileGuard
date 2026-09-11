@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { CurrentUser, Doctor, EMPTY_DOCTOR } from '@smileguard/shared-types';
+import { Settings as SettingsIcon, ChevronRight } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import { useAuth } from '../../hooks/useAuth';
@@ -157,8 +158,8 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
   };
 
   const fontSizeValues = { small: 12, medium: 14, large: 16 };
-  const ACCENT_COLOR = '#0b7fab';
-  const LIGHT_BG = '#f0f8ff';
+  const ACCENT_COLOR = '#10B981';
+  const LIGHT_BG = '#F8FAFC';
   const CARD_BG = '#fff';
   const TEXT_PRIMARY = '#333';
   const TEXT_SECONDARY = '#666';
@@ -171,10 +172,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
           {/* Header */}
           <View style={{ marginBottom: 32, marginTop: 24, paddingBottom: 20, borderBottomWidth: 2, borderBottomColor: BORDER_COLOR }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, marginTop: 30 }}>
-              <Image
-                source={require('../../assets/images/icon/settings.png')}
-                style={{ width: 28, height: 28, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
-              />
+              <SettingsIcon size={28} color={ACCENT_COLOR} />
               <Text style={{ fontSize: 32, fontWeight: '800', color: ACCENT_COLOR }}>Settings</Text>
             </View>
             <Text style={{ fontSize: 14, color: TEXT_SECONDARY }}>Manage clinic and appointments</Text>
@@ -193,10 +191,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
                   <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY, marginBottom: 4 }}>Doctor Profile</Text>
                   <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Name, specialty, credentials</Text>
                 </View>
-                <Image
-                  source={require('../../assets/images/icon/open.png')}
-                  style={{ width: 20, height: 20, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
-                />
+                <ChevronRight size={20} color={ACCENT_COLOR} />
               </View>
             </TouchableOpacity>
           </View>
@@ -214,10 +209,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
                   <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY, marginBottom: 4 }}>Clinic Setup</Text>
                   <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Hours, location, services</Text>
                 </View>
-                <Image
-                  source={require('../../assets/images/icon/open.png')}
-                  style={{ width: 20, height: 20, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
-                />
+                <ChevronRight size={20} color={ACCENT_COLOR} />
               </View>
             </TouchableOpacity>
           </View>
@@ -299,10 +291,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
               <View>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_PRIMARY }}>Privacy Policy</Text>
               </View>
-              <Image
-                source={require('../../assets/images/icon/open.png')}
-                style={{ width: 18, height: 18, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
-              />
+              <ChevronRight size={18} color={ACCENT_COLOR} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -312,10 +301,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
               <View>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_PRIMARY }}>Terms & Conditions</Text>
               </View>
-              <Image
-                source={require('../../assets/images/icon/open.png')}
-                style={{ width: 18, height: 18, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
-              />
+              <ChevronRight size={18} color={ACCENT_COLOR} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -325,10 +311,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
               <View>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_PRIMARY }}>Contact Support</Text>
               </View>
-              <Image
-                source={require('../../assets/images/icon/open.png')}
-                style={{ width: 18, height: 18, resizeMode: 'contain', tintColor: ACCENT_COLOR }}
-              />
+              <ChevronRight size={18} color={ACCENT_COLOR} />
             </TouchableOpacity>
           </View>
 
@@ -347,7 +330,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
       >
         {loadingDoctor ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#0b7fab" />
+            <ActivityIndicator size="large" color="#10B981" />
           </View>
         ) : (
           <DoctorProfileView

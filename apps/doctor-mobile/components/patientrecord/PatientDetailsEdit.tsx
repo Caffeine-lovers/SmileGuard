@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ChevronLeft } from "lucide-react-native";
 import { AppointmentType } from "./PatientDetailsView";
 
 const GENDER_OPTIONS = ["Male", "Female", "Other"];
@@ -230,10 +231,7 @@ export default function PatientDetailsEdit({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleCancel}>
-            <Image
-              source={require("../../assets/images/icon/back.png")}
-              style={styles.backIcon}
-            />
+            <ChevronLeft size={24} color="#047857" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Patient</Text>
           <View style={{ width: 30 }} />
@@ -406,7 +404,7 @@ export default function PatientDetailsEdit({
                     {
                       backgroundColor:
                         editedPatient.smokingStatus === status
-                          ? "#0b7fab"
+                          ? "#10B981"
                           : "#e0e0e0",
                     },
                   ]}
@@ -442,7 +440,7 @@ export default function PatientDetailsEdit({
                       {
                         backgroundColor:
                           editedPatient.pregnancyStatus === status
-                            ? "#0b7fab"
+                            ? "#10B981"
                             : "#e0e0e0",
                       },
                     ]}
@@ -594,7 +592,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#0b7fab",
+    color: "#047857",
   },
   backIcon: {
     width: 24,
@@ -725,8 +723,8 @@ const styles = StyleSheet.create({
   },
   datePickerConfirm: {
     fontSize: 16,
-    color: "#0b7fab",
-    fontWeight: "600",
+    color: "#047857",
+    fontWeight: "700",
   },
   datePickerBody: {
     flexDirection: "row",
@@ -739,8 +737,8 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#0b7fab",
+    fontWeight: "700",
+    color: "#047857",
     marginBottom: 8,
   },
   pickerScroll: {
@@ -752,7 +750,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pickerItemSelected: {
-    backgroundColor: "#E3F2FD",
+    backgroundColor: "#ECFDF5",
     borderRadius: 8,
   },
   pickerItemText: {
@@ -761,7 +759,7 @@ const styles = StyleSheet.create({
     fontWeight: "400",
   },
   pickerItemTextSelected: {
-    color: "#0b7fab",
+    color: "#047857",
     fontWeight: "700",
     fontSize: 18,
   },
@@ -798,7 +796,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveButton: {
-    backgroundColor: "#0b7fab",
+    backgroundColor: "#10B981",
   },
   cancelButton: {
     backgroundColor: "#e0e0e0",

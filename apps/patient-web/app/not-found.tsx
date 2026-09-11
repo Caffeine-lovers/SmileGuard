@@ -1,21 +1,26 @@
 import Link from 'next/link';
+import { Stethoscope, ArrowLeft } from 'lucide-react';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center">
-        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-5xl mx-auto mb-6">
-          🦷
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+      <div className="skeuo-panel p-10 max-w-md w-full text-center border-2 border-slate-300">
+        <div className="w-16 h-16 bg-emerald-50 rounded-sm border-2 border-emerald-300 flex items-center justify-center mx-auto mb-5 shadow-inner">
+          <Stethoscope className="w-8 h-8 text-emerald-700" />
         </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-3">Page Not Found</h1>
-        <p className="text-gray-600 mb-8">
-          Oops! The page you are looking for doesn't exist or has been moved.
+        <span className="skeuo-badge skeuo-badge-mint mb-2">404 Exception</span>
+        <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 mt-2 mb-2">
+          Page Not Located
+        </h1>
+        <p className="text-xs font-semibold text-slate-600 mb-6 uppercase tracking-wider">
+          The requested dental portal endpoint does not exist or has been relocated.
         </p>
         <Link 
           href="/dashboard"
-          className="inline-block bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg hover:bg-blue-700 transition"
+          className="skeuo-btn-primary py-2.5 px-6 text-xs uppercase tracking-wider inline-flex items-center gap-2"
         >
-          Return to Dashboard
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Return to Dashboard</span>
         </Link>
       </div>
     </div>

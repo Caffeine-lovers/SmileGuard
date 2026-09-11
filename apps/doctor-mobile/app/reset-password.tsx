@@ -81,7 +81,7 @@ export default function ResetPassword() {
           <Text style={styles.message}>{message}</Text>
         ) : (
           <>
-            <ActivityIndicator size="large" color="#0b7fab" />
+            <ActivityIndicator size="large" color="#10B981" />
             <Text style={styles.sub}>Verifying reset link…</Text>
           </>
         )}
@@ -91,11 +91,12 @@ export default function ResetPassword() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}> Set New Password</Text>
+      <Text style={styles.title}>Set New Password</Text>
       <Text style={styles.sub}>Enter your new password below.</Text>
       <TextInput
         style={styles.input}
-        placeholder="New password"
+        placeholder="New password (at least 8 characters)"
+        placeholderTextColor="#94A3B8"
         secureTextEntry
         value={newPassword}
         onChangeText={setNewPassword}
@@ -112,17 +113,21 @@ export default function ResetPassword() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 8 },
-  sub: { color: "#6b7280", marginBottom: 24, textAlign: "center" },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#F8FAFC" },
+  title: { fontSize: 24, fontWeight: "800", color: "#0F172A", marginBottom: 8 },
+  sub: { color: "#64748B", marginBottom: 24, textAlign: "center", fontSize: 14 },
   input: {
-    backgroundColor: "#f3f4f6", padding: 16,
-    borderRadius: 12, width: "100%", marginBottom: 14,
+    backgroundColor: "#FFFFFF", padding: 14,
+    borderRadius: 6, width: "100%", marginBottom: 14,
+    borderWidth: 1.5, borderColor: "#CBD5E1",
+    fontSize: 14, color: "#0F172A",
   },
   btn: {
-    backgroundColor: "#0b7fab", padding: 16,
-    borderRadius: 12, width: "100%", alignItems: "center",
+    backgroundColor: "#10B981", padding: 14,
+    borderRadius: 6, width: "100%", alignItems: "center",
+    borderWidth: 1.5, borderTopColor: "#34D399", borderLeftColor: "#34D399",
+    borderBottomColor: "#047857", borderRightColor: "#047857",
   },
-  btnText: { color: "#fff", fontWeight: "700" },
-  message: { color: "#ef4444", marginBottom: 12, textAlign: "center" },
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  message: { color: "#EF4444", marginBottom: 12, textAlign: "center", fontSize: 13 },
 });

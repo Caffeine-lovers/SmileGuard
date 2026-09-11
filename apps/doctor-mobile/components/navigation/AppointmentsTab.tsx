@@ -19,6 +19,7 @@ import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import AppointmentAdd from "../appointments/appointmentAdd";
 import { HeroIcon } from "../ui/HeroIcon";
+import { RefreshCw } from "lucide-react-native";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -290,12 +291,12 @@ export default function AppointmentsTab({
   };
 
   const getFilterBadgeColor = () => {
-    if (appointmentFilterBy === 'all') return '#0b7fab';
+    if (appointmentFilterBy === 'all') return '#10B981';
     if (appointmentFilterBy === 'scheduled') return '#FFC107';
     if (appointmentFilterBy === 'completed') return '#4CAF50';
     if (appointmentFilterBy === 'cancelled') return '#F44336';
     if (appointmentFilterBy === 'no-show') return '#9C27B0';
-    return '#0b7fab';
+    return '#10B981';
   };
 
   const getCalendarBadgeColor = () => {
@@ -483,7 +484,7 @@ export default function AppointmentsTab({
             try {
               const result = await cancelAppointment(appointmentId);
               if (result.success) {
-                Alert.alert("✅ Success", result.message);
+                Alert.alert("Success", result.message);
                 
                 // Auto-switch to 'all' filter to show the cancelled appointment
                 console.log('🔄 Switching filter to "All" to show cancelled appointment...');
@@ -532,11 +533,11 @@ export default function AppointmentsTab({
                 }
                 console.log(`✅ Month appointments refreshed - calendar updated`);
               } else {
-                Alert.alert("❌ Error", result.message);
+                Alert.alert("Error", result.message);
               }
             } catch (error) {
               console.error("❌ Error cancelling appointment:", error);
-              Alert.alert("❌ Error", "Failed to cancel appointment. Please try again.");
+              Alert.alert("Error", "Failed to cancel appointment. Please try again.");
             }
           },
           style: "destructive",
@@ -641,10 +642,10 @@ export default function AppointmentsTab({
       }
       console.log(`✅ Daily appointments refreshed: ${dayAppointments.length} appointments found`);
       
-      Alert.alert('✅ Refreshed', 'Appointments updated successfully!');
+      Alert.alert('Refreshed', 'Appointments updated successfully!');
     } catch (error) {
-      console.error('❌ Error refreshing appointments:', error);
-      Alert.alert('❌ Error', 'Failed to refresh appointments. Please try again.');
+      console.error('Error refreshing appointments:', error);
+      Alert.alert('Error', 'Failed to refresh appointments. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -725,11 +726,11 @@ export default function AppointmentsTab({
 
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f0f8ff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <ScrollView style={{ flex: 1 }}>
         {/* Title Section */}
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#0b7fab', marginTop: 15 }}>Appointments</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: "#047857", marginTop: 15 }}>Appointments</Text>
           <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Manage your patient appointments</Text>
         </View>
 
@@ -761,7 +762,7 @@ export default function AppointmentsTab({
                 paddingHorizontal: 12,
                 paddingVertical: 8,
                 borderRadius: 8,
-                backgroundColor: loading ? '#ccc' : '#0b7fab',
+                backgroundColor: loading ? '#ccc' : '#10B981',
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 6,
@@ -770,22 +771,14 @@ export default function AppointmentsTab({
               <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
                 {loading ? 'Refreshing...' : 'Refresh'}
               </Text>
-              <Image
-                source={require('../../assets/images/icon/refresh.png')}
-                style={{
-                  width: 18,
-                  height: 18,
-                  resizeMode: 'contain',
-                  opacity: loading ? 0.6 : 1,
-                }}
-              />
+              <RefreshCw size={16} color="#fff" style={{ opacity: loading ? 0.6 : 1 }} />
             </TouchableOpacity>
           </View>
           
           <TextInput
             style={{
               backgroundColor: '#fff',
-              borderColor: '#0b7fab',
+              borderColor: '#10B981',
               borderWidth: 1,
               borderRadius: 8,
               paddingHorizontal: 12,
@@ -809,9 +802,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'all' ? '#0b7fab' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'all' ? '#10B981' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'all' ? '#0b7fab' : '#ccc',
+                    borderColor: appointmentFilterBy === 'all' ? '#10B981' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'all' ? '#fff' : '#333', fontWeight: '500' }}>All</Text>
@@ -822,9 +815,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'scheduled' ? '#0b7fab' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'scheduled' ? '#10B981' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'scheduled' ? '#0b7fab' : '#ccc',
+                    borderColor: appointmentFilterBy === 'scheduled' ? '#10B981' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'scheduled' ? '#fff' : '#333', fontWeight: '500' }}>Pending</Text>
@@ -835,9 +828,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'completed' ? '#0b7fab' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'completed' ? '#10B981' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'completed' ? '#0b7fab' : '#ccc',
+                    borderColor: appointmentFilterBy === 'completed' ? '#10B981' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'completed' ? '#fff' : '#333', fontWeight: '500' }}>Completed</Text>
@@ -848,9 +841,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#0b7fab' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#10B981' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'cancelled' ? '#0b7fab' : '#ccc',
+                    borderColor: appointmentFilterBy === 'cancelled' ? '#10B981' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'cancelled' ? '#fff' : '#333', fontWeight: '500' }}>Cancelled</Text>
@@ -861,9 +854,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'no-show' ? '#0b7fab' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'no-show' ? '#10B981' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'no-show' ? '#0b7fab' : '#ccc',
+                    borderColor: appointmentFilterBy === 'no-show' ? '#10B981' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'no-show' ? '#fff' : '#333', fontWeight: '500' }}>No-show</Text>
@@ -877,18 +870,18 @@ export default function AppointmentsTab({
             {/* Month Navigation */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <TouchableOpacity onPress={goToPreviousMonth} style={{ padding: 8 }}>
-                <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: 'bold' }}>‹</Text>
+                <Text style={{ fontSize: 18, color: "#047857", fontWeight: 'bold' }}>‹</Text>
               </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>
                   {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </Text>
                 <TouchableOpacity onPress={goToToday} style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#e3f2fd', borderRadius: 4 }}>
-                  <Text style={{ fontSize: 11, color: '#0b7fab', fontWeight: 'bold' }}>Today</Text>
+                  <Text style={{ fontSize: 11, color: "#047857", fontWeight: 'bold' }}>Today</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity onPress={goToNextMonth} style={{ padding: 8 }}>
-                <Text style={{ fontSize: 18, color: '#0b7fab', fontWeight: 'bold' }}>›</Text>
+                <Text style={{ fontSize: 18, color: "#047857", fontWeight: 'bold' }}>›</Text>
               </TouchableOpacity>
             </View>
 
@@ -951,9 +944,9 @@ export default function AppointmentsTab({
                       justifyContent: 'center',
                       alignItems: 'center',
                       borderRadius: 10,
-                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#0b7fab' : isToday ? '#e3f2fd' : '#f9f9f9',
+                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#10B981' : isToday ? '#e3f2fd' : '#f9f9f9',
                       borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
-                      borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#0b7fab' : '#e0e0e0',
+                      borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#10B981' : '#e0e0e0',
                       opacity: isUnavailable ? 0.6 : 1,
                       position: 'relative',
                     }}
@@ -1052,13 +1045,13 @@ export default function AppointmentsTab({
         <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}>
           {selectedDate && (
             <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0b7fab', paddingBottom: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: 'bold', color: "#047857", paddingBottom: 8 }}>
                 {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
               </Text>
             </View>
           )}
           {loading ? (
-            <Text style={{ textAlign: 'center', color: '#0b7fab', marginTop: 20, fontSize: 14, fontWeight: 'bold' }}>
+            <Text style={{ textAlign: 'center', color: "#047857", marginTop: 20, fontSize: 14, fontWeight: 'bold' }}>
               ⏳ Loading appointments...
             </Text>
           ) : filteredAppointments.length === 0 ? (
@@ -1108,12 +1101,12 @@ export default function AppointmentsTab({
                       borderRadius: 6,
                       backgroundColor: appointment.accountType === 'Dummy' ? '#fff3e0' : '#e3f2fd',
                       borderWidth: 1,
-                      borderColor: appointment.accountType === 'Dummy' ? '#f57c00' : '#0b7fab',
+                      borderColor: appointment.accountType === 'Dummy' ? '#f57c00' : '#10B981',
                       alignSelf: 'flex-start',
                       marginBottom: 6,
                     }}
                   >
-                    <Text style={{ fontSize: 9, color: appointment.accountType === 'Dummy' ? '#f57c00' : '#0b7fab', fontWeight: '600' }}>
+                    <Text style={{ fontSize: 9, color: appointment.accountType === 'Dummy' ? '#f57c00' : '#10B981', fontWeight: '600' }}>
                       {appointment.accountType === 'Dummy' ? 'Dummy Account' : 'Patient'}
                     </Text>
                   </View>
@@ -1127,7 +1120,7 @@ export default function AppointmentsTab({
                   style={{
                     paddingVertical: 6,
                     paddingHorizontal: 10,
-                    backgroundColor: '#0b7fab',
+                    backgroundColor: '#10B981',
                     borderRadius: 6,
                     marginLeft: 8,
                   }}

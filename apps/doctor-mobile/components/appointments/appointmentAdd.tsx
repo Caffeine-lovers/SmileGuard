@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@smileguard/supabase-client';
 import AddPatient from '../patientrecord/AddPatient';
 import { HeroIcon } from '../ui/HeroIcon';
+import { ChevronLeft } from 'lucide-react-native';
 
 interface AppointmentAddProps {
   visible: boolean;
@@ -826,10 +827,7 @@ export default function AppointmentAdd({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} disabled={loading}>
-            <Image
-              source={require('../../assets/images/icon/back.png')}
-              style={styles.backIcon}
-            />
+            <ChevronLeft size={24} color="#047857" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>New Appointment</Text>
           <View style={{ width: 30 }} />
@@ -839,7 +837,7 @@ export default function AppointmentAdd({
         <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
           {fetchingPatients ? (
             <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 40 }}>
-              <ActivityIndicator size="large" color="#0b7fab" />
+              <ActivityIndicator size="large" color="#10B981" />
               <Text style={{ marginTop: 12, color: '#666' }}>Loading patients...</Text>
             </View>
           ) : (
@@ -874,10 +872,10 @@ export default function AppointmentAdd({
                   style={[styles.dropdown, selectedPatient && styles.dropdownSelected]}
                   onPress={() => setShowPatientPicker(!showPatientPicker)}
                 >
-                  <Text style={[styles.dropdownText, selectedPatient && styles.dropdownTextSelected, { color: selectedPatient ? '#0b7fab' : '#999' }]}>
+                  <Text style={[styles.dropdownText, selectedPatient && styles.dropdownTextSelected, { color: selectedPatient ? '#10B981' : '#999' }]}>
                     {selectedPatient ? getPatientName(selectedPatient) : 'Select Patient'}
                   </Text>
-                  <Text style={{ color: selectedPatient ? '#0b7fab' : '#999' }}>▼</Text>
+                  <Text style={{ color: selectedPatient ? '#10B981' : '#999' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -969,7 +967,7 @@ export default function AppointmentAdd({
                       <View style={{ borderTopWidth: 1, borderTopColor: '#e0e0e0', paddingHorizontal: 16, paddingVertical: 12 }}>
                         <TouchableOpacity
                           style={{
-                            backgroundColor: '#0b7fab',
+                            backgroundColor: '#10B981',
                             paddingVertical: 12,
                             borderRadius: 8,
                             alignItems: 'center',
@@ -1004,7 +1002,7 @@ export default function AppointmentAdd({
                   onPress={() => selectedPatient && setShowDatePicker(true)}
                   disabled={!selectedPatient}
                 >
-                  <Text style={[styles.dropdownText, appointmentDate && styles.dropdownTextSelected, { color: appointmentDate ? '#0b7fab' : !selectedPatient ? '#ccc' : '#999' }]}>
+                  <Text style={[styles.dropdownText, appointmentDate && styles.dropdownTextSelected, { color: appointmentDate ? '#10B981' : !selectedPatient ? '#ccc' : '#999' }]}>
                     {appointmentDate || 'Select Date'}
                   </Text>
                 </TouchableOpacity>
@@ -1020,7 +1018,7 @@ export default function AppointmentAdd({
                   onPress={() => appointmentDate && setShowTimePicker(true)}
                   disabled={!appointmentDate}
                 >
-                  <Text style={[styles.dropdownText, appointmentTime && styles.dropdownTextSelected, { color: appointmentTime ? '#0b7fab' : !appointmentDate ? '#ccc' : '#999' }]}>
+                  <Text style={[styles.dropdownText, appointmentTime && styles.dropdownTextSelected, { color: appointmentTime ? '#10B981' : !appointmentDate ? '#ccc' : '#999' }]}>
                     {appointmentTime || 'Select Time'}
                   </Text>
                 </TouchableOpacity>
@@ -1043,16 +1041,16 @@ export default function AppointmentAdd({
                   disabled={!appointmentTime}
                 >
                   <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }]}>
+                    <Text style={[styles.dropdownText, selectedService && styles.dropdownTextSelected, { color: selectedService ? '#10B981' : !appointmentTime ? '#ccc' : '#999' }]}>
                       {selectedService || 'Select Service'}
                     </Text>
                     {selectedService && (
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0b7fab', marginLeft: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: "#047857", marginLeft: 8 }}>
                         ₱{getServicePrice(selectedService).toLocaleString()}
                       </Text>
                     )}
                   </View>
-                  <Text style={{ color: selectedService ? '#0b7fab' : !appointmentTime ? '#ccc' : '#999' }}>▼</Text>
+                  <Text style={{ color: selectedService ? '#10B981' : !appointmentTime ? '#ccc' : '#999' }}>▼</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1475,7 +1473,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0b7fab',
+    color: "#047857",
   },
   backIcon: {
     width: 24,
@@ -1488,17 +1486,17 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   stepIndicator: {
-    backgroundColor: '#f0f8ff',
+    backgroundColor: '#F8FAFC',
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#0b7fab',
+    borderLeftColor: '#10B981',
   },
   stepText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0b7fab',
+    color: "#047857",
     marginBottom: 8,
   },
   stepProgress: {
@@ -1516,7 +1514,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepDotActive: {
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
   },
   stepNumber: {
     fontSize: 12,
@@ -1539,7 +1537,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
     justifyContent: 'center',
     alignItems: 'center',
     fontWeight: '700',
@@ -1564,7 +1562,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0b7fab',
+    color: "#047857",
     flex: 1,
   },
   sectionTitleDisabled: {
@@ -1583,7 +1581,7 @@ const styles = StyleSheet.create({
   },
   dropdownSelected: {
     backgroundColor: '#e3f2fd',
-    borderColor: '#0b7fab',
+    borderColor: '#10B981',
     borderWidth: 2,
   },
   dropdownDisabled: {
@@ -1598,14 +1596,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dropdownTextSelected: {
-    color: '#0b7fab',
+    color: "#047857",
     fontWeight: '700',
   },
   dropdownIcon: {
     width: 20,
     height: 20,
     resizeMode: 'contain',
-    tintColor: '#0b7fab',
+    tintColor: "#047857",
   },
   pickerContainer: {
     backgroundColor: '#f5f5f5',
@@ -1631,7 +1629,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   pickerItemTextSelected: {
-    color: '#0b7fab',
+    color: "#047857",
     fontWeight: '700',
   },
   pickerItemSubText: {
@@ -1650,7 +1648,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#0b7fab',
+    borderLeftColor: '#10B981',
   },
   inputLabel: {
     fontSize: 12,
@@ -1693,7 +1691,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusButtonSelected: {
-    borderColor: '#0b7fab',
+    borderColor: '#10B981',
     backgroundColor: '#e3f2fd',
   },
   statusButtonDisabled: {
@@ -1706,7 +1704,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   statusButtonTextSelected: {
-    color: '#0b7fab',
+    color: "#047857",
   },
   statusButtonTextDisabled: {
     color: '#ccc',
@@ -1744,7 +1742,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButton: {
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
   },
   cancelButton: {
     borderWidth: 2,
@@ -1792,12 +1790,12 @@ const styles = StyleSheet.create({
   datePickerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0b7fab',
+    color: "#047857",
   },
   datePickerConfirm: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0b7fab',
+    color: "#047857",
   },
   datePickerBody: {
     flexDirection: 'row',
@@ -1811,7 +1809,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     fontWeight: '600',
-    color: '#0b7fab',
+    color: "#047857",
     paddingVertical: 8,
     backgroundColor: '#f5f5f5',
   },
@@ -1865,7 +1863,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#0b7fab',
+    backgroundColor: '#10B981',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1889,7 +1887,7 @@ const styles = StyleSheet.create({
   },
   patientLabel: {
     backgroundColor: '#e3f2fd',
-    color: '#0b7fab',
+    color: "#047857",
   },
   dummyLabel: {
     backgroundColor: '#fff3e0',
@@ -1916,7 +1914,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   letterIndexTextActive: {
-    color: '#0b7fab',
+    color: "#047857",
     fontWeight: '700',
   },
 });

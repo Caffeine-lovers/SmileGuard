@@ -1,5 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
+import { AppColors } from "../../constants/theme";
+import { User, Clock } from "lucide-react-native";
 
 interface AppointmentCardProps {
   name: string;
@@ -14,83 +16,136 @@ export default function AppointmentCard({
   name,
   service,
   time,
-  imageUrl = "https://via.placeholder.com/40",
+  imageUrl,
   onPress,
   highlighted = false,
 }: AppointmentCardProps) {
   return (
     <TouchableOpacity
-      style={[styles.card, highlighted && { backgroundColor: '#ffcccc', borderColor: '#ff0000', borderWidth: 2 }]}
+      activeOpacity={0.8}
+      style={[
+        styles.card,
+        highlighted && styles.cardHighlighted,
+      ]}
       onPress={onPress}
     >
-      <Image source={typeof imageUrl === "string" ? { uri: imageUrl } : imageUrl} 
-        style={styles.icon} />
+      <View style={styles.avatarContainer}>
+        {imageUrl && typeof imageUrl === "string" && imageUrl.startsWith("http") ? (
+          <Image source={{ uri: imageUrl }} style={styles.icon} />
+        ) : (
+          <View style={styles.avatarFallback}>
+            <User size={18} color={AppColors.primary} />
+          </View>
+        )}
+      </View>
       <View style={styles.cardText}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={styles.headerRow}>
           <Text style={styles.cardTitle}>{name}</Text>
           {highlighted && (
             <View style={styles.priorityLabel}>
-              <Text style={styles.priorityLabelText}>Upcoming Patient</Text>
+              <Text style={styles.priorityLabelText}>UPCOMING</Text>
             </View>
           )}
         </View>
         <Text style={styles.cardSubtitle}>{service}</Text>
       </View>
-      <Text style={styles.timeText}>{time}</Text>
+      <View style={styles.timeBadge}>
+        <Clock size={12} color={AppColors.primaryDark} style={{ marginRight: 4 }} />
+        <Text style={styles.timeText}>{time}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
+  },
+  cardHighlighted: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#A7F3D0",
+    borderWidth: 1.5,
+  },
+  avatarContainer: {
+    marginRight: 12,
+  },
+  icon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
   },
   cardText: {
     flex: 1,
-    marginLeft: 10,
+    marginRight: 8,
   },
-  priorityLabel: {
-    backgroundColor: '#ff0000',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 8,
-    alignSelf: 'flex-start',
-  },
-  priorityLabelText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
   },
   cardTitle: {
-    fontWeight: "bold",
+    fontWeight: "700",
     fontSize: 14,
-    color: "#333",
+    color: "#0F172A",
+    flexShrink: 1,
+  },
+  priorityLabel: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 6,
+  },
+  priorityLabelText: {
+    color: "#047857",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   cardSubtitle: {
     fontSize: 12,
-    color: "#777",
+    color: "#64748B",
+    marginTop: 2,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   timeText: {
     fontSize: 12,
-    fontWeight: "bold",
-    color: "#0b7fab",
-  },
-  icon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#eee",
+    fontWeight: "700",
+    color: "#047857",
   },
 });

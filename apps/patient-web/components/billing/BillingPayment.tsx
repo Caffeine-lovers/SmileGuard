@@ -10,6 +10,18 @@ import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+import {
+  CreditCard,
+  Banknote,
+  Building2,
+  Smartphone,
+  FileText,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Receipt,
+  ShieldCheck,
+} from 'lucide-react';
 
 // Lazy-load Stripe components (only when card payment is selected)
 const StripeProvider = dynamic(
@@ -333,116 +345,133 @@ export default function BillingPayment({
   };
 
   return (
-    <div className="p-6 bg-bg-screen min-h-screen">
-      <h1 className="text-4xl font-bold text-brand-cyan mb-2">Manage Billing</h1>
-      <p className="text-text-secondary mb-8">View and pay your outstanding balances</p>
+    <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
+      {/* Clinic Header Banner */}
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-6 text-white border-2 border-emerald-950 shadow-md">
+        <div className="flex items-center gap-3 mb-1">
+          <span className="skeuo-badge skeuo-badge-mint text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
+            <ShieldCheck className="w-3 h-3 text-emerald-950" />
+            Clinic Billing Portal
+          </span>
+        </div>
+        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
+        <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
+          Settle procedure balances and review financial ledgers
+        </p>
+      </div>
 
       {/* Financial Summary Stats */}
       {!loadingData && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Link href="/">
-            <div className="bg-brand-danger/10 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(240,84,84,0.4)] cursor-pointer">
-              <p className="text-sm text-text-secondary">Outstanding Balance</p>
-              <p className="text-3xl font-bold text-brand-danger">₱{outstandingBalance?.toFixed(2)}</p>
-              <p className="text-xs text-text-secondary mt-2">Current Due</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link href="/billing" className="block no-underline">
+            <div className="skeuo-card p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
+              <p className="text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
+              <p className="text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
             </div>
           </Link>
-          <div className="bg-brand-primary/10 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(61,170,184,0.4)]">
-            <p className="text-sm text-text-secondary">Total Transactions</p>
-            <p className="text-3xl font-bold text-brand-primary">{billingHistory.length}</p>
-            <p className="text-xs text-text-secondary mt-2">On Record</p>
+          <div className="skeuo-card p-5 border-2 border-slate-300 rounded-sm">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Total Transactions</span>
+            <p className="text-2xl font-black tracking-tight text-slate-900 mt-1">{billingHistory.length}</p>
+            <p className="text-[11px] font-semibold text-slate-500 mt-1">Settled on Ledger</p>
           </div>
-          <div className="bg-green-50 rounded-lg shadow-md p-6 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(34,197,94,0.4)]">
-            <p className="text-sm text-text-secondary">Account Status</p>
-            <p className="text-3xl font-bold text-green-700">
-              {outstandingBalance === 0 && unpaidAppointments.length === 0 ? '✓ Paid' : '⚠️ Pending'}
-            </p>
-            <p className="text-xs text-text-secondary mt-2">Status</p>
+          <div className="skeuo-card p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
+            <div className="flex items-center gap-2 mt-1">
+              {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  <p className="text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-5 h-5 text-amber-600" />
+                  <p className="text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
+                </>
+              )}
+            </div>
+            <p className="text-[11px] font-semibold text-slate-500 mt-1">Clinical Settlement Status</p>
           </div>
         </div>
       )}
 
       {/* Payment Form */}
-      <div className="bg-bg-surface rounded-lg shadow-md p-6 mb-8 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.4)]">
-        <h2 className="text-2xl font-bold text-text-primary mb-6">💰 Make Payment</h2>
+      <div className="skeuo-panel p-6 border-2 border-slate-300">
+        <div className="flex items-center gap-2 pb-4 mb-6 border-b-2 border-slate-200">
+          <Receipt className="w-5 h-5 text-emerald-700" />
+          <h2 className="text-lg font-black uppercase tracking-tight text-slate-900">
+            Process Invoice Payment
+          </h2>
+        </div>
 
         <div className="space-y-6">
           {/* Availed Services from Appointments */}
           <div>
-            <label className="block text-sm font-semibold text-text-primary mb-3">
-              Select Availed Service
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+              Select Procedure to Settle
             </label>
             {unpaidAppointments.length > 0 ? (
-              <div className="bg-bg-notes rounded-lg p-2 shadow-sm">
-                <div className="rounded bg-bg-surface overflow-hidden shadow-sm">
-                  <div className="bg-bg-notes text-text-secondary text-xs font-bold tracking-widest text-center py-2">
-                    PENDING INVOICES
-                  </div>
-                  <div className="flex flex-col">
-                    {unpaidAppointments.map((apt) => {
-                      const price = SERVICE_PRICES[apt.service] || 0;
-                      const isSelected = selectedAppointment?.id === apt.id;
-                      return (
-                        <button
-                          type="button"
-                          key={apt.id}
-                          onClick={() => handleAppointmentSelect(apt)}
-                          className={`w-full p-4 flex justify-between items-center transition text-left ${
-                            isSelected
-                              ? 'bg-brand-primary/5'
-                              : 'hover:bg-bg-notes bg-bg-surface'
-                          }`}
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className={`mt-1 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                              isSelected ? 'border-brand-primary' : 'border-border-card'
-                            }`}>
-                              {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-brand-primary" />}
-                            </div>
-                            <div>
-                              <p className={`font-bold ${isSelected ? 'text-brand-primary' : 'text-text-primary'}`}>
-                                {apt.service}
-                              </p>
-                              <p className="text-sm font-mono text-text-secondary mt-0.5">
-                                {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
-                              </p>
-                            </div>
-                          </div>
-                          <div className={`font-mono font-semibold text-lg ${isSelected ? 'text-brand-primary' : 'text-text-primary'}`}>
-                            ₱{price.toFixed(2)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="space-y-2">
+                {unpaidAppointments.map((apt) => {
+                  const price = SERVICE_PRICES[apt.service] || 0;
+                  const isSelected = selectedAppointment?.id === apt.id;
+                  return (
+                    <button
+                      type="button"
+                      key={apt.id}
+                      onClick={() => handleAppointmentSelect(apt)}
+                      className={`skeuo-card w-full p-4 flex justify-between items-center rounded-sm text-left border-2 transition ${
+                        isSelected
+                          ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
+                          : 'border-slate-300 hover:border-slate-400 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center ${
+                          isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-400'
+                        }`}>
+                          {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-slate-900">{apt.service}</p>
+                          <p className="text-xs font-mono text-slate-500">
+                            {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="font-mono font-black text-base text-emerald-800">
+                        ₱{price.toFixed(2)}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
-              <div className="p-8 bg-bg-notes rounded-lg text-text-secondary text-center border-2 border-dashed border-border-card">
-                No pending appointments with services to pay.
+              <div className="p-6 bg-slate-50 rounded-sm text-slate-500 text-center border-2 border-dashed border-slate-300 text-xs font-bold uppercase tracking-wider">
+                No unpaid procedures currently outstanding on record.
               </div>
             )}
           </div>
 
           {/* Discount Selection */}
           <div>
-            <label className="block text-sm font-semibold text-text-primary mb-3">
-              Apply Discount (Optional)
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+              Eligible Statutory Discount
             </label>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { value: 'none' as const, label: 'None' },
-                { value: 'pwd' as const, label: '👴 PWD (10%)' },
-                { value: 'senior' as const, label: '👵 Senior (15%)' },
+                { value: 'none' as const, label: 'Standard Rate' },
+                { value: 'pwd' as const, label: 'PWD (10%)' },
+                { value: 'senior' as const, label: 'Senior (15%)' },
               ].map((option) => (
                 <button
                   type="button"
                   key={option.value}
                   onClick={() => handleDiscountSelect(option.value)}
-                  className={`p-3 rounded-lg border-2 font-semibold transition outline-none ${
+                  className={`py-2.5 px-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition ${
                     discountType === option.value
-                      ? 'border-brand-primary bg-brand-primary/5 text-brand-primary ring-2 ring-brand-primary/30'
-                      : 'border-border-card hover:border-brand-primary/50 text-text-primary'
+                      ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
+                      : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
                   }`}
                 >
                   {option.label}
@@ -452,115 +481,111 @@ export default function BillingPayment({
           </div>
 
           {/* Proof Upload for Discounts */}
-          {showProofUpload && discountType === 'pwd' && (
-            <div className="p-6 bg-bg-notes border-2 border-dashed border-border-card rounded-lg text-center transition-colors hover:border-brand-primary/50">
-              <label className="block text-sm font-semibold text-text-primary mb-3">
-                📄 Drop your PWD ID here, or click to upload
+          {showProofUpload && (discountType === 'pwd' || discountType === 'senior') && (
+            <div className="p-5 bg-emerald-50/40 border-2 border-dashed border-emerald-400 rounded-sm text-center">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center justify-center gap-1.5">
+                <FileText className="w-4 h-4 text-emerald-700" />
+                Upload Valid {discountType === 'pwd' ? 'PWD' : 'Senior Citizen'} Identification Card
               </label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleProofUpload}
-                className="block mx-auto w-full max-w-xs text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-white file:font-semibold file:cursor-pointer hover:file:bg-brand-primary/90 cursor-pointer"
+                className="block mx-auto text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-emerald-700 file:bg-emerald-700 file:text-white file:text-xs file:font-bold file:uppercase file:cursor-pointer cursor-pointer"
               />
-              {discountProof && <p className="text-sm font-bold text-green-600 mt-4">✓ {discountProof} uploaded</p>}
+              {discountProof && (
+                <p className="text-xs font-bold text-emerald-700 mt-2 flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{discountProof} uploaded for clinical audit</span>
+                </p>
+              )}
             </div>
           )}
 
-          {showProofUpload && discountType === 'senior' && (
-            <div className="p-6 bg-bg-notes border-2 border-dashed border-border-card rounded-lg text-center transition-colors hover:border-brand-primary/50">
-              <label className="block text-sm font-semibold text-text-primary mb-3">
-                📄 Drop your Senior Citizen ID here, or click to upload
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleProofUpload}
-                className="block mx-auto w-full max-w-xs text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-primary file:text-white file:font-semibold file:cursor-pointer hover:file:bg-brand-primary/90 cursor-pointer"
-              />
-              {discountProof && <p className="text-sm font-bold text-green-600 mt-4">✓ {discountProof} uploaded</p>}
-            </div>
-          )}
-
-          {/* Payment Method */}
+          {/* Payment Method Selection */}
           <div>
-            <label className="block text-sm font-semibold text-text-primary mb-3">
-              Payment Method
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+              Select Settlement Channel
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {[
-                { value: 'cash' as const, label: '💵 Cash' },
-                { value: 'card' as const, label: '💳 Card (Stripe)' },
-                { value: 'bank-transfer' as const, label: '🏧 Bank Transfer' },
-                { value: 'gcash' as const, label: '📱 GCash' },
-              ].map((option) => (
-                <button
-                  type="button"
-                  key={option.value}
-                  onClick={() => {
-                    setPaymentMethod(option.value);
-                    // Reset stripe form when switching away from card
-                    if (option.value !== 'card') {
-                      setShowStripeForm(false);
-                      setStripeClientSecret(null);
-                      setStripeError(null);
-                    }
-                  }}
-                  className={`p-3 rounded-lg border-2 font-semibold transition ${
-                    paymentMethod === option.value
-                      ? 'border-green-600 bg-green-50 text-green-700'
-                      : 'border-border-card hover:border-green-300 text-text-primary'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+                { value: 'cash' as const, label: 'Clinic Cash', icon: Banknote },
+                { value: 'card' as const, label: 'Credit/Debit (Stripe)', icon: CreditCard },
+                { value: 'bank-transfer' as const, label: 'Bank Transfer', icon: Building2 },
+                { value: 'gcash' as const, label: 'GCash', icon: Smartphone },
+              ].map((option) => {
+                const IconComponent = option.icon;
+                const isSelected = paymentMethod === option.value;
+                return (
+                  <button
+                    type="button"
+                    key={option.value}
+                    onClick={() => {
+                      setPaymentMethod(option.value);
+                      if (option.value !== 'card') {
+                        setShowStripeForm(false);
+                        setStripeClientSecret(null);
+                        setStripeError(null);
+                      }
+                    }}
+                    className={`p-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition flex flex-col items-center gap-1.5 ${
+                      isSelected
+                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
+                        : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
+                    }`}
+                  >
+                    <IconComponent className={`w-4 h-4 ${isSelected ? 'text-emerald-700' : 'text-slate-500'}`} />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <hr className="my-6 border-border-card" />
-
           {/* Amount Summary */}
-          <div className="bg-brand-primary/5 rounded-lg p-6 border border-brand-primary/20">
-            <h3 className="text-lg font-bold text-text-primary mb-4">📊 Payment Summary</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between text-text-primary">
-                <span className="font-medium">Service Amount:</span>
-                <span className="font-semibold">₱{amount.toFixed(2)}</span>
+          <div className="skeuo-card p-5 bg-slate-50 border-2 border-slate-300 rounded-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5 text-slate-600" />
+              Payment Breakdown
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-slate-700">
+                <span>Standard Procedure Fee:</span>
+                <span className="font-mono font-bold">₱{amount.toFixed(2)}</span>
               </div>
               {discountAmount > 0 && (
-                <div className="flex justify-between text-green-600 font-medium">
-                  <span>Discount ({(discountType || 'none').toUpperCase()}):</span>
-                  <span>-₱{discountAmount.toFixed(2)}</span>
+                <div className="flex justify-between text-emerald-700">
+                  <span className="font-semibold">Discount Applied ({(discountType || 'none').toUpperCase()}):</span>
+                  <span className="font-mono font-bold">-₱{discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="border-t border-brand-primary/20 pt-3 flex justify-between text-lg font-bold text-text-primary">
-                <span>Total Amount:</span>
-                <span className="text-brand-primary">₱{finalAmount.toFixed(2)}</span>
+              <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-base font-black text-slate-900">
+                <span className="uppercase tracking-wide">Net Settlement:</span>
+                <span className="font-mono text-emerald-800">₱{finalAmount.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {/* Stripe Error */}
           {stripeError && (
-            <div className="flex items-center gap-2 p-4 bg-brand-danger/10 border border-brand-danger/30 rounded-lg">
-              <span className="text-brand-danger font-bold">⚠</span>
-              <p className="text-sm font-medium text-brand-danger">{stripeError}</p>
+            <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-400 rounded-xs text-red-700">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <p className="text-xs font-bold">{stripeError}</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Stripe Card Payment Form (shown when user clicks Pay Now with card selected) */}
+      {/* Stripe Card Payment Form */}
       {showStripeForm && stripeClientSecret && (
-        <div className="bg-bg-surface rounded-lg shadow-lg p-6 mb-8 border-2 border-brand-primary/30 transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.3)]">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-brand-primary/10 rounded-full flex items-center justify-center">
-              <span className="text-xl">💳</span>
+        <div className="skeuo-panel p-6 border-2 border-emerald-600">
+          <div className="flex items-center gap-3 mb-6 pb-3 border-b-2 border-slate-200">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xs border border-emerald-300 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-emerald-800" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-text-primary">Enter Card Details</h2>
-              <p className="text-sm text-text-secondary">Mastercard, Visa, Debit & Credit accepted</p>
+              <h2 className="text-base font-black uppercase tracking-tight text-slate-900">Card Payment Gateway</h2>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Visa, Mastercard, Debit, ATM cards</p>
             </div>
           </div>
           <StripeProvider clientSecret={stripeClientSecret}>
@@ -574,39 +599,35 @@ export default function BillingPayment({
         </div>
       )}
 
-      {/* Billing History */}
+      {/* Billing History Table */}
       {billingHistory.length > 0 && (
-        <div className="bg-bg-surface rounded-lg shadow-md p-6 mb-8 border border-border-card">
-          <h2 className="text-2xl font-bold text-text-primary mb-6">Billing History</h2>
+        <div className="skeuo-panel p-6 border-2 border-slate-300">
+          <h2 className="text-base font-black uppercase tracking-tight text-slate-900 mb-4">
+            Recent Billing Transactions
+          </h2>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b-2 border-border-card">
-                  <th className="text-left p-3 font-semibold text-text-primary">Date</th>
-                  <th className="text-left p-3 font-semibold text-text-primary">Service</th>
-                  <th className="text-right p-3 font-semibold text-text-primary">Amount</th>
-                  <th className="text-center p-3 font-semibold text-text-primary">Status</th>
+                <tr className="border-b-2 border-slate-300 text-slate-500 uppercase tracking-wider">
+                  <th className="text-left p-2.5 font-bold">Transaction Date</th>
+                  <th className="text-left p-2.5 font-bold">Clinical Service</th>
+                  <th className="text-right p-2.5 font-bold">Amount Paid</th>
+                  <th className="text-center p-2.5 font-bold">Audit Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-200">
                 {billingHistory.slice(0, 5).map((bill, idx) => (
-                  <tr key={idx} className="border-b border-border-card hover:bg-bg-notes">
-                    <td className="p-3 text-text-primary">
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="p-2.5 text-slate-700 font-mono">
                       {bill.created_at ? new Date(bill.created_at).toLocaleDateString() : 'N/A'}
                     </td>
-                    <td className="p-3 text-text-primary">{bill.appointment_id ? 'Appointment' : 'Service'}</td>
-                    <td className="p-3 text-right font-semibold text-text-primary">
+                    <td className="p-2.5 text-slate-900 font-bold">{bill.appointment_id ? 'Dental Appointment' : 'Clinical Service'}</td>
+                    <td className="p-2.5 text-right font-mono font-bold text-slate-900">
                       ₱{bill.amount?.toFixed(2)}
                     </td>
-                    <td className="p-3 text-center">
-                      <span
-                        className={`px-3 py-1 rounded-pill text-xs font-bold ${
-                          bill.payment_status === 'paid'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-brand-danger/10 text-brand-danger'
-                        }`}
-                      >
-                        {bill.payment_status === 'paid' ? '✓ Paid' : '⏳ Pending'}
+                    <td className="p-2.5 text-center">
+                      <span className={bill.payment_status === 'paid' ? 'skeuo-badge skeuo-badge-mint' : 'skeuo-badge skeuo-badge-amber'}>
+                        {bill.payment_status === 'paid' ? 'Paid' : 'Pending'}
                       </span>
                     </td>
                   </tr>
@@ -617,22 +638,37 @@ export default function BillingPayment({
         </div>
       )}
 
-      {/* Action Buttons — hidden when Stripe form is active */}
+      {/* Action CTA Buttons */}
       {!showStripeForm && (
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           <button
             type="button"
             onClick={handlePayment}
             disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
-            className="flex-1 p-4 bg-brand-primary text-text-on-avatar font-bold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card transition text-lg"
+            className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 shrink-0"
           >
-            {isProcessing ? '⏳ Processing...' : paymentMethod === 'card' ? '💳 Pay with Card' : '✓ Pay Now'}
+            {isProcessing ? (
+              <span className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <span>Processing Payment...</span>
+              </span>
+            ) : paymentMethod === 'card' ? (
+              <span className="flex items-center gap-2">
+                <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                <span>Pay ₱{finalAmount.toFixed(2)} with Card</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Confirm Settlement</span>
+              </span>
+            )}
           </button>
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 p-4 bg-border-card text-text-primary font-semibold rounded-pill hover:bg-border-card/80 transition"
+              className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0"
             >
               Cancel
             </button>

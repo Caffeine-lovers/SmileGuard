@@ -25,13 +25,12 @@ interface MedicalIntake {
 export default function ProfilePage() {
   const router = useRouter();
   const { currentUser, loading: authLoading } = useAuth();
-  const [profileImage, setProfileImage] = useState<File | null>(null);
   const [medicalData, setMedicalData] = useState<MedicalIntake | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -57,7 +56,7 @@ export default function ProfilePage() {
 
   const fetchMedicalData = async () => {
     try {
-      setLoading(true);
+      setIsLoadingData(true);
       setError(null);
 
       const { data, error: fetchError } = await supabase
@@ -83,7 +82,7 @@ export default function ProfilePage() {
       console.error('[BioData] Error fetching medical data:', err);
       setError('An error occurred while loading medical information');
     } finally {
-      setLoading(false);
+      setIsLoadingData(false);
     }
   };
 
@@ -140,6 +139,16 @@ export default function ProfilePage() {
   const handleInputChange = (field: keyof MedicalIntake, value: string | null) => {
     setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
   };
+
+  if (authLoading || isLoadingData) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 text-center py-16">
+        <div className="skeuo-panel p-8 max-w-sm mx-auto">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Loading Clinical Records...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">

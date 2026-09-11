@@ -2,23 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-// --- Interfaces ---
-
-export interface MedicalIntakeData {
-  date_of_birth?: string;
-  gender?: string;
-  phone?: string;
-  address?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  allergies?: string;
-  current_medications?: string;
-  medical_conditions?: string;
-  past_surgeries?: string;
-  smoking_status?: string;
-  pregnancy_status?: string;
-  notes?: string;
-}
+import type { MedicalIntakeData } from '@smileguard/shared-types';
+export type { MedicalIntakeData };
 
 export interface SignupFormData {
   name: string;

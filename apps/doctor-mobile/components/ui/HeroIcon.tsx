@@ -1,90 +1,145 @@
 import React from "react";
-import { Image, ImageStyle, StyleProp } from "react-native";
+import { View, StyleProp, ViewStyle } from "react-native";
+import {
+  Check,
+  X,
+  Trash2,
+  Bell,
+  User,
+  Settings,
+  Calendar,
+  Mail,
+  Phone,
+  MapPin,
+  Pencil,
+  Eye,
+  EyeOff,
+  Plus,
+  Minus,
+  Search,
+  ArrowLeft,
+  ArrowRight,
+  Info,
+  Building2,
+  RefreshCw,
+  CalendarCheck,
+  LayoutDashboard,
+  FileText,
+  UserCheck,
+  ChevronLeft,
+  ChevronRight,
+  Archive,
+  Circle,
+  Clock,
+  LogOut,
+  Camera,
+  LucideIcon,
+} from "lucide-react-native";
 
 export type HeroIconName =
-  | "check" | "xmark" | "trash" | "bell" | "user" | "cog"
-  | "calendar" | "envelope" | "phone" | "map-pin" | "pencil"
-  | "eye" | "eye-slash" | "plus" | "minus" | "search"
-  | "arrow-left" | "arrow-right" | "information" | "clinic" | "refresh"
-  | "appointment" | "dashboard" | "records" | "settings" | "profile"
-  | "back" | "view" | "open" | "archive-box" | "circle";
+  | "check"
+  | "xmark"
+  | "trash"
+  | "bell"
+  | "user"
+  | "cog"
+  | "calendar"
+  | "envelope"
+  | "phone"
+  | "map-pin"
+  | "pencil"
+  | "eye"
+  | "eye-slash"
+  | "plus"
+  | "minus"
+  | "search"
+  | "arrow-left"
+  | "arrow-right"
+  | "information"
+  | "clinic"
+  | "refresh"
+  | "appointment"
+  | "dashboard"
+  | "records"
+  | "settings"
+  | "profile"
+  | "back"
+  | "view"
+  | "open"
+  | "archive-box"
+  | "circle"
+  | "clock"
+  | "logout"
+  | "camera";
 
 export type HeroIconSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface HeroIconProps {
   name: HeroIconName;
-  size?: HeroIconSize;
+  size?: HeroIconSize | number;
   color?: string;
-  style?: StyleProp<ImageStyle>;
+  style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
 const ICON_SIZES: Record<HeroIconSize, number> = {
-  xs: 16,
-  sm: 20,
-  md: 24,
-  lg: 32,
-  xl: 48,
+  xs: 14,
+  sm: 18,
+  md: 22,
+  lg: 28,
+  xl: 36,
 };
 
-const ICON_PATHS: Record<HeroIconName, any> = {
-  check: require("../../assets/images/icon/check.png"),
-  xmark: require("../../assets/images/icon/close.png"),
-  trash: require("../../assets/images/icon/trash.png"),
-  bell: require("../../assets/images/icon/bell.png"),
-  user: require("../../assets/images/icon/profile.png"),
-  cog: require("../../assets/images/icon/settings.png"),
-  calendar: require("../../assets/images/icon/appointment.png"),
-  envelope: require("../../assets/images/icon/bell.png"),
-  phone: require("../../assets/images/icon/close.png"),
-  "map-pin": require("../../assets/images/icon/clinic.png"),
-  pencil: require("../../assets/images/icon/settings.png"),
-  eye: require("../../assets/images/icon/view.png"),
-  "eye-slash": require("../../assets/images/icon/view.png"),
-  plus: require("../../assets/images/icon/check.png"),
-  minus: require("../../assets/images/icon/trash.png"),
-  search: require("../../assets/images/icon/close.png"),
-  "arrow-left": require("../../assets/images/icon/back.png"),
-  "arrow-right": require("../../assets/images/icon/close.png"),
-  information: require("../../assets/images/icon/bell.png"),
-  clinic: require("../../assets/images/icon/clinic.png"),
-  refresh: require("../../assets/images/icon/refresh.png"),
-  appointment: require("../../assets/images/icon/appointment.png"),
-  dashboard: require("../../assets/images/icon/dashboard.png"),
-  records: require("../../assets/images/icon/records.png"),
-  settings: require("../../assets/images/icon/settings.png"),
-  profile: require("../../assets/images/icon/profile.png"),
-  back: require("../../assets/images/icon/back.png"),
-  view: require("../../assets/images/icon/view.png"),
-  open: require("../../assets/images/icon/open.png"),
-  "archive-box": require("../../assets/images/icon/close.png"),
-  circle: require("../../assets/images/icon/check.png"),
+const ICON_COMPONENTS: Record<HeroIconName, LucideIcon> = {
+  check: Check,
+  xmark: X,
+  trash: Trash2,
+  bell: Bell,
+  user: User,
+  cog: Settings,
+  calendar: Calendar,
+  envelope: Mail,
+  phone: Phone,
+  "map-pin": MapPin,
+  pencil: Pencil,
+  eye: Eye,
+  "eye-slash": EyeOff,
+  plus: Plus,
+  minus: Minus,
+  search: Search,
+  "arrow-left": ArrowLeft,
+  "arrow-right": ArrowRight,
+  information: Info,
+  clinic: Building2,
+  refresh: RefreshCw,
+  appointment: CalendarCheck,
+  dashboard: LayoutDashboard,
+  records: FileText,
+  settings: Settings,
+  profile: UserCheck,
+  back: ChevronLeft,
+  view: Eye,
+  open: ChevronRight,
+  "archive-box": Archive,
+  circle: Circle,
+  clock: Clock,
+  logout: LogOut,
+  camera: Camera,
 };
 
 export const HeroIcon: React.FC<HeroIconProps> = ({
   name,
   size = "md",
-  color = "#0b7fab",
+  color = "#10B981",
   style,
   testID,
 }) => {
-  const iconSize = ICON_SIZES[size];
-  const source = ICON_PATHS[name];
+  const numericSize = typeof size === "number" ? size : ICON_SIZES[size] || 22;
+  const Component = ICON_COMPONENTS[name] || Info;
 
   return (
-    <Image
-      source={source}
-      style={[
-        {
-          width: iconSize,
-          height: iconSize,
-          resizeMode: "contain",
-          tintColor: color,
-        },
-        style,
-      ]}
-      testID={testID}
-    />
+    <View style={style} testID={testID}>
+      <Component size={numericSize} color={color} strokeWidth={2} />
+    </View>
   );
 };
-

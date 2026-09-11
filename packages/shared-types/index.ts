@@ -2,23 +2,6 @@
  * Shared TypeScript Types for SmileGuard
  * Used by both patient-web and doctor-mobile
  */
-
-export interface MedicalIntakeData {
-  dateOfBirth: string;
-  gender: string;
-  phone: string;
-  address: string;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
-  allergies: string;
-  currentMedications: string;
-  medicalConditions: string;
-  pastSurgeries: string;
-  smokingStatus: string;
-  pregnancyStatus: string;
-  notes?: string;
-}
-
 // ─────────────────────────────────────────
 // User & Auth Types
 // ─────────────────────────────────────────
@@ -78,7 +61,7 @@ export interface Patient {
   updated_at?: string;
 }
 
-export interface medical_intake {
+export interface MedicalIntakeData {
   date_of_birth?: string;
   gender?: string;
   phone?: string;
@@ -93,6 +76,8 @@ export interface medical_intake {
   pregnancy_status?: string;
   notes?: string;
 }
+
+export type medical_intake = MedicalIntakeData;
 
 
 

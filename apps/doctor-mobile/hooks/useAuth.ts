@@ -176,7 +176,19 @@ export function useAuth() {
     if (profileError) throw new Error(`Profile error: ${profileError.message}`);
     if (!profile)     throw new Error("Profile not found. Please contact support.");
 
-    const actualRole = profile.role || "doctor";
+    let actualRole = profile.role || "doctor";
+
+    if (actualRole !== role) {
+      const { data: doctorRecord } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      if (doctorRecord) {
+        actualRole = "doctor";
+      }
+    }
 
     if (actualRole !== role) {
       await supabase.auth.signOut();
