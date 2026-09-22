@@ -173,6 +173,27 @@ export interface Billing {
   updated_at?: string;
 }
 
+export function calculateDiscount(
+  amount: number,
+  discountType?: Billing["discount_type"]
+): { discountAmount: number; finalAmount: number } {
+  let discountAmount = 0;
+
+  switch (discountType) {
+    case "pwd":
+    case "senior":
+      discountAmount = amount * 0.2; // 20% statutory discount
+      break;
+    default:
+      discountAmount = 0;
+  }
+
+  return {
+    discountAmount,
+    finalAmount: amount - discountAmount,
+  };
+}
+
 // ─────────────────────────────────────────
 // Password Validation
 // ─────────────────────────────────────────

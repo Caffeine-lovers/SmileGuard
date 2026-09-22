@@ -73,6 +73,7 @@ dist/
 build/
 .tox/
 .coverage
+coverage/
 htmlcov/
 .hypothesis/
 dump.rdb
