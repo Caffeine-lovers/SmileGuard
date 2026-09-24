@@ -58,7 +58,8 @@ import {
   ChevronLeft,
   ChevronDown,
   Clock, 
-  LayoutDashboard 
+  LayoutDashboard,
+  Bell
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
 import {
@@ -101,7 +102,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // NOTIFICATION SYSTEM
   // ─────────────────────────────────────────
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-  const notificationState = useNotifications(user?.id, true);
+  const refreshRef = useRef<(() => void) | null>(null);
+
+  const handleIncomingNotification = useCallback((notification: any) => {
+    console.log('[DoctorDashboard] Incoming notification popped:', notification.title);
+    // When appointment or medical intake arrives, auto refresh dashboard data immediately
+    if (notification.type.startsWith('appointment-') || notification.type.startsWith('medical-intake')) {
+      refreshRef.current?.();
+    }
+  }, []);
+
+  const notificationState = useNotifications(user?.id, true, handleIncomingNotification);
   
   // Doctor profile state
   const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
@@ -844,6 +855,76 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Real-Time Floating Notification Banner (Pops Up Immediately) */}
+        {notificationState.activeNotification && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => {
+              const notif = notificationState.activeNotification;
+              notificationState.actions.dismissActiveNotification();
+              if (notif?.type.startsWith('appointment-')) {
+                setActiveTab('appointment-requests');
+              } else {
+                setShowNotificationCenter(true);
+              }
+            }}
+            style={{
+              position: 'absolute',
+              top: 68,
+              left: 16,
+              right: 16,
+              backgroundColor: '#064E3B',
+              borderRadius: 14,
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              zIndex: 9999,
+              elevation: 10,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+              borderWidth: 1.5,
+              borderColor: '#10B981',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+              <View style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 10,
+              }}>
+                <Bell size={18} color="#34D399" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#F9FAFB', fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
+                  {notificationState.activeNotification.title}
+                </Text>
+                <Text style={{ color: '#D1FAE5', fontSize: 11, marginTop: 1 }} numberOfLines={2}>
+                  {notificationState.activeNotification.message}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => notificationState.actions.dismissActiveNotification()}
+              style={{
+                padding: 6,
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                borderRadius: 20,
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.contentArea}>
           {activeTab === 'dashboard' ? (

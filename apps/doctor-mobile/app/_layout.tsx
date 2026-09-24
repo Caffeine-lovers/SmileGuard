@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
+import { ClinicProvider } from "../contexts/ClinicContext";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -36,55 +37,34 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    const processSessionUser = async (sessionUser: any) => {
-      if (!sessionUser) {
-        setUser(null);
-        return;
-      }
-      let role = sessionUser.user_metadata?.role;
-      try {
-        const { data: doc } = await supabase
-          .from("doctors")
-          .select("id")
-          .eq("user_id", sessionUser.id)
-          .maybeSingle();
-
-        if (doc) {
-          role = "doctor";
-          if (sessionUser.user_metadata?.role !== "doctor") {
-            supabase.auth.updateUser({ data: { role: "doctor" } }).catch(() => {});
-          }
-        }
-      } catch (err) {
-        console.warn("[RootLayout] Could not verify doctor record:", err);
-      }
-
-      console.log("[RootLayout] Resolved user role:", role);
-      setUser({
-        id: sessionUser.id,
-        email: sessionUser.email!,
-        name: sessionUser.user_metadata?.name,
-        role: role || "doctor",
-      });
-    };
-
-    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: Session | null } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       console.log("[RootLayout] Initial session check:", session ? "Found" : "Null");
       if (session?.user) {
-        await processSessionUser(session.user);
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          name: session.user.user_metadata?.name,
+          role: session.user.user_metadata?.role || "doctor",
+        });
       }
       setReady(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: Session | null) => {
+      (event: string, session: Session | null) => {
         console.log("[RootLayout] Auth state changed:", event, session ? "Session Found" : "No Session");
         if (event === "PASSWORD_RECOVERY") {
           router.push("/reset-password");
           return;
         }
         if (session?.user) {
-          await processSessionUser(session.user);
+          console.log("[RootLayout] Setting user from auth state:", session.user.email);
+          setUser({
+            id: session.user.id,
+            email: session.user.email!,
+            name: session.user.user_metadata?.name,
+            role: session.user.user_metadata?.role || "doctor",
+          });
         } else {
           console.log("[RootLayout] Setting user to null");
           setUser(null);
@@ -116,13 +96,14 @@ export default function RootLayout() {
     } else {
       if (!inDoctorGroup && !inSetupProfile) {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
-        // Check if doctor profile exists before sending to dashboard
-        supabase
-          .from("doctors")
-          .select("id")
-          .eq("user_id", user.id)
-          .single()
-          .then(({ data, error }) => {
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from("doctors")
+              .select("id")
+              .eq("user_id", user.id)
+              .single();
+
             if (error?.code === "PGRST116" || !data) {
               console.log("[RootLayout] No profile found, routing to /setup-profile");
               router.replace("/setup-profile");
@@ -130,7 +111,11 @@ export default function RootLayout() {
               console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
               router.replace("/(doctor)/dashboard");
             }
-          });
+          } catch (err) {
+            console.error("[RootLayout] Error checking doctor profile:", err);
+            router.replace("/setup-profile");
+          }
+        })();
       }
     }
   }, [user, ready, segments]);
@@ -140,7 +125,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Slot />
+        <ClinicProvider>
+          <Slot />
+        </ClinicProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

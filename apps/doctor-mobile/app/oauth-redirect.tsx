@@ -23,32 +23,54 @@ export default function OAuthRedirect() {
       try {
         console.log("[OAuthRedirect] Handler called");
         console.log("[OAuthRedirect] Search params:", searchParams);
-        
-        // Give Supabase a moment to process the OAuth response
-        // The session hook in _layout will automatically detect the new session
+
+        if (searchParams.error) {
+          console.error("❌ OAuth error:", searchParams.error);
+          router.replace("/");
+          return;
+        }
+
+        // If code param is present (PKCE flow), exchange it for a session
+        if (searchParams.code) {
+          console.log("[OAuthRedirect] Exchanging code for session...");
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(searchParams.code);
+          if (exchangeError) {
+            console.error("❌ Error exchanging code for session:", exchangeError);
+          }
+        }
+
+        // Give Supabase a moment to process/store session
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Check if user is now authenticated
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        // Check if user is now authenticated (retry up to 3 times to allow session storage to settle)
+        let session = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session?.user) {
+            session = data.session;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
 
         console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
-        console.log("[OAuthRedirect] Session user email:", session?.user?.email);
-        console.log("[OAuthRedirect] Session user ID:", session?.user?.id);
 
         if (session?.user) {
           console.log("✅ OAuth successful, user:", session.user.email);
-          console.log("[OAuthRedirect] User metadata:", session.user.user_metadata);
-          
-          // Let the root layout handle the redirection
-          // We just need to give the system a second to process the auth state
-          console.log("[OAuthRedirect] Handing off to _layout...");
-          // We won't replace routes here, to avoid conflicting with _layout routing
-        } else if (searchParams.error) {
-          // OAuth error occurred
-          console.error("❌ OAuth error:", searchParams.error);
-          router.replace("/");
+          // Check if doctor profile exists to direct to correct screen
+          const { data: doc } = await supabase
+            .from("doctors")
+            .select("id")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+
+          if (doc) {
+            console.log("[OAuthRedirect] Doctor profile found, routing to /(doctor)/dashboard");
+            router.replace("/(doctor)/dashboard");
+          } else {
+            console.log("[OAuthRedirect] No doctor profile found, routing to /setup-profile");
+            router.replace("/setup-profile");
+          }
         } else {
           // No session yet, redirect back to login
           console.log("⚠️ No session after redirect");

@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
 import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
-import { createBilling } from '@/lib/paymentService';
-import { SERVICE_PRICES } from '@/lib/outstandingBalanceService';
 import type { Appointment } from '@/lib/database';
 
 import { Check, CheckCircle2, Clock, ArrowUp } from 'lucide-react';
@@ -214,20 +212,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
-        // Get the service price from SERVICE_PRICES
-        const servicePrice = SERVICE_PRICES[selectedService.name] || selectedService.price || 0;
-        console.log('[handleBooking] Service price:', { service: selectedService.name, price: servicePrice });
-        
-        // Create billing record
-        const billingResult = await createBilling(userId, result.appointmentId, servicePrice);
-        
-        if (billingResult.success) {
-          console.log('[handleBooking] Billing record created:', billingResult.billingId);
-          alert('Appointment booked successfully!');
-        } else {
-          console.warn('[handleBooking] Client billing insertion restricted by RLS (clinic settles billing on-site):', billingResult.message);
-          alert('Appointment booked successfully! Your billing will be settled at the clinic.');
-        }
+        alert('Appointment booked successfully!');
         
         if (onSuccess) {
           onSuccess({

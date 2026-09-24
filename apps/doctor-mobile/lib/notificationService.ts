@@ -19,7 +19,8 @@ function generateNotification(
   tableName: string,
   action: 'INSERT' | 'UPDATE' | 'DELETE',
   newRecord: any,
-  oldRecord: any
+  oldRecord: any,
+  doctorId?: string
 ): Notification | null {
   const baseNotification = {
     id: generateNotificationId(),
@@ -31,28 +32,34 @@ function generateNotification(
   const getChangedFields = (): string[] => {
     if (action === 'DELETE') return ['record deleted'];
     if (action === 'INSERT') return ['new record'];
-    if (action === 'UPDATE' && oldRecord) {
+    if (action === 'UPDATE' && oldRecord && newRecord) {
       return Object.keys(newRecord).filter(key => newRecord[key] !== oldRecord[key]);
     }
     return [];
   };
 
   switch (tableName) {
-    case 'appointments':
+    case 'appointments': {
+      const record = newRecord || oldRecord || {};
+      // Filter out appointments assigned to other doctors
+      if (doctorId && record.dentist_id && record.dentist_id !== doctorId) {
+        return null;
+      }
       return {
         ...baseNotification,
-        type: getAppointmentNotificationType(action, newRecord),
-        title: `Appointment ${action === 'INSERT' ? 'Created' : action === 'DELETE' ? 'Cancelled' : 'Updated'}`,
-        message: `${newRecord.patient_name || 'Patient'} - ${newRecord.service || 'Service'} at ${newRecord.appointment_time || 'TBD'}`,
+        type: getAppointmentNotificationType(action, record),
+        title: `Appointment ${action === 'INSERT' ? 'Request Received' : action === 'DELETE' ? 'Cancelled' : 'Updated'}`,
+        message: `${record.patient_name || 'Patient'} - ${record.service || 'Service'} on ${record.appointment_date || 'scheduled date'} at ${record.appointment_time || 'TBD'}`,
         data: {
-          appointmentId: newRecord.id,
-          patientId: newRecord.patient_id,
-          doctorId: newRecord.dentist_id,
+          appointmentId: record.id,
+          patientId: record.patient_id,
+          doctorId: record.dentist_id,
           tableName,
-          recordId: newRecord.id,
+          recordId: record.id,
           action,
         },
       };
+    }
 
     case 'medical_intake':
       return {
@@ -197,7 +204,8 @@ export function subscribeToTableChanges(
             tableName,
             payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
             payload.new,
-            payload.old
+            payload.old,
+            doctorId
           );
 
           if (notification) {
@@ -239,21 +247,17 @@ export function subscribeToTableChanges(
 function getSubscriptionFilter(tableName: string, doctorId: string): string | null {
   switch (tableName) {
     case 'appointments':
-      // Subscribe to appointments where:
-      // 1. You're assigned as the dentist, OR
-      // 2. No dentist is assigned yet (dentist_id is NULL)
-      return `or(dentist_id.eq.${doctorId},dentist_id.is.null)`;
+      // Supabase Realtime does NOT support or(...) syntax in postgres_changes filters.
+      // We subscribe without an invalid filter; Supabase RLS and generateNotification filter by doctorId.
+      return null;
     case 'medical_intake':
-      return `patient_id=eq.${doctorId}`;
+      return null;
     case 'doctors':
       return `id=eq.${doctorId}`;
     case 'dummy_accounts':
-      // Subscribe to all dummy accounts (updated/inserted for this doctor's clinic)
-      // Filter can be added based on clinic_id if needed
-      return null; // No filter - see all dummy accounts
+      return null;
     case 'profiles':
-      // Subscribe to all profile updates (can be filtered by role='doctor' if needed)
-      return null; // No filter - see all profile changes
+      return null;
     default:
       return null;
   }

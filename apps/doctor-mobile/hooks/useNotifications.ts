@@ -16,13 +16,19 @@ import {
   clearOldNotifications,
 } from '../lib/notificationService';
 
-export function useNotifications(doctorId: string | undefined, enabled: boolean = true) {
+export function useNotifications(
+  doctorId: string | undefined,
+  enabled: boolean = true,
+  onNotificationReceived?: (notification: Notification) => void
+) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeNotification, setActiveNotification] = useState<Notification | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const seenNotificationIds = useRef<Set<string>>(new Set());
+  const bannerTimeoutRef = useRef<any>(null);
 
   // Initialize real-time subscriptions
   useEffect(() => {
@@ -53,11 +59,19 @@ export function useNotifications(doctorId: string | undefined, enabled: boolean 
           return clearOldNotifications(updated, 24);
         });
 
-        // Update unread count
-        setNotifications((prev) => {
-          setUnreadCount(getUnreadCount(prev));
-          return prev;
-        });
+        // Trigger active popup notification banner
+        setActiveNotification(notification);
+        if (bannerTimeoutRef.current) {
+          clearTimeout(bannerTimeoutRef.current);
+        }
+        bannerTimeoutRef.current = setTimeout(() => {
+          setActiveNotification(null);
+        }, 6000);
+
+        // Trigger optional callback (e.g. data refresh)
+        if (onNotificationReceived) {
+          onNotificationReceived(notification);
+        }
       },
       (errorMsg: string) => {
         console.error('❌ Notification service error:', errorMsg);
@@ -73,8 +87,11 @@ export function useNotifications(doctorId: string | undefined, enabled: boolean 
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
+      if (bannerTimeoutRef.current) {
+        clearTimeout(bannerTimeoutRef.current);
+      }
     };
-  }, [doctorId, enabled]);
+  }, [doctorId, enabled, onNotificationReceived]);
 
   // Update unread count whenever notifications change
   useEffect(() => {
@@ -121,9 +138,14 @@ export function useNotifications(doctorId: string | undefined, enabled: boolean 
     setNotifications((prev) => [notification, ...prev]);
   }, []);
 
+  const handleDismissActiveNotification = useCallback(() => {
+    setActiveNotification(null);
+  }, []);
+
   return {
     notifications: getSortedNotifications(),
     unreadCount,
+    activeNotification,
     isLoading,
     error,
     actions: {
@@ -133,6 +155,7 @@ export function useNotifications(doctorId: string | undefined, enabled: boolean 
       clearAll: handleClearAll,
       filterByType: handleFilterByType,
       addNotification: handleAddNotification,
+      dismissActiveNotification: handleDismissActiveNotification,
     },
   };
 }
