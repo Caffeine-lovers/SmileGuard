@@ -11,11 +11,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, updatePatientMedicalInfo, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
-import PatientDetailsEdit from "./PatientDetailsEdit";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth } from "../../lib/dateFormatters";
 
@@ -51,8 +50,6 @@ interface PatientDetailsViewProps {
   patient: AppointmentType | null;
   doctorId?: string;
   onClose: () => void;
-  onEdit?: () => void;
-  onMedicalIntakeUpdated?: (patientName: string, patientId: string) => void;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
@@ -126,15 +123,13 @@ const categorizeAppointments = (appointments: any[]) => {
   return { past, current, future };
 };
 
-export default function PatientDetailsView({ visible, patient, doctorId, onClose, onEdit,onMedicalIntakeUpdated, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
+export default function PatientDetailsView({ visible, patient, doctorId, onClose, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [billingInfo, setBillingInfo] = useState<PatientBillingInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-  const [isEditingPatient, setIsEditingPatient] = useState(false);
-  const [editedPatient, setEditedPatient] = useState<AppointmentType | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -387,11 +382,25 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
               ) : (
                 <>
                   {(() => {
-                    // Filter: Only show appointments that have been accepted (dentist_id exists)
-                    const acceptedAppointments = appointments.filter((appt: any) => appt.dentist_id);
-                    const cancelledAppts = acceptedAppointments.filter((appt: any) => appt.status === 'cancelled');
-                    const otherAppts = acceptedAppointments.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
-                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other (filtered to show only accepted appointments)`);
+                    // Filter: Prioritize accepted appointments (dentist_id exists) or completed/past appointments.
+                    // If no appointments match (e.g. dentist_id not set in legacy/test data),
+                    // fallback to all non-declined appointments so valid appointment history is never hidden.
+                    const acceptedAppointments = appointments.filter(
+                      (appt: any) =>
+                        appt.dentist_id ||
+                        appt.status === 'completed' ||
+                        appt.status === 'cancelled' ||
+                        appt.status === 'no-show'
+                    );
+
+                    const appointmentsToDisplay =
+                      acceptedAppointments.length > 0
+                        ? acceptedAppointments
+                        : appointments.filter((appt: any) => appt.status !== 'declined');
+
+                    const cancelledAppts = appointmentsToDisplay.filter((appt: any) => appt.status === 'cancelled');
+                    const otherAppts = appointmentsToDisplay.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
+                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other (total to display: ${appointmentsToDisplay.length})`);
                     
                     return (
                       <>
@@ -414,20 +423,20 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                           </>
                         )}
                         
-                        {/* See More Button - only show if there are more than 3 accepted appointments */}
-                        {acceptedAppointments.length > 3 && (
+                        {/* See More Button - only show if there are more than 3 appointments to display */}
+                        {appointmentsToDisplay.length > 3 && (
                           <TouchableOpacity 
                             style={styles.seeMoreButton}
                             onPress={() => setShowAppointmentHistory(true)}
                           >
                             <Text style={styles.seeMoreText}>
-                              See All ({acceptedAppointments.length}) →
+                              See All ({appointmentsToDisplay.length}) →
                             </Text>
                           </TouchableOpacity>
                         )}
                         
-                        {/* Show message if no accepted appointments */}
-                        {acceptedAppointments.length === 0 && (
+                        {/* Show message if no appointments to display */}
+                        {appointmentsToDisplay.length === 0 && (
                           <Text style={styles.noDataText}>No accepted appointments yet</Text>
                         )}
                       </>
@@ -447,45 +456,6 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             </View>
           </View>
         </ScrollView>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity 
-              style={[styles.closeButtonFull, { backgroundColor: '#10B981', flex: 1 }]} 
-              onPress={() => {
-                // Merge fresh medicalIntake data with patient to get the latest data
-                const patientWithFreshData: AppointmentType = {
-                  ...patient,
-                  dateOfBirth: medicalIntake?.dateOfBirth || patient.dateOfBirth,
-                  gender: medicalIntake?.gender || patient.gender,
-                  contact: medicalIntake?.phone || patient.contact,
-                  address: medicalIntake?.address || patient.address,
-                  emergencyContactName: medicalIntake?.emergencyContactName || patient.emergencyContactName,
-                  emergencyContactPhone: medicalIntake?.emergencyContactPhone || patient.emergencyContactPhone,
-                  allergies: medicalIntake?.allergies || patient.allergies,
-                  currentMedications: medicalIntake?.currentMedications || patient.currentMedications,
-                  medicalConditions: medicalIntake?.medicalConditions || patient.medicalConditions,
-                  pastSurgeries: medicalIntake?.pastSurgeries || patient.pastSurgeries,
-                  smokingStatus: medicalIntake?.smokingStatus || patient.smokingStatus,
-                  pregnancyStatus: medicalIntake?.pregnancyStatus || patient.pregnancyStatus,
-                  notes: medicalIntake?.notes || patient.notes,
-                };
-                setEditedPatient(patientWithFreshData);
-                setIsEditingPatient(true);
-                if (onEdit) onEdit();
-              }}
-            >
-              <Text style={styles.closeButtonText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.closeButtonFull, { backgroundColor: '#999', flex: 1 }]} 
-              onPress={onClose}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </SafeAreaView>
 
       {/* Appointment History Modal */}
@@ -504,49 +474,6 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
         </Modal>
       )}
 
-      {/* Edit Patient Modal */}
-      {editedPatient && (
-        <PatientDetailsEdit
-          visible={isEditingPatient}
-          patient={editedPatient}
-          onClose={() => {
-            setIsEditingPatient(false);
-            setEditedPatient(null);
-          }}
-          onSave={async (updatedPatient) => {
-            // Update to Supabase (automatically handles dummy accounts vs existing profiles)
-            const result = await updatePatientMedicalInfo(patient?.id || '', {
-              dateOfBirth: updatedPatient.dateOfBirth,
-              gender: updatedPatient.gender,
-              phone: updatedPatient.contact,
-              address: updatedPatient.address,
-              emergencyContactName: updatedPatient.emergencyContactName,
-              emergencyContactPhone: updatedPatient.emergencyContactPhone,
-              allergies: updatedPatient.allergies,
-              currentMedications: updatedPatient.currentMedications,
-              medicalConditions: updatedPatient.medicalConditions,
-              pastSurgeries: updatedPatient.pastSurgeries,
-              smokingStatus: updatedPatient.smokingStatus,
-              pregnancyStatus: updatedPatient.pregnancyStatus,
-              notes: updatedPatient.notes,
-            });
-
-            if (result.success) {
-              // Send notification about medical intake update
-              if (onMedicalIntakeUpdated) {
-                onMedicalIntakeUpdated(patient?.name || 'Patient', patient?.id || '');
-              }
-              // Reload data from Supabase
-              if (patient?.id) {
-                await loadMedicalIntake(patient.id);
-              }
-              // Close the modal
-              setIsEditingPatient(false);
-              setEditedPatient(null);
-            }
-          }}
-        />
-      )}
 
       {/* AppointmentEdit Modal */}
       {editingAppointment && doctorId && (
@@ -578,16 +505,56 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 // Helper Component for Appointment Rows
 function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (appt: any) => void }) {
-  const formattedDate = appointment.appointment_date && appointment.appointment_time
-    ? (() => {
-        const dateStr = appointment.appointment_date; // YYYY-MM-DD
-        const timeStr = appointment.appointment_time; // HH:MM
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const [hour, minute] = timeStr.split(':').map(Number);
-        const date = new Date(year, month - 1, day, hour, minute);
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
-      })()
-    : 'Invalid date';
+  const formattedDate = (() => {
+    try {
+      if (!appointment.appointment_date) return 'Date not available';
+      const cleanDateStr = String(appointment.appointment_date).split('T')[0].trim();
+      const timeStr = appointment.appointment_time ? String(appointment.appointment_time).trim() : null;
+
+      if (timeStr) {
+        const timeParts = timeStr.split(':').map(Number);
+        const dateParts = cleanDateStr.split('-').map(Number);
+        if (dateParts.length === 3 && !dateParts.some(isNaN) && timeParts.length >= 2 && !timeParts.slice(0, 2).some(isNaN)) {
+          const [year, month, day] = dateParts;
+          const [hour, minute] = timeParts;
+          const date = new Date(year, month - 1, day, hour, minute);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            });
+          }
+        }
+      }
+
+      // If only date is provided
+      const dateParts = cleanDateStr.split('-').map(Number);
+      if (dateParts.length === 3 && !dateParts.some(isNaN)) {
+        const [year, month, day] = dateParts;
+        const date = new Date(year, month - 1, day);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
+        }
+      }
+
+      const parsed = new Date(cleanDateStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+
+      return cleanDateStr;
+    } catch {
+      return appointment.appointment_date || 'Date not available';
+    }
+  })();
   
   const statusColors: { [key: string]: string } = {
     scheduled: '#FFC107',
@@ -803,23 +770,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#047857',
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopColor: '#ddd',
-    borderTopWidth: 1,
-    backgroundColor: '#fff',
-  },
-  closeButtonFull: {
-    backgroundColor: '#10B981',
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

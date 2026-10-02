@@ -71,40 +71,12 @@ export async function getPatientMedicalIntake(
 }
 
 // ─────────────────────────────────────────
-// 2A. FETCH PATIENT MEDICAL INFO (Universal - handles both dummy_accounts and profiles)
+// 2A. FETCH PATIENT MEDICAL INFO
 // ─────────────────────────────────────────
 export async function getPatientMedicalInfo(
   patientId: string
 ): Promise<MedicalIntake | null> {
   try {
-    // First check if it's a dummy account
-    const { data: dummyAccount, error: dummyError } = await supabase
-      .from('dummy_accounts')
-      .select('*')
-      .eq('id', patientId)
-      .single();
-
-    if (!dummyError && dummyAccount) {
-      // Map dummy_accounts fields to MedicalIntake interface
-      console.log('✅ Fetching medical info from dummy_accounts');
-      return {
-        dateOfBirth: dummyAccount.date_of_birth || '',
-        gender: dummyAccount.gender || '',
-        phone: dummyAccount.phone || '',
-        address: dummyAccount.address || '',
-        emergencyContactName: dummyAccount.emergency_contact_name || '',
-        emergencyContactPhone: dummyAccount.emergency_contact_phone || '',
-        allergies: dummyAccount.allergies || '',
-        currentMedications: dummyAccount.current_medications || '',
-        medicalConditions: dummyAccount.medical_conditions || '',
-        pastSurgeries: dummyAccount.past_surgeries || '',
-        smokingStatus: dummyAccount.smoking_status || '',
-        pregnancyStatus: dummyAccount.pregnancy_status || '',
-        notes: dummyAccount.notes || '',
-      };
-    }
-
-    // Not a dummy account, fetch from medical_intake (existing profile)
     console.log('✅ Fetching medical info from medical_intake');
     return await getPatientMedicalIntake(patientId);
   } catch (error) {
@@ -122,11 +94,15 @@ export async function getPatientAppointments(
   Array<{
     id: string;
     patient_id: string;
+    dummy_account_id?: string;
+    dentist_id?: string | null;
     service: string;
     appointment_date: string;
+    appointment_time?: string;
     status: string;
     notes?: string;
     created_at: string;
+    updated_at?: string;
   }>
 > {
   try {
@@ -140,7 +116,7 @@ export async function getPatientAppointments(
     });
 
     if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient (check both patient_id for real patients and dummy_account_id for dummy accounts)
+      // Filter for this specific patient (matching either patient_id or dummy_account_id)
       const patientAppointments = appointmentsData.filter((apt: any) => 
         apt.patient_id === patientId || apt.dummy_account_id === patientId
       );
@@ -157,17 +133,27 @@ export async function getPatientAppointments(
       }
     }
 
-    // Fallback: Direct query with explicit select (check both regular and dummy account appointments)
-    console.log('⚠️ RPC returned no data, trying direct query...');
+    // Direct query: select all needed fields including dentist_id, appointment_time, dummy_account_id
+    console.log('⚠️ RPC returned no data or failed, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, dummy_account_id, service, appointment_date, status, notes, created_at', { count: 'exact' })
+      .select('id, patient_id, dummy_account_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
       .or(`patient_id.eq.${patientId},dummy_account_id.eq.${patientId}`)
       .order('appointment_date', { ascending: false });
 
     if (error) {
-      console.error(`❌ Direct query error for patient ${patientId}:`, error);
-      return [];
+      console.warn(`⚠️ Direct query with dummy_account_id failed (${error.message}), trying patient_id only...`);
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('appointments')
+        .select('id, patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at', { count: 'exact' })
+        .eq('patient_id', patientId)
+        .order('appointment_date', { ascending: false });
+
+      if (fallbackError) {
+        console.error(`❌ Direct query error for patient ${patientId}:`, fallbackError);
+        return [];
+      }
+      return fallbackData || [];
     }
 
     if (!data) {
@@ -184,7 +170,7 @@ export async function getPatientAppointments(
       null_status: data.filter(a => !a.status).length,
     };
     console.log(`✅ Direct query: Fetched ${data.length} appointments for patient ${patientId}. Breakdown:`, statusBreakdown);
-    console.log('📋 Appointments:', data.map(a => ({ id: a.id, service: a.service, status: a.status, date: a.appointment_date })));
+    console.log('📋 Appointments:', data.map(a => ({ id: a.id, service: a.service, status: a.status, date: a.appointment_date, time: a.appointment_time, dentist_id: a.dentist_id })));
 
     return data || [];
   } catch (error) {
@@ -213,84 +199,14 @@ export async function updateAppointmentStatus(
 }
 
 // ─────────────────────────────────────────
-// 2D. CHECK IF PATIENT IS DUMMY ACCOUNT
-// ─────────────────────────────────────────
-export async function isDummyAccount(patientId: string): Promise<boolean> {
-  try {
-    const { data, error } = await supabase
-      .from('dummy_accounts')
-      .select('id')
-      .eq('id', patientId)
-      .single();
-
-    return !error && !!data;
-  } catch (error) {
-    return false;
-  }
-}
-
-// ─────────────────────────────────────────
-// 2D-ALT. UPDATE DUMMY ACCOUNT MEDICAL INFO
-// ─────────────────────────────────────────
-export async function updateDummyAccountMedicalInfo(
-  patientId: string,
-  medicalData: Partial<MedicalIntake>
-): Promise<{ success: boolean; message: string }> {
-  try {
-    // Convert camelCase to snake_case for database
-    const dbData: any = {};
-    
-    if (medicalData.dateOfBirth !== undefined) dbData.date_of_birth = medicalData.dateOfBirth;
-    if (medicalData.gender !== undefined) dbData.gender = medicalData.gender;
-    if (medicalData.phone !== undefined) dbData.phone = medicalData.phone;
-    if (medicalData.address !== undefined) dbData.address = medicalData.address;
-    if (medicalData.emergencyContactName !== undefined) dbData.emergency_contact_name = medicalData.emergencyContactName;
-    if (medicalData.emergencyContactPhone !== undefined) dbData.emergency_contact_phone = medicalData.emergencyContactPhone;
-    if (medicalData.allergies !== undefined) dbData.allergies = medicalData.allergies;
-    if (medicalData.currentMedications !== undefined) dbData.current_medications = medicalData.currentMedications;
-    if (medicalData.medicalConditions !== undefined) dbData.medical_conditions = medicalData.medicalConditions;
-    if (medicalData.pastSurgeries !== undefined) dbData.past_surgeries = medicalData.pastSurgeries;
-    if (medicalData.smokingStatus !== undefined) dbData.smoking_status = medicalData.smokingStatus;
-    if (medicalData.pregnancyStatus !== undefined) dbData.pregnancy_status = medicalData.pregnancyStatus;
-    if (medicalData.notes !== undefined) dbData.notes = medicalData.notes;
-
-    // Update dummy_accounts table directly (no foreign key constraint issues)
-    const { error: updateError } = await supabase
-      .from('dummy_accounts')
-      .update(dbData)
-      .eq('id', patientId);
-
-    if (updateError) {
-      console.error('❌ Error updating dummy account medical info:', updateError);
-      return { success: false, message: 'Failed to update patient information' };
-    }
-
-    console.log('✅ Dummy account medical info updated successfully');
-    return { success: true, message: 'Patient information updated successfully' };
-  } catch (error) {
-    console.error('❌ Exception updating dummy account medical info:', error);
-    return { success: false, message: 'Exception updating patient information' };
-  }
-}
-
-// ─────────────────────────────────────────
-// 2D-UNIVERSAL. UPDATE PATIENT MEDICAL INFO (Auto-selects table)
+// 2D-UNIVERSAL. UPDATE PATIENT MEDICAL INFO
 // ─────────────────────────────────────────
 export async function updatePatientMedicalInfo(
   patientId: string,
   medicalData: Partial<MedicalIntake>
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // Check if this is a dummy account
-    const isDummy = await isDummyAccount(patientId);
-
-    if (isDummy) {
-      // Use dummy account update
-      return await updateDummyAccountMedicalInfo(patientId, medicalData);
-    } else {
-      // Use medical_intake update for existing patients
-      return await updatePatientMedicalIntake(patientId, medicalData);
-    }
+    return await updatePatientMedicalIntake(patientId, medicalData);
   } catch (error) {
     console.error('❌ Exception in updatePatientMedicalInfo:', error);
     return { success: false, message: 'Failed to update patient information' };
@@ -371,14 +287,27 @@ export async function updatePastAppointmentsToNoShow(
 ): Promise<void> {
   const now = new Date();
   
-  for (const appt of appointments) {
-    const apptDate = new Date(appt.appointment_date);
-    
-    // If appointment is in the past and status is not already no-show, completed, or cancelled
-    // IMPORTANT: Don't override cancelled appointments - preserve their status
-    if (apptDate < now && appt.status !== 'no-show' && appt.status !== 'completed' && appt.status !== 'cancelled') {
-      await updateAppointmentStatus(appt.id, 'no-show');
-    }
+  const updates = (appointments || [])
+    .filter((appt) => {
+      if (!appt?.appointment_date) return false;
+      const apptDate = new Date(appt.appointment_date);
+      // If appointment is in the past and status is not already no-show, completed, or cancelled
+      // IMPORTANT: Don't override cancelled appointments - preserve their status
+      return (
+        apptDate < now &&
+        appt.status !== 'no-show' &&
+        appt.status !== 'completed' &&
+        appt.status !== 'cancelled'
+      );
+    })
+    .map((appt) =>
+      updateAppointmentStatus(appt.id, 'no-show').catch((e) => {
+        console.warn(`Failed to update past appointment ${appt.id} to no-show:`, e);
+      })
+    );
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
   }
 }
 

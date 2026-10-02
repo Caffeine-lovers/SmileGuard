@@ -59,6 +59,13 @@ export default function TreatmentsPage() {
             Scheduled
           </span>
         );
+      case 'declined':
+        return (
+          <span className="skeuo-badge bg-amber-50 text-amber-700 border-amber-300">
+            <XCircle className="w-3 h-3 text-amber-600" />
+            Declined
+          </span>
+        );
       case 'no-show':
       case 'cancelled':
         return (

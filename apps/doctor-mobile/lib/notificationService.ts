@@ -254,8 +254,6 @@ function getSubscriptionFilter(tableName: string, doctorId: string): string | nu
       return null;
     case 'doctors':
       return `id=eq.${doctorId}`;
-    case 'dummy_accounts':
-      return null;
     case 'profiles':
       return null;
     default:
@@ -276,7 +274,6 @@ export function subscribeToDoctorNotifications(
     'medical_intake',
     'treatments',
     'billings',
-    'dummy_accounts',
     'profiles',
   ]
 ): (() => void) {

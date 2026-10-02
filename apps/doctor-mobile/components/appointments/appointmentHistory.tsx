@@ -33,8 +33,17 @@ const categorizeAppointments = (appointments: any[]) => {
   const future: any[] = [];
 
   appointments.forEach((appt) => {
+    if (!appt?.appointment_date) {
+      past.push(appt);
+      return;
+    }
     // Parse appointment_date string (format: YYYY-MM-DD)
-    const dateParts = appt.appointment_date.split('T')[0].split('-');
+    const cleanDate = String(appt.appointment_date).split('T')[0];
+    const dateParts = cleanDate.split('-');
+    if (dateParts.length < 3) {
+      past.push(appt);
+      return;
+    }
     const apptDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
     apptDate.setHours(0, 0, 0, 0);
     
@@ -59,59 +68,57 @@ const categorizeAppointments = (appointments: any[]) => {
 function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (appt: any) => void }) {
   const formattedDate = (() => {
     try {
-      if (appointment.appointment_date && appointment.appointment_time) {
-        const dateStr = String(appointment.appointment_date).trim(); // YYYY-MM-DD
-        const timeStr = String(appointment.appointment_time).trim(); // HH:MM
-        
-        // Parse date
-        const dateParts = dateStr.split('-').map(Number);
-        if (dateParts.length !== 3 || dateParts.some(isNaN)) {
-          console.warn('⚠️ Invalid date format:', appointment.appointment_date);
-          return 'Invalid date format';
-        }
-        
-        // Parse time
+      if (!appointment.appointment_date) return 'Date not available';
+      const cleanDateStr = String(appointment.appointment_date).split('T')[0].trim();
+      const timeStr = appointment.appointment_time ? String(appointment.appointment_time).trim() : null;
+
+      if (timeStr) {
         const timeParts = timeStr.split(':').map(Number);
-        if (timeParts.length < 2 || timeParts.some(isNaN)) {
-          console.warn('⚠️ Invalid time format:', appointment.appointment_time);
-          return 'Invalid time format';
+        const dateParts = cleanDateStr.split('-').map(Number);
+        if (dateParts.length === 3 && !dateParts.some(isNaN) && timeParts.length >= 2 && !timeParts.slice(0, 2).some(isNaN)) {
+          const [year, month, day] = dateParts;
+          const [hour, minute] = timeParts;
+          const date = new Date(year, month - 1, day, hour, minute);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            });
+          }
         }
-        
+      }
+
+      // If only date is available
+      const dateParts = cleanDateStr.split('-').map(Number);
+      if (dateParts.length === 3 && !dateParts.some(isNaN)) {
         const [year, month, day] = dateParts;
-        const [hour, minute] = timeParts;
-        
-        // Validate date components
-        if (month < 1 || month > 12 || day < 1 || day > 31) {
-          console.warn('⚠️ Invalid date components:', { year, month, day });
-          return 'Invalid date';
+        const date = new Date(year, month - 1, day);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
         }
-        
-        const date = new Date(year, month - 1, day, hour, minute);
-        
-        // Verify the date is valid
-        if (isNaN(date.getTime())) {
-          console.warn('⚠️ Failed to create valid date:', { year, month, day, hour, minute });
-          return 'Invalid date';
-        }
-        
-        return date.toLocaleString('en-US', {
+      }
+
+      const parsed = new Date(cleanDateStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'short',
           day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
         });
       }
-      
-      console.warn('⚠️ Missing appointment date or time:', {
-        appointment_date: appointment.appointment_date,
-        appointment_time: appointment.appointment_time,
-      });
-      return 'Date/Time not available';
+
+      return cleanDateStr;
     } catch (error) {
       console.error('❌ Error formatting date:', error, { appointment });
-      return 'Error formatting date';
+      return appointment.appointment_date || 'Error formatting date';
     }
   })();
 
@@ -121,11 +128,11 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
   return (
     <View style={styles.appointmentCard}>
       <View style={styles.cardHeader}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={styles.cardService}>{appointment.service || 'General Appointment'}</Text>
           <Text style={styles.cardDate}>{formattedDate}</Text>
         </View>
-        <View style={{ alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View
             style={[
               styles.statusBadge,
@@ -133,12 +140,13 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
             ]}
           >
             <Text style={[styles.statusText, { color: statusColor }]}>
-              {appointment.status?.charAt(0).toUpperCase() + appointment.status?.slice(1) || 'Scheduled'}
+              {appointment.status === 'no-show' ? 'No Show' : appointment.status ? appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) : 'Scheduled'}
             </Text>
           </View>
           <TouchableOpacity 
             style={styles.editButton}
             onPress={() => onEdit(appointment)}
+            activeOpacity={0.8}
           >
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
@@ -449,7 +457,7 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 8,
     gap: 8,
   },
@@ -465,8 +473,10 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusText: {
     fontSize: 11,
@@ -485,9 +495,11 @@ const styles = StyleSheet.create({
   },
   editButton: {
     backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   editButtonText: {
     fontSize: 11,
