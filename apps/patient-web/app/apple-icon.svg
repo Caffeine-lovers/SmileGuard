@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <defs>
+    <linearGradient id="sg-apple-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#sg-apple-grad)" />
+  <path d="M90 35C68 35 48 48 48 72C48 95 58 118 70 135C78 147 83 152 90 152C97 152 102 147 110 135C122 118 132 95 132 72C132 48 112 35 90 35Z" fill="#FFFFFF" opacity="0.95" />
+  <path d="M90 55C82 55 74 61 74 70C74 84 80 98 85 110C88 116 89 118 90 118C91 118 92 116 95 110C100 98 106 84 106 70C106 61 98 55 90 55Z" fill="#10B981" />
+</svg>
