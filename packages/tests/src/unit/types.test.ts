@@ -4,6 +4,7 @@ import {
   type Billing,
   type CurrentUser,
   type Appointment,
+  type PreflightCheckResult,
 } from "@smileguard/shared-types";
 
 describe("Billing Service - Type Safety & Calculations", () => {
@@ -225,5 +226,103 @@ describe("CurrentUser Type Safety", () => {
 
     expect(patientUser.role).toBe("patient");
     expect(doctorUser.role).toBe("doctor");
+  });
+
+  describe("Pre-Flight AI Quality Gate - Contracts & Decision Matrix", () => {
+    it("should accept valid intraoral photo with natural teeth and no braces", () => {
+      const result: PreflightCheckResult = {
+        passed: true,
+        has_teeth: true,
+        has_braces: false,
+        is_clear: true,
+        rejection_reason: null,
+        patient_feedback: null,
+      };
+
+      expect(result.passed).toBe(true);
+      expect(result.has_teeth).toBe(true);
+      expect(result.has_braces).toBe(false);
+      expect(result.is_clear).toBe(true);
+      expect(result.rejection_reason).toBeNull();
+    });
+
+    it("should reject and flag orthodontic braces with clinical guidance", () => {
+      const result: PreflightCheckResult = {
+        passed: false,
+        has_teeth: true,
+        has_braces: true,
+        is_clear: true,
+        rejection_reason: "BRACES_DETECTED",
+        patient_feedback: {
+          headline: "Orthodontic Braces Detected",
+          description: "Metallic brackets produce optical reflections that disrupt anomaly detection.",
+          tips: ["Consult your orthodontist directly for chairside inspection."],
+        },
+      };
+
+      expect(result.passed).toBe(false);
+      expect(result.has_braces).toBe(true);
+      expect(result.rejection_reason).toBe("BRACES_DETECTED");
+      expect(result.patient_feedback?.headline).toContain("Braces");
+    });
+
+    it("should reject non-dental subjects when no teeth are visible", () => {
+      const result: PreflightCheckResult = {
+        passed: false,
+        has_teeth: false,
+        has_braces: false,
+        is_clear: true,
+        rejection_reason: "NO_TEETH_DETECTED",
+        patient_feedback: {
+          headline: "No Teeth Visible",
+          description: "Photo does not clearly show teeth or gums.",
+          tips: ["Smile wide to expose teeth", "Move camera 4-6 inches from mouth"],
+        },
+      };
+
+      expect(result.passed).toBe(false);
+      expect(result.has_teeth).toBe(false);
+      expect(result.rejection_reason).toBe("NO_TEETH_DETECTED");
+    });
+
+    it("should reject images with poor focus or lighting", () => {
+      const result: PreflightCheckResult = {
+        passed: false,
+        has_teeth: true,
+        has_braces: false,
+        is_clear: false,
+        rejection_reason: "IMAGE_TOO_BLURRY",
+        patient_feedback: {
+          headline: "Photo Too Blurry",
+          description: "High resolution is required for early lesion screening.",
+          tips: ["Hold phone steady", "Turn on room lighting"],
+        },
+      };
+
+      expect(result.passed).toBe(false);
+      expect(result.is_clear).toBe(false);
+      expect(result.rejection_reason).toBe("IMAGE_TOO_BLURRY");
+    });
+
+    it("should reject images with visible facial features (nose, eyes, full face)", () => {
+      const result: PreflightCheckResult = {
+        passed: false,
+        has_teeth: true,
+        has_no_facial_features: false,
+        has_braces: false,
+        is_clear: true,
+        rejection_reason: "FACIAL_FEATURES_DETECTED",
+        patient_feedback: {
+          headline: "Crop Photo to Teeth Only",
+          description: "Your photo includes facial features such as your nose or face. Please crop strictly to teeth and gums.",
+          tips: ["Bring camera closer to exclude nose", "Focus strictly on teeth and gums"],
+        },
+      };
+
+      expect(result.passed).toBe(false);
+      expect(result.has_no_facial_features).toBe(false);
+      expect(result.rejection_reason).toBe("FACIAL_FEATURES_DETECTED");
+      expect(result.patient_feedback?.headline).toContain("Crop Photo");
+    });
   });
 });

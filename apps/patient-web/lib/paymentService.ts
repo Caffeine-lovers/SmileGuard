@@ -10,7 +10,8 @@ export async function processPayment(
   paymentMethod: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // TODO: Integrate with actual payment processor (Stripe, GCash, etc.)
+    // Direct ledger update for non-card clinic payments (Cash, Bank Transfer)
+    // Online card & e-wallet payments are handled via PayMongo Checkout Sessions (/api/paymongo/create-checkout)
     const { error } = await supabase
       .from('billings')
       .update({

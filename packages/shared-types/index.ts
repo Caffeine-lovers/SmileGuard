@@ -167,7 +167,7 @@ export interface Billing {
   discount_amount?: number;
   final_amount: number;
   payment_status: "pending" | "paid" | "overdue";
-  payment_method?: "cash" | "card" | "gcash" | "bank-transfer";
+  payment_method?: "cash" | "card" | "gcash" | "bank-transfer" | "grab_pay" | "paymaya";
   payment_date?: string;
   created_at?: string;
   updated_at?: string;
@@ -277,3 +277,33 @@ export interface SyncResult {
   failedCount: number;
   errors: string[];
 }
+
+// ─────────────────────────────────────────
+// Pre-Flight AI Quality Gate Types
+// ─────────────────────────────────────────
+
+export type PreflightRejectionReason =
+  | 'NO_TEETH_DETECTED'
+  | 'BRACES_DETECTED'
+  | 'IMAGE_TOO_BLURRY'
+  | 'POOR_LIGHTING'
+  | 'NON_DENTAL_SUBJECT'
+  | 'FACIAL_FEATURES_DETECTED';
+
+export interface PreflightPatientFeedback {
+  headline: string;
+  description: string;
+  tips: string[];
+}
+
+export interface PreflightCheckResult {
+  passed: boolean;
+  has_teeth: boolean;
+  has_braces: boolean;
+  is_clear: boolean;
+  has_no_facial_features?: boolean;
+  rejection_reason?: PreflightRejectionReason | null;
+  patient_feedback?: PreflightPatientFeedback | null;
+  confidence?: number;
+}
+

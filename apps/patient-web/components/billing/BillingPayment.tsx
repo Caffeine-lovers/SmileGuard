@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
-import dynamic from 'next/dynamic';
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
@@ -21,17 +20,8 @@ import {
   AlertTriangle,
   Receipt,
   ShieldCheck,
+  ExternalLink,
 } from 'lucide-react';
-
-// Lazy-load Stripe components (only when card payment is selected)
-const StripeProvider = dynamic(
-  () => import('@/components/billing/StripeProvider'),
-  { ssr: false }
-);
-const CardPaymentForm = dynamic(
-  () => import('@/components/billing/CardPaymentForm'),
-  { ssr: false }
-);
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -61,10 +51,21 @@ export default function BillingPayment({
   const [billingHistory, setBillingHistory] = useState<Billing[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Stripe-specific state
-  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
-  const [showStripeForm, setShowStripeForm] = useState(false);
-  const [stripeError, setStripeError] = useState<string | null>(null);
+  // PayMongo-specific state
+  const [paymongoError, setPaymongoError] = useState<string | null>(null);
+  const [paymentStatusBanner, setPaymentStatusBanner] = useState<'success' | 'cancelled' | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('status');
+      if (status === 'success') {
+        setPaymentStatusBanner('success');
+      } else if (status === 'cancelled') {
+        setPaymentStatusBanner('cancelled');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -105,10 +106,7 @@ export default function BillingPayment({
     const newAmount = SERVICE_PRICES[apt.service] || 0;
     setAmount(newAmount);
     applyDiscount(newAmount, discountType);
-    // Reset Stripe form if switching appointments
-    setShowStripeForm(false);
-    setStripeClientSecret(null);
-    setStripeError(null);
+    setPaymongoError(null);
   };
 
   const applyDiscount = (total: number, type: Billing['discount_type']) => {
@@ -132,9 +130,7 @@ export default function BillingPayment({
       setDiscountProof(null);
     }
 
-    // Reset Stripe form when discount changes
-    setShowStripeForm(false);
-    setStripeClientSecret(null);
+    setPaymongoError(null);
   };
 
   const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,12 +161,11 @@ export default function BillingPayment({
     setAmount(0);
     setDiscountType('none');
     setDiscountProof(null);
-    setShowStripeForm(false);
-    setStripeClientSecret(null);
+    setPaymongoError(null);
   };
 
-  // Initiate Stripe card payment
-  const handleStripePayment = async () => {
+  // Initiate PayMongo Checkout Session (redirect flow)
+  const handlePayMongoCheckout = async () => {
     if (!selectedAppointment || !currentUser?.id) {
       alert('Please select an appointment to pay.');
       return;
@@ -182,92 +177,38 @@ export default function BillingPayment({
     }
 
     setIsProcessing(true);
-    setStripeError(null);
+    setPaymongoError(null);
 
     try {
-      const response = await fetch('/api/stripe/create-payment-intent', {
+      const response = await fetch('/api/paymongo/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: finalAmount,
           appointmentId: selectedAppointment.id,
           patientId: currentUser.id,
+          discountType,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create payment intent');
+        throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      setStripeClientSecret(data.clientSecret);
-      setShowStripeForm(true);
+      // Redirect to PayMongo hosted checkout page
+      // PayMongo handles Card, GCash, Maya, GrabPay, QR Ph on their PCI-compliant page
+      window.location.href = data.checkoutUrl;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to initiate card payment';
-      setStripeError(msg);
-      console.error('Stripe payment initiation error:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to initiate payment';
+      setPaymongoError(msg);
+      console.error('PayMongo checkout error:', error);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Handle successful Stripe payment
-  const handleStripeSuccess = async () => {
-    if (!selectedAppointment || !currentUser?.id) return;
-
-    // Save billing record (webhook also does this, but we do it here for immediate UI update)
-    try {
-      await supabase.from('billings').insert({
-        patient_id: currentUser.id,
-        appointment_id: selectedAppointment.id,
-        amount,
-        discount_type: discountType,
-        discount_amount: discountAmount,
-        final_amount: finalAmount,
-        payment_status: 'paid',
-        payment_method: 'card',
-        payment_date: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.error('Error saving billing after Stripe payment:', err);
-    }
-
-    alert(
-      `Payment Successful!\nAmount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: Card${
-        discountType !== 'none' ? `\nDiscount: -₱${discountAmount.toFixed(2)}` : ''
-      }`
-    );
-
-    if (onSuccess) {
-      onSuccess({
-        patient_id: currentUser.id,
-        appointment_id: selectedAppointment.id,
-        amount,
-        discount_type: discountType,
-        discount_amount: discountAmount,
-        final_amount: finalAmount,
-        payment_status: 'paid',
-        payment_method: 'card',
-        payment_date: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      });
-    }
-
-    await refreshBillingData();
-  };
-
-  const handleStripeError = (message: string) => {
-    setStripeError(message);
-  };
-
-  const handleStripeCancelForm = () => {
-    setShowStripeForm(false);
-    setStripeClientSecret(null);
-    setStripeError(null);
-  };
-
-  // Handle non-card payment (existing flow for cash, gcash, bank-transfer)
+  // Handle non-online payment (existing flow for cash, bank-transfer)
   const handleNonCardPayment = async () => {
     if (discountType !== 'none' && !discountProof) {
       alert('Please upload proof of PWD/Senior ID.');
@@ -282,7 +223,7 @@ export default function BillingPayment({
     const userId = currentUser.id;
     setIsProcessing(true);
     try {
-      // Simulate payment processing for non-card methods
+      // Simulate payment processing for non-online methods
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Save billing record to database
@@ -337,8 +278,9 @@ export default function BillingPayment({
   };
 
   const handlePayment = async () => {
-    if (paymentMethod === 'card') {
-      await handleStripePayment();
+    // Online payment methods go through PayMongo checkout
+    if (paymentMethod === 'card' || paymentMethod === 'gcash') {
+      await handlePayMongoCheckout();
     } else {
       await handleNonCardPayment();
     }
@@ -359,6 +301,45 @@ export default function BillingPayment({
           Settle procedure balances and review financial ledgers
         </p>
       </div>
+
+      {/* PayMongo Checkout Redirect Banners */}
+      {paymentStatusBanner === 'success' && (
+        <div className="flex items-center justify-between p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm text-emerald-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider">Payment Confirmed!</p>
+              <p className="text-xs text-emerald-700">Your transaction via PayMongo has been completed. Your records are updated.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaymentStatusBanner(null)}
+            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 uppercase cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {paymentStatusBanner === 'cancelled' && (
+        <div className="flex items-center justify-between p-4 bg-amber-50 border-2 border-amber-500 rounded-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-wider">Payment Cancelled</p>
+              <p className="text-xs text-amber-700">The PayMongo checkout process was cancelled. You can retry anytime.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaymentStatusBanner(null)}
+            className="text-xs font-bold text-amber-700 hover:text-amber-900 uppercase cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Financial Summary Stats */}
       {!loadingData && (
@@ -461,8 +442,8 @@ export default function BillingPayment({
             <div className="grid grid-cols-3 gap-3">
               {[
                 { value: 'none' as const, label: 'Standard Rate' },
-                { value: 'pwd' as const, label: 'PWD (10%)' },
-                { value: 'senior' as const, label: 'Senior (15%)' },
+                { value: 'pwd' as const, label: 'PWD (20%)' },
+                { value: 'senior' as const, label: 'Senior (20%)' },
               ].map((option) => (
                 <button
                   type="button"
@@ -510,23 +491,20 @@ export default function BillingPayment({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {[
                 { value: 'cash' as const, label: 'Clinic Cash', icon: Banknote },
-                { value: 'card' as const, label: 'Credit/Debit (Stripe)', icon: CreditCard },
+                { value: 'card' as const, label: 'Card (PayMongo)', icon: CreditCard },
+                { value: 'gcash' as const, label: 'GCash / Maya', icon: Smartphone },
                 { value: 'bank-transfer' as const, label: 'Bank Transfer', icon: Building2 },
-                { value: 'gcash' as const, label: 'GCash', icon: Smartphone },
               ].map((option) => {
                 const IconComponent = option.icon;
                 const isSelected = paymentMethod === option.value;
+                const isOnlineMethod = option.value === 'card' || option.value === 'gcash';
                 return (
                   <button
                     type="button"
                     key={option.value}
                     onClick={() => {
                       setPaymentMethod(option.value);
-                      if (option.value !== 'card') {
-                        setShowStripeForm(false);
-                        setStripeClientSecret(null);
-                        setStripeError(null);
-                      }
+                      setPaymongoError(null);
                     }}
                     className={`p-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition flex flex-col items-center gap-1.5 ${
                       isSelected
@@ -536,6 +514,11 @@ export default function BillingPayment({
                   >
                     <IconComponent className={`w-4 h-4 ${isSelected ? 'text-emerald-700' : 'text-slate-500'}`} />
                     <span>{option.label}</span>
+                    {isOnlineMethod && (
+                      <span className="text-[9px] font-semibold text-emerald-600 normal-case tracking-normal">
+                        Secure Online
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -566,38 +549,30 @@ export default function BillingPayment({
             </div>
           </div>
 
-          {/* Stripe Error */}
-          {stripeError && (
+          {/* PayMongo Error */}
+          {paymongoError && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-400 rounded-xs text-red-700">
               <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-              <p className="text-xs font-bold">{stripeError}</p>
+              <p className="text-xs font-bold">{paymongoError}</p>
+            </div>
+          )}
+
+          {/* Online Payment Info Banner */}
+          {(paymentMethod === 'card' || paymentMethod === 'gcash') && (
+            <div className="flex items-start gap-3 p-4 bg-blue-50/60 border-2 border-blue-300 rounded-sm">
+              <ExternalLink className="w-4 h-4 shrink-0 text-blue-700 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-blue-900 uppercase tracking-wider">Secure Redirect</p>
+                <p className="text-xs text-blue-700 mt-1">
+                  You will be redirected to PayMongo&apos;s secure payment page to complete your transaction.
+                  PayMongo supports Visa, Mastercard, GCash, Maya, GrabPay, and QR Ph.
+                  You will be returned to this page after payment.
+                </p>
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Stripe Card Payment Form */}
-      {showStripeForm && stripeClientSecret && (
-        <div className="skeuo-panel p-6 border-2 border-emerald-600">
-          <div className="flex items-center gap-3 mb-6 pb-3 border-b-2 border-slate-200">
-            <div className="w-10 h-10 bg-emerald-100 rounded-xs border border-emerald-300 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-emerald-800" />
-            </div>
-            <div>
-              <h2 className="text-base font-black uppercase tracking-tight text-slate-900">Card Payment Gateway</h2>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Visa, Mastercard, Debit, ATM cards</p>
-            </div>
-          </div>
-          <StripeProvider clientSecret={stripeClientSecret}>
-            <CardPaymentForm
-              amount={finalAmount}
-              onSuccess={handleStripeSuccess}
-              onError={handleStripeError}
-              onCancel={handleStripeCancelForm}
-            />
-          </StripeProvider>
-        </div>
-      )}
 
       {/* Billing History Table */}
       {billingHistory.length > 0 && (
@@ -639,41 +614,47 @@ export default function BillingPayment({
       )}
 
       {/* Action CTA Buttons */}
-      {!showStripeForm && (
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        <button
+          type="button"
+          onClick={handlePayment}
+          disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
+          className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 shrink-0"
+        >
+          {isProcessing ? (
+            <span className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <span>Processing...</span>
+            </span>
+          ) : paymentMethod === 'card' || paymentMethod === 'gcash' ? (
+            <span className="flex items-center gap-2">
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+              <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Confirm Settlement</span>
+            </span>
+          )}
+        </button>
+        {onCancel && (
           <button
             type="button"
-            onClick={handlePayment}
-            disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
-            className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 shrink-0"
+            onClick={onCancel}
+            className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0"
           >
-            {isProcessing ? (
-              <span className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
-                <span>Processing Payment...</span>
-              </span>
-            ) : paymentMethod === 'card' ? (
-              <span className="flex items-center gap-2">
-                <CreditCard className="w-3.5 h-3.5 shrink-0" />
-                <span>Pay ₱{finalAmount.toFixed(2)} with Card</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Confirm Settlement</span>
-              </span>
-            )}
+            Cancel
           </button>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
+        )}
+      </div>
+
+      {/* Security Badge */}
+      {(paymentMethod === 'card' || paymentMethod === 'gcash') && (
+        <p className="text-center text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          Secured by PayMongo (BSP-Licensed). Card details are handled on PayMongo&apos;s PCI-DSS compliant servers.
+        </p>
       )}
     </div>
   );

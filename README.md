@@ -9,7 +9,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.2%20(Turbopack)-black?style=flat-square&logo=next.js)](./apps/patient-web)
 [![React Native](https://img.shields.io/badge/React%20Native-0.81.5%20%7C%20Expo%20SDK%2054-61DAFB?style=flat-square&logo=react)](./apps/doctor-mobile)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%2015%20%7C%20RLS-3ECF8E?style=flat-square&logo=supabase)](./supabase)
-[![Stripe](https://img.shields.io/badge/Stripe-Payments%20API-635BFF?style=flat-square&logo=stripe)](./apps/patient-web)
+[![PayMongo](https://img.shields.io/badge/PayMongo-BSP--Licensed%20Payments-00D084?style=flat-square)](./apps/patient-web)
 [![Modal](https://img.shields.io/badge/AI%20Inference-YOLOv8m%20on%20Modal%20GPU-green?style=flat-square)](./apps/modal-inference)
 
 ---
@@ -36,7 +36,7 @@ The repository is structured as a high-performance monorepo using **PNPM Workspa
 ```
 SmileGuard/
 ├── apps/
-│   ├── patient-web/          # Next.js 14/16 (App Router), React 19, Tailwind CSS, HeroUI, Stripe Elements
+│   ├── patient-web/          # Next.js 14/16 (App Router), React 19, Tailwind CSS, HeroUI, PayMongo
 │   ├── doctor-mobile/        # React Native 0.81.5, Expo SDK 54, Neumorphic UI, Expo Router
 │   └── modal-inference/      # YOLOv8m inference pipeline, Modal.com serverless GPU, XAI rendering
 ├── packages/
@@ -56,10 +56,10 @@ SmileGuard/
 
 | Module | Features |
 |---|---|
-| **Patient Web Portal** | • Role-isolated authentication with email verification<br>• Real-time appointment slot booking with conflict detection<br>• Decoupled medical intake submission (allergies, medications, conditions)<br>• Stripe card payments with automatic 20% Senior/PWD statutory deductions<br>• Pre-diagnostic AI photo upload with instant XAI annotated scan feedback |
+| **Patient Web Portal** | • Role-isolated authentication with email verification<br>• Real-time appointment slot booking with conflict detection<br>• Decoupled medical intake submission (allergies, medications, conditions)<br>• PayMongo online payments (Card, GCash, Maya, GrabPay) with automatic 20% Senior/PWD statutory deductions<br>• Pre-diagnostic AI photo upload with instant XAI annotated scan feedback |
 | **Doctor Mobile App** | • Tactile Neumorphic UI with clinical mint-green theme<br>• Chairside schedule management (Approve, Decline, Complete appointments)<br>• Clinic blockout date calendar engine<br>• Real-time Supabase table subscription push notification center<br>• Comprehensive patient dental records and treatment history viewing |
 | **AI Inference Backend** | • YOLOv8m object detection running on Nvidia T4 cloud GPUs via Modal.com<br>• Calibrated recall threshold (0.10–0.30) to minimize false negatives on early lesions<br>• Explainable AI (XAI) bounding box annotations overlaid directly on patient intraoral images |
-| **Security & Privacy** | • Passwords salted and hashed via adaptive Bcrypt (cost factor 10)<br>• Signed JWT tokens (HS256) enforcing role separation (`patient` vs `doctor`)<br>• PostgreSQL Row-Level Security (RLS) policies enforcing `auth.uid() = patient_id`<br>• Zero-knowledge Stripe card tokenization (PCI-DSS compliant) |
+| **Security & Privacy** | • Passwords salted and hashed via adaptive Bcrypt (cost factor 10)<br>• Signed JWT tokens (HS256) enforcing role separation (`patient` vs `doctor`)<br>• PostgreSQL Row-Level Security (RLS) policies enforcing `auth.uid() = patient_id`<br>• Zero-knowledge PayMongo checkout redirect (PCI-DSS compliant; Card, GCash, Maya) |
 
 ---
 
@@ -160,7 +160,7 @@ pnpm --filter doctor-mobile exec expo export --platform android
 * **Password Security:** Handled exclusively via Supabase Auth using **Bcrypt with 10 salt rounds**. Raw passwords never touch database rows or application logs.
 * **Database RLS Policies:** Strict PostgreSQL policies prevent unauthorized cross-tenant data access. Patients can only query and mutate records where `auth.uid() = patient_id`.
 * **Medical Data Privacy:** Health information is decoupled from profile tables into [`public.medical_intake`](./supabase/migrations/018_create_medical_intake_table.sql) in compliance with RA 10173.
-* **Payment Security:** Credit/debit card numbers are tokenized client-side through Stripe Elements. The backend only handles opaque PaymentIntent tokens.
+* **Payment Security:** Payments are processed via PayMongo (BSP-licensed). Client financial credentials and cardholder data are captured exclusively within PayMongo's secure hosted checkout, with cryptographic HMAC-SHA256 webhook signatures.
 
 For an in-depth security and cryptographic breakdown, refer to [**`EXECUTIVE_SUMMARY.md`**](./EXECUTIVE_SUMMARY.md).
 
