@@ -19,6 +19,7 @@ import {
   Image,
   Modal,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
 import { ChevronLeft, Camera, X } from "lucide-react-native";
 import { createDoctorProfile } from "../../lib/doctorService";
@@ -45,6 +46,15 @@ export default function DoctorProfileSetup({
     ...EMPTY_DOCTOR,
     user_id: "",
   });
+
+  // Pre-fill access code if stored during welcome screen
+  React.useEffect(() => {
+    AsyncStorage.getItem("@pending_doctor_access_code").then((savedCode) => {
+      if (savedCode) {
+        setAccessCode(savedCode);
+      }
+    });
+  }, []);
 
   // ── Specialization Dropdown
   const [showSpecializationDropdown, setShowSpecializationDropdown] =

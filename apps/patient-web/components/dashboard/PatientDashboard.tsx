@@ -27,7 +27,7 @@ export default function PatientDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'scheduled' | 'pending'>('scheduled');
+  const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -94,8 +94,15 @@ export default function PatientDashboard() {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const scheduledAppointments = appointments.filter(apt => apt.dentist_id !== null);
-  const pendingAppointments = appointments.filter(apt => apt.dentist_id === null);
+  const scheduledAppointments = appointments.filter(
+    apt => apt.dentist_id !== null && apt.status !== 'cancelled' && apt.status !== 'declined'
+  );
+  const pendingAppointments = appointments.filter(
+    apt => apt.dentist_id === null && apt.status !== 'cancelled' && apt.status !== 'declined'
+  );
+  const cancelledAppointments = appointments.filter(
+    apt => apt.status === 'cancelled' || apt.status === 'declined'
+  );
 
   return (
     <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
@@ -191,6 +198,21 @@ export default function PatientDashboard() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('cancelled')}
+              className={`px-3.5 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition flex items-center gap-1.5 ${
+                activeTab === 'cancelled'
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Past & Cancelled</span>
+              {cancelledAppointments.length > 0 && (
+                <span className="px-1.5 py-0.2 bg-slate-500 text-white rounded-xs text-[10px] font-black">
+                  {cancelledAppointments.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -220,11 +242,12 @@ export default function PatientDashboard() {
                   service={apt.service}
                   date={apt.appointment_date}
                   time={apt.appointment_time}
+                  status={apt.status}
                 />
               ))}
             </div>
           )
-        ) : (
+        ) : activeTab === 'pending' ? (
           pendingAppointments.length === 0 ? (
             <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-300 rounded-sm">
               <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
@@ -240,6 +263,33 @@ export default function PatientDashboard() {
                       <span className="skeuo-badge skeuo-badge-amber text-[10px] mb-2">Pending Confirmation</span>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
                       <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          cancelledAppointments.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-300 rounded-sm">
+              <CheckCircle2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm font-bold text-slate-700 uppercase">No cancelled or declined appointments</p>
+              <p className="text-xs text-slate-500 mt-1">All your appointments are active</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {cancelledAppointments.map((apt) => (
+                <div key={apt.id} className="skeuo-card p-4 border-2 border-slate-300 bg-slate-50/60 rounded-sm">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className={`skeuo-badge text-[10px] mb-2 ${apt.status === 'declined' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                        {apt.status === 'declined' ? 'Declined by Clinic' : 'Cancelled'}
+                      </span>
+                      <p className="font-black text-sm text-slate-900">{apt.service}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
+                      {apt.dentist_id && (
+                        <p className="text-[11px] text-slate-500 mt-1 font-semibold">Doctor: {doctorNames[apt.dentist_id] || 'Attending Dentist'}</p>
+                      )}
                     </div>
                   </div>
                 </div>

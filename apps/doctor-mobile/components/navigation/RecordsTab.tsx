@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,6 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
-  Modal,
-  Alert,
-  PanResponder,
-  Animated,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,8 +15,6 @@ import { Appointment } from "../../data/dashboardData";
 import * as dashboardService from "../../lib/dashboardService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "@smileguard/supabase-client";
-import AddPatient from "../patientrecord/AddPatient";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAllPatients } from "../../lib/profilesPatients";
 import { RefreshCw, ChevronRight } from "lucide-react-native";
 
@@ -41,7 +35,7 @@ interface RecordsTabProps {
   styles: any;
 }
 
-type AccountTab = 'all' | 'dummy' | 'existing';
+
 
 export default function RecordsTab({
   patients,
@@ -59,14 +53,8 @@ export default function RecordsTab({
   const router = useRouter();
   const currentUser = useCurrentUser();
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
-  const [dummyPatients, setDummyPatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
-  const [loadingDummy, setLoadingDummy] = useState(true);
-  const [activeTab, setActiveTab] = useState<AccountTab>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
-  const [swipedDummyId, setSwipedDummyId] = useState<string | null>(null);
-  const swipePositions = useRef<{ [key: string]: Animated.Value }>({});
 
   // Note: Session restoration is no longer needed!
   // RLS policies now use auth.role() = 'authenticated' which uses JWT tokens
@@ -109,108 +97,7 @@ export default function RecordsTab({
     }
   }, [currentUser?.id]);
 
-  // Fetch dummy_accounts patients whenever screen is focused
-  useFocusEffect(
-    React.useCallback(() => {
-      // Only fetch if user is logged in and is a doctor
-      if (!currentUser?.id) {
-        console.log('⏸️ Skipping fetch - no currentUser yet');
-        setLoadingDummy(true);
-        setLoadingDummy(false);
-        return;
-      }
 
-      const fetchDummyPatients = async () => {
-        setLoadingDummy(true);
-        try {
-          console.log('🔍 DEBUG: Starting fetchDummyPatients...');
-          
-          // Only fetch if user is logged in and is a doctor
-          if (!currentUser?.id) {
-            console.log('⏸️ Skipping fetch - no currentUser yet');
-            setLoadingDummy(false);
-            return;
-          }
-
-          console.log('📱 Current User:', currentUser.id, currentUser.email);
-          console.log('👨‍⚕️ User Role:', currentUser.role);
-
-          // Verify user has doctor role
-          if (currentUser.role !== 'doctor') {
-            const { data: docRecord } = await supabase
-              .from("doctors")
-              .select("id")
-              .eq("user_id", currentUser.id)
-              .maybeSingle();
-
-            if (!docRecord) {
-              console.error('❌ User is not a doctor. Role:', currentUser.role);
-              setLoadingDummy(false);
-              return;
-            }
-          }
-
-          // Check if a new patient was added
-          const newPatientId = await AsyncStorage.getItem('newlyAddedPatientId');
-          
-          if (newPatientId && !showAddPatientModal) {
-            console.log('📱 New patient detected in RecordsTab, ID:', newPatientId);
-            await AsyncStorage.removeItem('newlyAddedPatientId');
-          }
-
-          console.log('✅ Fetching dummy accounts...');
-
-          const { data, error } = await supabase
-            .from("dummy_accounts")
-            .select("*")
-            .order("created_at", { ascending: false });
-
-          if (error) {
-            console.error("❌ Error fetching dummy accounts:", error);
-            return;
-          }
-
-          if (data && data.length > 0) {
-            console.log(`✅ Successfully fetched ${data.length} dummy accounts`);
-          }
-
-          const mapped: AppointmentType[] = (data || []).map((patient) => ({
-            id: patient.id,
-            name: patient.patient_name || "Unknown Patient",
-            email: patient.email || "",
-            service: "General",
-            contact: patient.phone || "",
-            time: "",
-            date: patient.created_at,
-            age: 0,
-            gender: patient.gender || "",
-            notes: patient.notes || "",
-            imageUrl: require("../../assets/images/user.png"),
-            status: "scheduled" as const,
-            dateOfBirth: patient.date_of_birth || "",
-            address: patient.address || "",
-            emergencyContactName: patient.emergency_contact_name || "",
-            emergencyContactPhone: patient.emergency_contact_phone || "",
-            allergies: patient.allergies || "",
-            currentMedications: patient.current_medications || "",
-            medicalConditions: patient.medical_conditions || "",
-            pastSurgeries: patient.past_surgeries || "",
-            smokingStatus: patient.smoking_status || "",
-            pregnancyStatus: patient.pregnancy_status || "",
-          }));
-
-          console.log("RecordsTab - Dummy patients:", mapped);
-          setDummyPatients(mapped);
-        } catch (error) {
-          console.error("Error in fetchDummyPatients:", error);
-        } finally {
-          setLoadingDummy(false);
-        }
-      };
-
-      fetchDummyPatients();
-    }, [showAddPatientModal, currentUser?.id])  // ← Add currentUser dependency
-  );
 
   // Refresh function to refetch both patient sources
   const handleRefresh = async () => {
@@ -245,39 +132,7 @@ export default function RecordsTab({
       }));
       setSupabasePatients(mappedSupabase);
 
-      // Fetch dummy patients
-      const { data: dummyData, error } = await supabase
-        .from("dummy_accounts")
-        .select("*")
-        .order("created_at", { ascending: false });
 
-      if (!error && dummyData) {
-        const mappedDummy: AppointmentType[] = dummyData.map((patient) => ({
-          id: patient.id,
-          name: patient.patient_name || "Unknown Patient",
-          email: patient.email || "",
-          service: "General",
-          contact: patient.phone || "",
-          time: "",
-          date: patient.created_at,
-          age: 0,
-          gender: patient.gender || "",
-          notes: patient.notes || "",
-          imageUrl: require("../../assets/images/user.png"),
-          status: "scheduled" as const,
-          dateOfBirth: patient.date_of_birth || "",
-          address: patient.address || "",
-          emergencyContactName: patient.emergency_contact_name || "",
-          emergencyContactPhone: patient.emergency_contact_phone || "",
-          allergies: patient.allergies || "",
-          currentMedications: patient.current_medications || "",
-          medicalConditions: patient.medical_conditions || "",
-          pastSurgeries: patient.past_surgeries || "",
-          smokingStatus: patient.smoking_status || "",
-          pregnancyStatus: patient.pregnancy_status || "",
-        }));
-        setDummyPatients(mappedDummy);
-      }
     } catch (error) {
       console.error('Error refreshing patients:', error);
     } finally {
@@ -310,20 +165,6 @@ export default function RecordsTab({
               <RefreshCw size={20} color="#fff" />
             )}
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setShowAddPatientModal(true)}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              backgroundColor: '#10B981',
-              borderRadius: 8,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            <Text style={{ fontSize: 12, color: '#fff', fontWeight: '600' }}>Add Patient</Text>
-          </TouchableOpacity>
         </View>
       </View>
       <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
@@ -344,48 +185,7 @@ export default function RecordsTab({
           value={quickSearchQuery}
           onChangeText={setQuickSearchQuery}
         />
-        {/* Account Type Tabs */}
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-          <TouchableOpacity
-            onPress={() => setActiveTab('all')}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: activeTab === 'all' ? '#10B981' : '#e0e0e0',
-              borderWidth: 1,
-              borderColor: activeTab === 'all' ? '#10B981' : '#ccc',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: activeTab === 'all' ? '#fff' : '#333', fontWeight: '600' }}>All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActiveTab('dummy')}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: activeTab === 'dummy' ? '#4CAF50' : '#e0e0e0',
-              borderWidth: 1,
-              borderColor: activeTab === 'dummy' ? '#4CAF50' : '#ccc',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: activeTab === 'dummy' ? '#fff' : '#333', fontWeight: '600' }}>Dummy Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setActiveTab('existing')}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: activeTab === 'existing' ? '#10B981' : '#e0e0e0',
-              borderWidth: 1,
-              borderColor: activeTab === 'existing' ? '#10B981' : '#ccc',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: activeTab === 'existing' ? '#fff' : '#333', fontWeight: '600' }}>Existing Profile</Text>
-          </TouchableOpacity>
-        </View>
+
         <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap', marginBottom: 7 }}>
           <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666', alignSelf: 'center' }}>Sort by:</Text>
           <TouchableOpacity
@@ -432,151 +232,62 @@ export default function RecordsTab({
         </View>
       </View>
       <ScrollView style={{ flex: 1, padding: 16 }}>
-        {loadingDummy && loadingSupabase ? (
+        {loadingSupabase ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color="#10B981" />
             <Text style={{ marginTop: 12, color: "#047857", fontSize: 14 }}>Loading patients...</Text>
           </View>
         ) : (
           <>
-            {/* Dummy Accounts Section - Show on "All" and "Dummy" tabs */}
-            {(activeTab === 'all' || activeTab === 'dummy') && !loadingDummy && dummyPatients.length > 0 && (
-              <>
-                {activeTab === 'all' && (
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: "#047857", marginBottom: 12, marginTop: 8 }}>
-                    Dummy Accounts
-                  </Text>
-                )}
-                {sortPatients(
-                  dummyPatients.filter((patient) =>
-                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                    patient.contact.includes(quickSearchQuery)
-                  )
-                ).map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12, borderLeftColor: '#4CAF50', borderLeftWidth: 3 }]}
-                    onPress={() => {
-                      setViewingPatient(patient);
-                      setShowPatientDetails(true);
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                        <Text style={{ fontSize: 12, color: '#4CAF50', fontWeight: '500' }}>Dummy Account</Text>
-                      </View>
-                      <ChevronRight size={18} color="#94A3B8" />
+            {/* Patients List */}
+            {supabasePatients.length > 0 ? (
+              sortPatients(
+                supabasePatients.filter((patient) =>
+                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
+                  patient.contact.includes(quickSearchQuery)
+                )
+              ).map((patient) => (
+                <TouchableOpacity
+                  key={patient.id}
+                  style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                  onPress={() => {
+                    setViewingPatient(patient);
+                    setShowPatientDetails(true);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Image
+                      source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                      style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                      <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
+                      <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-
-            {/* Profiles Patients Section - Show on "All" and "Existing" tabs */}
-            {(activeTab === 'all' || activeTab === 'existing') && !loadingSupabase && supabasePatients.length > 0 && (
-              <>
-                {activeTab === 'all' && (
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: "#047857", marginBottom: 12, marginTop: 16 }}>
-                    Existing Patients
-                  </Text>
-                )}
-                {sortPatients(
-                  supabasePatients.filter((patient) =>
-                    patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                    patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                    patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                    patient.contact.includes(quickSearchQuery)
-                  )
-                ).map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                    onPress={() => {
-                      setViewingPatient(patient);
-                      setShowPatientDetails(true);
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image
-                        source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                        <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
-                      </View>
-                      <ChevronRight size={18} color="#94A3B8" />
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-
-            {/* No patients message */}
-            {!loadingDummy && !loadingSupabase && 
-             ((activeTab === 'dummy' && dummyPatients.length === 0) ||
-              (activeTab === 'existing' && supabasePatients.length === 0) ||
-              (activeTab === 'all' && dummyPatients.length === 0 && supabasePatients.length === 0)) && (
+                    <ChevronRight size={18} color="#94A3B8" />
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
               <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
                 No patients found
               </Text>
             )}
 
             {/* No results matching search */}
-            {!loadingDummy && !loadingSupabase && quickSearchQuery && (
-              <>
-                {activeTab === 'all' && 
-                 dummyPatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 &&
-                 supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
-                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                    No patients found matching "{quickSearchQuery}"
-                  </Text>
-                )}
-                {activeTab === 'dummy' && 
-                 dummyPatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
-                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                    No dummy accounts found matching "{quickSearchQuery}"
-                  </Text>
-                )}
-                {activeTab === 'existing' && 
-                 supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
-                  <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                    No existing patients found matching "{quickSearchQuery}"
-                  </Text>
-                )}
-              </>
+            {quickSearchQuery &&
+             supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
+              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+                No patients found matching "{quickSearchQuery}"
+              </Text>
             )}
           </>
         )}
       </ScrollView>
 
-      {/* Add Patient Modal */}
-      {showAddPatientModal && (
-        <Modal visible={showAddPatientModal} transparent={false} animationType="slide">
-          <AddPatient 
-            onPatientAdded={(patientId) => {
-              if (patientId === '') {
-                // User cancelled
-                console.log('❌ Add patient cancelled');
-                setShowAddPatientModal(false);
-              } else {
-                // Patient was successfully added
-                console.log('👤 Patient added successfully:', patientId);
-                setShowAddPatientModal(false);
-                // The useFocusEffect hook will detect and refresh the dummy patients list
-              }
-            }}
-          />
-        </Modal>
-      )}
     </SafeAreaView>
   );
 }

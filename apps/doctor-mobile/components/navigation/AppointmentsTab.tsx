@@ -17,18 +17,15 @@ import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
-import AppointmentAdd from "../appointments/appointmentAdd";
 import { HeroIcon } from "../ui/HeroIcon";
 import { RefreshCw } from "lucide-react-native";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
 
-// Extended appointment type with account type info and additional fields from DoctorAppointment
+// Extended appointment type with additional fields from DoctorAppointment
 type AppointmentWithAccountType = AppointmentType & { 
-  accountType?: 'Patient' | 'Dummy',
   patient_avatar?: string,
-  dummy_account_id?: string
 };
 
 interface AppointmentsTabProps {
@@ -36,7 +33,6 @@ interface AppointmentsTabProps {
   onUpdateAppointmentStatus: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard?: boolean) => Promise<void>;
   styles: any;
   doctorId?: string;
-  onAppointmentCreated?: (patientName: string, service: string, time: string, appointmentId: string, patientId: string, doctorId: string) => void;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
@@ -45,14 +41,13 @@ export default function AppointmentsTab({
   onUpdateAppointmentStatus,
   styles,
   doctorId: providedDoctorId,
-  onAppointmentCreated,
   onAppointmentStatusUpdated,
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
   
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show'>('all');
+  const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('all');
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   // Helper to get today's date in YYYY-MM-DD format
@@ -76,12 +71,11 @@ export default function AppointmentsTab({
   const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [doctorId, setDoctorId] = useState<string>('');
   const [clinicSchedule, setClinicSchedule] = useState<any>(null);
   const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
 
-  const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
+  const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show', 'declined'] as const;
 
   // Log whenever blockoutDates changes
   useEffect(() => {
@@ -168,15 +162,14 @@ export default function AppointmentsTab({
 
   // Transform backend appointments to match UI format
   const transformBackendAppointment = (apt: DoctorAppointment): AppointmentWithAccountType => {
-    // Determine account type based on which ID is set
-    const accountType = apt.dummy_account_id ? 'Dummy' : 'Patient';
-    
+    // Ensure clean YYYY-MM-DD date format without timestamp
+    const cleanDate = apt.appointment_date ? apt.appointment_date.split('T')[0].split(' ')[0] : '';
     return {
       id: apt.id,
       name: apt.patient_name || 'Unknown Patient',
       service: apt.service || 'General Visit',
       time: apt.appointment_time || '00:00',
-      date: apt.appointment_date || '',
+      date: cleanDate,
       age: 0,
       gender: 'N/A',
       contact: '',
@@ -184,7 +177,6 @@ export default function AppointmentsTab({
       notes: apt.notes || '',
       imageUrl: 'https://via.placeholder.com/50', // Placeholder
       status: apt.status as any,
-      accountType: accountType,
     };
   };
 
@@ -228,17 +220,7 @@ export default function AppointmentsTab({
         
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
-          // Filter out declined appointments before storing
-          const filtered = transformed.filter(apt => apt.status !== 'declined');
-          
-          // Log breakdown by status
-          const statusBreakdown = {
-            scheduled: filtered.filter(apt => apt.status === 'scheduled').length,
-            completed: filtered.filter(apt => apt.status === 'completed').length,
-            cancelled: filtered.filter(apt => apt.status === 'cancelled').length,
-            'no-show': filtered.filter(apt => apt.status === 'no-show').length,
-          };
-          setAllMonthAppointments(filtered);
+          setAllMonthAppointments(transformed);
         } else {
           setAllMonthAppointments([]);
         }
@@ -287,19 +269,21 @@ export default function AppointmentsTab({
   };
 
   const getStatusColor = (status: string) => {
-    if (status === 'scheduled') return '#FFC107';
+    if (status === 'scheduled') return '#10B981';
     if (status === 'completed') return '#4CAF50';
     if (status === 'cancelled') return '#F44336';
     if (status === 'no-show') return '#9C27B0';
+    if (status === 'declined') return '#FF6F00';
     return '#999';
   };
 
   const getFilterBadgeColor = () => {
     if (appointmentFilterBy === 'all') return '#10B981';
-    if (appointmentFilterBy === 'scheduled') return '#FFC107';
+    if (appointmentFilterBy === 'scheduled') return '#10B981';
     if (appointmentFilterBy === 'completed') return '#4CAF50';
     if (appointmentFilterBy === 'cancelled') return '#F44336';
     if (appointmentFilterBy === 'no-show') return '#9C27B0';
+    if (appointmentFilterBy === 'declined') return '#FF6F00';
     return '#10B981';
   };
 
@@ -319,27 +303,21 @@ export default function AppointmentsTab({
   const getAppointmentCountForDate = (dateStr: string) => {
     // Use all month appointments for calendar counts
     const appointmentsToUse = allMonthAppointments;
-    // Exclude declined appointments from calendar counts
-    let appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr && apt.status !== 'declined');
+    let appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
     
     // Apply the active filter to calendar counts
     if (appointmentFilterBy === 'all') {
-      // Show all appointments excluding declined
-      const count = appointmentsForDate.length;
-      console.log(`✅ Calendar count for ${dateStr}: ${count} (filter: all, total appointments: ${appointmentsForDate.map(a => a.status).join(', ') || 'none'})`);
-      return count;
+      return appointmentsForDate.length;
     } else if (appointmentFilterBy === 'scheduled') {
-      // Show only scheduled/pending appointments
       return appointmentsForDate.filter(apt => apt.status === 'scheduled').length;
     } else if (appointmentFilterBy === 'completed') {
-      // Show only completed appointments
       return appointmentsForDate.filter(apt => apt.status === 'completed').length;
     } else if (appointmentFilterBy === 'cancelled') {
-      // Show only cancelled appointments
       return appointmentsForDate.filter(apt => apt.status === 'cancelled').length;
     } else if (appointmentFilterBy === 'no-show') {
-      // Show only no-show appointments
       return appointmentsForDate.filter(apt => apt.status === 'no-show').length;
+    } else if (appointmentFilterBy === 'declined') {
+      return appointmentsForDate.filter(apt => apt.status === 'declined').length;
     }
     
     return appointmentsForDate.length;
@@ -519,19 +497,7 @@ export default function AppointmentsTab({
                 const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
                 if (monthAppointments.length > 0) {
                   const transformed = monthAppointments.map(transformBackendAppointment);
-                  // Filter out declined appointments before storing
-                  const filtered = transformed.filter(apt => apt.status !== 'declined');
-                  
-                  // Log breakdown by status to verify cancelled appointments are included
-                  const statusBreakdown = {
-                    scheduled: filtered.filter(apt => apt.status === 'scheduled').length,
-                    completed: filtered.filter(apt => apt.status === 'completed').length,
-                    cancelled: filtered.filter(apt => apt.status === 'cancelled').length,
-                    'no-show': filtered.filter(apt => apt.status === 'no-show').length,
-                  };
-                  console.log('📊 Status breakdown after cancellation:', statusBreakdown);
-                  
-                  setAllMonthAppointments(filtered);
+                  setAllMonthAppointments(transformed);
                 } else {
                   setAllMonthAppointments([]);
                 }
@@ -618,19 +584,7 @@ export default function AppointmentsTab({
       const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
       if (monthAppointments.length > 0) {
         const transformed = monthAppointments.map(transformBackendAppointment);
-        // Filter out declined appointments before storing
-        const filtered = transformed.filter(apt => apt.status !== 'declined');
-        
-        // Log breakdown by status
-        const statusBreakdown = {
-          scheduled: filtered.filter(apt => apt.status === 'scheduled').length,
-          completed: filtered.filter(apt => apt.status === 'completed').length,
-          cancelled: filtered.filter(apt => apt.status === 'cancelled').length,
-          'no-show': filtered.filter(apt => apt.status === 'no-show').length,
-        };
-        console.log('📊 Status breakdown on refresh:', statusBreakdown);
-        
-        setAllMonthAppointments(filtered);
+        setAllMonthAppointments(transformed);
       } else {
         setAllMonthAppointments([]);
       }
@@ -655,50 +609,17 @@ export default function AppointmentsTab({
     }
   };
 
-  // Handler for when a new appointment is added
-  const handleAddAppointmentSaved = async () => {
-    console.log('✅ New appointment created, refreshing appointments...');
-    if (!doctorId) return;
-    
-    // Refresh current day appointments
-    const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
-    if (dayAppointments.length > 0) {
-      const transformed = dayAppointments.map(transformBackendAppointment);
-      setFetchedAppointments(transformed);
-    } else {
-      setFetchedAppointments([]);
-    }
-    
-    // Also refresh entire month appointments for calendar
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDate = formatDate(firstDay);
-    const endDate = formatDate(lastDay);
-    
-    const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
-    if (monthAppointments.length > 0) {
-      const transformed = monthAppointments.map(transformBackendAppointment);
-      setAllMonthAppointments(transformed);
-    }
-  };
-
   // Filter appointments - only use real Supabase data (no fallback to sample data)
   const appointmentsToDisplay = fetchedAppointments;
   const filteredAppointments = appointmentsToDisplay.filter((apt) => {
-    // Exclude declined appointments from display
-    if (apt.status === 'declined') {
-      return false;
-    }
-
     const matchesSearch =
-      apt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      apt.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      apt.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      apt.contact.includes(searchQuery);
+      (apt.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (apt.service || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (apt.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (apt.contact || '').includes(searchQuery);
 
-    const matchesDate = selectedDate ? apt.date === selectedDate : true;
+    const cleanAptDate = apt.date ? apt.date.split('T')[0].split(' ')[0] : '';
+    const matchesDate = selectedDate ? cleanAptDate === selectedDate : true;
 
     // Apply status filter
     if (appointmentFilterBy === 'all') {
@@ -711,6 +632,8 @@ export default function AppointmentsTab({
       return matchesSearch && matchesDate && apt.status === 'cancelled';
     } else if (appointmentFilterBy === 'no-show') {
       return matchesSearch && matchesDate && apt.status === 'no-show';
+    } else if (appointmentFilterBy === 'declined') {
+      return matchesSearch && matchesDate && apt.status === 'declined';
     }
     return matchesSearch && matchesDate;
   });
@@ -742,22 +665,6 @@ export default function AppointmentsTab({
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
           {/* Action Buttons */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => setShowAddModal(true)}
-              disabled={loading}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: loading ? '#ccc' : '#4CAF50',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>Add</Text>
-            </TouchableOpacity>
-
             {/* Refresh Button */}
             <TouchableOpacity
               onPress={handleRefreshAppointments}
@@ -824,7 +731,7 @@ export default function AppointmentsTab({
                     borderColor: appointmentFilterBy === 'scheduled' ? '#10B981' : '#ccc',
                   }}
                 >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'scheduled' ? '#fff' : '#333', fontWeight: '500' }}>Pending</Text>
+                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'scheduled' ? '#fff' : '#333', fontWeight: '500' }}>Scheduled</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setAppointmentFilterBy('completed')}
@@ -832,9 +739,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'completed' ? '#10B981' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'completed' ? '#4CAF50' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'completed' ? '#10B981' : '#ccc',
+                    borderColor: appointmentFilterBy === 'completed' ? '#4CAF50' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'completed' ? '#fff' : '#333', fontWeight: '500' }}>Completed</Text>
@@ -845,9 +752,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#10B981' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#F44336' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'cancelled' ? '#10B981' : '#ccc',
+                    borderColor: appointmentFilterBy === 'cancelled' ? '#F44336' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'cancelled' ? '#fff' : '#333', fontWeight: '500' }}>Cancelled</Text>
@@ -858,12 +765,25 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'no-show' ? '#10B981' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'no-show' ? '#9C27B0' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'no-show' ? '#10B981' : '#ccc',
+                    borderColor: appointmentFilterBy === 'no-show' ? '#9C27B0' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'no-show' ? '#fff' : '#333', fontWeight: '500' }}>No-show</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setAppointmentFilterBy('declined')}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    backgroundColor: appointmentFilterBy === 'declined' ? '#FF6F00' : '#e0e0e0',
+                    borderWidth: 1,
+                    borderColor: appointmentFilterBy === 'declined' ? '#FF6F00' : '#ccc',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'declined' ? '#fff' : '#333', fontWeight: '500' }}>Declined</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -890,7 +810,7 @@ export default function AppointmentsTab({
             </View>
 
             {/* Weekday Headers */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
                 // Check if this day is closed based on clinic schedule
                 let isClosed = false;
@@ -910,9 +830,11 @@ export default function AppointmentsTab({
             </View>
 
             {/* Calendar Days */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap:2 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={{ flex: 1, minWidth: '14%', height: 55, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
+                <View key={`empty-${index}`} style={{ width: '14.28%', height: 55, padding: 1 }}>
+                  <View style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
+                </View>
               ))}
               {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                 const day = index + 1;
@@ -937,24 +859,22 @@ export default function AppointmentsTab({
                 const isFull = appointmentCount >= 3;
 
                 return (
-                  <TouchableOpacity
-                    key={day}
-                    onPress={() => !isUnavailable && setSelectedDate(dateStr)}
-                    disabled={isUnavailable}
-                    style={{
-                      flex: 1,
-                      minWidth: '14%',
-                      height: 55,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      borderRadius: 10,
-                      backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#10B981' : isToday ? '#e3f2fd' : '#f9f9f9',
-                      borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
-                      borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#10B981' : '#e0e0e0',
-                      opacity: isUnavailable ? 0.6 : 1,
-                      position: 'relative',
-                    }}
-                  >
+                  <View key={day} style={{ width: '14.28%', height: 55, padding: 1 }}>
+                    <TouchableOpacity
+                      onPress={() => !isUnavailable && setSelectedDate(dateStr)}
+                      disabled={isUnavailable}
+                      style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderRadius: 10,
+                        backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#10B981' : isToday ? '#e3f2fd' : '#f9f9f9',
+                        borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
+                        borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#10B981' : '#e0e0e0',
+                        opacity: isUnavailable ? 0.6 : 1,
+                        position: 'relative',
+                      }}
+                    >
                     <Text style={{ position: 'absolute', top: 4, left: 4, fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
                       {day}
                     </Text>
@@ -1038,7 +958,8 @@ export default function AppointmentsTab({
                         <HeroIcon name="check" size="xs" color="#e60b0b" />
                       </View>
                     )}
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                  </View>
                 );
               })}
             </View>
@@ -1091,28 +1012,13 @@ export default function AppointmentsTab({
                       }}
                     >
                       <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>
-                        {appointment.status === 'scheduled' ? 'Pending' :
+                        {appointment.status === 'scheduled' ? 'Scheduled' :
                          appointment.status === 'completed' ? 'Completed' :
-                         appointment.status === 'cancelled' ? 'Cancelled' : 'No-show'}
+                         appointment.status === 'cancelled' ? 'Cancelled' :
+                         appointment.status === 'declined' ? 'Declined' :
+                         appointment.status === 'no-show' ? 'No Show' : appointment.status}
                       </Text>
                     </View>
-                  </View>
-                  {/* Account Type Badge Below Name */}
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 6,
-                      backgroundColor: appointment.accountType === 'Dummy' ? '#fff3e0' : '#e3f2fd',
-                      borderWidth: 1,
-                      borderColor: appointment.accountType === 'Dummy' ? '#f57c00' : '#10B981',
-                      alignSelf: 'flex-start',
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Text style={{ fontSize: 9, color: appointment.accountType === 'Dummy' ? '#f57c00' : '#10B981', fontWeight: '600' }}>
-                      {appointment.accountType === 'Dummy' ? 'Dummy Account' : 'Patient'}
-                    </Text>
                   </View>
                   <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
                   <Text style={{ fontSize: 11, color: '#999' }}>
@@ -1152,15 +1058,6 @@ export default function AppointmentsTab({
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
-
-      {/* AppointmentAdd Modal */}
-      <AppointmentAdd
-        visible={showAddModal}
-        doctorId={doctorId}
-        onClose={() => setShowAddModal(false)}
-        onSave={handleAddAppointmentSaved}
-        onAppointmentCreated={onAppointmentCreated}
-      />
     </SafeAreaView>
   );
 }

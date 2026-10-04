@@ -4,11 +4,12 @@ interface AppointmentCardProps {
   service: string;
   time: string;
   date?: string;
+  status?: string;
   onClick?: () => void;
   isSelected?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, date, onClick, isSelected }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, status, onClick, isSelected }: AppointmentCardProps) {
   const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SG';
 
   return (
@@ -24,7 +25,22 @@ export default function AppointmentCard({ name, service, time, date, onClick, is
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm text-slate-900 truncate">{name}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-bold text-sm text-slate-900 truncate">{name}</p>
+          {status && (
+            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-xs border ${
+              status === 'completed'
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                : status === 'declined'
+                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                : status === 'cancelled'
+                ? 'bg-red-100 text-red-800 border-red-300'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+            }`}>
+              {status}
+            </span>
+          )}
+        </div>
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">{service}</p>
       </div>
       <div className="text-right flex flex-col items-end shrink-0">
