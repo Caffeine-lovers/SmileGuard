@@ -1,9 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
+import type { PreflightCheckResult } from '@smileguard/shared-types';
+import {
+  AlertTriangle,
+  RefreshCw,
+  Camera,
+  Sparkles,
+  ShieldCheck,
+} from 'lucide-react';
 
 interface Detection {
   class_id: number;
@@ -30,15 +38,19 @@ export default function AnalysisPage() {
   const { currentUser } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [inspectionStep, setInspectionStep] = useState<'idle' | 'preflight' | 'anomaly_detection'>('idle');
+  const [preflightRejection, setPreflightRejection] = useState<PreflightCheckResult | null>(null);
   const [consentGiven, setConsentGiven] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const isAnalyzingRef = useRef(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
       setResult(null); // Reset previous result when a new image is selected
+      setPreflightRejection(null); // Reset previous preflight rejection
       
       // Create preview
       const reader = new FileReader();
@@ -64,6 +76,11 @@ export default function AnalysisPage() {
   };
 
   const handleUpload = async () => {
+    if (isAnalyzingRef.current || uploading) {
+      console.warn('[Analysis] Analysis already in flight. Throttling duplicate call.');
+      return;
+    }
+
     if (!selectedFile) {
       alert('Please select an image first');
       return;
@@ -74,17 +91,43 @@ export default function AnalysisPage() {
       return;
     }
 
+    isAnalyzingRef.current = true;
     setUploading(true);
+    setPreflightRejection(null);
+    setResult(null);
+    setInspectionStep('preflight');
+
     try {
+      // 1. Convert image to base64
+      const image_b64 = await fileToBase64(selectedFile);
+
+      // 2. Stage 1: Pre-Flight Clinical Quality Gate
+      console.log('[Analysis] Initiating Stage 1: Pre-Flight Quality Gate...');
+      const preflightRes = await fetch('/api/analysis/preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_b64 }),
+      });
+
+      const preflightData: PreflightCheckResult = await preflightRes.json();
+
+      if (!preflightData.passed) {
+        console.warn('[Analysis] ⚠️ Pre-Flight Gate REJECTED image:', preflightData.rejection_reason);
+        setPreflightRejection(preflightData);
+        setUploading(false);
+        setInspectionStep('idle');
+        return; // HALT pipeline — do not waste GPU compute or report false positives
+      }
+
+      console.log('[Analysis] ✅ Pre-Flight Quality Gate PASSED. Proceeding to Stage 2: YOLOv8m inference...');
+      setInspectionStep('anomaly_detection');
+
+      // 3. Stage 2: Send certified photo to Modal.com Serverless GPU
       const endpoint = process.env.NEXT_PUBLIC_SMILEGUARD_ENDPOINT;
       if (!endpoint) {
         throw new Error('Modal Prediction URL is not set in environment variables.');
       }
 
-      // Convert image to base64
-      const image_b64 = await fileToBase64(selectedFile);
-
-      // Send to Modal.com Serverless GPU
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -92,7 +135,7 @@ export default function AnalysisPage() {
         },
         body: JSON.stringify({
           image_b64: image_b64,
-          conf: 0.10, // Lowered confidence to pick up more bounding boxes
+          conf: 0.10, // Recall-calibrated threshold
         }),
       });
 
@@ -101,33 +144,33 @@ export default function AnalysisPage() {
       }
 
       const data: AnalysisResult = await response.json();
+      
+      // CRITICAL: Stop throbber immediately as soon as results arrive!
       setResult(data);
+      setUploading(false);
+      setInspectionStep('idle');
 
       // Debug: log response shape
       console.log('[Analysis] API response keys:', Object.keys(data));
       console.log('[Analysis] xai_annotated_image_b64 present:', !!data.xai_annotated_image_b64);
-      console.log('[Analysis] xai_annotated_image_b64 length:', data.xai_annotated_image_b64?.length ?? 0);
       console.log('[Analysis] Detection count:', data.count);
 
-      // Upload XAI annotated image to Supabase bucket 'Analyzed images'
+      // Background Upload of XAI annotated image to Supabase (non-blocking)
       if (data.xai_annotated_image_b64) {
-        try {
-          // Verify we have an active Supabase auth session (required by RLS)
-          const { data: sessionData } = await supabase.auth.getSession();
-          console.log('[Analysis] Supabase session active:', !!sessionData?.session);
-          console.log('[Analysis] Session user ID:', sessionData?.session?.user?.id ?? 'NONE');
+        (async () => {
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session) {
+              console.log('[Analysis] No active Supabase session — skipping XAI cloud backup.');
+              return;
+            }
 
-          if (!sessionData?.session) {
-            console.error('[Analysis] ❌ No active Supabase session — upload will be blocked by RLS. Skipping.');
-          } else {
-            // Decode base64 to binary
-            const byteCharacters = atob(data.xai_annotated_image_b64);
+            const byteCharacters = atob(data.xai_annotated_image_b64!);
             const byteArray = new Uint8Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) {
               byteArray[i] = byteCharacters.charCodeAt(i);
             }
 
-            // Determine user identifier for naming format: (current user)_xai
             const userName = currentUser?.name
               || sessionData.session.user.user_metadata?.name
               || currentUser?.id
@@ -135,8 +178,6 @@ export default function AnalysisPage() {
               || 'unknown';
             const userIdentifier = userName.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
             const filename = `${userIdentifier}_xai.jpg`;
-
-            console.log(`[Analysis] Uploading XAI image to bucket 'Analyzed images' as '${filename}' (${byteArray.length} bytes)...`);
 
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from('Analyzed images')
@@ -146,23 +187,25 @@ export default function AnalysisPage() {
               });
 
             if (uploadError) {
-              console.error('[Analysis] ❌ Supabase storage upload error:', uploadError.message);
-              console.error('[Analysis] Error details:', JSON.stringify(uploadError));
+              console.warn('[Analysis] Supabase background upload:', uploadError.message);
             } else {
-              console.log('[Analysis] ✅ Successfully uploaded XAI image:', uploadData);
+              console.log('[Analysis] ✅ Background XAI image saved:', uploadData?.path);
             }
+          } catch (uploadErr) {
+            console.warn('[Analysis] Background upload non-fatal exception:', uploadErr);
           }
-        } catch (uploadErr: any) {
-          console.error('[Analysis] ❌ Exception during XAI upload:', uploadErr.message || uploadErr);
-        }
-      } else {
-        console.warn('[Analysis] ⚠️ No xai_annotated_image_b64 in API response — nothing to upload.');
+        })();
       }
     } catch (error: any) {
       console.error('Error uploading image:', error);
       alert(`Failed to analyze image: ${error.message}`);
     } finally {
       setUploading(false);
+      setInspectionStep('idle');
+      // Cooldown throttle release
+      setTimeout(() => {
+        isAnalyzingRef.current = false;
+      }, 1000);
     }
   };
 
@@ -194,28 +237,119 @@ export default function AnalysisPage() {
 
           {/* Case A: Data Privacy Consent (RA 10173) */}
           <div className="mb-6 flex flex-col items-center">
-            <div className="w-full max-w-md p-4 bg-bg-card rounded-card border border-border-card text-left transition hover:border-brand-primary/40">
-              <label className="flex items-start gap-3 cursor-pointer select-none">
+            <div className="w-full max-w-md p-4 bg-bg-card rounded-card border border-border-card text-left transition hover:border-brand-primary/40 space-y-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-brand-primary shrink-0" />
+                <p className="font-semibold text-xs text-text-primary">
+                  Data Privacy & AI Processing Consent (RA 10173)
+                </p>
+              </div>
+              <p className="text-text-secondary text-[11px] leading-relaxed">
+                Oral photographs are collected, stored securely, and processed solely for preliminary informational screening under the <strong>Philippine Data Privacy Act of 2012</strong>. This does not replace clinical diagnosis by a licensed dentist.
+              </p>
+              <label className="flex items-center gap-2.5 pt-2 border-t border-border-card cursor-pointer select-none group">
                 <input
                   type="checkbox"
                   checked={consentGiven}
                   onChange={(e) => setConsentGiven(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-border-card text-brand-primary focus:ring-brand-primary"
+                  className="h-4 w-4 rounded border-border-card text-brand-primary focus:ring-brand-primary cursor-pointer"
                 />
-                <div className="text-xs text-text-primary space-y-1">
-                  <p className="font-semibold text-text-primary">
-                    Data Privacy & AI Processing Consent (RA 10173)
-                  </p>
-                  <p className="text-text-secondary leading-relaxed">
-                    I explicitly consent to SmileGuard collecting, securely storing, and processing my oral photographs using AI for preliminary health screening in compliance with the <strong>Philippine Data Privacy Act of 2012</strong>.
-                  </p>
-                  <p className="text-text-secondary text-[11px] italic">
-                    I understand this AI analysis serves as an informational screening aid and does not replace a clinical diagnosis by a licensed dentist.
-                  </p>
-                </div>
+                <span className="text-xs font-semibold text-text-primary group-hover:text-brand-primary transition">
+                  I understand and give consent
+                </span>
               </label>
             </div>
           </div>
+
+          {/* Pre-Flight Inspection In-Progress Banner */}
+          {uploading && (
+            <div className="mb-6 p-4 bg-teal-50 border-2 border-teal-300 rounded-card flex items-start gap-3 text-teal-900 shadow-sm animate-in fade-in duration-200">
+              <div className="w-5 h-5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold uppercase tracking-wider text-teal-950 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                  {inspectionStep === 'preflight'
+                    ? 'Step 1/2: Clinical Pre-Flight Inspection...'
+                    : 'Step 2/2: YOLOv8m Oral Anomaly Detection...'}
+                </p>
+                <p className="text-teal-800 leading-relaxed">
+                  {inspectionStep === 'preflight'
+                    ? 'Screening photo for dental presence, verifying absence of orthodontic braces, and evaluating illumination...'
+                    : 'Transmitting verified intraoral photo to cloud GPU container for deep lesion segmentation...'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Pre-Flight AI Rejection / Throwback Banner */}
+          {preflightRejection && !preflightRejection.passed && (
+            <div className="mb-6 p-6 bg-amber-50/80 border-2 border-amber-400 rounded-card shadow-sm animate-in fade-in duration-200 text-left">
+              <div className="flex items-start gap-4">
+                <div className="p-2.5 bg-amber-200/80 rounded-full text-amber-800 shrink-0 mt-0.5">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-200 px-2 py-0.5 rounded">
+                      Pre-Flight AI Quality Gate
+                    </span>
+                    {preflightRejection.rejection_reason && (
+                      <span className="text-[11px] font-mono font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                        {preflightRejection.rejection_reason}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-base font-black text-amber-950">
+                    {preflightRejection.patient_feedback?.headline || 'Photo Verification Notice'}
+                  </h3>
+
+                  <p className="text-xs text-amber-900 leading-relaxed">
+                    {preflightRejection.patient_feedback?.description ||
+                      'The uploaded image did not meet clinical screening criteria. Please ensure your photo focuses clearly on natural teeth without orthodontic braces.'}
+                  </p>
+
+                  {preflightRejection.patient_feedback?.tips &&
+                    preflightRejection.patient_feedback.tips.length > 0 && (
+                      <div className="mt-3 p-3 bg-white/80 border border-amber-300 rounded-md">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-900 mb-1.5 flex items-center gap-1.5">
+                          <Camera className="w-3.5 h-3.5 text-amber-700" />
+                          Tips for a Valid Intraoral Photo:
+                        </p>
+                        <ul className="text-xs text-amber-900 space-y-1 list-disc pl-4">
+                          {preflightRejection.patient_feedback.tips.map((tip, idx) => (
+                            <li key={idx}>{tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreflightRejection(null);
+                        setSelectedFile(null);
+                        setImagePreview(null);
+                      }}
+                      className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold uppercase tracking-wider rounded-md transition flex items-center gap-2 cursor-pointer shadow-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Try Another Photo
+                    </button>
+                    {preflightRejection.rejection_reason === 'BRACES_DETECTED' && (
+                      <Link
+                        href="/appointments"
+                        className="px-4 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-400 text-xs font-bold uppercase tracking-wider rounded-md transition"
+                      >
+                        Book Orthodontic Checkup
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Upload Button */}
           <div className="mb-6 flex flex-col items-center">
@@ -224,7 +358,13 @@ export default function AnalysisPage() {
               disabled={uploading || !selectedFile || !consentGiven}
               className="w-full max-w-md p-3 bg-brand-primary text-text-on-avatar font-semibold rounded-pill hover:bg-brand-primary/90 disabled:bg-border-card disabled:cursor-not-allowed transition"
             >
-              {uploading ? 'Analyzing...' : !consentGiven && selectedFile ? 'Consent Required to Analyze' : 'Analyze Image'}
+              {uploading
+                ? inspectionStep === 'preflight'
+                  ? 'Step 1/2: Inspecting Quality...'
+                  : 'Step 2/2: Detecting Anomalies...'
+                : !consentGiven && selectedFile
+                ? 'Consent Required to Analyze'
+                : 'Analyze Image'}
             </button>
             {!consentGiven && selectedFile && (
               <p className="text-xs font-bold text-amber-700 mt-2">
