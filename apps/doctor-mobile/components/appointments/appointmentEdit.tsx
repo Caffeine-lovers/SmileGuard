@@ -31,11 +31,11 @@ const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show' 
 ];
 
 const STATUS_COLORS: { [key: string]: string } = {
-  scheduled: '#FFC107',
-  completed: '#4CAF50',
-  cancelled: '#F44336',
-  'no-show': '#9C27B0',
-  declined: '#FF6F00',
+  scheduled: '#10B981', // Mint / Emerald Green
+  completed: '#047857', // Deep Forest Green
+  cancelled: '#6B9080', // Muted Sage Green
+  'no-show': '#4D7C0F', // Olive / Moss Green
+  declined: '#0F766E', // Deep Pine / Spruce Green
 };
 
 export default function AppointmentEdit({
