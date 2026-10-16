@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { updateDoctorAppointmentStatus, getAppointmentRequests } from '../../lib
 import { createManualNotification } from '../../lib/notificationService';
 import { formatAppointmentDate } from '../../lib/dateFormatters';
 import { DashboardAppointment } from '../dashboard/DoctorDashboard';
-import { Inbox, Check, X, RefreshCw } from 'lucide-react-native';
+import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
 
 interface AppointmentsRequestTabProps {
@@ -23,6 +23,8 @@ interface AppointmentsRequestTabProps {
   onRequestAcceptedWithNotification?: (notification: any) => void;
   styles: any;
 }
+
+const ITEMS_PER_PAGE = 4;
 
 export default function AppointmentsRequestTab({
   userId,
@@ -33,6 +35,8 @@ export default function AppointmentsRequestTab({
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<any>(null);
 
   // Fetch appointment requests
   const fetchAppointmentRequests = useCallback(async () => {
@@ -214,6 +218,46 @@ export default function AppointmentsRequestTab({
     );
   };
 
+  const totalPages = Math.max(1, Math.ceil(appointmentRequests.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedRequests = appointmentRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Keep currentPage valid if totalPages shrinks
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback
+      }
+    }
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  };
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: AppColors.background }}>
@@ -261,8 +305,22 @@ export default function AppointmentsRequestTab({
           </Text>
         </View>
       ) : (
-        <ScrollView style={tabStyles.requestsList} contentContainerStyle={tabStyles.requestsListContent}>
-          {appointmentRequests.map((request) => (
+        <ScrollView ref={scrollViewRef} style={tabStyles.requestsList} contentContainerStyle={tabStyles.requestsListContent}>
+          {/* Header info showing request count and page */}
+          <View style={tabStyles.countHeader}>
+            <Text style={tabStyles.countHeaderText}>
+              Showing <Text style={tabStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, appointmentRequests.length)}</Text> of <Text style={tabStyles.countHeaderBold}>{appointmentRequests.length}</Text> requests
+            </Text>
+            {totalPages > 1 && (
+              <View style={tabStyles.pageBadge}>
+                <Text style={tabStyles.pageBadgeText}>
+                  Page {currentPage} of {totalPages}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {paginatedRequests.map((request) => (
             <View key={request.id} style={tabStyles.requestCard}>
               {/* Patient Info */}
               <View style={tabStyles.patientSection}>
@@ -317,6 +375,73 @@ export default function AppointmentsRequestTab({
               </View>
             </View>
           ))}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <View style={tabStyles.paginationContainer}>
+              {/* Previous Button */}
+              <TouchableOpacity
+                style={[
+                  tabStyles.navButton,
+                  currentPage === 1 && tabStyles.navButtonDisabled,
+                ]}
+                onPress={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                activeOpacity={0.7}
+                accessibilityLabel="Previous Page"
+              >
+                <ChevronLeft size={18} color={currentPage === 1 ? '#94A3B8' : AppColors.primaryDark} />
+              </TouchableOpacity>
+
+              {/* Page Numbers */}
+              <View style={tabStyles.pageNumbersRow}>
+                {getPageNumbers().map((pageNum, index) => {
+                  if (pageNum === '...') {
+                    return (
+                      <View key={`ellipsis-${index}`} style={tabStyles.ellipsisBox}>
+                        <Text style={tabStyles.ellipsisText}>•••</Text>
+                      </View>
+                    );
+                  }
+                  const isSelected = pageNum === currentPage;
+                  return (
+                    <TouchableOpacity
+                      key={`page-${pageNum}`}
+                      style={[
+                        tabStyles.pageButton,
+                        isSelected && tabStyles.pageButtonActive,
+                      ]}
+                      onPress={() => handlePageChange(pageNum as number)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          tabStyles.pageButtonText,
+                          isSelected && tabStyles.pageButtonTextActive,
+                        ]}
+                      >
+                        {pageNum}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Next Button */}
+              <TouchableOpacity
+                style={[
+                  tabStyles.navButton,
+                  currentPage === totalPages && tabStyles.navButtonDisabled,
+                ]}
+                onPress={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                activeOpacity={0.7}
+                accessibilityLabel="Next Page"
+              >
+                <ChevronRight size={18} color={currentPage === totalPages ? '#94A3B8' : AppColors.primaryDark} />
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       )}
     </View>
@@ -533,5 +658,119 @@ const tabStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+
+  countHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 2,
+  },
+
+  countHeaderText: {
+    fontSize: 13,
+    color: AppColors.textSecondary,
+    fontWeight: '500',
+  },
+
+  countHeaderBold: {
+    fontWeight: '700',
+    color: AppColors.textPrimary,
+  },
+
+  pageBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  pageBadgeText: {
+    fontSize: 11,
+    color: AppColors.primaryDark,
+    fontWeight: '700',
+  },
+
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#E6ECEF',
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#FFFFFF',
+    borderBottomColor: '#B0BAC5',
+    borderRightColor: '#B0BAC5',
+    gap: 8,
+  },
+
+  navButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  navButtonDisabled: {
+    backgroundColor: '#DDE4E8',
+    borderColor: '#CBD5E1',
+  },
+
+  pageNumbersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  pageButton: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    backgroundColor: '#DDE4E8',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+
+  pageButtonActive: {
+    backgroundColor: AppColors.primary,
+    borderColor: AppColors.primaryDark,
+  },
+
+  pageButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: AppColors.textPrimary,
+  },
+
+  pageButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
+  ellipsisBox: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  ellipsisText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    letterSpacing: 1,
   },
 });
