@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-// ✅ FIX: Hard-fail if service role key is missing — no anon key fallback
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!serviceRoleKey) {
-  console.error('[PayMongo Webhook] CRITICAL: SUPABASE_SERVICE_ROLE_KEY is not set. Webhook will not be able to update billing records.');
-}
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  serviceRoleKey || ''
-);
+function getSupabaseAdmin() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceRoleKey || !supabaseUrl) {
+    return null;
+  }
+  return createClient(supabaseUrl, serviceRoleKey);
+}
 
 /**
  * Verify PayMongo webhook signature using HMAC-SHA256.
@@ -45,8 +45,9 @@ function verifyPayMongoSignature(rawBody: string, signatureHeader: string, secre
 }
 
 export async function POST(request: NextRequest) {
-  if (!serviceRoleKey) {
-    console.error('[PayMongo Webhook] SUPABASE_SERVICE_ROLE_KEY is not configured. Cannot process payment updates.');
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) {
+    console.error('[PayMongo Webhook] SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL is not configured. Cannot process payment updates.');
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
