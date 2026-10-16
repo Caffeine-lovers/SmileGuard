@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '@/lib/paymongo';
 
-// Use service-role client (no user auth context during API route)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = 'force-dynamic';
+
+function getSupabaseAdmin() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceRoleKey || !supabaseUrl) {
+    return null;
+  }
+  return createClient(supabaseUrl, serviceRoleKey);
+}
 
 // Service prices — authoritative server-side source of truth
 // This prevents the FIN-01 client-side price tampering vulnerability
@@ -42,6 +47,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing appointmentId or patientId' },
         { status: 400 }
+      );
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: 'Database service is not configured on this server.' },
+        { status: 500 }
       );
     }
 
