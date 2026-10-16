@@ -16,3 +16,4 @@ dist/
 
 # Dependencies should be in root node_modules (pnpm hoisting)
 node_modules/
+.vercel
