@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import * as dashboardService from "../../lib/dashboardService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "@smileguard/supabase-client";
 import { getAllPatients } from "../../lib/profilesPatients";
-import { RefreshCw, ChevronRight } from "lucide-react-native";
+import { RefreshCw, ChevronRight, ChevronLeft } from "lucide-react-native";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -35,7 +35,7 @@ interface RecordsTabProps {
   styles: any;
 }
 
-
+const ITEMS_PER_PAGE = 4;
 
 export default function RecordsTab({
   patients,
@@ -55,6 +55,8 @@ export default function RecordsTab({
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<any>(null);
 
   // Note: Session restoration is no longer needed!
   // RLS policies now use auth.role() = 'authenticated' which uses JWT tokens
@@ -97,7 +99,64 @@ export default function RecordsTab({
     }
   }, [currentUser?.id]);
 
+  // Reset to first page when search query or sort order changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [quickSearchQuery, patientSortBy, patientSortOrder]);
 
+  const basePatients = supabasePatients.length > 0 ? supabasePatients : (patients || []);
+
+  const filteredPatients = basePatients.filter((patient) => {
+    const query = quickSearchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      (patient.name && patient.name.toLowerCase().includes(query)) ||
+      (patient.service && patient.service.toLowerCase().includes(query)) ||
+      (patient.email && patient.email.toLowerCase().includes(query)) ||
+      (patient.contact && patient.contact.toLowerCase().includes(query))
+    );
+  });
+
+  const sortedPatients = sortPatients(filteredPatients);
+  const totalPages = Math.max(1, Math.ceil(sortedPatients.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedPatients = sortedPatients.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Keep currentPage valid if totalPages shrinks
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback if scrollTo is not supported on ref
+      }
+    }
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  };
 
   // Refresh function to refetch both patient sources
   const handleRefresh = async () => {
@@ -131,8 +190,7 @@ export default function RecordsTab({
         status: 'scheduled' as const,
       }));
       setSupabasePatients(mappedSupabase);
-
-
+      setCurrentPage(1);
     } catch (error) {
       console.error('Error refreshing patients:', error);
     } finally {
@@ -231,58 +289,126 @@ export default function RecordsTab({
           </TouchableOpacity>
         </View>
       </View>
-      <ScrollView style={{ flex: 1, padding: 16 }}>
+      <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
         {loadingSupabase ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color="#10B981" />
             <Text style={{ marginTop: 12, color: "#047857", fontSize: 14 }}>Loading patients...</Text>
           </View>
+        ) : basePatients.length === 0 ? (
+          <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+            No patients found
+          </Text>
+        ) : sortedPatients.length === 0 ? (
+          <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+            No patients found matching "{quickSearchQuery}"
+          </Text>
         ) : (
           <>
-            {/* Patients List */}
-            {supabasePatients.length > 0 ? (
-              sortPatients(
-                supabasePatients.filter((patient) =>
-                  patient.name.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.service.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.email.toLowerCase().includes(quickSearchQuery.toLowerCase()) ||
-                  patient.contact.includes(quickSearchQuery)
-                )
-              ).map((patient) => (
-                <TouchableOpacity
-                  key={patient.id}
-                  style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                  onPress={() => {
-                    setViewingPatient(patient);
-                    setShowPatientDetails(true);
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Image
-                      source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                      style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                      <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                      <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
-                    </View>
-                    <ChevronRight size={18} color="#94A3B8" />
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                No patients found
+            {/* Header info showing patient count and page */}
+            <View style={localStyles.countHeader}>
+              <Text style={localStyles.countHeaderText}>
+                Showing <Text style={localStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, sortedPatients.length)}</Text> of <Text style={localStyles.countHeaderBold}>{sortedPatients.length}</Text> patients
               </Text>
-            )}
+              {totalPages > 1 && (
+                <View style={localStyles.pageBadge}>
+                  <Text style={localStyles.pageBadgeText}>
+                    Page {currentPage} of {totalPages}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-            {/* No results matching search */}
-            {quickSearchQuery &&
-             supabasePatients.filter(p => p.name.toLowerCase().includes(quickSearchQuery.toLowerCase())).length === 0 && (
-              <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-                No patients found matching "{quickSearchQuery}"
-              </Text>
+            {/* Paginated Patients List */}
+            {paginatedPatients.map((patient) => (
+              <TouchableOpacity
+                key={patient.id}
+                style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                onPress={() => {
+                  setViewingPatient(patient);
+                  setShowPatientDetails(true);
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Image
+                    source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                    style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                    <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
+                    <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
+                  </View>
+                  <ChevronRight size={18} color="#94A3B8" />
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <View style={localStyles.paginationContainer}>
+                {/* Previous Button */}
+                <TouchableOpacity
+                  style={[
+                    localStyles.navButton,
+                    currentPage === 1 && localStyles.navButtonDisabled,
+                  ]}
+                  onPress={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Previous Page"
+                >
+                  <ChevronLeft size={18} color={currentPage === 1 ? '#94A3B8' : '#047857'} />
+                </TouchableOpacity>
+
+                {/* Page Numbers */}
+                <View style={localStyles.pageNumbersRow}>
+                  {getPageNumbers().map((pageNum, index) => {
+                    if (pageNum === '...') {
+                      return (
+                        <View key={`ellipsis-${index}`} style={localStyles.ellipsisBox}>
+                          <Text style={localStyles.ellipsisText}>•••</Text>
+                        </View>
+                      );
+                    }
+                    const isSelected = pageNum === currentPage;
+                    return (
+                      <TouchableOpacity
+                        key={`page-${pageNum}`}
+                        style={[
+                          localStyles.pageButton,
+                          isSelected && localStyles.pageButtonActive,
+                        ]}
+                        onPress={() => handlePageChange(pageNum as number)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pageButtonText,
+                            isSelected && localStyles.pageButtonTextActive,
+                          ]}
+                        >
+                          {pageNum}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Next Button */}
+                <TouchableOpacity
+                  style={[
+                    localStyles.navButton,
+                    currentPage === totalPages && localStyles.navButtonDisabled,
+                  ]}
+                  onPress={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Next Page"
+                >
+                  <ChevronRight size={18} color={currentPage === totalPages ? '#94A3B8' : '#047857'} />
+                </TouchableOpacity>
+              </View>
             )}
           </>
         )}
@@ -291,3 +417,107 @@ export default function RecordsTab({
     </SafeAreaView>
   );
 }
+
+const localStyles = StyleSheet.create({
+  countHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
+  countHeaderText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  countHeaderBold: {
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  pageBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  pageBadgeText: {
+    fontSize: 11,
+    color: '#047857',
+    fontWeight: '600',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    gap: 8,
+  },
+  navButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  navButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+  },
+  pageNumbersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pageButton: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pageButtonActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  pageButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  pageButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  ellipsisBox: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ellipsisText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    letterSpacing: 1,
+  },
+});

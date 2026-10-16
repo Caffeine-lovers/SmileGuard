@@ -269,22 +269,26 @@ export default function AppointmentsTab({
   };
 
   const getStatusColor = (status: string) => {
-    if (status === 'scheduled') return '#10B981';
-    if (status === 'completed') return '#4CAF50';
-    if (status === 'cancelled') return '#F44336';
-    if (status === 'no-show') return '#9C27B0';
-    if (status === 'declined') return '#FF6F00';
-    return '#999';
+    switch (status) {
+      case 'scheduled':
+        return '#10B981'; // Mint / Emerald Green
+      case 'completed':
+        return '#047857'; // Deep Forest Green
+      case 'cancelled':
+        return '#6B9080'; // Muted Sage Green
+      case 'no-show':
+        return '#4D7C0F'; // Olive / Moss Green
+      case 'declined':
+        return '#0F766E'; // Deep Pine / Spruce Green
+      default:
+        return '#10B981';
+    }
   };
 
-  const getFilterBadgeColor = () => {
-    if (appointmentFilterBy === 'all') return '#10B981';
-    if (appointmentFilterBy === 'scheduled') return '#10B981';
-    if (appointmentFilterBy === 'completed') return '#4CAF50';
-    if (appointmentFilterBy === 'cancelled') return '#F44336';
-    if (appointmentFilterBy === 'no-show') return '#9C27B0';
-    if (appointmentFilterBy === 'declined') return '#FF6F00';
-    return '#10B981';
+  const getFilterBadgeColor = (filter?: string) => {
+    const target = filter || appointmentFilterBy;
+    if (target === 'all') return '#10B981';
+    return getStatusColor(target);
   };
 
   const getCalendarBadgeColor = () => {
@@ -739,9 +743,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'completed' ? '#4CAF50' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'completed' ? '#047857' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'completed' ? '#4CAF50' : '#ccc',
+                    borderColor: appointmentFilterBy === 'completed' ? '#047857' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'completed' ? '#fff' : '#333', fontWeight: '500' }}>Completed</Text>
@@ -752,9 +756,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#F44336' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#6B9080' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'cancelled' ? '#F44336' : '#ccc',
+                    borderColor: appointmentFilterBy === 'cancelled' ? '#6B9080' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'cancelled' ? '#fff' : '#333', fontWeight: '500' }}>Cancelled</Text>
@@ -765,9 +769,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'no-show' ? '#9C27B0' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'no-show' ? '#4D7C0F' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'no-show' ? '#9C27B0' : '#ccc',
+                    borderColor: appointmentFilterBy === 'no-show' ? '#4D7C0F' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'no-show' ? '#fff' : '#333', fontWeight: '500' }}>No-show</Text>
@@ -778,9 +782,9 @@ export default function AppointmentsTab({
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'declined' ? '#FF6F00' : '#e0e0e0',
+                    backgroundColor: appointmentFilterBy === 'declined' ? '#0F766E' : '#e0e0e0',
                     borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'declined' ? '#FF6F00' : '#ccc',
+                    borderColor: appointmentFilterBy === 'declined' ? '#0F766E' : '#ccc',
                   }}
                 >
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'declined' ? '#fff' : '#333', fontWeight: '500' }}>Declined</Text>
