@@ -79,14 +79,15 @@ export async function POST(req: NextRequest) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    const configuredModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+    const configuredModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     const candidateModels = Array.from(
       new Set([
         configuredModel,
+        'gemini-3.5-flash-lite',
         'gemini-3.1-flash-lite',
-        'gemini-flash-lite-latest',
-        'gemini-3-flash-preview',
         'gemini-3.5-flash',
+        'gemini-3.8-flash',
+        'gemini-flash-lite-latest',
         'gemini-flash-latest',
       ])
     );
