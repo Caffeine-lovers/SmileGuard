@@ -93,7 +93,14 @@ export async function POST(request: NextRequest) {
     const amountInCentavos = Math.round(finalAmount * 100);
 
     // Create PayMongo Checkout Session
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null) ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      (forwardedHost && !forwardedHost.includes('localhost') ? `${forwardedProto}://${forwardedHost}` : null) ||
+      'http://localhost:3000';
 
     const paymongoResponse = await fetch(`${PAYMONGO_API_BASE}/checkout_sessions`, {
       method: 'POST',
