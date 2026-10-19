@@ -11,8 +11,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { X, Camera } from "lucide-react-native";
-import { pickImage, uploadProfileImage } from "../../lib/imageUploadService";
+import { X } from "lucide-react-native";
 import DoctorProfileEdit from "./DoctorProfileEdit";
 
 interface DoctorProfileViewProps {
@@ -28,67 +27,9 @@ export default function DoctorProfileView({
 }: DoctorProfileViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [tempIsAvailable, setTempIsAvailable] = useState(doctor.is_available);
 
   const hasAvailabilityChanged = tempIsAvailable !== doctor.is_available;
-
-  const handleChangeProfilePicture = async () => {
-    try {
-      console.log(' Opening image picker...');
-      const selectedImage = await pickImage();
-
-      if (!selectedImage) {
-        console.log('User cancelled image picker');
-        return;
-      }
-
-      Alert.alert(
-        "Confirm Picture Change",
-        "Do you want to update your profile picture?",
-        [
-          {
-            text: "Cancel",
-            onPress: () => console.log('User cancelled picture update'),
-            style: "cancel",
-          },
-          {
-            text: "Update",
-            onPress: async () => {
-              setUploadingImage(true);
-              try {
-                console.log(' Uploading new profile picture...');
-                const userId = doctor.user_id || (doctor as any).id || "doctor";
-                const newImageUrl = await uploadProfileImage(
-                  selectedImage,
-                  userId
-                );
-
-                console.log(' Image uploaded:', newImageUrl);
-                // Save the new image URL to the database
-                await onSave({ profile_picture_url: newImageUrl });
-              } catch (error) {
-                console.error(' Failed to upload image:', error);
-                Alert.alert(
-                  "Upload Failed",
-                  "Failed to upload profile picture. Please try again."
-                );
-              } finally {
-                setUploadingImage(false);
-              }
-            },
-            style: "default",
-          },
-        ]
-      );
-    } catch (error) {
-      console.error(' Error in handleChangeProfilePicture:', error);
-      Alert.alert(
-        "Error",
-        "Failed to select image. Please try again."
-      );
-    }
-  };
 
   const handleAvailabilityToggle = (newValue: boolean) => {
     const oldValue = doctor.is_available;
@@ -175,11 +116,7 @@ export default function DoctorProfileView({
       {/* Profile Card */}
       <View style={styles.profileCard}>
         {/* Profile Picture */}
-        <TouchableOpacity
-          onPress={handleChangeProfilePicture}
-          disabled={uploadingImage}
-          style={styles.profileImageContainer}
-        >
+        <View style={styles.profileImageContainer}>
           {doctor.profile_picture_url ? (
             <Image
               source={{ uri: doctor.profile_picture_url }}
@@ -193,17 +130,7 @@ export default function DoctorProfileView({
               />
             </View>
           )}
-          {uploadingImage && (
-            <View style={styles.uploadingOverlay}>
-              <ActivityIndicator size="large" color="#fff" />
-            </View>
-          )}
-          {!uploadingImage && (
-            <View style={styles.cameraIconContainer}>
-              <Camera size={14} color="#FFFFFF" />
-            </View>
-          )}
-        </TouchableOpacity>
+        </View>
 
         {/* Basic Info */}
         <View style={styles.basicInfo}>
@@ -328,14 +255,6 @@ export default function DoctorProfileView({
           )}
         </View>
       </View>
-
-      {/* Edit Button (Floating) */}
-      <TouchableOpacity
-        style={styles.floatingEditBtn}
-        onPress={() => setIsEditing(true)}
-      >
-        <Text style={styles.floatingEditBtnText}> Edit Profile</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -352,7 +271,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: 12,
     paddingHorizontal: 12,
-    paddingBottom: 80,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: "row",
@@ -427,35 +346,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     resizeMode: "contain",
-  },
-  cameraIconContainer: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#10B981",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  cameraIcon: {
-    width: 18,
-    height: 18,
-    resizeMode: "contain",
-  },
-  uploadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   basicInfo: {
     alignItems: "center",
@@ -539,24 +429,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#f59e0b",
     marginLeft: 4,
-  },
-  floatingEditBtn: {
-    position: "absolute",
-    bottom: 20,
-    right: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#10B981",
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  floatingEditBtnText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#fff",
   },
 });
