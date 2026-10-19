@@ -317,9 +317,11 @@ export default function DoctorProfileEdit({
         doctor_phone: (doctorData.doctor_phone || "").trim(),
         bio: (doctorData.bio || "").trim(),
         years_of_experience: Number(doctorData.years_of_experience) || 0,
-        is_available: Boolean(doctorData.is_available),
         profile_picture_url: finalPictureUrl,
       };
+
+      // Ensure is_available is never sent to Supabase
+      delete (updatedPayload as any).is_available;
 
       console.log("[DoctorProfileEdit] Saving doctor updates:", updatedPayload);
       await onSave(updatedPayload);
@@ -666,48 +668,6 @@ export default function DoctorProfileEdit({
           value={doctorData.bio || ""}
           onChangeText={(text) => updateDoctorData("bio", text)}
         />
-
-        {/* Section: Availability */}
-        <Text style={styles.sectionHeader}>Availability</Text>
-
-        <View style={styles.switchRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.switchLabel}>Appointment Availability</Text>
-            <Text style={styles.switchSubtext}>
-              {doctorData.is_available
-                ? "Available for patient appointments"
-                : "Currently not accepting appointments"}
-            </Text>
-          </View>
-          <Switch
-            value={Boolean(doctorData.is_available)}
-            onValueChange={(value) => updateDoctorData("is_available", value)}
-            trackColor={{ false: "#d1d5db", true: "#6ee7b7" }}
-            thumbColor={doctorData.is_available ? "#047857" : "#9ca3af"}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.availabilityBadge,
-            doctorData.is_available ? styles.badgeAvailable : styles.badgeUnavailable,
-          ]}
-        >
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: doctorData.is_available ? "#22c55e" : "#ef4444" },
-            ]}
-          />
-          <Text
-            style={[
-              styles.availabilityBadgeText,
-              { color: doctorData.is_available ? "#065f46" : "#991b1b" },
-            ]}
-          >
-            Status: {doctorData.is_available ? "Available" : "Not Available"}
-          </Text>
-        </View>
       </View>
 
       {/* Footer Buttons */}
@@ -1103,54 +1063,6 @@ const styles = StyleSheet.create({
     color: "#ef4444",
     fontSize: 12,
     fontWeight: "500",
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  switchLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  switchSubtext: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  availabilityBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    marginTop: 2,
-  },
-  badgeAvailable: {
-    backgroundColor: "#DCFCE7",
-  },
-  badgeUnavailable: {
-    backgroundColor: "#FEE2E2",
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  availabilityBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,

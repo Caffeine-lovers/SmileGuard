@@ -84,7 +84,7 @@ export async function getVerifiedDoctors(): Promise<Doctor[]> {
 }
 
 /**
- * Get available doctors (is_available = true)
+ * Get available doctors
  * @returns Array of available doctors
  */
 export async function getAvailableDoctors(): Promise<Doctor[]> {
@@ -92,7 +92,6 @@ export async function getAvailableDoctors(): Promise<Doctor[]> {
     const { data, error } = await supabase
       .from("doctors")
       .select("*")
-      .eq("is_available", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -120,7 +119,6 @@ export async function getDoctorsBySpecialization(
       .from("doctors")
       .select("*")
       .eq("specialization", specialization)
-      .eq("is_available", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -218,9 +216,10 @@ export async function createDoctorProfile(
     }
 
     // Fallback UPSERT: For existing doctors or environments without access code requirement
+    const { is_available, ...cleanDoctor } = doctor as any;
     const { data, error } = await supabase
       .from("doctors")
-      .upsert([doctor], { onConflict: "user_id" })
+      .upsert([cleanDoctor], { onConflict: "user_id" })
       .select()
       .single();
 
@@ -253,7 +252,7 @@ export async function updateDoctorProfile(
   updates: Partial<Doctor>
 ): Promise<Doctor | null> {
   try {
-    const { id, created_at, ...cleanUpdates } = updates as any;
+    const { id, created_at, is_available, ...cleanUpdates } = updates as any;
 
     // Synchronize phone with profiles table if user_id and doctor_phone are available
     if (cleanUpdates.doctor_phone && cleanUpdates.user_id) {
@@ -329,21 +328,6 @@ export async function updateDoctorProfile(
 }
 
 /**
- * Update doctor availability status
- * @param doctorId - The doctor record ID
- * @param isAvailable - Whether doctor is available
- * @returns Updated doctor or null
- */
-export async function updateAvailabilityStatus(
-  doctorId: string,
-  isAvailable: boolean
-): Promise<Doctor | null> {
-  return updateDoctorProfile(doctorId, {
-    is_available: isAvailable,
-  });
-}
-
-/**
  * Search doctors by name (via LIKE query on user id)
  * and other criteria
  * @param query - Search query
@@ -357,7 +341,6 @@ export async function searchDoctors(query: string): Promise<Doctor[]> {
       .or(
         `specialization.ilike.%${query}%,clinic_name.ilike.%${query}%,bio.ilike.%${query}%`
       )
-      .eq("is_available", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -440,34 +423,29 @@ export async function doctorLicenseExists(licenseNumber: string): Promise<boolea
 export async function getDoctorStats(): Promise<{
   total: number;
   verified: number;
-  available: number;
-  unavailable: number;
 }> {
   try {
     const { data, error } = await supabase
       .from("doctors")
-      .select("id, is_verified, is_available");
+      .select("id, is_verified");
 
     if (error) {
       console.error("Error fetching doctor stats:", error);
-      return { total: 0, verified: 0, available: 0, unavailable: 0 };
+      return { total: 0, verified: 0 };
     }
 
     const doctors = (data || []) as Array<{
       id: string;
       is_verified: boolean;
-      is_available: boolean;
     }>;
 
     return {
       total: doctors.length,
       verified: doctors.filter((d) => d.is_verified).length,
-      available: doctors.filter((d) => d.is_available).length,
-      unavailable: doctors.filter((d) => !d.is_available).length,
     };
   } catch (error) {
     console.error("Exception in getDoctorStats:", error);
-    return { total: 0, verified: 0, available: 0, unavailable: 0 };
+    return { total: 0, verified: 0 };
   }
 }
 

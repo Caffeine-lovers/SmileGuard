@@ -6,7 +6,6 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View
@@ -27,45 +26,6 @@ export default function DoctorProfileView({
 }: DoctorProfileViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [tempIsAvailable, setTempIsAvailable] = useState(doctor.is_available);
-
-  const hasAvailabilityChanged = tempIsAvailable !== doctor.is_available;
-
-  const handleAvailabilityToggle = (newValue: boolean) => {
-    const oldValue = doctor.is_available;
-    setTempIsAvailable(newValue);
-
-    if (newValue !== oldValue) {
-      Alert.alert(
-        "Update Availability",
-        `Are you sure you want to change your availability status to ${
-          newValue ? "Available" : "Not Available"
-        }?`,
-        [
-          {
-            text: "Cancel",
-            onPress: () => {
-              // Revert the UI state
-              setTempIsAvailable(oldValue);
-            },
-            style: "cancel",
-          },
-          {
-            text: "Save",
-            onPress: async () => {
-              setLoading(true);
-              try {
-                await onSave({ is_available: newValue });
-              } finally {
-                setLoading(false);
-              }
-            },
-            style: "default",
-          },
-        ]
-      );
-    }
-  };
 
   const handleSave = async (updatedDoctor: Partial<Doctor>) => {
     setLoading(true);
@@ -196,41 +156,7 @@ export default function DoctorProfileView({
         {/* Divider */}
         <View style={styles.divider} />
 
-        {/* Availability Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}> Availability</Text>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Status:</Text>
-            <View style={styles.availabilityToggleContainer}>
-              <Switch
-                value={tempIsAvailable}
-                onValueChange={handleAvailabilityToggle}
-                disabled={loading}
-                trackColor={{ false: "#ef4444", true: "#22c55e" }}
-                thumbColor={tempIsAvailable ? "#22c55e" : "#ef4444"}
-              />
-              <Text
-                style={[
-                  styles.availabilityText,
-                  {
-                    color: tempIsAvailable ? "#22c55e" : "#ef4444",
-                  },
-                ]}
-              >
-                {tempIsAvailable ? "Available" : "Not Available"}
-              </Text>
-              {hasAvailabilityChanged && (
-                <Text style={styles.changedIndicator}>●</Text>
-              )}
-            </View>
-          </View>
-
-
-        </View>
-
-        {/* Divider */}
-        <View style={styles.divider} />
 
         {/* Additional Info */}
         <View style={styles.section}>
@@ -413,21 +339,5 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: "600",
-  },
-  availabilityToggleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  availabilityText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  changedIndicator: {
-    fontSize: 18,
-    color: "#f59e0b",
-    marginLeft: 4,
   },
 });

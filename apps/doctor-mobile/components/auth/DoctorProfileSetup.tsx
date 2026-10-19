@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
-  Switch,
   Image,
   Modal,
 } from "react-native";
@@ -201,8 +200,9 @@ export default function DoctorProfileSetup({
       }
 
       // Update doctor data with user_id and image URL
+      const { is_available, ...doctorDataWithoutAvailability } = doctorData as any;
       const finalDoctorData = {
-        ...doctorData,
+        ...doctorDataWithoutAvailability,
         user_id: data.user.id,
         profile_picture_url: profileImageUrl,
       };
@@ -475,19 +475,6 @@ export default function DoctorProfileSetup({
             onChangeText={(text) => updateDoctorData("doctor_phone", text)}
           />
 
-          {/* Section: Availability */}
-          <Text style={styles.sectionHeader}>Availability</Text>
-
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Currently Available for Patients</Text>
-            <Switch
-              value={doctorData.is_available || false}
-              trackColor={{ false: "#CBD5E1", true: "#A7F3D0" }}
-              thumbColor={doctorData.is_available ? "#10B981" : "#F1F5F9"}
-              onValueChange={(value) => updateDoctorData("is_available", value)}
-            />
-          </View>
-
           {/* Section: Profile Picture */}
           <Text style={styles.sectionHeader}>Profile Picture</Text>
 
@@ -681,23 +668,6 @@ const styles = StyleSheet.create({
     height: 70,
     textAlignVertical: "top",
     paddingTop: 8,
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  switchLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1E293B",
   },
   requiredNote: {
     fontSize: 12,

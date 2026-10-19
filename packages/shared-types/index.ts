@@ -103,7 +103,6 @@ export interface Doctor {
   doctor_phone?: string;
   office_hours?: OfficeHours;
   years_of_experience?: number;
-  is_available?: boolean;
   profile_picture_url?: string;
   created_at?: string;
   updated_at?: string;
@@ -134,7 +133,6 @@ export const EMPTY_DOCTOR: Doctor = {
     },
   },
   years_of_experience: 0,
-  is_available: true,
   profile_picture_url: "",
 };
 
