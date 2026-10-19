@@ -6,11 +6,31 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/images/SmileGuard-Doc-Logo.png",
     "assetBundlePatterns": [
       "**/*"
     ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.smileguard.doctor",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/SmileGuard-Doc-Logo.png",
+        "backgroundColor": "#00B4A0"
+      }
+    },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/SmileGuard-Doc-Logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
@@ -20,9 +40,7 @@
       },
       "router": {}
     },
-    "owner": "mortart",
-    "android": {
-      "package": "com.smileguard.doctor"
-    }
+    "owner": "mortart"
   }
 }
+
