@@ -99,13 +99,22 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
     try {
       console.log('💾 Saving doctor profile updates:', updatedDoctor);
       
-      if (!doctorData.id) {
+      const effectiveUserId = updatedDoctor.user_id || doctorData.user_id || authUser?.id;
+      const targetId = updatedDoctor.id || doctorData.id || effectiveUserId;
+      if (!targetId) {
         console.error('❌ Doctor ID is not available');
-        return;
+        throw new Error('Doctor ID is not available. Please try again.');
       }
 
+      // Merge current doctorData with the new updates to ensure all fields and user_id persist
+      const payload: Partial<Doctor> = {
+        ...doctorData,
+        ...updatedDoctor,
+        user_id: effectiveUserId || "",
+      };
+
       // Call Supabase to update the doctor profile
-      const result = await updateDoctorProfile(doctorData.id, updatedDoctor);
+      const result = await updateDoctorProfile(targetId, payload);
       
       if (result) {
         console.log('✅ Profile updated in Supabase:', result);
@@ -119,9 +128,11 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
         // Don't close modal - keep it open for more edits
       } else {
         console.error('❌ Failed to update profile in Supabase');
+        throw new Error('Failed to update doctor profile');
       }
     } catch (error) {
       console.error('❌ Failed to save profile:', error);
+      throw error;
     }
   };
 

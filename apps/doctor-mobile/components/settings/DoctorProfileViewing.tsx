@@ -58,9 +58,10 @@ export default function DoctorProfileView({
               setUploadingImage(true);
               try {
                 console.log(' Uploading new profile picture...');
+                const userId = doctor.user_id || (doctor as any).id || "doctor";
                 const newImageUrl = await uploadProfileImage(
                   selectedImage,
-                  doctor.user_id
+                  userId
                 );
 
                 console.log(' Image uploaded:', newImageUrl);

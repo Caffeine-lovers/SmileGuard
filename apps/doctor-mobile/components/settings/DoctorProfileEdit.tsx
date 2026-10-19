@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
   Image,
 } from "react-native";
 import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
-import { X, Check } from "lucide-react-native";
+import { X, Check, Camera, User, AlertCircle } from "lucide-react-native";
+import { pickImage, uploadProfileImage, ImagePickerResult } from "../../lib/imageUploadService";
 
 interface DoctorProfileEditProps {
   doctor: Doctor;
@@ -27,9 +28,28 @@ export default function DoctorProfileEdit({
   onCancel,
 }: DoctorProfileEditProps) {
   const [doctorData, setDoctorData] = useState<Doctor>(doctor || EMPTY_DOCTOR);
-  const [showSpecializationDropdown, setShowSpecializationDropdown] =
-    useState(false);
+  const [selectedImage, setSelectedImage] = useState<ImagePickerResult | null>(null);
+  const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(
+    doctor?.profile_picture_url || null
+  );
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [showSpecializationDropdown, setShowSpecializationDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Sync state if doctor prop changes
+  useEffect(() => {
+    if (doctor) {
+      setDoctorData({
+        ...EMPTY_DOCTOR,
+        ...doctor,
+        doctor_name: doctor.doctor_name || (doctor as any).name || "",
+        doctor_phone: doctor.doctor_phone || (doctor as any).phone_number || (doctor as any).clinic_phone || "",
+      });
+      if (doctor.profile_picture_url) {
+        setImagePreviewUri(doctor.profile_picture_url);
+      }
+    }
+  }, [doctor]);
 
   const specializations = [
     "General Dentistry",
@@ -50,42 +70,121 @@ export default function DoctorProfileEdit({
     }));
   };
 
-  const isValidLicenseNumber = (license: string): boolean => {
-    if (license.length < 5 || license.length > 7) return false;
-    if (!/^[a-zA-Z0-9]+$/.test(license)) return false;
-    const hasLetters = /[a-zA-Z]/.test(license);
-    const hasNumbers = /[0-9]/.test(license);
-    return hasLetters && hasNumbers;
+  /**
+   * License number validation:
+   * Accepts 4 to 15 alphanumeric characters (digits, letters, and hyphens allowed)
+   */
+  const isValidLicenseNumber = (license?: string): boolean => {
+    if (!license) return false;
+    const trimmed = license.trim();
+    if (trimmed.length < 4 || trimmed.length > 15) return false;
+    return /^[a-zA-Z0-9-]+$/.test(trimmed);
   };
 
-  const isValidEmail = (email: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  /**
+   * Pick new profile image from media library
+   */
+  const handlePickImage = async () => {
+    try {
+      console.log("[DoctorProfileEdit] Picking image...");
+      const result = await pickImage([1, 1]);
+      if (!result) {
+        console.log("[DoctorProfileEdit] Image picking cancelled");
+        return;
+      }
+      setSelectedImage(result);
+      setImagePreviewUri(result.uri);
+      console.log("[DoctorProfileEdit] Selected image URI:", result.uri);
+    } catch (error) {
+      console.error("[DoctorProfileEdit] Failed to pick image:", error);
+      Alert.alert(
+        "Image Selection Failed",
+        error instanceof Error ? error.message : "Failed to select image from gallery"
+      );
+    }
+  };
 
-  const isFormValid = () => {
-    return (
-      doctorData.license_number &&
-      isValidLicenseNumber(doctorData.license_number) &&
-      doctorData.specialization &&
-      doctorData.doctor_name?.trim() &&
-      (!doctorData.doctor_phone ||
-        doctorData.doctor_phone?.length > 0)
-    );
+  /**
+   * Validates form and returns error message if invalid, or null if valid
+   */
+  const validateForm = (): string | null => {
+    const name = (doctorData.doctor_name || "").trim();
+    if (!name) {
+      return "Doctor Name is required.";
+    }
+
+    const license = (doctorData.license_number || "").trim();
+    if (!license) {
+      return "Medical License Number is required.";
+    }
+    if (!isValidLicenseNumber(license)) {
+      return "Medical License Number must be 4 to 15 alphanumeric characters.";
+    }
+
+    const spec = (doctorData.specialization || "").trim();
+    if (!spec) {
+      return "Please select a specialization.";
+    }
+
+    return null;
+  };
+
+  const isFormValid = (): boolean => {
+    return validateForm() === null;
   };
 
   const handleSave = async () => {
-    if (!isFormValid()) {
-      Alert.alert(
-        "Validation Error",
-        "Please fill in all required fields correctly"
-      );
+    const validationError = validateForm();
+    if (validationError) {
+      Alert.alert("Validation Error", validationError);
       return;
     }
 
     setLoading(true);
     try {
-      await onSave(doctorData);
+      let finalPictureUrl = doctorData.profile_picture_url || "";
+
+      // If user selected a new image, upload it to storage
+      if (selectedImage) {
+        setUploadingImage(true);
+        try {
+          const userId =
+            doctorData.user_id ||
+            doctor.user_id ||
+            doctorData.id ||
+            doctor.id ||
+            "doctor";
+          console.log("[DoctorProfileEdit] Uploading profile picture for user:", userId);
+          finalPictureUrl = await uploadProfileImage(selectedImage, userId);
+          console.log("[DoctorProfileEdit] Uploaded picture URL:", finalPictureUrl);
+        } catch (uploadError) {
+          console.error("[DoctorProfileEdit] Photo upload error:", uploadError);
+          Alert.alert(
+            "Upload Warning",
+            "Could not upload profile picture. Continuing to save other details..."
+          );
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      const updatedPayload: Partial<Doctor> = {
+        ...doctorData,
+        doctor_name: (doctorData.doctor_name || "").trim(),
+        license_number: (doctorData.license_number || "").trim(),
+        specialization: (doctorData.specialization || "").trim(),
+        doctor_phone: (doctorData.doctor_phone || "").trim(),
+        bio: (doctorData.bio || "").trim(),
+        years_of_experience: Number(doctorData.years_of_experience) || 0,
+        is_available: Boolean(doctorData.is_available),
+        profile_picture_url: finalPictureUrl,
+      };
+
+      console.log("[DoctorProfileEdit] Saving doctor updates:", updatedPayload);
+      await onSave(updatedPayload);
       Alert.alert("Success", "Profile updated successfully!");
     } catch (error) {
+      console.error("[DoctorProfileEdit] Save error:", error);
       const message =
         error instanceof Error ? error.message : "Failed to save profile";
       Alert.alert("Error", message);
@@ -93,6 +192,8 @@ export default function DoctorProfileEdit({
       setLoading(false);
     }
   };
+
+  const licenseNum = doctorData.license_number || "";
 
   return (
     <ScrollView
@@ -103,197 +204,246 @@ export default function DoctorProfileEdit({
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Edit Doctor Profile</Text>
-        <TouchableOpacity onPress={onCancel}>
-          <X size={20} color="#047857" />
+        <TouchableOpacity
+          onPress={onCancel}
+          disabled={loading || uploadingImage}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <X size={22} color="#047857" />
         </TouchableOpacity>
+      </View>
+
+      {/* Profile Picture Card */}
+      <View style={styles.avatarCard}>
+        <TouchableOpacity
+          style={styles.avatarContainer}
+          onPress={handlePickImage}
+          disabled={loading || uploadingImage}
+          activeOpacity={0.8}
+        >
+          {imagePreviewUri ? (
+            <Image source={{ uri: imagePreviewUri }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <User size={46} color="#94A3B8" />
+            </View>
+          )}
+
+          {uploadingImage ? (
+            <View style={styles.avatarOverlay}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            </View>
+          ) : (
+            <View style={styles.cameraBadge}>
+              <Camera size={14} color="#FFFFFF" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handlePickImage}
+          disabled={loading || uploadingImage}
+          style={styles.changePhotoBtn}
+        >
+          <Camera size={15} color="#047857" style={{ marginRight: 6 }} />
+          <Text style={styles.changePhotoText}>
+            {imagePreviewUri ? "Change Profile Picture" : "Upload Profile Picture"}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.photoHint}>JPG or PNG (square recommended)</Text>
       </View>
 
       {/* Form Content */}
       <View style={styles.stepContent}>
-        <Text style={styles.h2}> Doctor Professional Details</Text>
-        <Text style={styles.p}>Update your professional information</Text>
+        <Text style={styles.h2}>Doctor Professional Details</Text>
+        <Text style={styles.p}>Update your professional credentials and contact details</Text>
+
+        {/* Section: Doctor Information */}
+        <Text style={styles.sectionHeader}>Doctor Information</Text>
+
+        <Text style={styles.inputLabel}>Doctor Full Name *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Dr. Maria Santos"
+          value={doctorData.doctor_name || ""}
+          onChangeText={(text) => updateDoctorData("doctor_name", text)}
+        />
+
+        <Text style={styles.inputLabel}>Contact Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. +63 912 345 6789"
+          keyboardType="phone-pad"
+          value={doctorData.doctor_phone || ""}
+          onChangeText={(text) => updateDoctorData("doctor_phone", text)}
+        />
 
         {/* Section: License & Credentials */}
         <Text style={styles.sectionHeader}>License & Credentials</Text>
 
+        <Text style={styles.inputLabel}>Medical / Dental License Number *</Text>
         <TextInput
           style={styles.input}
-          placeholder="Medical License Number (5-7 chars) *"
-          value={doctorData.license_number}
-          onChangeText={(text) => updateDoctorData("license_number", text)}
-          keyboardType="default"
+          placeholder="e.g. 0123456 or DL12345"
+          value={licenseNum}
+          onChangeText={(text) => updateDoctorData("license_number", text.trim())}
+          autoCapitalize="characters"
         />
 
         {/* License Number Validation Feedback */}
-        {doctorData.license_number.length > 0 && (
-          <View style={{ marginBottom: 8, marginTop: -4 }}>
-            {isValidLicenseNumber(doctorData.license_number) ? (
-              <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "500" }}>
-                <Check size={16} color="#22c55e" />
-                <Text> Valid license number</Text>
-              </Text>
+        {licenseNum.length > 0 && (
+          <View style={styles.validationRow}>
+            {isValidLicenseNumber(licenseNum) ? (
+              <View style={styles.feedbackSuccess}>
+                <Check size={14} color="#22c55e" style={{ marginRight: 4 }} />
+                <Text style={styles.feedbackSuccessText}>Valid license number</Text>
+              </View>
             ) : (
-              <View>
-                {doctorData.license_number.length < 5 ||
-                doctorData.license_number.length > 7 ? (
-                  <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                    ✗ Must be 5-7 characters (current:{" "}
-                    {doctorData.license_number.length})
-                  </Text>
-                ) : null}
-                {!/^[a-zA-Z0-9]+$/.test(doctorData.license_number) ? (
-                  <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                    ✗ Only letters and numbers allowed
-                  </Text>
-                ) : null}
-                {(!/[a-zA-Z]/.test(doctorData.license_number) ||
-                  !/[0-9]/.test(doctorData.license_number)) && (
-                  <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                    ✗ Must contain both letters and numbers
-                  </Text>
-                )}
+              <View style={styles.feedbackError}>
+                <AlertCircle size={14} color="#ef4444" style={{ marginRight: 4 }} />
+                <Text style={styles.feedbackErrorText}>
+                  {licenseNum.length < 4 || licenseNum.length > 15
+                    ? `Must be 4-15 characters (currently: ${licenseNum.length})`
+                    : "Only letters, numbers, and hyphens allowed"}
+                </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Specialization Dropdown */}
+        <Text style={styles.inputLabel}>Specialization *</Text>
         <TouchableOpacity
-          style={[
-            styles.input,
-            {
-              justifyContent: "center",
-              paddingVertical: 0,
-              height: 45,
-            },
-          ]}
+          style={[styles.input, styles.dropdownTrigger]}
           onPress={() => setShowSpecializationDropdown(true)}
         >
           <Text
             style={{
-              fontSize: 13,
-              color: doctorData.specialization ? "#333" : "#999",
+              fontSize: 14,
+              color: doctorData.specialization ? "#1f2937" : "#9ca3af",
             }}
           >
-            {doctorData.specialization || "Select Specialization *"}
+            {doctorData.specialization || "Select Specialization"}
           </Text>
         </TouchableOpacity>
 
         <Modal
           visible={showSpecializationDropdown}
           transparent
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => setShowSpecializationDropdown(false)}
         >
-          <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowSpecializationDropdown(false)}
+          >
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Specialization</Text>
-              <ScrollView style={{ maxHeight: "80%" }}>
-                {specializations.map((spec) => (
-                  <TouchableOpacity
-                    key={spec}
-                    style={[
-                      styles.dropdownOption,
-                      doctorData.specialization === spec &&
-                        styles.dropdownOptionSelected,
-                    ]}
-                    onPress={() => {
-                      updateDoctorData("specialization", spec);
-                      setShowSpecializationDropdown(false);
-                    }}
-                  >
-                    <Text
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Specialization</Text>
+                <TouchableOpacity onPress={() => setShowSpecializationDropdown(false)}>
+                  <X size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 350 }}>
+                {specializations.map((spec) => {
+                  const isSelected = doctorData.specialization === spec;
+                  return (
+                    <TouchableOpacity
+                      key={spec}
                       style={[
-                        styles.dropdownOptionText,
-                        doctorData.specialization === spec && {
-                          color: "#047857",
-                          fontWeight: "700",
-                        },
+                        styles.dropdownOption,
+                        isSelected && styles.dropdownOptionSelected,
                       ]}
+                      onPress={() => {
+                        updateDoctorData("specialization", spec);
+                        setShowSpecializationDropdown(false);
+                      }}
                     >
-                      {spec}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.dropdownOptionText,
+                          isSelected && styles.dropdownOptionTextSelected,
+                        ]}
+                      >
+                        {spec}
+                      </Text>
+                      {isSelected && <Check size={18} color="#047857" />}
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
-          </View>
+          </TouchableOpacity>
         </Modal>
 
+        <Text style={styles.inputLabel}>Years of Experience</Text>
         <TextInput
           style={styles.input}
-          placeholder="Years of Experience (e.g., 5, 10)"
-          keyboardType="number-pad"
+          placeholder="e.g. 5"
+          keyboardType="numeric"
           value={
-            doctorData.years_of_experience &&
-            doctorData.years_of_experience > 0
+            doctorData.years_of_experience !== undefined &&
+            doctorData.years_of_experience !== null
               ? doctorData.years_of_experience.toString()
               : ""
           }
-          onChangeText={(text) =>
-            updateDoctorData("years_of_experience", parseInt(text) || 0)
-          }
+          onChangeText={(text) => {
+            const clean = text.replace(/[^0-9]/g, "");
+            updateDoctorData("years_of_experience", clean === "" ? 0 : parseInt(clean, 10));
+          }}
         />
 
+        <Text style={styles.inputLabel}>Professional Bio</Text>
         <TextInput
           style={[styles.input, styles.textAreaInput]}
-          placeholder="Professional Bio (optional)"
+          placeholder="Write a brief description of your background and expertise..."
           multiline
           numberOfLines={3}
-          value={doctorData.bio}
+          value={doctorData.bio || ""}
           onChangeText={(text) => updateDoctorData("bio", text)}
-        />
-
-        {/* Section: Doctor Information */}
-        <Text style={styles.sectionHeader}>Doctor Information</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Doctor Name *"
-          value={doctorData.doctor_name || ""}
-          onChangeText={(text) => updateDoctorData("doctor_name", text)}
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Doctor Phone"
-          keyboardType="phone-pad"
-          value={doctorData.doctor_phone || ""}
-          onChangeText={(text) => updateDoctorData("doctor_phone", text)}
         />
 
         {/* Section: Availability */}
         <Text style={styles.sectionHeader}>Availability</Text>
 
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Currently Available</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchLabel}>Appointment Availability</Text>
+            <Text style={styles.switchSubtext}>
+              {doctorData.is_available
+                ? "Available for patient appointments"
+                : "Currently not accepting appointments"}
+            </Text>
+          </View>
           <Switch
-            value={doctorData.is_available || false}
+            value={Boolean(doctorData.is_available)}
             onValueChange={(value) => updateDoctorData("is_available", value)}
+            trackColor={{ false: "#d1d5db", true: "#6ee7b7" }}
+            thumbColor={doctorData.is_available ? "#047857" : "#9ca3af"}
           />
         </View>
 
-        <TouchableOpacity
+        <View
           style={[
-            styles.input,
-            {
-              justifyContent: "center",
-              paddingVertical: 0,
-              height: 45,
-            },
+            styles.availabilityBadge,
+            doctorData.is_available ? styles.badgeAvailable : styles.badgeUnavailable,
           ]}
-          disabled={false}
-          onPress={() => {}}
         >
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: doctorData.is_available ? "#22c55e" : "#ef4444" },
+            ]}
+          />
           <Text
-            style={{
-              fontSize: 13,
-              color: "#333",
-            }}
+            style={[
+              styles.availabilityBadgeText,
+              { color: doctorData.is_available ? "#065f46" : "#991b1b" },
+            ]}
           >
-            Available
+            Status: {doctorData.is_available ? "Available" : "Not Available"}
           </Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Footer Buttons */}
@@ -301,17 +451,22 @@ export default function DoctorProfileEdit({
         <TouchableOpacity
           style={[styles.btn, styles.secondaryBtn]}
           onPress={onCancel}
-          disabled={loading}
+          disabled={loading || uploadingImage}
         >
           <Text style={styles.secondaryBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.btn, styles.primaryBtn]}
+          style={[
+            styles.btn,
+            styles.primaryBtn,
+            (loading || uploadingImage) && styles.btnDisabled,
+          ]}
           onPress={handleSave}
-          disabled={loading || !isFormValid()}
+          disabled={loading || uploadingImage}
+          activeOpacity={0.8}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
+          {loading || uploadingImage ? (
+            <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.btnText}>Save Changes</Text>
           )}
@@ -328,165 +483,331 @@ export default function DoctorProfileEdit({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
     flexGrow: 1,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingBottom: 60,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 6,
     paddingVertical: 12,
-    borderBottomColor: "#ddd",
+    borderBottomColor: "#E2E8F0",
     borderBottomWidth: 1,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 19,
+    fontWeight: "700",
     color: "#047857",
   },
-  closeBtn: {
-    fontSize: 24,
+  avatarCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  avatarContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    position: "relative",
+    marginBottom: 12,
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: "#10B981",
+  },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 48,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#10B981",
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+  },
+  changePhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  changePhotoText: {
+    fontSize: 13,
+    fontWeight: "600",
     color: "#047857",
-    fontWeight: "bold",
+  },
+  photoHint: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 6,
   },
   stepContent: {
-    borderColor: "#CBD5E1",
-    borderWidth: 1.5,
-    borderRadius: 8,
-    padding: 14,
+    borderColor: "#E2E8F0",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
     backgroundColor: "#FFFFFF",
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   h2: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1E293B",
     marginBottom: 4,
     textAlign: "center",
   },
   p: {
     fontSize: 13,
-    color: "#4b5563",
+    color: "#64748B",
     textAlign: "center",
     marginBottom: 16,
   },
   sectionHeader: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginTop: 10,
-    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#047857",
+    marginTop: 14,
+    marginBottom: 10,
     paddingBottom: 6,
-    borderBottomColor: "#e5e7eb",
-    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    borderBottomWidth: 1.5,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 4,
+    marginTop: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 8,
-    fontSize: 13,
-    backgroundColor: "#fff",
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 6,
+    fontSize: 14,
+    backgroundColor: "#FFFFFF",
+    color: "#1F2937",
+  },
+  dropdownTrigger: {
+    justifyContent: "center",
+    height: 44,
   },
   textAreaInput: {
-    height: 60,
+    height: 75,
     textAlignVertical: "top",
-    paddingTop: 8,
+    paddingTop: 10,
+  },
+  validationRow: {
+    marginBottom: 8,
+    marginTop: 2,
+  },
+  feedbackSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  feedbackSuccessText: {
+    color: "#22c55e",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  feedbackError: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  feedbackErrorText: {
+    color: "#ef4444",
+    fontSize: 12,
+    fontWeight: "500",
   },
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 4,
     marginBottom: 8,
   },
   switchLabel: {
     fontSize: 13,
-    fontWeight: "500",
-    color: "#1f2937",
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  switchSubtext: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  availabilityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  badgeAvailable: {
+    backgroundColor: "#DCFCE7",
+  },
+  badgeUnavailable: {
+    backgroundColor: "#FEE2E2",
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  availabilityBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
+    paddingHorizontal: 20,
   },
   modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
     maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
   },
   modalTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 12,
-    marginLeft: 16,
-    color: "#1f2937",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
   },
   dropdownOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomColor: "#f0f0f0",
+    paddingHorizontal: 12,
+    borderBottomColor: "#F1F5F9",
     borderBottomWidth: 1,
   },
   dropdownOptionSelected: {
-    backgroundColor: "#dbeafe",
+    backgroundColor: "#ECFDF5",
+    borderRadius: 6,
   },
   dropdownOptionText: {
-    fontSize: 13,
-    color: "#666",
+    fontSize: 14,
+    color: "#374151",
+  },
+  dropdownOptionTextSelected: {
+    color: "#047857",
+    fontWeight: "700",
   },
   footer: {
     flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
     gap: 12,
-    borderTopColor: "#ddd",
-    borderTopWidth: 1,
+    marginTop: 4,
   },
   btn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   primaryBtn: {
     backgroundColor: "#10B981",
-    borderWidth: 1.5,
-    borderTopColor: "#34D399",
-    borderLeftColor: "#34D399",
-    borderBottomColor: "#047857",
-    borderRightColor: "#047857",
   },
   secondaryBtn: {
     backgroundColor: "#F1F5F9",
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: "#CBD5E1",
   },
+  btnDisabled: {
+    opacity: 0.6,
+  },
   btnText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
     textAlign: "center",
   },
   secondaryBtnText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#666",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
     textAlign: "center",
   },
 });

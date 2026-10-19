@@ -253,25 +253,78 @@ export async function updateDoctorProfile(
   updates: Partial<Doctor>
 ): Promise<Doctor | null> {
   try {
-    const { data, error } = await supabase
+    const { id, created_at, ...cleanUpdates } = updates as any;
+
+    // Synchronize phone with profiles table if user_id and doctor_phone are available
+    if (cleanUpdates.doctor_phone && cleanUpdates.user_id) {
+      try {
+        await supabase
+          .from("profiles")
+          .update({ phone_number: cleanUpdates.doctor_phone })
+          .eq("id", cleanUpdates.user_id);
+      } catch (profileErr) {
+        console.warn("[DoctorService] Could not update profile phone_number:", profileErr);
+      }
+    }
+
+    // Attempt update by matching either doctor id or user_id
+    let { data, error } = await supabase
       .from("doctors")
       .update({
-        ...updates,
+        ...cleanUpdates,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", doctorId)
+      .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)
       .select()
-      .single();
+      .maybeSingle();
+
+    // If error indicates doctor_phone column does not exist on doctors table, retry without it
+    if (error && (error.message?.includes("doctor_phone") || error.code === "42703")) {
+      console.warn("[DoctorService] Column doctor_phone missing on doctors table, retrying update without it...");
+      const { doctor_phone, ...withoutPhone } = cleanUpdates;
+      const retryResult = await supabase
+        .from("doctors")
+        .update({
+          ...withoutPhone,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)
+        .select()
+        .maybeSingle();
+
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    // If no row was found to update, attempt inserting a new record
+    if (!data && !error && (cleanUpdates.user_id || doctorId)) {
+      console.log("[DoctorService] Doctor record not found for update, attempting insert...");
+      const effectiveUserId = cleanUpdates.user_id || doctorId;
+      const insertPayload = {
+        ...cleanUpdates,
+        user_id: effectiveUserId,
+        updated_at: new Date().toISOString(),
+      };
+
+      const insertResult = await supabase
+        .from("doctors")
+        .insert([insertPayload])
+        .select()
+        .maybeSingle();
+
+      data = insertResult.data;
+      error = insertResult.error;
+    }
 
     if (error) {
-      console.error("Error updating doctor profile:", error);
-      return null;
+      console.error("[DoctorService] Error updating doctor profile:", error);
+      throw new Error(`Database error: ${error.message}`);
     }
 
     return data as Doctor;
   } catch (error) {
-    console.error("Exception in updateDoctorProfile:", error);
-    return null;
+    console.error("[DoctorService] Exception in updateDoctorProfile:", error);
+    throw error;
   }
 }
 
