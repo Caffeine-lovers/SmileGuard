@@ -209,7 +209,7 @@ export default function DoctorProfileEdit({
   const handleDeleteBucketPhoto = (photo: UploadedProfileImage) => {
     Alert.alert(
       "Delete Photo",
-      "Are you sure you want to delete this photo from your storage bucket?",
+      "Are you sure you want to permanently delete this photo from your storage bucket?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -218,19 +218,29 @@ export default function DoctorProfileEdit({
           onPress: async () => {
             try {
               setDeletingImageId(photo.id);
+              console.log("[DoctorProfileEdit] Deleting photo from bucket:", photo.fullPath || photo.url);
               await deleteProfileImage(photo.fullPath || photo.url);
-              setUploadedImages((prev) => prev.filter((p) => p.id !== photo.id && p.url !== photo.url));
+
+              setUploadedImages((prev) =>
+                prev.filter((p) => p.id !== photo.id && p.url !== photo.url)
+              );
 
               // If deleted photo was active, fallback to next photo or clear
               if (imagePreviewUri === photo.url) {
-                const remaining = uploadedImages.filter((p) => p.id !== photo.id && p.url !== photo.url);
+                const remaining = uploadedImages.filter(
+                  (p) => p.id !== photo.id && p.url !== photo.url
+                );
                 const nextUrl = remaining.length > 0 ? remaining[0].url : "";
                 setImagePreviewUri(nextUrl);
                 updateDoctorData("profile_picture_url", nextUrl);
               }
+
+              Alert.alert("Success", "Photo successfully deleted from storage.");
             } catch (err) {
               console.error("[DoctorProfileEdit] Delete failed:", err);
-              Alert.alert("Delete Failed", "Could not remove the photo from storage.");
+              const errMsg =
+                err instanceof Error ? err.message : "Could not remove the photo from storage.";
+              Alert.alert("Delete Failed", errMsg);
             } finally {
               setDeletingImageId(null);
             }
@@ -405,7 +415,7 @@ export default function DoctorProfileEdit({
           <View style={styles.galleryHeaderRow}>
             <View style={styles.galleryTitleContainer}>
               <ImageIcon size={14} color="#047857" />
-              <Text style={styles.galleryTitle}>Bucket Photos</Text>
+              <Text style={styles.galleryTitle}>Profile Photos</Text>
               <View style={styles.galleryBadge}>
                 <Text style={styles.galleryBadgeText}>
                   {loadingBucketImages ? "..." : `${uploadedImages.length}`}
@@ -454,38 +464,44 @@ export default function DoctorProfileEdit({
                 const isDeleting = deletingImageId === photo.id;
 
                 return (
-                  <TouchableOpacity
+                  <View
                     key={photo.id || photo.url || idx}
                     style={[
                       styles.photoTile,
                       isSelected && styles.photoTileActive,
                     ]}
-                    onPress={() => handleSelectBucketPhoto(photo)}
-                    activeOpacity={0.8}
                   >
-                    <Image source={{ uri: photo.url }} style={styles.photoTileImage} />
+                    {/* Main Image Selector Touchable */}
+                    <TouchableOpacity
+                      style={styles.photoTileMain}
+                      onPress={() => handleSelectBucketPhoto(photo)}
+                      activeOpacity={0.8}
+                    >
+                      <Image source={{ uri: photo.url }} style={styles.photoTileImage} />
 
-                    {/* Active checkmark badge */}
-                    {isSelected && (
-                      <View style={styles.activeCheckBadge}>
-                        <Check size={11} color="#FFFFFF" strokeWidth={3} />
-                      </View>
-                    )}
+                      {/* Active checkmark badge */}
+                      {isSelected && (
+                        <View style={styles.activeCheckBadge}>
+                          <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
 
-                    {/* Delete button */}
+                    {/* Delete button (Independent touchable with clear tap target) */}
                     <TouchableOpacity
                       style={styles.deletePhotoBtn}
                       onPress={() => handleDeleteBucketPhoto(photo)}
                       disabled={isDeleting}
+                      activeOpacity={0.7}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
                       {isDeleting ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <Trash2 size={10} color="#FFFFFF" />
+                        <Trash2 size={11} color="#FFFFFF" />
                       )}
                     </TouchableOpacity>
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
 
@@ -631,7 +647,7 @@ export default function DoctorProfileEdit({
           keyboardType="numeric"
           value={
             doctorData.years_of_experience !== undefined &&
-            doctorData.years_of_experience !== null
+              doctorData.years_of_experience !== null
               ? doctorData.years_of_experience.toString()
               : ""
           }
@@ -915,8 +931,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   uploadTile: {
-    width: 78,
-    height: 78,
+    width: 80,
+    height: 80,
     borderRadius: 12,
     borderWidth: 1.5,
     borderStyle: "dashed",
@@ -934,14 +950,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   photoTile: {
-    width: 78,
-    height: 78,
+    width: 80,
+    height: 80,
     borderRadius: 12,
     position: "relative",
     borderWidth: 2,
     borderColor: "#E2E8F0",
     backgroundColor: "#F8FAFC",
-    overflow: "hidden",
   },
   photoTileActive: {
     borderColor: "#10B981",
@@ -952,15 +967,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  photoTileImage: {
+  photoTileMain: {
     width: "100%",
     height: "100%",
     borderRadius: 10,
+    overflow: "hidden",
+  },
+  photoTileImage: {
+    width: "100%",
+    height: "100%",
   },
   activeCheckBadge: {
     position: "absolute",
-    top: 4,
-    right: 4,
+    bottom: 4,
+    left: 4,
     backgroundColor: "#10B981",
     borderRadius: 10,
     width: 18,
@@ -969,17 +989,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: "#FFFFFF",
+    elevation: 3,
   },
   deletePhotoBtn: {
     position: "absolute",
-    bottom: 4,
+    top: 4,
     right: 4,
-    backgroundColor: "rgba(239, 68, 68, 0.9)",
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+    backgroundColor: "rgba(220, 38, 38, 0.95)",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: "center",
     alignItems: "center",
+    elevation: 5,
+    zIndex: 10,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
   },
   emptyGalleryContainer: {
     paddingVertical: 14,

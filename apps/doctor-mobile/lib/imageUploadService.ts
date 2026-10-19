@@ -329,28 +329,44 @@ export const listDoctorProfileImages = async (
 /**
  * Delete image from Supabase Storage
  */
-export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
+export const deleteProfileImage = async (pathOrUrl: string): Promise<void> => {
   try {
-    // Extract path from URL
-    const urlParts = imageUrl.split("/storage/v1/object/public/doctor-pictures/");
-    if (urlParts.length < 2) {
-      throw new Error("Invalid image URL");
+    if (!pathOrUrl || typeof pathOrUrl !== "string") {
+      throw new Error("No image path or URL provided");
     }
 
-    const filePath = decodeURIComponent(urlParts[1]);
-    console.log("️  Deleting image:", filePath);
+    let filePath = pathOrUrl.trim();
 
-    const { error } = await supabase.storage
+    // If it's a full Supabase storage URL, extract the path after bucket name
+    if (filePath.includes("/storage/v1/object/public/doctor-pictures/")) {
+      const parts = filePath.split("/storage/v1/object/public/doctor-pictures/");
+      filePath = decodeURIComponent(parts[1]);
+    } else if (filePath.includes("/storage/v1/object/doctor-pictures/")) {
+      const parts = filePath.split("/storage/v1/object/doctor-pictures/");
+      filePath = decodeURIComponent(parts[1]);
+    } else if (filePath.startsWith("doctor-pictures/")) {
+      filePath = filePath.replace("doctor-pictures/", "");
+    }
+
+    // Strip any URL query parameters (e.g., ?t=123456789)
+    if (filePath.includes("?")) {
+      filePath = filePath.split("?")[0];
+    }
+
+    console.log("[ImageUpload] Deleting storage object from bucket 'doctor-pictures':", filePath);
+
+    const { data, error } = await supabase.storage
       .from("doctor-pictures")
       .remove([filePath]);
 
     if (error) {
-      throw error;
+      console.error("[ImageUpload] Supabase storage remove error:", error);
+      throw new Error(`Storage error: ${error.message}`);
     }
 
-    console.log(" Image deleted successfully");
+    console.log("[ImageUpload] Image removed from storage successfully:", data);
   } catch (error) {
-    console.error(" Delete failed:", error);
+    console.error("[ImageUpload] Delete failed:", error);
     throw error;
   }
 };
