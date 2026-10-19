@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
-import { FileText, X, ChevronDown, RefreshCw, Users, User, Check } from 'lucide-react-native';
+import { FileText, X, ChevronDown, RefreshCw, Users, User, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
 
 interface Patient {
@@ -46,6 +46,8 @@ interface AppointmentDetails {
   updated_at?: string;
 }
 
+const ITEMS_PER_PAGE = 4;
+
 export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
@@ -60,6 +62,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentDetails | null>(null);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [loadingAppointment, setLoadingAppointment] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<any>(null);
 
   // Fetch all patients and billings on screen focus
   useFocusEffect(
@@ -222,6 +226,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   };
 
   const handleSelectPatient = (patient: Patient | null) => {
+    setCurrentPage(1);
     if (patient) {
       setSelectedPatientId(patient.id);
       setSelectedPatientName(patient.name);
@@ -239,6 +244,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const handleRefresh = async () => {
     try {
       setLoading(true);
+      setCurrentPage(1);
       console.log('🔄 Refreshing billing data...');
       const loadedPatients = await loadPatients();
       await loadBillings(selectedPatientId, loadedPatients);
@@ -290,6 +296,46 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(billings.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedBillings = billings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Keep currentPage valid if totalPages shrinks
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback if scrollTo is not supported on ref
+      }
+    }
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  };
+
   const filteredPatients = patients.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -297,7 +343,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         <View style={{ padding: 16, gap: 16 }}>
           {/* Header */}
           <View style={{ marginBottom: 8 }}>
@@ -506,141 +552,224 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                 </Text>
               </View>
             ) : (
-              <FlatList
-                scrollEnabled={false}
-                data={billings}
-                keyExtractor={(item) => item.id || Math.random().toString()}
-                renderItem={({ item }) => (
-                  <View
-                    style={{
-                      backgroundColor: '#fff',
-                      borderRadius: 12,
-                      marginBottom: 12,
-                      padding: 14,
-                      borderLeftWidth: 4,
-                      borderLeftColor: getPaymentStatusColor(item.payment_status),
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 2,
-                      elevation: 2,
-                    }}
-                  >
-                    {/* Header Row */}
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 6,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 12, color: '#666', fontWeight: '600' }}>
-                          Bill #{item.id?.slice(0, 8).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View
-                        style={{
-                          backgroundColor: getPaymentStatusColor(item.payment_status),
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
-                          borderRadius: 6,
-                        }}
-                      >
-                        <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600', textTransform: 'capitalize' }}>
-                          {item.payment_status}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Patient Name */}
-                    <View style={{ marginBottom: 10 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: '#111' }}>
-                        {item.patient_name || 'Patient'}
+              <>
+                {/* Header info showing billing count and page */}
+                <View style={localStyles.countHeader}>
+                  <Text style={localStyles.countHeaderText}>
+                    Showing <Text style={localStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, billings.length)}</Text> of <Text style={localStyles.countHeaderBold}>{billings.length}</Text> records
+                  </Text>
+                  {totalPages > 1 && (
+                    <View style={localStyles.pageBadge}>
+                      <Text style={localStyles.pageBadgeText}>
+                        Page {currentPage} of {totalPages}
                       </Text>
                     </View>
+                  )}
+                </View>
 
-                    {/* Amount Row */}
+                <FlatList
+                  scrollEnabled={false}
+                  data={paginatedBillings}
+                  keyExtractor={(item) => item.id || Math.random().toString()}
+                  renderItem={({ item }) => (
                     <View
                       style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        marginBottom: 10,
-                        paddingBottom: 10,
-                        borderBottomWidth: 1,
-                        borderBottomColor: '#e5e5e5',
+                        backgroundColor: '#fff',
+                        borderRadius: 12,
+                        marginBottom: 12,
+                        padding: 14,
+                        borderLeftWidth: 4,
+                        borderLeftColor: getPaymentStatusColor(item.payment_status),
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 2,
+                        elevation: 2,
                       }}
                     >
-                      <View>
-                        <Text style={{ fontSize: 11, color: '#666' }}>Original Amount</Text>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111', marginTop: 2 }}>
-                          ${item.amount.toFixed(2)}
-                        </Text>
-                      </View>
-
-                      {item.discount_amount ? (
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 11, color: '#666' }}>Discount ({item.discount_type})</Text>
-                          <Text style={{ fontSize: 16, fontWeight: '700', color: '#ef4444', marginTop: 2 }}>
-                            -${item.discount_amount.toFixed(2)}
+                      {/* Header Row */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: 6,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 12, color: '#666', fontWeight: '600' }}>
+                            Bill #{item.id?.slice(0, 8).toUpperCase()}
                           </Text>
                         </View>
-                      ) : null}
+                        <View
+                          style={{
+                            backgroundColor: getPaymentStatusColor(item.payment_status),
+                            paddingHorizontal: 10,
+                            paddingVertical: 4,
+                            borderRadius: 6,
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600', textTransform: 'capitalize' }}>
+                            {item.payment_status}
+                          </Text>
+                        </View>
+                      </View>
 
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 11, color: '#666' }}>Final Amount</Text>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: "#047857", marginTop: 2 }}>
-                          ${(item.final_amount || item.amount).toFixed(2)}
+                      {/* Patient Name */}
+                      <View style={{ marginBottom: 10 }}>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: '#111' }}>
+                          {item.patient_name || 'Patient'}
                         </Text>
                       </View>
-                    </View>
 
-                    {/* Details */}
-                    <View style={{ gap: 6 }}>
-                      {item.appointment_id && (
-                        <TouchableOpacity
-                          onPress={() => loadAppointmentDetails(item.appointment_id!)}
-                          activeOpacity={0.7}
-                        >
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: 11, color: '#666' }}>Appointment</Text>
-                            <Text style={{ fontSize: 11, color: "#047857", fontWeight: '600', textDecorationLine: 'underline' }}>
-                              {item.appointment_id.slice(0, 8).toUpperCase()}
+                      {/* Amount Row */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          marginBottom: 10,
+                          paddingBottom: 10,
+                          borderBottomWidth: 1,
+                          borderBottomColor: '#e5e5e5',
+                        }}
+                      >
+                        <View>
+                          <Text style={{ fontSize: 11, color: '#666' }}>Original Amount</Text>
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111', marginTop: 2 }}>
+                            ${item.amount.toFixed(2)}
+                          </Text>
+                        </View>
+
+                        {item.discount_amount ? (
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ fontSize: 11, color: '#666' }}>Discount ({item.discount_type})</Text>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#ef4444', marginTop: 2 }}>
+                              -${item.discount_amount.toFixed(2)}
                             </Text>
                           </View>
-                        </TouchableOpacity>
-                      )}
+                        ) : null}
 
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 11, color: '#666' }}>Created</Text>
-                        <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                          {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
-                        </Text>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 11, color: '#666' }}>Final Amount</Text>
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: "#047857", marginTop: 2 }}>
+                            ${(item.final_amount || item.amount).toFixed(2)}
+                          </Text>
+                        </View>
                       </View>
 
-                      {item.payment_date && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 11, color: '#666' }}>Payment Date</Text>
-                          <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                            {new Date(item.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                          </Text>
-                        </View>
-                      )}
+                      {/* Details */}
+                      <View style={{ gap: 6 }}>
+                        {item.appointment_id && (
+                          <TouchableOpacity
+                            onPress={() => loadAppointmentDetails(item.appointment_id!)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ fontSize: 11, color: '#666' }}>Appointment</Text>
+                              <Text style={{ fontSize: 11, color: "#047857", fontWeight: '600', textDecorationLine: 'underline' }}>
+                                {item.appointment_id.slice(0, 8).toUpperCase()}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
 
-                      {item.payment_method && (
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 11, color: '#666' }}>Method</Text>
-                          <Text style={{ fontSize: 11, color: '#111', fontWeight: '500', textTransform: 'capitalize' }}>
-                            {item.payment_method}
+                          <Text style={{ fontSize: 11, color: '#666' }}>Created</Text>
+                          <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
+                            {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
                           </Text>
                         </View>
-                      )}
+
+                        {item.payment_date && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={{ fontSize: 11, color: '#666' }}>Payment Date</Text>
+                            <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
+                              {new Date(item.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </Text>
+                          </View>
+                        )}
+
+                        {item.payment_method && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={{ fontSize: 11, color: '#666' }}>Method</Text>
+                            <Text style={{ fontSize: 11, color: '#111', fontWeight: '500', textTransform: 'capitalize' }}>
+                              {item.payment_method}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                    </View>
+                  )}
+                />
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <View style={localStyles.paginationContainer}>
+                    {/* Previous Button */}
+                    <TouchableOpacity
+                      style={[
+                        localStyles.navButton,
+                        currentPage === 1 && localStyles.navButtonDisabled,
+                      ]}
+                      onPress={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Previous Page"
+                    >
+                      <ChevronLeft size={18} color={currentPage === 1 ? '#94A3B8' : '#047857'} />
+                    </TouchableOpacity>
+
+                    {/* Page Numbers */}
+                    <View style={localStyles.pageNumbersRow}>
+                      {getPageNumbers().map((pageNum, index) => {
+                        if (pageNum === '...') {
+                          return (
+                            <View key={`ellipsis-${index}`} style={localStyles.ellipsisBox}>
+                              <Text style={localStyles.ellipsisText}>•••</Text>
+                            </View>
+                          );
+                        }
+                        const isSelected = pageNum === currentPage;
+                        return (
+                          <TouchableOpacity
+                            key={`page-${pageNum}`}
+                            style={[
+                              localStyles.pageButton,
+                              isSelected && localStyles.pageButtonActive,
+                            ]}
+                            onPress={() => handlePageChange(pageNum as number)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                localStyles.pageButtonText,
+                                isSelected && localStyles.pageButtonTextActive,
+                              ]}
+                            >
+                              {pageNum}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
 
+                    {/* Next Button */}
+                    <TouchableOpacity
+                      style={[
+                        localStyles.navButton,
+                        currentPage === totalPages && localStyles.navButtonDisabled,
+                      ]}
+                      onPress={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Next Page"
+                    >
+                      <ChevronRight size={18} color={currentPage === totalPages ? '#94A3B8' : '#047857'} />
+                    </TouchableOpacity>
                   </View>
                 )}
-              />
+              </>
             )}
           </View>
         </View>
@@ -973,3 +1102,107 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     </SafeAreaView>
   );
 }
+
+const localStyles = StyleSheet.create({
+  countHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
+  countHeaderText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  countHeaderBold: {
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  pageBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  pageBadgeText: {
+    fontSize: 11,
+    color: '#047857',
+    fontWeight: '600',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    gap: 8,
+  },
+  navButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  navButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+  },
+  pageNumbersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pageButton: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pageButtonActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  pageButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  pageButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  ellipsisBox: {
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ellipsisText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    letterSpacing: 1,
+  },
+});
