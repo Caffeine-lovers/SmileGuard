@@ -255,6 +255,77 @@ export const uploadProfileImage = async (
   }
 };
 
+export interface UploadedProfileImage {
+  id: string;
+  name: string;
+  url: string;
+  createdAt?: string | null;
+  fullPath: string;
+}
+
+/**
+ * List all profile pictures uploaded in 'doctor-pictures' bucket for a given user/doctor
+ */
+export const listDoctorProfileImages = async (
+  userIds: string | string[]
+): Promise<UploadedProfileImage[]> => {
+  try {
+    const ids = Array.isArray(userIds) ? userIds : [userIds];
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    const allImages: UploadedProfileImage[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const uid of uniqueIds) {
+      const folderPath = `profile/${uid}`;
+      const { data, error } = await supabase.storage
+        .from("doctor-pictures")
+        .list(folderPath, {
+          limit: 100,
+          sortBy: { column: "created_at", order: "desc" },
+        });
+
+      if (error) {
+        console.warn(`[ImageUpload] Could not list images in ${folderPath}:`, error.message);
+        continue;
+      }
+
+      if (data && data.length > 0) {
+        for (const file of data) {
+          if (!file.name || file.name.startsWith(".")) continue;
+          const fullPath = `${folderPath}/${file.name}`;
+          const { data: publicUrlData } = supabase.storage
+            .from("doctor-pictures")
+            .getPublicUrl(fullPath);
+
+          const url = publicUrlData?.publicUrl;
+          if (url && !seenUrls.has(url)) {
+            seenUrls.add(url);
+            allImages.push({
+              id: file.id || file.name,
+              name: file.name,
+              url,
+              createdAt: file.created_at,
+              fullPath,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort newest first
+    allImages.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return allImages;
+  } catch (error) {
+    console.error("[ImageUpload] Error listing doctor profile images:", error);
+    return [];
+  }
+};
+
 /**
  * Delete image from Supabase Storage
  */

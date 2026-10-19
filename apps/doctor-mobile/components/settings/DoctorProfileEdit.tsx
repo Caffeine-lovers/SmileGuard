@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,8 +13,26 @@ import {
   Image,
 } from "react-native";
 import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
-import { X, Check, Camera, User, AlertCircle } from "lucide-react-native";
-import { pickImage, uploadProfileImage, ImagePickerResult } from "../../lib/imageUploadService";
+import {
+  X,
+  Check,
+  Camera,
+  User,
+  AlertCircle,
+  RefreshCw,
+  Trash2,
+  Plus,
+  Sparkles,
+  Image as ImageIcon,
+} from "lucide-react-native";
+import {
+  pickImage,
+  uploadProfileImage,
+  listDoctorProfileImages,
+  deleteProfileImage,
+  ImagePickerResult,
+  UploadedProfileImage,
+} from "../../lib/imageUploadService";
 
 interface DoctorProfileEditProps {
   doctor: Doctor;
@@ -35,6 +53,51 @@ export default function DoctorProfileEdit({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showSpecializationDropdown, setShowSpecializationDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Bucket photos state
+  const [uploadedImages, setUploadedImages] = useState<UploadedProfileImage[]>([]);
+  const [loadingBucketImages, setLoadingBucketImages] = useState(true);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+
+  const getEffectiveUserId = useCallback((): string => {
+    return (
+      doctorData.user_id ||
+      doctor.user_id ||
+      doctorData.id ||
+      doctor.id ||
+      "doctor"
+    );
+  }, [doctorData.user_id, doctorData.id, doctor.user_id, doctor.id]);
+
+  // Load all uploaded images from the storage bucket
+  const loadBucketImages = useCallback(async () => {
+    try {
+      setLoadingBucketImages(true);
+      const userIds = [doctorData.user_id, doctor.user_id, doctorData.id, doctor.id].filter(
+        (id): id is string => Boolean(id) && id !== "doctor"
+      );
+      if (userIds.length === 0) userIds.push("doctor");
+
+      console.log("[DoctorProfileEdit] Fetching bucket images for IDs:", userIds);
+      const images = await listDoctorProfileImages(userIds);
+      console.log("[DoctorProfileEdit] Found bucket images:", images.length);
+      setUploadedImages(images);
+
+      // If user has a current profile_picture_url and no preview is set, default to it
+      if (doctor.profile_picture_url && !imagePreviewUri) {
+        setImagePreviewUri(doctor.profile_picture_url);
+      }
+    } catch (err) {
+      console.error("[DoctorProfileEdit] Failed to load bucket images:", err);
+    } finally {
+      setLoadingBucketImages(false);
+    }
+  }, [doctorData.user_id, doctorData.id, doctor.user_id, doctor.id, doctor.profile_picture_url]);
+
+  // Fetch bucket photos on mount
+  useEffect(() => {
+    loadBucketImages();
+  }, [loadBucketImages]);
 
   // Sync state if doctor prop changes
   useEffect(() => {
@@ -82,9 +145,9 @@ export default function DoctorProfileEdit({
   };
 
   /**
-   * Pick new profile image from media library
+   * Pick new profile image from media library and immediately upload to bucket
    */
-  const handlePickImage = async () => {
+  const handlePickAndUploadImage = async () => {
     try {
       console.log("[DoctorProfileEdit] Picking image...");
       const result = await pickImage([1, 1]);
@@ -92,9 +155,36 @@ export default function DoctorProfileEdit({
         console.log("[DoctorProfileEdit] Image picking cancelled");
         return;
       }
+
+      // Show immediate local preview
       setSelectedImage(result);
       setImagePreviewUri(result.uri);
-      console.log("[DoctorProfileEdit] Selected image URI:", result.uri);
+
+      // Upload directly to bucket so it appears in the photo gallery
+      setUploadingImage(true);
+      const userId = getEffectiveUserId();
+      try {
+        const uploadedUrl = await uploadProfileImage(result, userId);
+        console.log("[DoctorProfileEdit] Uploaded picture to bucket:", uploadedUrl);
+        setImagePreviewUri(uploadedUrl);
+        updateDoctorData("profile_picture_url", uploadedUrl);
+        setSelectedImage(null); // Upload succeeded, no need to re-upload on save
+
+        // Prepend to gallery
+        const newPhoto: UploadedProfileImage = {
+          id: `img_${Date.now()}`,
+          name: result.name || `profile_${Date.now()}`,
+          url: uploadedUrl,
+          createdAt: new Date().toISOString(),
+          fullPath: `profile/${userId}/${result.name}`,
+        };
+        setUploadedImages((prev) => [newPhoto, ...prev.filter((p) => p.url !== uploadedUrl)]);
+      } catch (uploadError) {
+        console.warn("[DoctorProfileEdit] Immediate upload failed, keeping staged locally:", uploadError);
+        // Will retry upload on form save
+      } finally {
+        setUploadingImage(false);
+      }
     } catch (error) {
       console.error("[DoctorProfileEdit] Failed to pick image:", error);
       Alert.alert(
@@ -102,6 +192,52 @@ export default function DoctorProfileEdit({
         error instanceof Error ? error.message : "Failed to select image from gallery"
       );
     }
+  };
+
+  /**
+   * Select a previously uploaded photo from the bucket gallery
+   */
+  const handleSelectBucketPhoto = (photo: UploadedProfileImage) => {
+    setSelectedImage(null); // Clear any local staging
+    setImagePreviewUri(photo.url);
+    updateDoctorData("profile_picture_url", photo.url);
+  };
+
+  /**
+   * Delete photo from Supabase storage bucket
+   */
+  const handleDeleteBucketPhoto = (photo: UploadedProfileImage) => {
+    Alert.alert(
+      "Delete Photo",
+      "Are you sure you want to delete this photo from your storage bucket?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingImageId(photo.id);
+              await deleteProfileImage(photo.fullPath || photo.url);
+              setUploadedImages((prev) => prev.filter((p) => p.id !== photo.id && p.url !== photo.url));
+
+              // If deleted photo was active, fallback to next photo or clear
+              if (imagePreviewUri === photo.url) {
+                const remaining = uploadedImages.filter((p) => p.id !== photo.id && p.url !== photo.url);
+                const nextUrl = remaining.length > 0 ? remaining[0].url : "";
+                setImagePreviewUri(nextUrl);
+                updateDoctorData("profile_picture_url", nextUrl);
+              }
+            } catch (err) {
+              console.error("[DoctorProfileEdit] Delete failed:", err);
+              Alert.alert("Delete Failed", "Could not remove the photo from storage.");
+            } finally {
+              setDeletingImageId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   /**
@@ -142,18 +278,13 @@ export default function DoctorProfileEdit({
 
     setLoading(true);
     try {
-      let finalPictureUrl = doctorData.profile_picture_url || "";
+      let finalPictureUrl = imagePreviewUri || doctorData.profile_picture_url || "";
 
-      // If user selected a new image, upload it to storage
+      // If user selected a new image that wasn't uploaded yet, upload it now
       if (selectedImage) {
         setUploadingImage(true);
         try {
-          const userId =
-            doctorData.user_id ||
-            doctor.user_id ||
-            doctorData.id ||
-            doctor.id ||
-            "doctor";
+          const userId = getEffectiveUserId();
           console.log("[DoctorProfileEdit] Uploading profile picture for user:", userId);
           finalPictureUrl = await uploadProfileImage(selectedImage, userId);
           console.log("[DoctorProfileEdit] Uploaded picture URL:", finalPictureUrl);
@@ -213,11 +344,12 @@ export default function DoctorProfileEdit({
         </TouchableOpacity>
       </View>
 
-      {/* Profile Picture Card */}
+      {/* Dynamic Profile Picture Card with Storage Gallery */}
       <View style={styles.avatarCard}>
+        {/* Main Hero Avatar Preview */}
         <TouchableOpacity
           style={styles.avatarContainer}
-          onPress={handlePickImage}
+          onPress={handlePickAndUploadImage}
           disabled={loading || uploadingImage}
           activeOpacity={0.8}
         >
@@ -240,17 +372,133 @@ export default function DoctorProfileEdit({
           )}
         </TouchableOpacity>
 
+        {/* Selected Photo Status Label */}
+        {imagePreviewUri ? (
+          <View style={styles.activePhotoIndicator}>
+            <Check size={12} color="#047857" />
+            <Text style={styles.activePhotoText} numberOfLines={1}>
+              Active Profile Photo
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.photoHint}>No profile photo selected</Text>
+        )}
+
+        {/* Quick Upload Button */}
         <TouchableOpacity
-          onPress={handlePickImage}
+          onPress={handlePickAndUploadImage}
           disabled={loading || uploadingImage}
           style={styles.changePhotoBtn}
         >
-          <Camera size={15} color="#047857" style={{ marginRight: 6 }} />
+          {uploadingImage ? (
+            <ActivityIndicator size="small" color="#047857" style={{ marginRight: 6 }} />
+          ) : (
+            <Camera size={15} color="#047857" style={{ marginRight: 6 }} />
+          )}
           <Text style={styles.changePhotoText}>
-            {imagePreviewUri ? "Change Profile Picture" : "Upload Profile Picture"}
+            {uploadingImage ? "Uploading to Bucket..." : "Upload New Photo from Device"}
           </Text>
         </TouchableOpacity>
-        <Text style={styles.photoHint}>JPG or PNG (square recommended)</Text>
+
+        {/* Horizontal Storage Bucket Photo Picker */}
+        <View style={styles.gallerySection}>
+          <View style={styles.galleryHeaderRow}>
+            <View style={styles.galleryTitleContainer}>
+              <ImageIcon size={14} color="#047857" />
+              <Text style={styles.galleryTitle}>Bucket Photos</Text>
+              <View style={styles.galleryBadge}>
+                <Text style={styles.galleryBadgeText}>
+                  {loadingBucketImages ? "..." : `${uploadedImages.length}`}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={loadBucketImages}
+              disabled={loadingBucketImages}
+              style={styles.refreshBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <RefreshCw
+                size={14}
+                color={loadingBucketImages ? "#94A3B8" : "#047857"}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {loadingBucketImages ? (
+            <View style={styles.loadingGalleryContainer}>
+              <ActivityIndicator size="small" color="#10B981" />
+              <Text style={styles.loadingGalleryText}>Loading photos from bucket...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.galleryScroll}
+            >
+              {/* Tile 1: Upload New */}
+              <TouchableOpacity
+                style={styles.uploadTile}
+                onPress={handlePickAndUploadImage}
+                disabled={loading || uploadingImage}
+                activeOpacity={0.7}
+              >
+                <Plus size={20} color="#047857" />
+                <Text style={styles.uploadTileText}>Upload</Text>
+              </TouchableOpacity>
+
+              {/* Uploaded Bucket Photos */}
+              {uploadedImages.map((photo, idx) => {
+                const isSelected = imagePreviewUri === photo.url;
+                const isDeleting = deletingImageId === photo.id;
+
+                return (
+                  <TouchableOpacity
+                    key={photo.id || photo.url || idx}
+                    style={[
+                      styles.photoTile,
+                      isSelected && styles.photoTileActive,
+                    ]}
+                    onPress={() => handleSelectBucketPhoto(photo)}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: photo.url }} style={styles.photoTileImage} />
+
+                    {/* Active checkmark badge */}
+                    {isSelected && (
+                      <View style={styles.activeCheckBadge}>
+                        <Check size={11} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    )}
+
+                    {/* Delete button */}
+                    <TouchableOpacity
+                      style={styles.deletePhotoBtn}
+                      onPress={() => handleDeleteBucketPhoto(photo)}
+                      disabled={isDeleting}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      {isDeleting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Trash2 size={10} color="#FFFFFF" />
+                      )}
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {uploadedImages.length === 0 && (
+                <View style={styles.emptyGalleryContainer}>
+                  <Text style={styles.emptyGalleryText}>
+                    No pictures in bucket yet. Tap Upload to add your first photo!
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
       </View>
 
       {/* Form Content */}
@@ -588,6 +836,163 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#94A3B8",
     marginTop: 6,
+  },
+  activePhotoIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  activePhotoText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#047857",
+  },
+  gallerySection: {
+    width: "100%",
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  galleryHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  galleryTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  galleryTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334155",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  galleryBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  galleryBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
+  },
+  refreshBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+  },
+  loadingGalleryContainer: {
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  loadingGalleryText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  galleryScroll: {
+    paddingVertical: 4,
+    gap: 10,
+    alignItems: "center",
+  },
+  uploadTile: {
+    width: 78,
+    height: 78,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#10B981",
+    backgroundColor: "#F0FDF4",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 6,
+  },
+  uploadTileText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  photoTile: {
+    width: 78,
+    height: 78,
+    borderRadius: 12,
+    position: "relative",
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    overflow: "hidden",
+  },
+  photoTileActive: {
+    borderColor: "#10B981",
+    borderWidth: 2.5,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  photoTileImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
+  },
+  activeCheckBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "#10B981",
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  deletePhotoBtn: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    backgroundColor: "rgba(239, 68, 68, 0.9)",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyGalleryContainer: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    width: 220,
+  },
+  emptyGalleryText: {
+    fontSize: 12,
+    color: "#94A3B8",
+    textAlign: "center",
+    lineHeight: 16,
   },
   stepContent: {
     borderColor: "#E2E8F0",
