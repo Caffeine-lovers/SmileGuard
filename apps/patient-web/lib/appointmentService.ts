@@ -354,16 +354,29 @@ export async function getDoctorName(dentistId: string): Promise<string | null> {
     // Fetch doctor name from doctors table using the dentist_id (which is user_id)
     const { data, error } = await supabase
       .from('doctors')
-      .select('doctor_name')
+      .select('first_name, middle_name, last_name')
       .eq('user_id', dentistId)
       .single();
 
     if (error) {
       console.error('Error fetching doctor name from doctors table:', error);
-      return null;
+      // Fallback: try fetching from profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', dentistId)
+        .single();
+      return profile?.name || null;
     }
 
-    return data?.doctor_name || null;
+    if (data) {
+      const parts = [data.first_name, data.middle_name, data.last_name]
+        .map((p: any) => (p || '').trim())
+        .filter(Boolean);
+      if (parts.length > 0) return parts.join(' ');
+    }
+
+    return null;
   } catch (error) {
     console.error('Error getting doctor name:', error);
     return null;

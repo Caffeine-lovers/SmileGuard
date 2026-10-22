@@ -99,13 +99,18 @@ export default function DoctorProfileEdit({
     loadBucketImages();
   }, [loadBucketImages]);
 
-  // Sync state if doctor prop changes
   useEffect(() => {
     if (doctor) {
+      const parts = (doctor.doctor_name || (doctor as any).name || "").trim().split(" ");
+      const fallbackFirst = parts[0] || "";
+      const fallbackLast = parts.length > 1 ? parts.slice(1).join(" ") : "";
+
       setDoctorData({
         ...EMPTY_DOCTOR,
         ...doctor,
-        doctor_name: doctor.doctor_name || (doctor as any).name || "",
+        first_name: doctor.first_name || fallbackFirst,
+        middle_name: doctor.middle_name || "",
+        last_name: doctor.last_name || fallbackLast,
         doctor_phone: doctor.doctor_phone || (doctor as any).phone_number || (doctor as any).clinic_phone || "",
       });
       if (doctor.profile_picture_url) {
@@ -254,9 +259,14 @@ export default function DoctorProfileEdit({
    * Validates form and returns error message if invalid, or null if valid
    */
   const validateForm = (): string | null => {
-    const name = (doctorData.doctor_name || "").trim();
-    if (!name) {
-      return "Doctor Name is required.";
+    const firstName = (doctorData.first_name || "").trim();
+    if (!firstName) {
+      return "First Name is required.";
+    }
+
+    const lastName = (doctorData.last_name || "").trim();
+    if (!lastName) {
+      return "Last Name is required.";
     }
 
     const license = (doctorData.license_number || "").trim();
@@ -311,7 +321,9 @@ export default function DoctorProfileEdit({
 
       const updatedPayload: Partial<Doctor> = {
         ...doctorData,
-        doctor_name: (doctorData.doctor_name || "").trim(),
+        first_name: (doctorData.first_name || "").trim(),
+        middle_name: (doctorData.middle_name || "").trim(),
+        last_name: (doctorData.last_name || "").trim(),
         license_number: (doctorData.license_number || "").trim(),
         specialization: (doctorData.specialization || "").trim(),
         doctor_phone: (doctorData.doctor_phone || "").trim(),
@@ -320,8 +332,9 @@ export default function DoctorProfileEdit({
         profile_picture_url: finalPictureUrl,
       };
 
-      // Ensure is_available is never sent to Supabase
+      // Ensure is_available and doctor_name are never sent to Supabase
       delete (updatedPayload as any).is_available;
+      delete (updatedPayload as any).doctor_name;
 
       console.log("[DoctorProfileEdit] Saving doctor updates:", updatedPayload);
       await onSave(updatedPayload);
@@ -527,12 +540,28 @@ export default function DoctorProfileEdit({
         {/* Section: Doctor Information */}
         <Text style={styles.sectionHeader}>Doctor Information</Text>
 
-        <Text style={styles.inputLabel}>Doctor Full Name *</Text>
+        <Text style={styles.inputLabel}>First Name *</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. Dr. Maria Santos"
-          value={doctorData.doctor_name || ""}
-          onChangeText={(text) => updateDoctorData("doctor_name", text)}
+          placeholder="e.g. Maria"
+          value={doctorData.first_name || ""}
+          onChangeText={(text) => updateDoctorData("first_name", text)}
+        />
+
+        <Text style={styles.inputLabel}>Middle Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Clara (optional)"
+          value={doctorData.middle_name || ""}
+          onChangeText={(text) => updateDoctorData("middle_name", text)}
+        />
+
+        <Text style={styles.inputLabel}>Last Name *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Santos"
+          value={doctorData.last_name || ""}
+          onChangeText={(text) => updateDoctorData("last_name", text)}
         />
 
         <Text style={styles.inputLabel}>Contact Phone Number</Text>

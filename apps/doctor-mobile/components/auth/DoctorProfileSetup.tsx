@@ -107,7 +107,8 @@ export default function DoctorProfileSetup({
       accessCode.trim().length >= 4 &&
       isValidLicenseNumber(doctorData.license_number) &&
       doctorData.specialization.trim() !== "" &&
-      doctorData.doctor_name?.trim() !== ""
+      (doctorData.first_name?.trim() || "") !== "" &&
+      (doctorData.last_name?.trim() || "") !== ""
     );
   };
   // ────────────────────────────────────────────────────────────────
@@ -161,8 +162,10 @@ export default function DoctorProfileSetup({
         errorMsg = "Medical License Number must be 5-7 characters with both letters and numbers (e.g., ABC123)";
       } else if (doctorData.specialization.trim() === "") {
         errorMsg = "Please enter a specialization.";
-      } else if (doctorData.doctor_name?.trim() === "") {
-        errorMsg = "Please enter a doctor name.";
+      } else if ((doctorData.first_name || "").trim() === "") {
+        errorMsg = "Please enter your first name.";
+      } else if ((doctorData.last_name || "").trim() === "") {
+        errorMsg = "Please enter your last name.";
       }
       
       Alert.alert("Invalid Information", errorMsg);
@@ -181,7 +184,9 @@ export default function DoctorProfileSetup({
 
       console.log("[DoctorProfileSetup] Authenticated user ID:", data.user.id);
       console.log("[DoctorProfileSetup] Current doctorData before save:", {
-        doctor_name: doctorData.doctor_name,
+        first_name: doctorData.first_name,
+        middle_name: doctorData.middle_name,
+        last_name: doctorData.last_name,
         specialization: doctorData.specialization,
         license_number: doctorData.license_number,
         bio: doctorData.bio,
@@ -200,16 +205,18 @@ export default function DoctorProfileSetup({
       }
 
       // Update doctor data with user_id and image URL
-      const { is_available, ...doctorDataWithoutAvailability } = doctorData as any;
+      const { is_available, doctor_name, ...doctorDataClean } = doctorData as any;
       const finalDoctorData = {
-        ...doctorDataWithoutAvailability,
+        ...doctorDataClean,
         user_id: data.user.id,
         profile_picture_url: profileImageUrl,
       };
 
       console.log("[DoctorProfileSetup] Final doctor data to save:", {
         user_id: finalDoctorData.user_id,
-        doctor_name: finalDoctorData.doctor_name,
+        first_name: finalDoctorData.first_name,
+        middle_name: finalDoctorData.middle_name,
+        last_name: finalDoctorData.last_name,
         specialization: finalDoctorData.specialization,
         license_number: finalDoctorData.license_number,
       });
@@ -455,14 +462,34 @@ export default function DoctorProfileSetup({
           <Text style={styles.sectionHeader}>Doctor Information</Text>
 
           <Text style={styles.label}>
-            Doctor Name <Text style={styles.requiredStar}>*</Text>
+            First Name <Text style={styles.requiredStar}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g., Dr. Jane Doe"
+            placeholder="e.g., Jane"
             placeholderTextColor="#94A3B8"
-            value={doctorData.doctor_name || ""}
-            onChangeText={(text) => updateDoctorData("doctor_name", text)}
+            value={doctorData.first_name || ""}
+            onChangeText={(text) => updateDoctorData("first_name", text)}
+          />
+
+          <Text style={styles.label}>Middle Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Marie (optional)"
+            placeholderTextColor="#94A3B8"
+            value={doctorData.middle_name || ""}
+            onChangeText={(text) => updateDoctorData("middle_name", text)}
+          />
+
+          <Text style={styles.label}>
+            Last Name <Text style={styles.requiredStar}>*</Text>
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Doe"
+            placeholderTextColor="#94A3B8"
+            value={doctorData.last_name || ""}
+            onChangeText={(text) => updateDoctorData("last_name", text)}
           />
 
           <Text style={styles.label}>Doctor Phone</Text>

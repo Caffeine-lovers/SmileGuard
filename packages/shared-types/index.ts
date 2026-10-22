@@ -99,7 +99,10 @@ export interface Doctor {
   license_number: string;
   specialization: string;
   bio?: string;
-  doctor_name?: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  doctor_name?: string; // Legacy fallback
   doctor_phone?: string;
   office_hours?: OfficeHours;
   years_of_experience?: number;
@@ -113,6 +116,9 @@ export const EMPTY_DOCTOR: Doctor = {
   license_number: "",
   specialization: "",
   bio: "",
+  first_name: "",
+  middle_name: "",
+  last_name: "",
   doctor_name: "",
   doctor_phone: "",
   office_hours: {
@@ -135,6 +141,23 @@ export const EMPTY_DOCTOR: Doctor = {
   years_of_experience: 0,
   profile_picture_url: "",
 };
+
+/**
+ * Helper to construct the full name of a doctor
+ */
+export function getDoctorFullName(doctor?: {
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  doctor_name?: string;
+}): string {
+  if (!doctor) return "";
+  const parts = [doctor.first_name, doctor.middle_name, doctor.last_name]
+    .map((p) => (p || "").trim())
+    .filter(Boolean);
+  if (parts.length > 0) return parts.join(" ");
+  return doctor.doctor_name || "";
+}
 
 // ─────────────────────────────────────────
 // Treatment Types

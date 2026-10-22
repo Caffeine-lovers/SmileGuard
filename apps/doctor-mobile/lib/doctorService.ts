@@ -171,15 +171,23 @@ export async function createDoctorProfile(
   accessCode?: string
 ): Promise<Doctor | null> {
   try {
+    const firstName = (doctor.first_name || (doctor.doctor_name ? doctor.doctor_name.trim().split(" ")[0] : "") || "").trim();
+    const lastName = (doctor.last_name || (doctor.doctor_name ? doctor.doctor_name.trim().split(" ").slice(1).join(" ") : "") || "").trim();
+    const middleName = (doctor.middle_name || "").trim();
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ") || doctor.doctor_name || "";
+
     // Validate required fields before attempting creation
     if (!doctor.user_id) throw new Error("Missing required field: user_id");
-    if (!doctor.doctor_name) throw new Error("Missing required field: doctor_name");
+    if (!firstName) throw new Error("Missing required field: first_name");
+    if (!lastName) throw new Error("Missing required field: last_name");
     if (!doctor.specialization) throw new Error("Missing required field: specialization");
     if (!doctor.license_number) throw new Error("Missing required field: license_number");
 
     console.log("[DoctorService] Creating/updating doctor profile with data:", {
       user_id: doctor.user_id,
-      doctor_name: doctor.doctor_name,
+      first_name: firstName,
+      middle_name: middleName,
+      last_name: lastName,
       specialization: doctor.specialization,
       license_number: doctor.license_number,
       has_access_code: !!accessCode,
@@ -188,40 +196,116 @@ export async function createDoctorProfile(
 
     // If access code is provided, use the secure atomic complete_doctor_registration RPC
     if (accessCode && accessCode.trim().length > 0) {
-      console.log("[DoctorService] Calling complete_doctor_registration RPC with code...");
-      const { data, error } = await supabase.rpc("complete_doctor_registration", {
+      console.log("[DoctorService] Calling complete_doctor_registration RPC...");
+      let rpcResponse = await supabase.rpc("complete_doctor_registration", {
         p_code: accessCode.trim(),
-        p_doctor_name: doctor.doctor_name,
+        p_first_name: firstName,
+        p_middle_name: middleName || null,
+        p_last_name: lastName,
         p_specialization: doctor.specialization,
         p_license_number: doctor.license_number,
         p_bio: doctor.bio || null,
         p_profile_picture_url: doctor.profile_picture_url || null,
       });
 
-      if (error) {
-        console.error("[DoctorService] complete_doctor_registration error:", error);
-        throw new Error(`Database error (${error.code || "RPC"}): ${error.message}`);
+      // If database still has the legacy complete_doctor_registration(..., p_doctor_name, ...)
+      if (
+        rpcResponse.error &&
+        (rpcResponse.error.code === "PGRST202" ||
+          rpcResponse.error.hint?.includes("p_doctor_name") ||
+          rpcResponse.error.message?.includes("p_doctor_name"))
+      ) {
+        console.warn(
+          "[DoctorService] Database RPC expects legacy p_doctor_name, retrying with p_doctor_name..."
+        );
+        rpcResponse = await supabase.rpc("complete_doctor_registration", {
+          p_code: accessCode.trim(),
+          p_doctor_name: fullName,
+          p_specialization: doctor.specialization,
+          p_license_number: doctor.license_number,
+          p_bio: doctor.bio || null,
+          p_profile_picture_url: doctor.profile_picture_url || null,
+        });
       }
 
-      const result = data as { success: boolean; message?: string; doctor_id?: string };
-      if (!result || !result.success) {
-        throw new Error(result?.message || "Failed to register doctor profile");
-      }
+      if (rpcResponse.error) {
+        console.error("[DoctorService] complete_doctor_registration error:", rpcResponse.error);
+        // If RPC function is not found in database, fallback to direct upsert
+        if (
+          rpcResponse.error.code === "PGRST202" ||
+          rpcResponse.error.message?.includes("function") ||
+          rpcResponse.error.message?.includes("not found")
+        ) {
+          console.warn(
+            "[DoctorService] complete_doctor_registration RPC not available in DB, falling back to direct upsert..."
+          );
+        } else {
+          throw new Error(`Database error (${rpcResponse.error.code || "RPC"}): ${rpcResponse.error.message}`);
+        }
+      } else {
+        const result = rpcResponse.data as { success: boolean; message?: string; doctor_id?: string };
+        if (!result || !result.success) {
+          throw new Error(result?.message || "Failed to register doctor profile");
+        }
 
-      console.log("[DoctorService] Doctor registered via RPC successfully:", result);
-      return {
-        ...doctor,
-        id: result.doctor_id,
-      } as Doctor;
+        console.log("[DoctorService] Doctor registered via RPC successfully:", result);
+        return {
+          ...doctor,
+          first_name: firstName,
+          middle_name: middleName,
+          last_name: lastName,
+          id: result.doctor_id,
+        } as Doctor;
+      }
     }
 
     // Fallback UPSERT: For existing doctors or environments without access code requirement
-    const { is_available, ...cleanDoctor } = doctor as any;
-    const { data, error } = await supabase
+    const { is_available, ...rawCleanDoctor } = doctor as any;
+    const cleanDoctor = {
+      ...rawCleanDoctor,
+      first_name: firstName,
+      middle_name: middleName || null,
+      last_name: lastName,
+    };
+    delete cleanDoctor.doctor_name;
+
+    // Synchronize name and phone with profiles table if user_id is available
+    if (cleanDoctor.user_id) {
+      try {
+        const profileUpdates: any = { role: "doctor" };
+        if (fullName) profileUpdates.name = fullName;
+        if (cleanDoctor.doctor_phone) profileUpdates.phone_number = cleanDoctor.doctor_phone;
+        await supabase
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("id", cleanDoctor.user_id);
+      } catch (profileErr) {
+        console.warn("[DoctorService] Could not update profile during doctor creation:", profileErr);
+      }
+    }
+
+    let { data, error } = await supabase
       .from("doctors")
       .upsert([cleanDoctor], { onConflict: "user_id" })
       .select()
       .single();
+
+    // If database table does not yet have first_name column (error 42703), retry with doctor_name
+    if (error && error.code === "42703" && error.message?.includes("first_name")) {
+      console.warn("[DoctorService] Database table lacks first_name column, retrying with doctor_name...");
+      const legacyDoctor = { ...rawCleanDoctor, doctor_name: fullName };
+      delete legacyDoctor.first_name;
+      delete legacyDoctor.middle_name;
+      delete legacyDoctor.last_name;
+
+      const retryRes = await supabase
+        .from("doctors")
+        .upsert([legacyDoctor], { onConflict: "user_id" })
+        .select()
+        .single();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
 
     if (error) {
       console.error("[DoctorService] Supabase upsert error:", {
@@ -252,15 +336,24 @@ export async function updateDoctorProfile(
   updates: Partial<Doctor>
 ): Promise<Doctor | null> {
   try {
-    const { id, created_at, is_available, ...cleanUpdates } = updates as any;
+    const { id, created_at, is_available, doctor_name, ...cleanUpdates } = updates as any;
 
-    // Synchronize phone with profiles table if user_id and doctor_phone are available
-    if (cleanUpdates.doctor_phone && cleanUpdates.user_id) {
+    const fullName = [cleanUpdates.first_name, cleanUpdates.middle_name, cleanUpdates.last_name]
+      .filter(Boolean)
+      .join(" ");
+
+    // Synchronize phone and name with profiles table if user_id is available
+    if (cleanUpdates.user_id) {
       try {
-        await supabase
-          .from("profiles")
-          .update({ phone_number: cleanUpdates.doctor_phone })
-          .eq("id", cleanUpdates.user_id);
+        const profileUpdates: any = {};
+        if (cleanUpdates.doctor_phone) profileUpdates.phone_number = cleanUpdates.doctor_phone;
+        if (fullName) profileUpdates.name = fullName;
+        if (Object.keys(profileUpdates).length > 0) {
+          await supabase
+            .from("profiles")
+            .update(profileUpdates)
+            .eq("id", cleanUpdates.user_id);
+        }
       } catch (profileErr) {
         console.warn("[DoctorService] Could not update profile phone_number:", profileErr);
       }

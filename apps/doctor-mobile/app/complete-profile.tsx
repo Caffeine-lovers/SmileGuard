@@ -72,22 +72,26 @@ export default function CompleteProfile() {
       console.log("[CompleteProfile] User metadata updated");
 
       // Create or update doctor profile
-      console.log("[CompleteProfile] Inserting doctor profile...");
-      const { error: insertError } = await supabase.from("doctors").insert([
+      console.log("[CompleteProfile] Upserting doctor profile...");
+      const nameParts = (formData.name || "").trim().split(" ");
+      const firstName = nameParts[0] || "Doctor";
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      const { error: insertError } = await supabase.from("doctors").upsert([
         {
           user_id: user?.id,
-          name: formData.name,
+          first_name: firstName,
+          last_name: lastName,
           specialization: formData.specialization,
           license_number: formData.licenseNumber,
-          phone_number: formData.phoneNumber,
+          doctor_phone: formData.phoneNumber,
         },
-      ]);
+      ], { onConflict: "user_id" });
 
-      if (insertError && insertError.code !== "23505") {
-        // 23505 is duplicate key error - if doctor exists, that's ok
+      if (insertError) {
         throw insertError;
       }
-      console.log("[CompleteProfile] Doctor profile inserted");
+      console.log("[CompleteProfile] Doctor profile upserted");
 
       console.log("✅ Profile completed successfully");
       Alert.alert("Success", "Profile updated successfully!");

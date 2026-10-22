@@ -1,4 +1,4 @@
-import { Doctor } from "@smileguard/shared-types";
+import { Doctor, getDoctorFullName } from "@smileguard/shared-types";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -94,7 +94,7 @@ export default function DoctorProfileView({
 
         {/* Basic Info */}
         <View style={styles.basicInfo}>
-          <Text style={styles.doctorName}>{doctor.doctor_name || "N/A"}</Text>
+          <Text style={styles.doctorName}>{getDoctorFullName(doctor) || "N/A"}</Text>
           <Text style={styles.specialization}>
             {doctor.specialization || "Specialization: N/A"}
           </Text>
@@ -137,7 +137,7 @@ export default function DoctorProfileView({
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Name:</Text>
-            <Text style={styles.value}>{doctor.doctor_name || "N/A"}</Text>
+            <Text style={styles.value}>{getDoctorFullName(doctor) || "N/A"}</Text>
           </View>
 
           <View style={styles.infoRow}>
