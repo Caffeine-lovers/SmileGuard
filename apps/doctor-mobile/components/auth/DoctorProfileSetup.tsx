@@ -206,10 +206,13 @@ export default function DoctorProfileSetup({
 
       // Update doctor data with user_id and image URL
       const { is_available, doctor_name, ...doctorDataClean } = doctorData as any;
-      const finalDoctorData = {
+      const finalDoctorData: Doctor = {
         ...doctorDataClean,
         user_id: data.user.id,
         profile_picture_url: profileImageUrl,
+        doctor_phone: (doctorData.doctor_phone || "").trim(),
+        years_of_experience: Number(doctorData.years_of_experience) || 0,
+        office_hours: doctorData.office_hours || EMPTY_DOCTOR.office_hours,
       };
 
       console.log("[DoctorProfileSetup] Final doctor data to save:", {
@@ -219,6 +222,9 @@ export default function DoctorProfileSetup({
         last_name: finalDoctorData.last_name,
         specialization: finalDoctorData.specialization,
         license_number: finalDoctorData.license_number,
+        doctor_phone: finalDoctorData.doctor_phone,
+        years_of_experience: finalDoctorData.years_of_experience,
+        has_office_hours: !!finalDoctorData.office_hours,
       });
 
       // Save doctor profile to database

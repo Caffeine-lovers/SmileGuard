@@ -40,6 +40,8 @@ import {
 export interface ClinicSetupProps {
   onClose?: () => void;
   onSave?: (clinicData: ClinicData) => void;
+  onSkip?: () => void;
+  isRegistration?: boolean;
   styles?: any;
   initialMode?: 'view' | 'edit';
 }
@@ -132,6 +134,8 @@ const DEFAULT_SERVICES: Service[] = PREDEFINED_SERVICES.map((name, index) => ({
 export default function ClinicSetup({
   onClose,
   onSave,
+  onSkip,
+  isRegistration = false,
   initialMode = 'view',
 }: ClinicSetupProps) {
   const { currentUser } = useAuth();
@@ -620,6 +624,52 @@ export default function ClinicSetup({
     }
   };
 
+  const handleSkip = () => {
+    if (onSkip) {
+      onSkip();
+    } else if (onSave) {
+      onSave(clinicData);
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
+  // Change tracking for glowing inputs and dynamic buttons
+  const isNameChanged =
+    originalClinicData !== null &&
+    clinicData.clinic_name.trim() !== (originalClinicData.clinic_name || '').trim();
+
+  const isAddressChanged =
+    originalClinicData !== null &&
+    clinicData.address.trim() !== (originalClinicData.address || '').trim();
+
+  const isLogoChanged =
+    originalClinicData !== null &&
+    clinicData.logo_url !== originalClinicData.logo_url;
+
+  const isGalleryChanged =
+    originalClinicData !== null &&
+    JSON.stringify(clinicData.gallery_images || []) !==
+      JSON.stringify(originalClinicData.gallery_images || []);
+
+  const isServicesChanged =
+    originalClinicData !== null &&
+    JSON.stringify(clinicData.services || []) !==
+      JSON.stringify(originalClinicData.services || []);
+
+  const isScheduleChanged =
+    originalClinicData !== null &&
+    JSON.stringify(clinicData.schedule || {}) !==
+      JSON.stringify(originalClinicData.schedule || {});
+
+  const hasAnyChanges =
+    isNameChanged ||
+    isAddressChanged ||
+    isLogoChanged ||
+    isGalleryChanged ||
+    isServicesChanged ||
+    isScheduleChanged;
+
   // Calculate today's operating status
   const currentDayKey = DAY_ORDER[new Date().getDay()];
   const currentDaySchedule = clinicData.schedule?.[currentDayKey];
@@ -682,11 +732,16 @@ export default function ClinicSetup({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Clinic Profile</Text>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-            {onClose && (
+            {isRegistration || Boolean(onSkip) ? (
+              <TouchableOpacity style={styles.headerSkipBtn} onPress={handleSkip}>
+                <Text style={styles.headerSkipBtnText}>Skip</Text>
+                <ChevronRight size={15} color="#047857" />
+              </TouchableOpacity>
+            ) : onClose ? (
               <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                 <X size={20} color="#047857" />
               </TouchableOpacity>
-            )}
+            ) : null}
             <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)}>
               <Text style={styles.editBtnText}>Edit</Text>
             </TouchableOpacity>
@@ -909,13 +964,21 @@ export default function ClinicSetup({
       {/* Header */}
       <View style={styles.editHeader}>
         <Text style={styles.editHeaderTitle}>Edit Clinic Setup</Text>
-        <TouchableOpacity
-          onPress={handleCancelEdit}
-          disabled={saving || uploadingLogo || uploadingGallery}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <X size={22} color="#047857" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          {(isRegistration || Boolean(onSkip)) && !hasAnyChanges && (
+            <TouchableOpacity style={styles.headerSkipBtn} onPress={handleSkip}>
+              <Text style={styles.headerSkipBtnText}>Skip</Text>
+              <ChevronRight size={15} color="#047857" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={handleCancelEdit}
+            disabled={saving || uploadingLogo || uploadingGallery}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <X size={22} color="#047857" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Dynamic Clinic Logo Card */}
@@ -981,18 +1044,24 @@ export default function ClinicSetup({
         {/* Section: Basic Details */}
         <Text style={styles.sectionHeader}>Clinic Details</Text>
 
-        <Text style={styles.inputLabel}>Clinic Name *</Text>
+        <Text style={styles.inputLabel}>
+          Clinic Name *{' '}
+          {isNameChanged && <Text style={styles.editedBadgeText}>● Modified</Text>}
+        </Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isNameChanged && styles.inputGlowing]}
           placeholder="e.g. SmileGuard Dental Clinic"
           value={clinicData.clinic_name}
           onChangeText={(text) => setClinicData((prev) => ({ ...prev, clinic_name: text }))}
           placeholderTextColor="#9ca3af"
         />
 
-        <Text style={styles.inputLabel}>Clinic Address *</Text>
+        <Text style={styles.inputLabel}>
+          Clinic Address *{' '}
+          {isAddressChanged && <Text style={styles.editedBadgeText}>● Modified</Text>}
+        </Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isAddressChanged && styles.inputGlowing]}
           placeholder="e.g. 123 Healthcare Ave, Suite 400"
           value={clinicData.address}
           onChangeText={(text) => setClinicData((prev) => ({ ...prev, address: text }))}
@@ -1244,22 +1313,41 @@ export default function ClinicSetup({
         >
           <Text style={styles.secondaryBtnText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.btn,
-            styles.primaryBtn,
-            (saving || uploadingLogo || uploadingGallery) && styles.btnDisabled,
-          ]}
-          onPress={handleSave}
-          disabled={saving || uploadingLogo || uploadingGallery}
-          activeOpacity={0.8}
-        >
-          {saving ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.btnText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
+
+        {hasAnyChanges ? (
+          <TouchableOpacity
+            style={[
+              styles.btn,
+              styles.primaryBtn,
+              styles.saveBtnGlowing,
+              (saving || uploadingLogo || uploadingGallery) && styles.btnDisabled,
+            ]}
+            onPress={handleSave}
+            disabled={saving || uploadingLogo || uploadingGallery}
+            activeOpacity={0.8}
+          >
+            {saving ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
+                <Text style={styles.btnText}>Save Changes</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.btn, styles.skipBtn]}
+            onPress={handleSkip}
+            disabled={saving || uploadingLogo || uploadingGallery}
+            activeOpacity={0.8}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.skipBtnText}>Skip</Text>
+              <ChevronRight size={16} color="#047857" />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -2511,6 +2599,76 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.6,
+  },
+  inputGlowing: {
+    borderColor: '#10B981',
+    borderWidth: 2,
+    backgroundColor: '#F0FDF4',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  editedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  skipBtn: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+  },
+  skipBtnText: {
+    color: '#047857',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  saveBtnGlowing: {
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  headerSkipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  headerSkipBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  registrationActionBar: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  registrationHint: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 6,
+    lineHeight: 18,
   },
 
   // Modal Styles

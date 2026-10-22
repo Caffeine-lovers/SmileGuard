@@ -4,7 +4,7 @@
  */
 
 import { supabase } from "@smileguard/supabase-client";
-import { Doctor } from "@smileguard/shared-types";
+import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
 
 /**
  * Fetch a doctor's complete profile by user_id
@@ -249,12 +249,77 @@ export async function createDoctorProfile(
         }
 
         console.log("[DoctorService] Doctor registered via RPC successfully:", result);
+
+        // Crucial: Update doctor_phone, years_of_experience, and office_hours
+        // which are not set by the complete_doctor_registration RPC
+        const postRegUpdates: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+
+        if (doctor.doctor_phone !== undefined && doctor.doctor_phone !== null) {
+          postRegUpdates.doctor_phone = doctor.doctor_phone.trim() || null;
+        }
+
+        const yearsExp = doctor.years_of_experience !== undefined && doctor.years_of_experience !== null
+          ? Number(doctor.years_of_experience)
+          : 0;
+        postRegUpdates.years_of_experience = isNaN(yearsExp) ? 0 : yearsExp;
+
+        postRegUpdates.office_hours = doctor.office_hours || EMPTY_DOCTOR.office_hours;
+
+        const targetDoctorId = result.doctor_id || doctor.id;
+        console.log("[DoctorService] Updating doctor post-registration fields:", {
+          doctorId: targetDoctorId,
+          user_id: doctor.user_id,
+          doctor_phone: postRegUpdates.doctor_phone,
+          years_of_experience: postRegUpdates.years_of_experience,
+          has_office_hours: !!postRegUpdates.office_hours,
+        });
+
+        try {
+          if (targetDoctorId) {
+            const { error: idErr } = await supabase
+              .from("doctors")
+              .update(postRegUpdates)
+              .eq("id", targetDoctorId);
+            if (idErr) {
+              console.warn("[DoctorService] Could not update doctor record by id, trying by user_id:", idErr);
+              if (doctor.user_id) {
+                await supabase.from("doctors").update(postRegUpdates).eq("user_id", doctor.user_id);
+              }
+            }
+          } else if (doctor.user_id) {
+            await supabase.from("doctors").update(postRegUpdates).eq("user_id", doctor.user_id);
+          }
+        } catch (updateEx) {
+          console.warn("[DoctorService] Exception updating post-registration fields on doctors:", updateEx);
+        }
+
+        // Also synchronize doctor_phone and full name with profiles table
+        if (doctor.user_id) {
+          try {
+            const profileUpdates: any = { role: "doctor" };
+            if (fullName) profileUpdates.name = fullName;
+            if (postRegUpdates.doctor_phone) profileUpdates.phone_number = postRegUpdates.doctor_phone;
+            await supabase
+              .from("profiles")
+              .update(profileUpdates)
+              .eq("id", doctor.user_id);
+            console.log("[DoctorService] Profiles table synced with role and phone_number");
+          } catch (profileErr) {
+            console.warn("[DoctorService] Could not update profile phone during RPC registration:", profileErr);
+          }
+        }
+
         return {
           ...doctor,
           first_name: firstName,
           middle_name: middleName,
           last_name: lastName,
-          id: result.doctor_id,
+          id: result.doctor_id || doctor.id,
+          doctor_phone: postRegUpdates.doctor_phone ?? doctor.doctor_phone,
+          years_of_experience: postRegUpdates.years_of_experience,
+          office_hours: postRegUpdates.office_hours,
         } as Doctor;
       }
     }
@@ -266,6 +331,9 @@ export async function createDoctorProfile(
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
+      doctor_phone: doctor.doctor_phone ? doctor.doctor_phone.trim() : null,
+      years_of_experience: Number(doctor.years_of_experience) || 0,
+      office_hours: doctor.office_hours || EMPTY_DOCTOR.office_hours,
     };
     delete cleanDoctor.doctor_name;
 

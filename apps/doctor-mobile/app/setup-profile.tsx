@@ -49,6 +49,8 @@ export default function SetupProfilePage() {
         <ClinicSetup
           onClose={handleClinicClose}
           onSave={handleClinicSave}
+          onSkip={handleClinicSave}
+          isRegistration={true}
         />
       )}
     </View>
