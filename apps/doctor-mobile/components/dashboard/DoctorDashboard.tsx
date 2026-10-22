@@ -68,6 +68,8 @@ import {
   getToday,
 } from "../../data/dashboardData";
 
+const APP_LOGO = require('../../assets/images/SmileGuard-Doc-Logo.png');
+
 // Type definitions
 export interface DashboardAppointment {
   id: string;
@@ -1260,10 +1262,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         >
           <View style={styles.sidebarHeader}>
             <View style={styles.sidebarBrandRow}>
-              {clinic?.logo_url ? (
+              {clinic?.logo_url === 'APP_LOGO' ? (
+                <Image
+                  source={APP_LOGO}
+                  style={[styles.sidebarBrandLogo, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}
+                  resizeMode="contain"
+                />
+              ) : clinic?.logo_url ? (
                 <Image
                   source={{ uri: clinic.logo_url }}
                   style={styles.sidebarBrandLogo}
+                  resizeMode="cover"
                 />
               ) : (
                 <View style={styles.sidebarBrandIcon}>

@@ -37,6 +37,8 @@ import {
   uploadMultipleClinicGalleryImages,
 } from '../../lib/imageUploadService';
 
+const APP_LOGO = require('../../assets/images/SmileGuard-Doc-Logo.png');
+
 export interface ClinicSetupProps {
   onClose?: () => void;
   onSave?: (clinicData: ClinicData) => void;
@@ -161,6 +163,7 @@ export default function ClinicSetup({
   // Editing state
   const [newService, setNewService] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [lastCustomLogoUrl, setLastCustomLogoUrl] = useState<string | null>(null);
   const [uploadingGallery, setUploadingGallery] = useState(false);
 
   // Time Picker states
@@ -265,6 +268,9 @@ export default function ClinicSetup({
           setClinicSetupId(data.id);
           setClinicData(loadedData);
           setOriginalClinicData(loadedData);
+          if (data.logo_url && data.logo_url !== 'APP_LOGO') {
+            setLastCustomLogoUrl(data.logo_url);
+          }
           setNoClinicRecord(false);
 
           if (!blockoutError && blockoutData) {
@@ -337,7 +343,8 @@ export default function ClinicSetup({
           ...prev,
           logo_url: logoUrl,
         }));
-        Alert.alert('Success', 'Clinic logo updated successfully!');
+        setLastCustomLogoUrl(logoUrl);
+        Alert.alert('Success', 'Clinic custom logo updated successfully!');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to upload logo';
         Alert.alert('Upload Failed', message);
@@ -350,17 +357,45 @@ export default function ClinicSetup({
     }
   };
 
+  const handleSelectAppLogo = () => {
+    setClinicData((prev) => ({
+      ...prev,
+      logo_url: 'APP_LOGO',
+    }));
+  };
+
+  const handleSelectCustomLogo = () => {
+    if (lastCustomLogoUrl) {
+      setClinicData((prev) => ({
+        ...prev,
+        logo_url: lastCustomLogoUrl,
+      }));
+    } else {
+      handleUploadLogoPress();
+    }
+  };
+
   const handleRemoveLogo = () => {
-    Alert.alert('Remove Logo', 'Are you sure you want to remove the clinic logo?', [
+    Alert.alert('Clinic Logo Option', 'Choose how you want to manage your clinic logo:', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Remove',
+        text: 'Use App Logo',
+        onPress: () => {
+          setClinicData((prev) => ({
+            ...prev,
+            logo_url: 'APP_LOGO',
+          }));
+        },
+      },
+      {
+        text: 'Clear Logo',
         style: 'destructive',
         onPress: () => {
           setClinicData((prev) => ({
             ...prev,
             logo_url: undefined,
           }));
+          setLastCustomLogoUrl(null);
         },
       },
     ]);
@@ -650,17 +685,17 @@ export default function ClinicSetup({
   const isGalleryChanged =
     originalClinicData !== null &&
     JSON.stringify(clinicData.gallery_images || []) !==
-      JSON.stringify(originalClinicData.gallery_images || []);
+    JSON.stringify(originalClinicData.gallery_images || []);
 
   const isServicesChanged =
     originalClinicData !== null &&
     JSON.stringify(clinicData.services || []) !==
-      JSON.stringify(originalClinicData.services || []);
+    JSON.stringify(originalClinicData.services || []);
 
   const isScheduleChanged =
     originalClinicData !== null &&
     JSON.stringify(clinicData.schedule || {}) !==
-      JSON.stringify(originalClinicData.schedule || {});
+    JSON.stringify(originalClinicData.schedule || {});
 
   const hasAnyChanges =
     isNameChanged ||
@@ -674,6 +709,9 @@ export default function ClinicSetup({
   const currentDayKey = DAY_ORDER[new Date().getDay()];
   const currentDaySchedule = clinicData.schedule?.[currentDayKey];
   const isTodayOpen = currentDaySchedule?.isOpen;
+
+  const isUsingAppLogo = clinicData.logo_url === 'APP_LOGO';
+  const isUsingCustomLogo = Boolean(clinicData.logo_url && clinicData.logo_url !== 'APP_LOGO');
 
   // ─────────────────────────────────────────────────────────────
   // LOADING STATE
@@ -752,7 +790,13 @@ export default function ClinicSetup({
         <View style={styles.profileCard}>
           {/* Clinic Logo */}
           <View style={styles.profileImageContainer}>
-            {clinicData.logo_url ? (
+            {isUsingAppLogo ? (
+              <Image
+                source={APP_LOGO}
+                style={[styles.profileImage, { backgroundColor: '#F8FAFC' }]}
+                resizeMode="contain"
+              />
+            ) : clinicData.logo_url ? (
               <Image source={{ uri: clinicData.logo_url }} style={styles.profileImage} />
             ) : (
               <View style={styles.profileImagePlaceholder}>
@@ -796,6 +840,17 @@ export default function ClinicSetup({
             <View style={styles.infoRow}>
               <Text style={styles.label}>Clinic Name:</Text>
               <Text style={styles.value}>{clinicData.clinic_name || 'N/A'}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Clinic Logo:</Text>
+              <Text style={styles.value}>
+                {isUsingAppLogo
+                  ? 'SmileGuard App Logo'
+                  : isUsingCustomLogo
+                    ? 'Custom Clinic Logo'
+                    : 'None (Default Icon)'}
+              </Text>
             </View>
 
             <View style={styles.infoRow}>
@@ -981,58 +1036,209 @@ export default function ClinicSetup({
         </View>
       </View>
 
-      {/* Dynamic Clinic Logo Card */}
+      {/* Clinic Logo Branding Card */}
       <View style={styles.avatarCard}>
-        <TouchableOpacity
-          style={styles.avatarContainer}
-          onPress={handleUploadLogoPress}
-          disabled={saving || uploadingLogo}
-          activeOpacity={0.8}
-        >
-          {clinicData.logo_url ? (
-            <Image source={{ uri: clinicData.logo_url }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Building2 size={44} color="#94A3B8" />
-            </View>
-          )}
+        <View style={styles.logoCardHeader}>
+          <Text style={styles.logoCardTitle}>Clinic Logo</Text>
+          <Text style={styles.logoCardSubtitle}>
+            Select the default SmileGuard app logo or upload a custom logo for your clinic
+          </Text>
+        </View>
 
-          {uploadingLogo ? (
-            <View style={styles.avatarOverlay}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            </View>
-          ) : (
-            <View style={styles.cameraBadge}>
-              <Camera size={14} color="#FFFFFF" />
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+        {/* Logo Selection Options */}
+        <View style={styles.logoOptionsRow}>
+          {/* Option 1: App Logo */}
           <TouchableOpacity
-            onPress={handleUploadLogoPress}
+            style={[
+              styles.logoOptionCard,
+              isUsingAppLogo && styles.logoOptionCardSelected,
+            ]}
+            onPress={handleSelectAppLogo}
             disabled={saving || uploadingLogo}
-            style={styles.changePhotoBtn}
+            activeOpacity={0.7}
           >
-            {uploadingLogo ? (
-              <ActivityIndicator size="small" color="#047857" style={{ marginRight: 6 }} />
-            ) : (
-              <Camera size={15} color="#047857" style={{ marginRight: 6 }} />
-            )}
-            <Text style={styles.changePhotoText}>
-              {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+            <View style={styles.logoOptionHeader}>
+              <View
+                style={[
+                  styles.logoRadioCircle,
+                  isUsingAppLogo && styles.logoRadioCircleSelected,
+                ]}
+              >
+                {isUsingAppLogo && <View style={styles.logoRadioDot} />}
+              </View>
+              {isUsingAppLogo && (
+                <View style={styles.selectedBadge}>
+                  <Text style={styles.selectedBadgeText}>Selected</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.logoOptionThumbContainer}>
+              <Image
+                source={APP_LOGO}
+                style={styles.logoOptionThumb}
+                resizeMode="contain"
+              />
+            </View>
+
+            <Text
+              style={[
+                styles.logoOptionName,
+                isUsingAppLogo && styles.logoOptionNameSelected,
+              ]}
+            >
+              App Logo
             </Text>
+            <Text style={styles.logoOptionSubtext}>SmileGuard Default</Text>
           </TouchableOpacity>
 
-          {Boolean(clinicData.logo_url) && (
-            <TouchableOpacity
-              onPress={handleRemoveLogo}
-              disabled={saving || uploadingLogo}
-              style={styles.removeLogoBtn}
+          {/* Option 2: Custom Logo */}
+          <TouchableOpacity
+            style={[
+              styles.logoOptionCard,
+              isUsingCustomLogo && styles.logoOptionCardSelected,
+            ]}
+            onPress={handleSelectCustomLogo}
+            disabled={saving || uploadingLogo}
+            activeOpacity={0.7}
+          >
+            <View style={styles.logoOptionHeader}>
+              <View
+                style={[
+                  styles.logoRadioCircle,
+                  isUsingCustomLogo && styles.logoRadioCircleSelected,
+                ]}
+              >
+                {isUsingCustomLogo && <View style={styles.logoRadioDot} />}
+              </View>
+              {isUsingCustomLogo && (
+                <View style={styles.selectedBadge}>
+                  <Text style={styles.selectedBadgeText}>Selected</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.logoOptionThumbContainer}>
+              {lastCustomLogoUrl || isUsingCustomLogo ? (
+                <Image
+                  source={{ uri: (isUsingCustomLogo ? clinicData.logo_url : lastCustomLogoUrl)! }}
+                  style={styles.logoOptionThumb}
+                />
+              ) : (
+                <View style={styles.logoOptionThumbPlaceholder}>
+                  <Camera size={20} color="#047857" />
+                </View>
+              )}
+            </View>
+
+            <Text
+              style={[
+                styles.logoOptionName,
+                isUsingCustomLogo && styles.logoOptionNameSelected,
+              ]}
             >
-              <Trash2 size={14} color="#DC2626" />
+              Custom Logo
+            </Text>
+            <Text style={styles.logoOptionSubtext}>
+              {lastCustomLogoUrl || isUsingCustomLogo ? 'Custom Uploaded' : 'Upload Image'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Selected Logo Preview & Management */}
+        <View style={styles.logoPreviewContainer}>
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={() => {
+              if (isUsingAppLogo) {
+                Alert.alert(
+                  'SmileGuard App Logo',
+                  'You are currently using the default app logo. Would you like to upload a custom clinic logo?',
+                  [
+                    { text: 'Keep App Logo', style: 'cancel' },
+                    { text: 'Upload Custom Logo', onPress: handleUploadLogoPress },
+                  ]
+                );
+              } else {
+                handleUploadLogoPress();
+              }
+            }}
+            disabled={saving || uploadingLogo}
+            activeOpacity={0.8}
+          >
+            {isUsingAppLogo ? (
+              <Image
+                source={APP_LOGO}
+                style={[styles.avatarImage, { backgroundColor: '#F8FAFC' }]}
+                resizeMode="contain"
+              />
+            ) : clinicData.logo_url ? (
+              <Image
+                source={{ uri: clinicData.logo_url }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Building2 size={44} color="#94A3B8" />
+              </View>
+            )}
+
+            {uploadingLogo ? (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : (
+              <View style={styles.cameraBadge}>
+                {isUsingAppLogo ? (
+                  <Check size={14} color="#FFFFFF" />
+                ) : (
+                  <Camera size={14} color="#FFFFFF" />
+                )}
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Action Buttons */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={handleUploadLogoPress}
+              disabled={saving || uploadingLogo}
+              style={styles.changePhotoBtn}
+            >
+              {uploadingLogo ? (
+                <ActivityIndicator size="small" color="#047857" style={{ marginRight: 6 }} />
+              ) :
+                <Text style={styles.changePhotoText}>
+                  {uploadingLogo
+                    ? 'Uploading...'
+                    : isUsingCustomLogo
+                      ? 'Change Custom Logo'
+                      : 'Upload Custom Logo'}
+                </Text>
+              }
             </TouchableOpacity>
-          )}
+
+
+            {!isUsingAppLogo && (
+              <TouchableOpacity
+                onPress={handleSelectAppLogo}
+                disabled={saving || uploadingLogo}
+                style={styles.useAppLogoBtn}
+              >
+                <Text style={styles.useAppLogoBtnText}>Use App Logo</Text>
+              </TouchableOpacity>
+            )}
+
+            {Boolean(clinicData.logo_url) && (
+              <TouchableOpacity
+                onPress={handleRemoveLogo}
+                disabled={saving || uploadingLogo}
+                style={styles.removeLogoBtn}
+              >
+                <Trash2 size={14} color="#DC2626" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
 
@@ -1227,7 +1433,6 @@ export default function ClinicSetup({
                     >
                       <Text style={styles.timeInputBtnLabel}>From</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Clock size={13} color="#047857" />
                         <Text style={styles.timeInputBtnValue}>{sched.opening_time}</Text>
                       </View>
                     </TouchableOpacity>
@@ -1240,7 +1445,6 @@ export default function ClinicSetup({
                     >
                       <Text style={styles.timeInputBtnLabel}>To</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Clock size={13} color="#047857" />
                         <Text style={styles.timeInputBtnValue}>{sched.closing_time}</Text>
                       </View>
                     </TouchableOpacity>
@@ -1642,7 +1846,18 @@ export default function ClinicSetup({
       >
         <View style={styles.modalCenterOverlay}>
           <View style={styles.formatDialogCard}>
-            <Text style={styles.formatDialogTitle}>Choose Crop Format</Text>
+            <View style={styles.formatDialogHeaderRow}>
+              <Text style={styles.formatDialogTitle}>Choose Crop Format</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowImageFormatModal(false);
+                  setPendingUploadType(null);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.formatDialogSubtitle}>
               Select the aspect ratio for your uploaded image
             </Text>
@@ -1658,6 +1873,7 @@ export default function ClinicSetup({
                 }
                 setPendingUploadType(null);
               }}
+              activeOpacity={0.7}
             >
               <Text style={styles.formatOptionTitle}>Square (1:1)</Text>
               <Text style={styles.formatOptionDesc}>Recommended for clean logos and cards</Text>
@@ -1674,19 +1890,21 @@ export default function ClinicSetup({
                 }
                 setPendingUploadType(null);
               }}
+              activeOpacity={0.7}
             >
               <Text style={styles.formatOptionTitle}>Free Form</Text>
               <Text style={styles.formatOptionDesc}>Crop or scale to any custom dimensions</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.btn, styles.secondaryBtn, { marginTop: 8 }]}
+              style={styles.formatCancelBtn}
               onPress={() => {
                 setShowImageFormatModal(false);
                 setPendingUploadType(null);
               }}
+              activeOpacity={0.7}
             >
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
+              <Text style={styles.formatCancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2323,6 +2541,141 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  logoCardHeader: {
+    width: '100%',
+    marginBottom: 14,
+    alignItems: 'center',
+  },
+  logoCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#047857',
+    marginBottom: 4,
+  },
+  logoCardSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
+  logoOptionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginBottom: 16,
+  },
+  logoOptionCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    alignItems: 'center',
+  },
+  logoOptionCardSelected: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  logoOptionHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  logoRadioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoRadioCircleSelected: {
+    borderColor: '#10B981',
+  },
+  logoRadioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#10B981',
+  },
+  selectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  selectedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  logoOptionThumbContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  logoOptionThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  logoOptionThumbPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoOptionName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  logoOptionNameSelected: {
+    color: '#047857',
+  },
+  logoOptionSubtext: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  logoPreviewContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  useAppLogoBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  useAppLogoBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
   stepContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -2759,17 +3112,21 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
   },
+  formatDialogHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   formatDialogTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 4,
+    flex: 1,
   },
   formatDialogSubtitle: {
     fontSize: 13,
     color: '#64748B',
-    textAlign: 'center',
     marginBottom: 18,
   },
   formatOptionBtn: {
@@ -2789,6 +3146,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+  },
+  formatCancelBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  formatCancelBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
   },
 
   dateSelectorRow: {
