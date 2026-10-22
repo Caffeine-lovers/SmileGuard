@@ -123,6 +123,12 @@ const PREDEFINED_SERVICES = [
   'Checkup',
 ];
 
+const DEFAULT_SERVICES: Service[] = PREDEFINED_SERVICES.map((name, index) => ({
+  id: `default_service_${index + 1}`,
+  name,
+  description: '',
+}));
+
 export default function ClinicSetup({
   onClose,
   onSave,
@@ -141,7 +147,7 @@ export default function ClinicSetup({
     clinic_name: '',
     address: '',
     gallery_images: [],
-    services: [],
+    services: DEFAULT_SERVICES,
     schedule: defaultSchedule,
   });
 
@@ -212,12 +218,43 @@ export default function ClinicSetup({
             }
           }
 
+          let servicesList: Service[] = [];
+          if (data.services) {
+            if (Array.isArray(data.services)) {
+              servicesList = data.services.map((s: any, idx: number) => {
+                if (typeof s === 'string') {
+                  return { id: `service_${idx}_${Date.now()}`, name: s, description: '' };
+                }
+                return s;
+              });
+            } else if (typeof data.services === 'string') {
+              try {
+                const parsed = JSON.parse(data.services);
+                if (Array.isArray(parsed)) {
+                  servicesList = parsed.map((s: any, idx: number) => {
+                    if (typeof s === 'string') {
+                      return { id: `service_${idx}_${Date.now()}`, name: s, description: '' };
+                    }
+                    return s;
+                  });
+                }
+              } catch {
+                servicesList = [];
+              }
+            }
+          }
+
+          // Fallback to standard clinic services if none are currently saved in the database
+          if (servicesList.length === 0) {
+            servicesList = DEFAULT_SERVICES;
+          }
+
           const loadedData: ClinicData = {
             clinic_name: data.clinic_name || '',
             address: data.address || '',
             logo_url: data.logo_url || undefined,
             gallery_images: galleryImages,
-            services: data.services || [],
+            services: servicesList,
             schedule: data.schedule || defaultSchedule,
           };
 
@@ -790,7 +827,6 @@ export default function ClinicSetup({
               <View style={styles.chipsContainer}>
                 {clinicData.services.map((service) => (
                   <View key={service.id} style={styles.serviceChipView}>
-                    <Sparkles size={12} color="#047857" style={{ marginRight: 5 }} />
                     <Text style={styles.serviceChipText}>{service.name}</Text>
                   </View>
                 ))}
@@ -908,15 +944,6 @@ export default function ClinicSetup({
             </View>
           )}
         </TouchableOpacity>
-
-        {clinicData.logo_url ? (
-          <View style={styles.activePhotoIndicator}>
-            <Check size={12} color="#047857" />
-            <Text style={styles.activePhotoText}>Active Clinic Logo</Text>
-          </View>
-        ) : (
-          <Text style={styles.photoHint}>No clinic logo selected</Text>
-        )}
 
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
           <TouchableOpacity
@@ -1176,8 +1203,7 @@ export default function ClinicSetup({
             setShowBlockoutDatePicker(true);
           }}
         >
-          <Calendar size={16} color="#047857" style={{ marginRight: 6 }} />
-          <Text style={styles.addBlockoutTriggerBtnText}>+ Add Blockout Date</Text>
+          <Text style={styles.addBlockoutTriggerBtnText}>Add Blockout Date</Text>
         </TouchableOpacity>
 
         {blockoutDates.length > 0 && (
