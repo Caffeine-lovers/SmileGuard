@@ -209,6 +209,7 @@ export default function DoctorProfileSetup({
       const finalDoctorData: Doctor = {
         ...doctorDataClean,
         user_id: data.user.id,
+        gender: (doctorData.gender || "").trim() || undefined,
         profile_picture_url: profileImageUrl,
         doctor_phone: (doctorData.doctor_phone || "").trim(),
         years_of_experience: Number(doctorData.years_of_experience) || 0,
@@ -497,6 +498,36 @@ export default function DoctorProfileSetup({
             value={doctorData.last_name || ""}
             onChangeText={(text) => updateDoctorData("last_name", text)}
           />
+
+          <Text style={styles.label}>Gender (determines Dr. or Dra. title)</Text>
+          <View style={styles.genderChipRow}>
+            {[
+              { label: "Male (Dr.)", value: "Male" },
+              { label: "Female (Dra.)", value: "Female" },
+            ].map((item) => {
+              const isSelected = (doctorData.gender || "").toLowerCase() === item.value.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.genderChip,
+                    isSelected && styles.genderChipActive,
+                  ]}
+                  onPress={() => updateDoctorData("gender", item.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.genderChipText,
+                      isSelected && styles.genderChipTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={styles.label}>Doctor Phone</Text>
           <TextInput
@@ -833,5 +864,34 @@ const styles = StyleSheet.create({
   dropdownOptionText: {
     fontSize: 13,
     color: "#334155",
+  },
+  genderChipRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  genderChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  genderChipActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#047857",
+  },
+  genderChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  genderChipTextActive: {
+    color: "#047857",
+    fontWeight: "700",
   },
 });

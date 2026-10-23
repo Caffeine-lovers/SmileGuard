@@ -29,7 +29,7 @@ import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
-import { getDoctorFullName } from "@smileguard/shared-types";
+import { getDoctorFullName, getDoctorPrefix } from "@smileguard/shared-types";
 import { supabase } from '@smileguard/supabase-client';
 import {
   notifyAppointmentStatusChanged,
@@ -116,7 +116,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const notificationState = useNotifications(user?.id, true, handleIncomingNotification);
 
   // Doctor profile state
-  const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { first_name?: string; middle_name?: string; last_name?: string; doctor_name?: string }>(user);
+  const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { first_name?: string; middle_name?: string; last_name?: string; doctor_name?: string; gender?: string }>(user);
 
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
@@ -236,6 +236,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             first_name: profile.first_name,
             middle_name: profile.middle_name,
             last_name: profile.last_name,
+            gender: profile.gender,
             doctor_name: fullName || profile.doctor_name,
             name: fullName || prev.name,
           }));
@@ -671,7 +672,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
           <View style={styles.topBarCenter}>
             <Text style={styles.topBarDoctorName} numberOfLines={1}>
-              Dr. {getDoctorFullName(doctorProfile) || doctorProfile.name || 'Doctor'}
+              {getDoctorPrefix(doctorProfile)} {getDoctorFullName(doctorProfile) || doctorProfile.name || 'Doctor'}
             </Text>
             <Text style={styles.topBarClinic} numberOfLines={1}>
               {(doctorProfile as any)?.specialization || clinic?.clinic_name || 'SmileGuard'}
@@ -780,7 +781,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 <View style={{ marginBottom: 16 }}>
                   <Text style={styles.welcomeGreeting}>Welcome back,</Text>
                   <Text style={styles.welcomeName}>
-                    Dr. {getDoctorFullName(doctorProfile) || doctorProfile.name || 'Doctor'}
+                    {getDoctorPrefix(doctorProfile)} {getDoctorFullName(doctorProfile) || doctorProfile.name || 'Doctor'}
                   </Text>
                 </View>
 

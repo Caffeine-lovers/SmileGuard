@@ -111,6 +111,7 @@ export default function DoctorProfileEdit({
         first_name: doctor.first_name || fallbackFirst,
         middle_name: doctor.middle_name || "",
         last_name: doctor.last_name || fallbackLast,
+        gender: doctor.gender || "",
         doctor_phone: doctor.doctor_phone || (doctor as any).phone_number || (doctor as any).clinic_phone || "",
       });
       if (doctor.profile_picture_url) {
@@ -324,6 +325,7 @@ export default function DoctorProfileEdit({
         first_name: (doctorData.first_name || "").trim(),
         middle_name: (doctorData.middle_name || "").trim(),
         last_name: (doctorData.last_name || "").trim(),
+        gender: (doctorData.gender || "").trim(),
         license_number: (doctorData.license_number || "").trim(),
         specialization: (doctorData.specialization || "").trim(),
         doctor_phone: (doctorData.doctor_phone || "").trim(),
@@ -563,6 +565,36 @@ export default function DoctorProfileEdit({
           value={doctorData.last_name || ""}
           onChangeText={(text) => updateDoctorData("last_name", text)}
         />
+
+        <Text style={styles.inputLabel}>Gender (determines Dr. or Dra. title)</Text>
+        <View style={styles.genderChipRow}>
+          {[
+            { label: "Male (Dr.)", value: "Male" },
+            { label: "Female (Dra.)", value: "Female" },
+          ].map((item) => {
+            const isSelected = (doctorData.gender || "").toLowerCase() === item.value.toLowerCase();
+            return (
+              <TouchableOpacity
+                key={item.value}
+                style={[
+                  styles.genderChip,
+                  isSelected && styles.genderChipActive,
+                ]}
+                onPress={() => updateDoctorData("gender", item.value)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.genderChipText,
+                    isSelected && styles.genderChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <Text style={styles.inputLabel}>Contact Phone Number</Text>
         <TextInput
@@ -1180,5 +1212,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#475569",
     textAlign: "center",
+  },
+  genderChipRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  genderChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  genderChipActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#047857",
+  },
+  genderChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  genderChipTextActive: {
+    color: "#047857",
+    fontWeight: "700",
   },
 });

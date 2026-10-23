@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   calculateDiscount,
   formatDoctorDisplayName,
+  getDoctorPrefix,
+  getDoctorTitleName,
   type Billing,
   type CurrentUser,
   type Appointment,
@@ -374,6 +376,76 @@ describe("CurrentUser Type Safety", () => {
 
     it("should handle missing doctor object", () => {
       expect(formatDoctorDisplayName(undefined)).toBe("");
+    });
+
+    it("should include prefix when includePrefix is true", () => {
+      const maleDoctor = {
+        first_name: "Juan",
+        middle_name: "Santos",
+        last_name: "Dela Cruz",
+        gender: "Male",
+      };
+      expect(formatDoctorDisplayName(maleDoctor, { includePrefix: true })).toBe("Dr. Juan S. Dela Cruz");
+
+      const femaleDoctor = {
+        first_name: "Maria",
+        middle_name: "Clara",
+        last_name: "Santos",
+        gender: "Female",
+      };
+      expect(formatDoctorDisplayName(femaleDoctor, { includePrefix: true })).toBe("Dra. Maria C. Santos");
+    });
+  });
+
+  describe("getDoctorPrefix()", () => {
+    it("should return Dra. for female doctors", () => {
+      expect(getDoctorPrefix("Female")).toBe("Dra.");
+      expect(getDoctorPrefix("female")).toBe("Dra.");
+      expect(getDoctorPrefix("FEMALE")).toBe("Dra.");
+      expect(getDoctorPrefix("f")).toBe("Dra.");
+      expect(getDoctorPrefix("dra")).toBe("Dra.");
+      expect(getDoctorPrefix({ gender: "Female" })).toBe("Dra.");
+      expect(getDoctorPrefix({ gender: "female" })).toBe("Dra.");
+    });
+
+    it("should return Dr. for male doctors or unspecified gender", () => {
+      expect(getDoctorPrefix("Male")).toBe("Dr.");
+      expect(getDoctorPrefix("male")).toBe("Dr.");
+      expect(getDoctorPrefix("")).toBe("Dr.");
+      expect(getDoctorPrefix(null)).toBe("Dr.");
+      expect(getDoctorPrefix(undefined)).toBe("Dr.");
+      expect(getDoctorPrefix({ gender: "Male" })).toBe("Dr.");
+      expect(getDoctorPrefix({ gender: "" })).toBe("Dr.");
+      expect(getDoctorPrefix({})).toBe("Dr.");
+    });
+
+    it("should support without dot option (Dr / Dra)", () => {
+      expect(getDoctorPrefix("Female", { withDot: false })).toBe("Dra");
+      expect(getDoctorPrefix("Male", { withDot: false })).toBe("Dr");
+      expect(getDoctorPrefix(undefined, { withDot: false })).toBe("Dr");
+    });
+  });
+
+  describe("getDoctorTitleName()", () => {
+    it("should return full name with prefix based on gender", () => {
+      const maleDoctor = {
+        first_name: "Juan",
+        middle_name: "Santos",
+        last_name: "Dela Cruz",
+        gender: "Male",
+      };
+      expect(getDoctorTitleName(maleDoctor)).toBe("Dr. Juan Santos Dela Cruz");
+
+      const femaleDoctor = {
+        first_name: "Maria",
+        last_name: "Santos",
+        gender: "Female",
+      };
+      expect(getDoctorTitleName(femaleDoctor)).toBe("Dra. Maria Santos");
+    });
+
+    it("should return empty string if doctor is missing", () => {
+      expect(getDoctorTitleName(undefined)).toBe("");
     });
   });
 });

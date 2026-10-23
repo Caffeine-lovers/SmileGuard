@@ -102,6 +102,7 @@ export interface Doctor {
   first_name?: string;
   middle_name?: string;
   last_name?: string;
+  gender?: string; // "Male" | "Female" | string (used to identify Dr. vs Dra.)
   doctor_name?: string; // Legacy fallback
   doctor_phone?: string;
   office_hours?: OfficeHours;
@@ -119,6 +120,7 @@ export const EMPTY_DOCTOR: Doctor = {
   first_name: "",
   middle_name: "",
   last_name: "",
+  gender: "",
   doctor_name: "",
   doctor_phone: "",
   office_hours: {
@@ -143,6 +145,35 @@ export const EMPTY_DOCTOR: Doctor = {
 };
 
 /**
+ * Helper to get doctor prefix title ("Dr." or "Dra.") based on gender.
+ * Defaults to "Dr." if gender is unspecified, male, or non-female.
+ * Returns "Dra." when gender is female.
+ */
+export function getDoctorPrefix(
+  doctorOrGender?: { gender?: string | null } | string | null,
+  options?: { withDot?: boolean }
+): string {
+  const withDot = options?.withDot !== false;
+  const rawGender =
+    typeof doctorOrGender === "string"
+      ? doctorOrGender
+      : doctorOrGender?.gender;
+
+  const normalized = (rawGender || "").trim().toLowerCase();
+  const isFemale =
+    normalized === "female" ||
+    normalized === "f" ||
+    normalized === "dra" ||
+    normalized === "dra." ||
+    normalized === "doctora";
+
+  if (withDot) {
+    return isFemale ? "Dra." : "Dr.";
+  }
+  return isFemale ? "Dra" : "Dr";
+}
+
+/**
  * Helper to construct the full name of a doctor
  */
 export function getDoctorFullName(doctor?: {
@@ -150,6 +181,7 @@ export function getDoctorFullName(doctor?: {
   middle_name?: string;
   last_name?: string;
   doctor_name?: string;
+  gender?: string;
 }): string {
   if (!doctor) return "";
   const parts = [doctor.first_name, doctor.middle_name, doctor.last_name]
@@ -160,13 +192,37 @@ export function getDoctorFullName(doctor?: {
 }
 
 /**
+ * Helper to construct doctor title with full name: [Dr.|Dra.] [First] [Middle] [Last]
+ */
+export function getDoctorTitleName(
+  doctor?: {
+    first_name?: string;
+    middle_name?: string;
+    last_name?: string;
+    doctor_name?: string;
+    gender?: string;
+  },
+  options?: { withDot?: boolean }
+): string {
+  if (!doctor) return "";
+  const prefix = getDoctorPrefix(doctor, options);
+  const fullName = getDoctorFullName(doctor);
+  if (!fullName) return prefix;
+  return `${prefix} ${fullName}`;
+}
+
+/**
  * Helper to construct doctor display name: first_name, middle initial (if present), and last_name
  */
-export function formatDoctorDisplayName(doctor?: {
-  first_name?: string | null;
-  middle_name?: string | null;
-  last_name?: string | null;
-}): string {
+export function formatDoctorDisplayName(
+  doctor?: {
+    first_name?: string | null;
+    middle_name?: string | null;
+    last_name?: string | null;
+    gender?: string | null;
+  },
+  options?: { includePrefix?: boolean; withDot?: boolean }
+): string {
   if (!doctor) return "";
   const firstName = (doctor.first_name || "").trim();
   const lastName = (doctor.last_name || "").trim();
@@ -181,7 +237,15 @@ export function formatDoctorDisplayName(doctor?: {
   }
 
   const parts = [firstName, middleInitial, lastName].filter(Boolean);
-  return parts.join(" ");
+  const name = parts.join(" ");
+  if (!name) return "";
+
+  if (options?.includePrefix) {
+    const prefix = getDoctorPrefix(doctor, { withDot: options.withDot });
+    return `${prefix} ${name}`;
+  }
+
+  return name;
 }
 
 

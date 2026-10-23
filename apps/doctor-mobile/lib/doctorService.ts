@@ -206,7 +206,30 @@ export async function createDoctorProfile(
         p_license_number: doctor.license_number,
         p_bio: doctor.bio || null,
         p_profile_picture_url: doctor.profile_picture_url || null,
+        p_gender: doctor.gender ? doctor.gender.trim() : null,
       });
+
+      // If database function has not been updated with p_gender yet, retry without p_gender
+      if (
+        rpcResponse.error &&
+        (rpcResponse.error.code === "PGRST202" ||
+          rpcResponse.error.hint?.includes("p_gender") ||
+          rpcResponse.error.message?.includes("p_gender"))
+      ) {
+        console.warn(
+          "[DoctorService] Database RPC lacks p_gender parameter, retrying without p_gender..."
+        );
+        rpcResponse = await supabase.rpc("complete_doctor_registration", {
+          p_code: accessCode.trim(),
+          p_first_name: firstName,
+          p_middle_name: middleName || null,
+          p_last_name: lastName,
+          p_specialization: doctor.specialization,
+          p_license_number: doctor.license_number,
+          p_bio: doctor.bio || null,
+          p_profile_picture_url: doctor.profile_picture_url || null,
+        });
+      }
 
       // If database still has the legacy complete_doctor_registration(..., p_doctor_name, ...)
       if (
@@ -250,11 +273,15 @@ export async function createDoctorProfile(
 
         console.log("[DoctorService] Doctor registered via RPC successfully:", result);
 
-        // Crucial: Update doctor_phone, years_of_experience, and office_hours
-        // which are not set by the complete_doctor_registration RPC
+        // Crucial: Update doctor_phone, gender, years_of_experience, and office_hours
+        // which may not be set by older complete_doctor_registration RPCs
         const postRegUpdates: Record<string, any> = {
           updated_at: new Date().toISOString(),
         };
+
+        if (doctor.gender !== undefined && doctor.gender !== null) {
+          postRegUpdates.gender = doctor.gender.trim() || null;
+        }
 
         if (doctor.doctor_phone !== undefined && doctor.doctor_phone !== null) {
           postRegUpdates.doctor_phone = doctor.doctor_phone.trim() || null;
@@ -271,6 +298,7 @@ export async function createDoctorProfile(
         console.log("[DoctorService] Updating doctor post-registration fields:", {
           doctorId: targetDoctorId,
           user_id: doctor.user_id,
+          gender: postRegUpdates.gender,
           doctor_phone: postRegUpdates.doctor_phone,
           years_of_experience: postRegUpdates.years_of_experience,
           has_office_hours: !!postRegUpdates.office_hours,
@@ -278,10 +306,18 @@ export async function createDoctorProfile(
 
         try {
           if (targetDoctorId) {
-            const { error: idErr } = await supabase
+            let { error: idErr } = await supabase
               .from("doctors")
               .update(postRegUpdates)
               .eq("id", targetDoctorId);
+            if (idErr && (idErr.code === "42703" || idErr.message?.includes("gender"))) {
+              const { gender: _g, ...withoutGender } = postRegUpdates;
+              const retryWithoutGender = await supabase
+                .from("doctors")
+                .update(withoutGender)
+                .eq("id", targetDoctorId);
+              idErr = retryWithoutGender.error;
+            }
             if (idErr) {
               console.warn("[DoctorService] Could not update doctor record by id, trying by user_id:", idErr);
               if (doctor.user_id) {
@@ -316,6 +352,7 @@ export async function createDoctorProfile(
           first_name: firstName,
           middle_name: middleName,
           last_name: lastName,
+          gender: postRegUpdates.gender ?? doctor.gender,
           id: result.doctor_id || doctor.id,
           doctor_phone: postRegUpdates.doctor_phone ?? doctor.doctor_phone,
           years_of_experience: postRegUpdates.years_of_experience,
@@ -331,6 +368,7 @@ export async function createDoctorProfile(
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
+      gender: doctor.gender ? doctor.gender.trim() : null,
       doctor_phone: doctor.doctor_phone ? doctor.doctor_phone.trim() : null,
       years_of_experience: Number(doctor.years_of_experience) || 0,
       office_hours: doctor.office_hours || EMPTY_DOCTOR.office_hours,
@@ -358,6 +396,20 @@ export async function createDoctorProfile(
       .select()
       .single();
 
+    // If database table does not yet have gender column (error 42703), retry without gender
+    if (error && error.code === "42703" && error.message?.includes("gender")) {
+      console.warn("[DoctorService] Database table lacks gender column, retrying without gender...");
+      const withoutGender = { ...cleanDoctor };
+      delete withoutGender.gender;
+      const retryRes = await supabase
+        .from("doctors")
+        .upsert([withoutGender], { onConflict: "user_id" })
+        .select()
+        .single();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
     // If database table does not yet have first_name column (error 42703), retry with doctor_name
     if (error && error.code === "42703" && error.message?.includes("first_name")) {
       console.warn("[DoctorService] Database table lacks first_name column, retrying with doctor_name...");
@@ -365,6 +417,7 @@ export async function createDoctorProfile(
       delete legacyDoctor.first_name;
       delete legacyDoctor.middle_name;
       delete legacyDoctor.last_name;
+      delete legacyDoctor.gender;
 
       const retryRes = await supabase
         .from("doctors")
@@ -446,6 +499,24 @@ export async function updateDoctorProfile(
         .from("doctors")
         .update({
           ...withoutPhone,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)
+        .select()
+        .maybeSingle();
+
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    // If error indicates gender column does not exist on doctors table, retry without it
+    if (error && (error.message?.includes("gender") || error.code === "42703")) {
+      console.warn("[DoctorService] Column gender missing on doctors table, retrying update without it...");
+      const { gender, ...withoutGender } = cleanUpdates;
+      const retryResult = await supabase
+        .from("doctors")
+        .update({
+          ...withoutGender,
           updated_at: new Date().toISOString(),
         })
         .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName } from '@smileguard/shared-types';
+import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
 import { Settings as SettingsIcon, ChevronRight } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
@@ -123,7 +123,8 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
         
         // Trigger notification callback if provided
         if (onProfileUpdated && result.id) {
-          onProfileUpdated(getDoctorFullName(result) || 'Doctor', result.id);
+          const docTitle = `${getDoctorPrefix(result)} ${getDoctorFullName(result)}`.trim();
+          onProfileUpdated(docTitle || 'Doctor', result.id);
         }
         // Don't close modal - keep it open for more edits
       } else {

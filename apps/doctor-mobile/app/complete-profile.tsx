@@ -25,6 +25,7 @@ export default function CompleteProfile() {
   const { currentUser: user } = useAuth();
   const [formData, setFormData] = useState({
     name: user?.name || "",
+    gender: "Male",
     specialization: "",
     licenseNumber: "",
     phoneNumber: "",
@@ -82,6 +83,7 @@ export default function CompleteProfile() {
           user_id: user?.id,
           first_name: firstName,
           last_name: lastName,
+          gender: formData.gender,
           specialization: formData.specialization,
           license_number: formData.licenseNumber,
           doctor_phone: formData.phoneNumber,
@@ -136,7 +138,7 @@ export default function CompleteProfile() {
                 <Text style={styles.fieldLabel}>Full Name</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Dr. John Smith"
+                  placeholder="e.g., John Smith"
                   placeholderTextColor="#9ca3af"
                   value={formData.name}
                   onChangeText={(text) =>
@@ -144,6 +146,47 @@ export default function CompleteProfile() {
                   }
                   editable={!loading}
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Gender (determines Dr. or Dra. title)</Text>
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                  {[
+                    { label: "Male (Dr.)", value: "Male" },
+                    { label: "Female (Dra.)", value: "Female" },
+                  ].map((item) => {
+                    const isSelected = formData.gender.toLowerCase() === item.value.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={item.value}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          paddingHorizontal: 14,
+                          borderRadius: 8,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? "#047857" : "#CBD5E1",
+                          backgroundColor: isSelected ? "#ECFDF5" : "#F8FAFC",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        onPress={() => setFormData({ ...formData, gender: item.value })}
+                        disabled={loading}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: isSelected ? "700" : "600",
+                            color: isSelected ? "#047857" : "#64748B",
+                          }}
+                        >
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
