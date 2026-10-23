@@ -159,6 +159,32 @@ export function getDoctorFullName(doctor?: {
   return doctor.doctor_name || "";
 }
 
+/**
+ * Helper to construct doctor display name: first_name, middle initial (if present), and last_name
+ */
+export function formatDoctorDisplayName(doctor?: {
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+}): string {
+  if (!doctor) return "";
+  const firstName = (doctor.first_name || "").trim();
+  const lastName = (doctor.last_name || "").trim();
+  const middleTrimmed = (doctor.middle_name || "").trim();
+
+  let middleInitial = "";
+  if (middleTrimmed) {
+    const match = middleTrimmed.match(/\p{L}/u);
+    if (match) {
+      middleInitial = `${match[0].toUpperCase()}.`;
+    }
+  }
+
+  const parts = [firstName, middleInitial, lastName].filter(Boolean);
+  return parts.join(" ");
+}
+
+
 // ─────────────────────────────────────────
 // Treatment Types
 // ─────────────────────────────────────────

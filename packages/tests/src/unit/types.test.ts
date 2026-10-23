@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   calculateDiscount,
+  formatDoctorDisplayName,
   type Billing,
   type CurrentUser,
   type Appointment,
   type PreflightCheckResult,
 } from "@smileguard/shared-types";
+
 
 describe("Billing Service - Type Safety & Calculations", () => {
   describe("calculateDiscount()", () => {
@@ -325,4 +327,54 @@ describe("CurrentUser Type Safety", () => {
       expect(result.patient_feedback?.headline).toContain("Crop Photo");
     });
   });
+
+  describe("formatDoctorDisplayName()", () => {
+    it("should format doctor name with first_name, middle initial, and last_name", () => {
+      const doctor = {
+        first_name: "Juan",
+        middle_name: "Santos",
+        last_name: "Dela Cruz",
+      };
+      expect(formatDoctorDisplayName(doctor)).toBe("Juan S. Dela Cruz");
+    });
+
+    it("should handle lowercase middle_name correctly with uppercase initial", () => {
+      const doctor = {
+        first_name: "Maria",
+        middle_name: "clara",
+        last_name: "Santos",
+      };
+      expect(formatDoctorDisplayName(doctor)).toBe("Maria C. Santos");
+    });
+
+    it("should handle middle_name that is already an initial with a dot", () => {
+      const doctor = {
+        first_name: "Jose",
+        middle_name: "P.",
+        last_name: "Rizal",
+      };
+      expect(formatDoctorDisplayName(doctor)).toBe("Jose P. Rizal");
+    });
+
+    it("should handle middle_name that is a single letter without dot", () => {
+      const doctor = {
+        first_name: "Jose",
+        middle_name: "p",
+        last_name: "Rizal",
+      };
+      expect(formatDoctorDisplayName(doctor)).toBe("Jose P. Rizal");
+    });
+
+    it("should format without middle initial when middle_name is not provided or empty", () => {
+      expect(formatDoctorDisplayName({ first_name: "Juan", last_name: "Dela Cruz" })).toBe("Juan Dela Cruz");
+      expect(formatDoctorDisplayName({ first_name: "Juan", middle_name: "", last_name: "Dela Cruz" })).toBe("Juan Dela Cruz");
+      expect(formatDoctorDisplayName({ first_name: "Juan", middle_name: "   ", last_name: "Dela Cruz" })).toBe("Juan Dela Cruz");
+      expect(formatDoctorDisplayName({ first_name: "Juan", middle_name: null, last_name: "Dela Cruz" })).toBe("Juan Dela Cruz");
+    });
+
+    it("should handle missing doctor object", () => {
+      expect(formatDoctorDisplayName(undefined)).toBe("");
+    });
+  });
 });
+

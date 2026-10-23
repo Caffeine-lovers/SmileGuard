@@ -1,4 +1,5 @@
 import { supabase } from '@smileguard/supabase-client';
+import { formatDoctorDisplayName } from '@smileguard/shared-types';
 
 export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
@@ -370,15 +371,20 @@ export async function getDoctorName(dentistId: string): Promise<string | null> {
     }
 
     if (data) {
-      const parts = [data.first_name, data.middle_name, data.last_name]
-        .map((p: any) => (p || '').trim())
-        .filter(Boolean);
-      if (parts.length > 0) return parts.join(' ');
+      const formatted = formatDoctorDisplayName(data);
+      if (formatted) return formatted;
     }
 
-    return null;
+    // Fallback if doctor record exists but names were blank
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', dentistId)
+      .single();
+    return profile?.name || null;
   } catch (error) {
     console.error('Error getting doctor name:', error);
     return null;
   }
 }
+
