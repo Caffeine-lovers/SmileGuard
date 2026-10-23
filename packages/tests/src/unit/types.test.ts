@@ -444,6 +444,20 @@ describe("CurrentUser Type Safety", () => {
       expect(getDoctorTitleName(femaleDoctor)).toBe("Dra. Maria Santos");
     });
 
+    it("should clean off existing Dr. or Dra. prefixes from name and apply correct prefix", () => {
+      const femaleWithExistingDr = {
+        doctor_name: "Dr. Maria Santos",
+        gender: "Female",
+      };
+      expect(getDoctorTitleName(femaleWithExistingDr)).toBe("Dra. Maria Santos");
+
+      const maleWithExistingDra = {
+        name: "Dra. Juan Santos",
+        gender: "Male",
+      };
+      expect(getDoctorTitleName(maleWithExistingDra)).toBe("Dr. Juan Santos");
+    });
+
     it("should return empty string if doctor is missing", () => {
       expect(getDoctorTitleName(undefined)).toBe("");
     });

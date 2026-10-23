@@ -41,7 +41,7 @@ export default function CompleteProfile() {
   const handleSubmit = async () => {
     try {
       console.log("[CompleteProfile] Form submission started");
-      
+
       // Validate form
       if (!formData.name.trim()) {
         Alert.alert("Error", "Please enter your name");

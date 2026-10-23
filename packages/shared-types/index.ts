@@ -13,6 +13,7 @@ export interface CurrentUser {
   role: "patient" | "doctor";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
+  gender?: string;
 }
 
 export interface FormData {
@@ -181,6 +182,7 @@ export function getDoctorFullName(doctor?: {
   middle_name?: string;
   last_name?: string;
   doctor_name?: string;
+  name?: string;
   gender?: string;
 }): string {
   if (!doctor) return "";
@@ -188,7 +190,7 @@ export function getDoctorFullName(doctor?: {
     .map((p) => (p || "").trim())
     .filter(Boolean);
   if (parts.length > 0) return parts.join(" ");
-  return doctor.doctor_name || "";
+  return doctor.doctor_name || doctor.name || "";
 }
 
 /**
@@ -200,6 +202,7 @@ export function getDoctorTitleName(
     middle_name?: string;
     last_name?: string;
     doctor_name?: string;
+    name?: string;
     gender?: string;
   },
   options?: { withDot?: boolean }
@@ -208,7 +211,8 @@ export function getDoctorTitleName(
   const prefix = getDoctorPrefix(doctor, options);
   const fullName = getDoctorFullName(doctor);
   if (!fullName) return prefix;
-  return `${prefix} ${fullName}`;
+  const cleanedName = fullName.replace(/^(?:Dr|Dra)\.?\s+/i, "");
+  return `${prefix} ${cleanedName}`.trim();
 }
 
 /**

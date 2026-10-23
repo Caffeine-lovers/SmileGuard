@@ -5,6 +5,7 @@
 
 import { supabase } from "@smileguard/supabase-client";
 import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
  * Fetch a doctor's complete profile by user_id
@@ -27,7 +28,26 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
     }
 
     console.log(" Doctor profile found:", data);
-    return data as Doctor;
+    const doctor = data as Doctor;
+
+    // Check for cached gender or user metadata fallback if gender is null or empty
+    if (!doctor.gender) {
+      try {
+        const cachedGender = await AsyncStorage.getItem(`@doctor_gender_${userId}`);
+        if (cachedGender) {
+          doctor.gender = cachedGender;
+        } else {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user?.user_metadata?.gender) {
+            doctor.gender = authData.user.user_metadata.gender;
+          }
+        }
+      } catch (e) {
+        console.warn("[DoctorService] Could not retrieve cached gender:", e);
+      }
+    }
+
+    return doctor;
   } catch (error) {
     console.error(" Exception in getDoctorProfile:", error);
     return null;
@@ -547,12 +567,28 @@ export async function updateDoctorProfile(
       error = insertResult.error;
     }
 
+    // Cache gender to AsyncStorage and user_metadata as robust fallback
+    if (cleanUpdates.gender) {
+      const targetUserId = cleanUpdates.user_id || doctorId;
+      try {
+        await AsyncStorage.setItem(`@doctor_gender_${targetUserId}`, cleanUpdates.gender);
+        supabase.auth.updateUser({ data: { gender: cleanUpdates.gender } }).catch(() => {});
+      } catch (cacheErr) {
+        console.warn("[DoctorService] Could not cache gender:", cacheErr);
+      }
+    }
+
     if (error) {
       console.error("[DoctorService] Error updating doctor profile:", error);
       throw new Error(`Database error: ${error.message}`);
     }
 
-    return data as Doctor;
+    const resultDoc = (data || { ...cleanUpdates, id: doctorId }) as Doctor;
+    if (cleanUpdates.gender && (!resultDoc.gender || resultDoc.gender !== cleanUpdates.gender)) {
+      resultDoc.gender = cleanUpdates.gender;
+    }
+
+    return resultDoc;
   } catch (error) {
     console.error("[DoctorService] Exception in updateDoctorProfile:", error);
     throw error;

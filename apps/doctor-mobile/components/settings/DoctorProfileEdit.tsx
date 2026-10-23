@@ -399,18 +399,6 @@ export default function DoctorProfileEdit({
           )}
         </TouchableOpacity>
 
-        {/* Selected Photo Status Label */}
-        {imagePreviewUri ? (
-          <View style={styles.activePhotoIndicator}>
-            <Check size={12} color="#047857" />
-            <Text style={styles.activePhotoText} numberOfLines={1}>
-              Active Profile Photo
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.photoHint}>No profile photo selected</Text>
-        )}
-
         {/* Quick Upload Button */}
         <TouchableOpacity
           onPress={handlePickAndUploadImage}

@@ -50,15 +50,16 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
 
   // Fetch doctor profile when modal opens
   useEffect(() => {
-    if (editingProfile && authUser?.id) {
+    const effectiveId = authUser?.id || user?.id;
+    if (editingProfile && effectiveId) {
       fetchDoctorData();
     }
-  }, [editingProfile, authUser?.id]);
+  }, [editingProfile, authUser?.id, user?.id]);
 
   const fetchDoctorData = async () => {
     try {
       setLoadingDoctor(true);
-      const userId = authUser?.id;
+      const userId = authUser?.id || user?.id;
       console.log('=== FETCH DOCTOR DEBUG ===');
       console.log('authUser:', authUser);
       console.log('User ID:', userId);
@@ -83,6 +84,9 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
       console.log('✅ Doctor profile result:', doctor);
       if (doctor) {
         setDoctorData(doctor);
+        if (onUpdateProfile && doctor.gender) {
+          onUpdateProfile(doctor);
+        }
       } else {
         console.warn('⚠️ No doctor profile found, using empty doctor');
         setDoctorData(EMPTY_DOCTOR);
@@ -99,7 +103,7 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
     try {
       console.log('💾 Saving doctor profile updates:', updatedDoctor);
       
-      const effectiveUserId = updatedDoctor.user_id || doctorData.user_id || authUser?.id;
+      const effectiveUserId = updatedDoctor.user_id || doctorData.user_id || authUser?.id || user?.id;
       const targetId = updatedDoctor.id || doctorData.id || effectiveUserId;
       if (!targetId) {
         console.error('❌ Doctor ID is not available');
@@ -121,6 +125,11 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
         // Update local state with the returned data
         setDoctorData(result);
         
+        // Notify parent dashboard component immediately so title and name update in real-time
+        if (onUpdateProfile) {
+          onUpdateProfile(result);
+        }
+
         // Trigger notification callback if provided
         if (onProfileUpdated && result.id) {
           const docTitle = `${getDoctorPrefix(result)} ${getDoctorFullName(result)}`.trim();
