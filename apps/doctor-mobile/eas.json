@@ -1,22 +1,38 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "requireCommit": false
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
+      "distribution": "internal",
+      "node": "20.10.0",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
+      }
+    },
+    "preview": {
+      "node": "20.10.0",
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
+      }
     },
     "production": {
+      "node": "20.10.0",
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "COREPACK_ENABLE_STRICT": "0"
       }
     }
   },

@@ -1,43 +1,43 @@
 import React, { useEffect, useState } from "react";
-import { Slot, useRouter } from "expo-router";
-import { supabase } from "@smileguard/supabase-client";
-import { Session, AuthChangeEvent } from "@supabase/supabase-js";
+import { Slot } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
+import { supabase } from "@smileguard/supabase-client";
 import { ClinicProvider } from "../../contexts/ClinicContext";
 
+/**
+ * Blocks the Slot from mounting until the active session is confirmed.
+ * This ensures useCurrentUser() inside child screens (e.g. DoctorDashboard)
+ * immediately finds a valid session on their own getSession() call, so data
+ * fetching starts correctly and doesn't exit early due to a null user.
+ *
+ * Auth-based redirects (sign-out → login screen) are handled entirely by
+ * _layout.tsx — no redundant onAuthStateChange navigation needed here.
+ */
 export default function DoctorLayout() {
-  const router = useRouter();
-  const [checking, setChecking] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    // Check initial session
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("[DoctorLayout] Initial session check:", session ? "Found" : "Null");
-      // In doctor mobile app, we assume authenticated users are doctors
-      // Google OAuth doesn't set role automatically
-      if (!session) {
-        console.log("[DoctorLayout] No session, routing to /");
-        router.replace("/");
-        return;
+      if (session && mounted) {
+        setSessionReady(true);
       }
-      setChecking(false);
     });
 
-    // Listen for auth state changes (including logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: AuthChangeEvent, session: Session | null) => {
-        console.log("[DoctorLayout] Auth changed:", event);
-        if (!session) {
-          console.log("[DoctorLayout] No session on auth change, routing to /");
-          router.replace("/");
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session && mounted) {
+        setSessionReady(true);
       }
-    );
+    });
 
-    return () => subscription.unsubscribe();
-  }, [router]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
-  if (checking) {
+  if (!sessionReady) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
         <ActivityIndicator size="large" color="#10B981" />

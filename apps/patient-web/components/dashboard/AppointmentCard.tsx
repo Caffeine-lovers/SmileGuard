@@ -1,15 +1,32 @@
 
+'use client';
+
+import { useState } from 'react';
+
 interface AppointmentCardProps {
   name: string;
+  avatarUrl?: string | null;
   service: string;
   time: string;
   date?: string;
   status?: string;
   onClick?: () => void;
+  onDoctorClick?: () => void;
   isSelected?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, date, status, onClick, isSelected }: AppointmentCardProps) {
+export default function AppointmentCard({ 
+  name, 
+  avatarUrl, 
+  service, 
+  time, 
+  date, 
+  status, 
+  onClick, 
+  onDoctorClick,
+  isSelected 
+}: AppointmentCardProps) {
+  const [imgError, setImgError] = useState(false);
   const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SG';
 
   return (
@@ -21,12 +38,46 @@ export default function AppointmentCard({ name, service, time, date, status, onC
       }`}
       onClick={onClick}
     >
-      <div className="w-11 h-11 rounded-sm bg-gradient-to-b from-emerald-600 to-emerald-800 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 border border-emerald-900 shadow-inner">
-        {initials}
+      <div 
+        className={`w-11 h-11 rounded-sm bg-gradient-to-b from-emerald-600 to-emerald-800 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 border border-emerald-900 shadow-inner overflow-hidden ${
+          onDoctorClick ? 'cursor-pointer hover:opacity-90' : ''
+        }`}
+        onClick={(e) => {
+          if (onDoctorClick) {
+            e.stopPropagation();
+            onDoctorClick();
+          }
+        }}
+        title={onDoctorClick ? `View ${name}'s credentials` : undefined}
+      >
+        {avatarUrl && !imgError ? (
+          <img
+            src={avatarUrl}
+            alt={name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          initials
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-bold text-sm text-slate-900 truncate">{name}</p>
+          {onDoctorClick ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDoctorClick();
+              }}
+              className="font-bold text-sm text-slate-900 truncate hover:text-emerald-700 hover:underline transition-colors text-left"
+              title={`View ${name}'s credentials`}
+            >
+              {name}
+            </button>
+          ) : (
+            <p className="font-bold text-sm text-slate-900 truncate">{name}</p>
+          )}
           {status && (
             <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-xs border ${
               status === 'completed'
