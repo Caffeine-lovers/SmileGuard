@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
-import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
+import { getPatientAppointments, getDoctorDetails } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
@@ -29,6 +29,7 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
+  const [doctorPictures, setDoctorPictures] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -51,7 +52,7 @@ export default function PatientDashboard() {
         setAppointments(appts);
         setOutstandingBalance(balance);
 
-        // Fetch doctor names
+        // Fetch doctor names and profile pictures
         const doctorIds = Array.from(new Set(
           appts
             .map(a => a.dentist_id)
@@ -59,13 +60,16 @@ export default function PatientDashboard() {
         ));
 
         const names: Record<string, string> = {};
+        const pictures: Record<string, string> = {};
         await Promise.all(
           doctorIds.map(async (docId) => {
-            const name = await getDoctorName(docId);
-            if (name) names[docId] = name;
+            const details = await getDoctorDetails(docId);
+            if (details.name) names[docId] = details.name;
+            if (details.profilePictureUrl) pictures[docId] = details.profilePictureUrl;
           })
         );
         setDoctorNames(names);
+        setDoctorPictures(pictures);
       } catch (err) {
         console.error('[PatientDashboard] Error fetching data:', err);
       } finally {
@@ -239,6 +243,7 @@ export default function PatientDashboard() {
                 <AppointmentCard
                   key={apt.id}
                   name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : 'General Service'}
+                  avatarUrl={apt.dentist_id ? doctorPictures[apt.dentist_id] : undefined}
                   service={apt.service}
                   date={apt.appointment_date}
                   time={apt.appointment_time}
@@ -288,7 +293,16 @@ export default function PatientDashboard() {
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
                       <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
                       {apt.dentist_id && (
-                        <p className="text-[11px] text-slate-500 mt-1 font-semibold">Doctor: {doctorNames[apt.dentist_id] || 'Attending Dentist'}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {doctorPictures[apt.dentist_id] && (
+                            <img
+                              src={doctorPictures[apt.dentist_id]}
+                              alt="Doctor"
+                              className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
+                            />
+                          )}
+                          <p className="text-[11px] text-slate-500 font-semibold">Doctor: {doctorNames[apt.dentist_id] || 'Attending Dentist'}</p>
+                        </div>
                       )}
                     </div>
                   </div>

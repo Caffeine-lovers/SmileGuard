@@ -1,5 +1,5 @@
 import { supabase } from '@smileguard/supabase-client';
-import { formatDoctorDisplayName } from '@smileguard/shared-types';
+import { formatDoctorDisplayName, getDoctorTitleName } from '@smileguard/shared-types';
 
 export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
@@ -348,31 +348,42 @@ export async function getPatientAppointments(
 }
 
 // ─────────────────────────────────────────
-// 8. GET DOCTOR NAME BY DENTIST ID
+// 8. GET DOCTOR DETAILS & NAME BY DENTIST ID
 // ─────────────────────────────────────────
-export async function getDoctorName(dentistId: string): Promise<string | null> {
+export interface DoctorDetails {
+  name: string | null;
+  profilePictureUrl: string | null;
+}
+
+export async function getDoctorDetails(dentistId: string): Promise<DoctorDetails> {
   try {
-    // Fetch doctor name from doctors table using the dentist_id (which is user_id)
+    if (!dentistId) return { name: null, profilePictureUrl: null };
+
+    // Fetch doctor record from doctors table using the dentist_id (which is user_id)
     const { data, error } = await supabase
       .from('doctors')
-      .select('first_name, middle_name, last_name')
+      .select('first_name, middle_name, last_name, gender, profile_picture_url')
       .eq('user_id', dentistId)
       .single();
 
+    let name: string | null = null;
+    const profilePictureUrl: string | null = data?.profile_picture_url?.trim() || null;
+
     if (error) {
-      console.error('Error fetching doctor name from doctors table:', error);
+      console.error('Error fetching doctor record from doctors table:', error);
       // Fallback: try fetching from profiles table
       const { data: profile } = await supabase
         .from('profiles')
         .select('name')
         .eq('id', dentistId)
         .single();
-      return profile?.name || null;
+      name = profile?.name ? getDoctorTitleName({ name: profile.name }) : null;
+      return { name, profilePictureUrl };
     }
 
     if (data) {
-      const formatted = formatDoctorDisplayName(data);
-      if (formatted) return formatted;
+      name = formatDoctorDisplayName(data, { includePrefix: true });
+      if (name) return { name, profilePictureUrl };
     }
 
     // Fallback if doctor record exists but names were blank
@@ -381,10 +392,22 @@ export async function getDoctorName(dentistId: string): Promise<string | null> {
       .select('name')
       .eq('id', dentistId)
       .single();
-    return profile?.name || null;
+    name = profile?.name ? getDoctorTitleName({ name: profile.name, gender: data?.gender }) : null;
+
+    return { name, profilePictureUrl };
   } catch (error) {
-    console.error('Error getting doctor name:', error);
-    return null;
+    console.error('Error getting doctor details:', error);
+    return { name: null, profilePictureUrl: null };
   }
+}
+
+export async function getDoctorName(dentistId: string): Promise<string | null> {
+  const details = await getDoctorDetails(dentistId);
+  return details.name;
+}
+
+export async function getDoctorProfilePicture(dentistId: string): Promise<string | null> {
+  const details = await getDoctorDetails(dentistId);
+  return details.profilePictureUrl;
 }
 
