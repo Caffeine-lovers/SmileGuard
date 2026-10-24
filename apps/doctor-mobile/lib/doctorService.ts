@@ -4,7 +4,8 @@
  */
 
 import { supabase } from "@smileguard/supabase-client";
-import { Doctor } from "@smileguard/shared-types";
+import { Doctor, EMPTY_DOCTOR } from "@smileguard/shared-types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
  * Fetch a doctor's complete profile by user_id
@@ -27,7 +28,26 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
     }
 
     console.log(" Doctor profile found:", data);
-    return data as Doctor;
+    const doctor = data as Doctor;
+
+    // Check for cached gender or user metadata fallback if gender is null or empty
+    if (!doctor.gender) {
+      try {
+        const cachedGender = await AsyncStorage.getItem(`@doctor_gender_${userId}`);
+        if (cachedGender) {
+          doctor.gender = cachedGender;
+        } else {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user?.user_metadata?.gender) {
+            doctor.gender = authData.user.user_metadata.gender;
+          }
+        }
+      } catch (e) {
+        console.warn("[DoctorService] Could not retrieve cached gender:", e);
+      }
+    }
+
+    return doctor;
   } catch (error) {
     console.error(" Exception in getDoctorProfile:", error);
     return null;
@@ -84,7 +104,7 @@ export async function getVerifiedDoctors(): Promise<Doctor[]> {
 }
 
 /**
- * Get available doctors (is_available = true)
+ * Get available doctors
  * @returns Array of available doctors
  */
 export async function getAvailableDoctors(): Promise<Doctor[]> {
@@ -92,7 +112,6 @@ export async function getAvailableDoctors(): Promise<Doctor[]> {
     const { data, error } = await supabase
       .from("doctors")
       .select("*")
-      .eq("is_available", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -120,7 +139,6 @@ export async function getDoctorsBySpecialization(
       .from("doctors")
       .select("*")
       .eq("specialization", specialization)
-      .eq("is_available", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -173,15 +191,23 @@ export async function createDoctorProfile(
   accessCode?: string
 ): Promise<Doctor | null> {
   try {
+    const firstName = (doctor.first_name || (doctor.doctor_name ? doctor.doctor_name.trim().split(" ")[0] : "") || "").trim();
+    const lastName = (doctor.last_name || (doctor.doctor_name ? doctor.doctor_name.trim().split(" ").slice(1).join(" ") : "") || "").trim();
+    const middleName = (doctor.middle_name || "").trim();
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ") || doctor.doctor_name || "";
+
     // Validate required fields before attempting creation
     if (!doctor.user_id) throw new Error("Missing required field: user_id");
-    if (!doctor.doctor_name) throw new Error("Missing required field: doctor_name");
+    if (!firstName) throw new Error("Missing required field: first_name");
+    if (!lastName) throw new Error("Missing required field: last_name");
     if (!doctor.specialization) throw new Error("Missing required field: specialization");
     if (!doctor.license_number) throw new Error("Missing required field: license_number");
 
     console.log("[DoctorService] Creating/updating doctor profile with data:", {
       user_id: doctor.user_id,
-      doctor_name: doctor.doctor_name,
+      first_name: firstName,
+      middle_name: middleName,
+      last_name: lastName,
       specialization: doctor.specialization,
       license_number: doctor.license_number,
       has_access_code: !!accessCode,
@@ -190,39 +216,237 @@ export async function createDoctorProfile(
 
     // If access code is provided, use the secure atomic complete_doctor_registration RPC
     if (accessCode && accessCode.trim().length > 0) {
-      console.log("[DoctorService] Calling complete_doctor_registration RPC with code...");
-      const { data, error } = await supabase.rpc("complete_doctor_registration", {
+      console.log("[DoctorService] Calling complete_doctor_registration RPC...");
+      let rpcResponse = await supabase.rpc("complete_doctor_registration", {
         p_code: accessCode.trim(),
-        p_doctor_name: doctor.doctor_name,
+        p_first_name: firstName,
+        p_middle_name: middleName || null,
+        p_last_name: lastName,
         p_specialization: doctor.specialization,
         p_license_number: doctor.license_number,
         p_bio: doctor.bio || null,
         p_profile_picture_url: doctor.profile_picture_url || null,
+        p_gender: doctor.gender ? doctor.gender.trim() : null,
       });
 
-      if (error) {
-        console.error("[DoctorService] complete_doctor_registration error:", error);
-        throw new Error(`Database error (${error.code || "RPC"}): ${error.message}`);
+      // If database function has not been updated with p_gender yet, retry without p_gender
+      if (
+        rpcResponse.error &&
+        (rpcResponse.error.code === "PGRST202" ||
+          rpcResponse.error.hint?.includes("p_gender") ||
+          rpcResponse.error.message?.includes("p_gender"))
+      ) {
+        console.warn(
+          "[DoctorService] Database RPC lacks p_gender parameter, retrying without p_gender..."
+        );
+        rpcResponse = await supabase.rpc("complete_doctor_registration", {
+          p_code: accessCode.trim(),
+          p_first_name: firstName,
+          p_middle_name: middleName || null,
+          p_last_name: lastName,
+          p_specialization: doctor.specialization,
+          p_license_number: doctor.license_number,
+          p_bio: doctor.bio || null,
+          p_profile_picture_url: doctor.profile_picture_url || null,
+        });
       }
 
-      const result = data as { success: boolean; message?: string; doctor_id?: string };
-      if (!result || !result.success) {
-        throw new Error(result?.message || "Failed to register doctor profile");
+      // If database still has the legacy complete_doctor_registration(..., p_doctor_name, ...)
+      if (
+        rpcResponse.error &&
+        (rpcResponse.error.code === "PGRST202" ||
+          rpcResponse.error.hint?.includes("p_doctor_name") ||
+          rpcResponse.error.message?.includes("p_doctor_name"))
+      ) {
+        console.warn(
+          "[DoctorService] Database RPC expects legacy p_doctor_name, retrying with p_doctor_name..."
+        );
+        rpcResponse = await supabase.rpc("complete_doctor_registration", {
+          p_code: accessCode.trim(),
+          p_doctor_name: fullName,
+          p_specialization: doctor.specialization,
+          p_license_number: doctor.license_number,
+          p_bio: doctor.bio || null,
+          p_profile_picture_url: doctor.profile_picture_url || null,
+        });
       }
 
-      console.log("[DoctorService] Doctor registered via RPC successfully:", result);
-      return {
-        ...doctor,
-        id: result.doctor_id,
-      } as Doctor;
+      if (rpcResponse.error) {
+        console.error("[DoctorService] complete_doctor_registration error:", rpcResponse.error);
+        // If RPC function is not found in database, fallback to direct upsert
+        if (
+          rpcResponse.error.code === "PGRST202" ||
+          rpcResponse.error.message?.includes("function") ||
+          rpcResponse.error.message?.includes("not found")
+        ) {
+          console.warn(
+            "[DoctorService] complete_doctor_registration RPC not available in DB, falling back to direct upsert..."
+          );
+        } else {
+          throw new Error(`Database error (${rpcResponse.error.code || "RPC"}): ${rpcResponse.error.message}`);
+        }
+      } else {
+        const result = rpcResponse.data as { success: boolean; message?: string; doctor_id?: string };
+        if (!result || !result.success) {
+          throw new Error(result?.message || "Failed to register doctor profile");
+        }
+
+        console.log("[DoctorService] Doctor registered via RPC successfully:", result);
+
+        // Crucial: Update doctor_phone, gender, years_of_experience, and office_hours
+        // which may not be set by older complete_doctor_registration RPCs
+        const postRegUpdates: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+
+        if (doctor.gender !== undefined && doctor.gender !== null) {
+          postRegUpdates.gender = doctor.gender.trim() || null;
+        }
+
+        if (doctor.doctor_phone !== undefined && doctor.doctor_phone !== null) {
+          postRegUpdates.doctor_phone = doctor.doctor_phone.trim() || null;
+        }
+
+        const yearsExp = doctor.years_of_experience !== undefined && doctor.years_of_experience !== null
+          ? Number(doctor.years_of_experience)
+          : 0;
+        postRegUpdates.years_of_experience = isNaN(yearsExp) ? 0 : yearsExp;
+
+        postRegUpdates.office_hours = doctor.office_hours || EMPTY_DOCTOR.office_hours;
+
+        const targetDoctorId = result.doctor_id || doctor.id;
+        console.log("[DoctorService] Updating doctor post-registration fields:", {
+          doctorId: targetDoctorId,
+          user_id: doctor.user_id,
+          gender: postRegUpdates.gender,
+          doctor_phone: postRegUpdates.doctor_phone,
+          years_of_experience: postRegUpdates.years_of_experience,
+          has_office_hours: !!postRegUpdates.office_hours,
+        });
+
+        try {
+          if (targetDoctorId) {
+            let { error: idErr } = await supabase
+              .from("doctors")
+              .update(postRegUpdates)
+              .eq("id", targetDoctorId);
+            if (idErr && (idErr.code === "42703" || idErr.message?.includes("gender"))) {
+              const { gender: _g, ...withoutGender } = postRegUpdates;
+              const retryWithoutGender = await supabase
+                .from("doctors")
+                .update(withoutGender)
+                .eq("id", targetDoctorId);
+              idErr = retryWithoutGender.error;
+            }
+            if (idErr) {
+              console.warn("[DoctorService] Could not update doctor record by id, trying by user_id:", idErr);
+              if (doctor.user_id) {
+                await supabase.from("doctors").update(postRegUpdates).eq("user_id", doctor.user_id);
+              }
+            }
+          } else if (doctor.user_id) {
+            await supabase.from("doctors").update(postRegUpdates).eq("user_id", doctor.user_id);
+          }
+        } catch (updateEx) {
+          console.warn("[DoctorService] Exception updating post-registration fields on doctors:", updateEx);
+        }
+
+        // Also synchronize doctor_phone and full name with profiles table
+        if (doctor.user_id) {
+          try {
+            const profileUpdates: any = { role: "doctor" };
+            if (fullName) profileUpdates.name = fullName;
+            if (postRegUpdates.doctor_phone) profileUpdates.phone_number = postRegUpdates.doctor_phone;
+            await supabase
+              .from("profiles")
+              .update(profileUpdates)
+              .eq("id", doctor.user_id);
+            console.log("[DoctorService] Profiles table synced with role and phone_number");
+          } catch (profileErr) {
+            console.warn("[DoctorService] Could not update profile phone during RPC registration:", profileErr);
+          }
+        }
+
+        return {
+          ...doctor,
+          first_name: firstName,
+          middle_name: middleName,
+          last_name: lastName,
+          gender: postRegUpdates.gender ?? doctor.gender,
+          id: result.doctor_id || doctor.id,
+          doctor_phone: postRegUpdates.doctor_phone ?? doctor.doctor_phone,
+          years_of_experience: postRegUpdates.years_of_experience,
+          office_hours: postRegUpdates.office_hours,
+        } as Doctor;
+      }
     }
 
     // Fallback UPSERT: For existing doctors or environments without access code requirement
-    const { data, error } = await supabase
+    const { is_available, ...rawCleanDoctor } = doctor as any;
+    const cleanDoctor = {
+      ...rawCleanDoctor,
+      first_name: firstName,
+      middle_name: middleName || null,
+      last_name: lastName,
+      gender: doctor.gender ? doctor.gender.trim() : null,
+      doctor_phone: doctor.doctor_phone ? doctor.doctor_phone.trim() : null,
+      years_of_experience: Number(doctor.years_of_experience) || 0,
+      office_hours: doctor.office_hours || EMPTY_DOCTOR.office_hours,
+    };
+    delete cleanDoctor.doctor_name;
+
+    // Synchronize name and phone with profiles table if user_id is available
+    if (cleanDoctor.user_id) {
+      try {
+        const profileUpdates: any = { role: "doctor" };
+        if (fullName) profileUpdates.name = fullName;
+        if (cleanDoctor.doctor_phone) profileUpdates.phone_number = cleanDoctor.doctor_phone;
+        await supabase
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("id", cleanDoctor.user_id);
+      } catch (profileErr) {
+        console.warn("[DoctorService] Could not update profile during doctor creation:", profileErr);
+      }
+    }
+
+    let { data, error } = await supabase
       .from("doctors")
-      .upsert([doctor], { onConflict: "user_id" })
+      .upsert([cleanDoctor], { onConflict: "user_id" })
       .select()
       .single();
+
+    // If database table does not yet have gender column (error 42703), retry without gender
+    if (error && error.code === "42703" && error.message?.includes("gender")) {
+      console.warn("[DoctorService] Database table lacks gender column, retrying without gender...");
+      const withoutGender = { ...cleanDoctor };
+      delete withoutGender.gender;
+      const retryRes = await supabase
+        .from("doctors")
+        .upsert([withoutGender], { onConflict: "user_id" })
+        .select()
+        .single();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
+    // If database table does not yet have first_name column (error 42703), retry with doctor_name
+    if (error && error.code === "42703" && error.message?.includes("first_name")) {
+      console.warn("[DoctorService] Database table lacks first_name column, retrying with doctor_name...");
+      const legacyDoctor = { ...rawCleanDoctor, doctor_name: fullName };
+      delete legacyDoctor.first_name;
+      delete legacyDoctor.middle_name;
+      delete legacyDoctor.last_name;
+      delete legacyDoctor.gender;
+
+      const retryRes = await supabase
+        .from("doctors")
+        .upsert([legacyDoctor], { onConflict: "user_id" })
+        .select()
+        .single();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
 
     if (error) {
       console.error("[DoctorService] Supabase upsert error:", {
@@ -253,41 +477,122 @@ export async function updateDoctorProfile(
   updates: Partial<Doctor>
 ): Promise<Doctor | null> {
   try {
-    const { data, error } = await supabase
-      .from("doctors")
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", doctorId)
-      .select()
-      .single();
+    const { id, created_at, is_available, doctor_name, ...cleanUpdates } = updates as any;
 
-    if (error) {
-      console.error("Error updating doctor profile:", error);
-      return null;
+    const fullName = [cleanUpdates.first_name, cleanUpdates.middle_name, cleanUpdates.last_name]
+      .filter(Boolean)
+      .join(" ");
+
+    // Synchronize phone and name with profiles table if user_id is available
+    if (cleanUpdates.user_id) {
+      try {
+        const profileUpdates: any = {};
+        if (cleanUpdates.doctor_phone) profileUpdates.phone_number = cleanUpdates.doctor_phone;
+        if (fullName) profileUpdates.name = fullName;
+        if (Object.keys(profileUpdates).length > 0) {
+          await supabase
+            .from("profiles")
+            .update(profileUpdates)
+            .eq("id", cleanUpdates.user_id);
+        }
+      } catch (profileErr) {
+        console.warn("[DoctorService] Could not update profile phone_number:", profileErr);
+      }
     }
 
-    return data as Doctor;
-  } catch (error) {
-    console.error("Exception in updateDoctorProfile:", error);
-    return null;
-  }
-}
+    // Attempt update by matching either doctor id or user_id
+    let { data, error } = await supabase
+      .from("doctors")
+      .update({
+        ...cleanUpdates,
+        updated_at: new Date().toISOString(),
+      })
+      .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)
+      .select()
+      .maybeSingle();
 
-/**
- * Update doctor availability status
- * @param doctorId - The doctor record ID
- * @param isAvailable - Whether doctor is available
- * @returns Updated doctor or null
- */
-export async function updateAvailabilityStatus(
-  doctorId: string,
-  isAvailable: boolean
-): Promise<Doctor | null> {
-  return updateDoctorProfile(doctorId, {
-    is_available: isAvailable,
-  });
+    // If error indicates doctor_phone column does not exist on doctors table, retry without it
+    if (error && (error.message?.includes("doctor_phone") || error.code === "42703")) {
+      console.warn("[DoctorService] Column doctor_phone missing on doctors table, retrying update without it...");
+      const { doctor_phone, ...withoutPhone } = cleanUpdates;
+      const retryResult = await supabase
+        .from("doctors")
+        .update({
+          ...withoutPhone,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)
+        .select()
+        .maybeSingle();
+
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    // If error indicates gender column does not exist on doctors table, retry without it
+    if (error && (error.message?.includes("gender") || error.code === "42703")) {
+      console.warn("[DoctorService] Column gender missing on doctors table, retrying update without it...");
+      const { gender, ...withoutGender } = cleanUpdates;
+      const retryResult = await supabase
+        .from("doctors")
+        .update({
+          ...withoutGender,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`id.eq.${doctorId},user_id.eq.${doctorId}`)
+        .select()
+        .maybeSingle();
+
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    // If no row was found to update, attempt inserting a new record
+    if (!data && !error && (cleanUpdates.user_id || doctorId)) {
+      console.log("[DoctorService] Doctor record not found for update, attempting insert...");
+      const effectiveUserId = cleanUpdates.user_id || doctorId;
+      const insertPayload = {
+        ...cleanUpdates,
+        user_id: effectiveUserId,
+        updated_at: new Date().toISOString(),
+      };
+
+      const insertResult = await supabase
+        .from("doctors")
+        .insert([insertPayload])
+        .select()
+        .maybeSingle();
+
+      data = insertResult.data;
+      error = insertResult.error;
+    }
+
+    // Cache gender to AsyncStorage and user_metadata as robust fallback
+    if (cleanUpdates.gender) {
+      const targetUserId = cleanUpdates.user_id || doctorId;
+      try {
+        await AsyncStorage.setItem(`@doctor_gender_${targetUserId}`, cleanUpdates.gender);
+        supabase.auth.updateUser({ data: { gender: cleanUpdates.gender } }).catch(() => {});
+      } catch (cacheErr) {
+        console.warn("[DoctorService] Could not cache gender:", cacheErr);
+      }
+    }
+
+    if (error) {
+      console.error("[DoctorService] Error updating doctor profile:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    const resultDoc = (data || { ...cleanUpdates, id: doctorId }) as Doctor;
+    if (cleanUpdates.gender && (!resultDoc.gender || resultDoc.gender !== cleanUpdates.gender)) {
+      resultDoc.gender = cleanUpdates.gender;
+    }
+
+    return resultDoc;
+  } catch (error) {
+    console.error("[DoctorService] Exception in updateDoctorProfile:", error);
+    throw error;
+  }
 }
 
 /**
@@ -304,7 +609,6 @@ export async function searchDoctors(query: string): Promise<Doctor[]> {
       .or(
         `specialization.ilike.%${query}%,clinic_name.ilike.%${query}%,bio.ilike.%${query}%`
       )
-      .eq("is_available", true)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -387,34 +691,29 @@ export async function doctorLicenseExists(licenseNumber: string): Promise<boolea
 export async function getDoctorStats(): Promise<{
   total: number;
   verified: number;
-  available: number;
-  unavailable: number;
 }> {
   try {
     const { data, error } = await supabase
       .from("doctors")
-      .select("id, is_verified, is_available");
+      .select("id, is_verified");
 
     if (error) {
       console.error("Error fetching doctor stats:", error);
-      return { total: 0, verified: 0, available: 0, unavailable: 0 };
+      return { total: 0, verified: 0 };
     }
 
     const doctors = (data || []) as Array<{
       id: string;
       is_verified: boolean;
-      is_available: boolean;
     }>;
 
     return {
       total: doctors.length,
       verified: doctors.filter((d) => d.is_verified).length,
-      available: doctors.filter((d) => d.is_available).length,
-      unavailable: doctors.filter((d) => !d.is_available).length,
     };
   } catch (error) {
     console.error("Exception in getDoctorStats:", error);
-    return { total: 0, verified: 0, available: 0, unavailable: 0 };
+    return { total: 0, verified: 0 };
   }
 }
 

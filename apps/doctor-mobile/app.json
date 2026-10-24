@@ -6,23 +6,40 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/images/SmileGuard-Doc-Logo.png",
     "assetBundlePatterns": [
       "**/*"
     ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.smileguard.doctor",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/SmileGuard-Doc-Logo.png",
+        "backgroundColor": "#00B4A0"
+      }
+    },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/SmileGuard-Doc-Logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
+      "router": {},
       "eas": {
-        "projectId": "28981be6-1f0b-4612-95b6-158e6ea1767c"
-      },
-      "router": {}
+        "projectId": "8452d18f-d75c-4d8a-9187-bcff1f62d2fb"
+      }
     },
-    "owner": "mortart",
-    "android": {
-      "package": "com.smileguard.doctor"
-    }
+    "owner": "mortart"
   }
 }

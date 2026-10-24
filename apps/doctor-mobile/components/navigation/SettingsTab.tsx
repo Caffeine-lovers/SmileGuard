@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { CurrentUser, Doctor, EMPTY_DOCTOR } from '@smileguard/shared-types';
+import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
 import { Settings as SettingsIcon, ChevronRight } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
@@ -50,15 +50,16 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
 
   // Fetch doctor profile when modal opens
   useEffect(() => {
-    if (editingProfile && authUser?.id) {
+    const effectiveId = authUser?.id || user?.id;
+    if (editingProfile && effectiveId) {
       fetchDoctorData();
     }
-  }, [editingProfile, authUser?.id]);
+  }, [editingProfile, authUser?.id, user?.id]);
 
   const fetchDoctorData = async () => {
     try {
       setLoadingDoctor(true);
-      const userId = authUser?.id;
+      const userId = authUser?.id || user?.id;
       console.log('=== FETCH DOCTOR DEBUG ===');
       console.log('authUser:', authUser);
       console.log('User ID:', userId);
@@ -83,6 +84,9 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
       console.log('✅ Doctor profile result:', doctor);
       if (doctor) {
         setDoctorData(doctor);
+        if (onUpdateProfile && doctor.gender) {
+          onUpdateProfile(doctor);
+        }
       } else {
         console.warn('⚠️ No doctor profile found, using empty doctor');
         setDoctorData(EMPTY_DOCTOR);
@@ -99,29 +103,46 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
     try {
       console.log('💾 Saving doctor profile updates:', updatedDoctor);
       
-      if (!doctorData.id) {
+      const effectiveUserId = updatedDoctor.user_id || doctorData.user_id || authUser?.id || user?.id;
+      const targetId = updatedDoctor.id || doctorData.id || effectiveUserId;
+      if (!targetId) {
         console.error('❌ Doctor ID is not available');
-        return;
+        throw new Error('Doctor ID is not available. Please try again.');
       }
 
+      // Merge current doctorData with the new updates to ensure all fields and user_id persist
+      const payload: Partial<Doctor> = {
+        ...doctorData,
+        ...updatedDoctor,
+        user_id: effectiveUserId || "",
+      };
+
       // Call Supabase to update the doctor profile
-      const result = await updateDoctorProfile(doctorData.id, updatedDoctor);
+      const result = await updateDoctorProfile(targetId, payload);
       
       if (result) {
         console.log('✅ Profile updated in Supabase:', result);
         // Update local state with the returned data
         setDoctorData(result);
         
+        // Notify parent dashboard component immediately so title and name update in real-time
+        if (onUpdateProfile) {
+          onUpdateProfile(result);
+        }
+
         // Trigger notification callback if provided
         if (onProfileUpdated && result.id) {
-          onProfileUpdated(result.doctor_name || 'Doctor', result.id);
+          const docTitle = `${getDoctorPrefix(result)} ${getDoctorFullName(result)}`.trim();
+          onProfileUpdated(docTitle || 'Doctor', result.id);
         }
         // Don't close modal - keep it open for more edits
       } else {
         console.error('❌ Failed to update profile in Supabase');
+        throw new Error('Failed to update doctor profile');
       }
     } catch (error) {
       console.error('❌ Failed to save profile:', error);
+      throw error;
     }
   };
 

@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
-  Switch,
   Image,
   Modal,
 } from "react-native";
@@ -108,7 +107,8 @@ export default function DoctorProfileSetup({
       accessCode.trim().length >= 4 &&
       isValidLicenseNumber(doctorData.license_number) &&
       doctorData.specialization.trim() !== "" &&
-      doctorData.doctor_name?.trim() !== ""
+      (doctorData.first_name?.trim() || "") !== "" &&
+      (doctorData.last_name?.trim() || "") !== ""
     );
   };
   // ────────────────────────────────────────────────────────────────
@@ -162,8 +162,10 @@ export default function DoctorProfileSetup({
         errorMsg = "Medical License Number must be 5-7 characters with both letters and numbers (e.g., ABC123)";
       } else if (doctorData.specialization.trim() === "") {
         errorMsg = "Please enter a specialization.";
-      } else if (doctorData.doctor_name?.trim() === "") {
-        errorMsg = "Please enter a doctor name.";
+      } else if ((doctorData.first_name || "").trim() === "") {
+        errorMsg = "Please enter your first name.";
+      } else if ((doctorData.last_name || "").trim() === "") {
+        errorMsg = "Please enter your last name.";
       }
       
       Alert.alert("Invalid Information", errorMsg);
@@ -182,7 +184,9 @@ export default function DoctorProfileSetup({
 
       console.log("[DoctorProfileSetup] Authenticated user ID:", data.user.id);
       console.log("[DoctorProfileSetup] Current doctorData before save:", {
-        doctor_name: doctorData.doctor_name,
+        first_name: doctorData.first_name,
+        middle_name: doctorData.middle_name,
+        last_name: doctorData.last_name,
         specialization: doctorData.specialization,
         license_number: doctorData.license_number,
         bio: doctorData.bio,
@@ -201,17 +205,27 @@ export default function DoctorProfileSetup({
       }
 
       // Update doctor data with user_id and image URL
-      const finalDoctorData = {
-        ...doctorData,
+      const { is_available, doctor_name, ...doctorDataClean } = doctorData as any;
+      const finalDoctorData: Doctor = {
+        ...doctorDataClean,
         user_id: data.user.id,
+        gender: (doctorData.gender || "").trim() || undefined,
         profile_picture_url: profileImageUrl,
+        doctor_phone: (doctorData.doctor_phone || "").trim(),
+        years_of_experience: Number(doctorData.years_of_experience) || 0,
+        office_hours: doctorData.office_hours || EMPTY_DOCTOR.office_hours,
       };
 
       console.log("[DoctorProfileSetup] Final doctor data to save:", {
         user_id: finalDoctorData.user_id,
-        doctor_name: finalDoctorData.doctor_name,
+        first_name: finalDoctorData.first_name,
+        middle_name: finalDoctorData.middle_name,
+        last_name: finalDoctorData.last_name,
         specialization: finalDoctorData.specialization,
         license_number: finalDoctorData.license_number,
+        doctor_phone: finalDoctorData.doctor_phone,
+        years_of_experience: finalDoctorData.years_of_experience,
+        has_office_hours: !!finalDoctorData.office_hours,
       });
 
       // Save doctor profile to database
@@ -455,15 +469,65 @@ export default function DoctorProfileSetup({
           <Text style={styles.sectionHeader}>Doctor Information</Text>
 
           <Text style={styles.label}>
-            Doctor Name <Text style={styles.requiredStar}>*</Text>
+            First Name <Text style={styles.requiredStar}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g., Dr. Jane Doe"
+            placeholder="e.g., Jane"
             placeholderTextColor="#94A3B8"
-            value={doctorData.doctor_name || ""}
-            onChangeText={(text) => updateDoctorData("doctor_name", text)}
+            value={doctorData.first_name || ""}
+            onChangeText={(text) => updateDoctorData("first_name", text)}
           />
+
+          <Text style={styles.label}>Middle Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Marie (optional)"
+            placeholderTextColor="#94A3B8"
+            value={doctorData.middle_name || ""}
+            onChangeText={(text) => updateDoctorData("middle_name", text)}
+          />
+
+          <Text style={styles.label}>
+            Last Name <Text style={styles.requiredStar}>*</Text>
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Doe"
+            placeholderTextColor="#94A3B8"
+            value={doctorData.last_name || ""}
+            onChangeText={(text) => updateDoctorData("last_name", text)}
+          />
+
+          <Text style={styles.label}>Gender (determines Dr. or Dra. title)</Text>
+          <View style={styles.genderChipRow}>
+            {[
+              { label: "Male (Dr.)", value: "Male" },
+              { label: "Female (Dra.)", value: "Female" },
+            ].map((item) => {
+              const isSelected = (doctorData.gender || "").toLowerCase() === item.value.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.genderChip,
+                    isSelected && styles.genderChipActive,
+                  ]}
+                  onPress={() => updateDoctorData("gender", item.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.genderChipText,
+                      isSelected && styles.genderChipTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={styles.label}>Doctor Phone</Text>
           <TextInput
@@ -474,19 +538,6 @@ export default function DoctorProfileSetup({
             value={doctorData.doctor_phone || ""}
             onChangeText={(text) => updateDoctorData("doctor_phone", text)}
           />
-
-          {/* Section: Availability */}
-          <Text style={styles.sectionHeader}>Availability</Text>
-
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Currently Available for Patients</Text>
-            <Switch
-              value={doctorData.is_available || false}
-              trackColor={{ false: "#CBD5E1", true: "#A7F3D0" }}
-              thumbColor={doctorData.is_available ? "#10B981" : "#F1F5F9"}
-              onValueChange={(value) => updateDoctorData("is_available", value)}
-            />
-          </View>
 
           {/* Section: Profile Picture */}
           <Text style={styles.sectionHeader}>Profile Picture</Text>
@@ -682,23 +733,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     paddingTop: 8,
   },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  switchLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1E293B",
-  },
   requiredNote: {
     fontSize: 12,
     color: "#64748B",
@@ -830,5 +864,34 @@ const styles = StyleSheet.create({
   dropdownOptionText: {
     fontSize: 13,
     color: "#334155",
+  },
+  genderChipRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  genderChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  genderChipActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#047857",
+  },
+  genderChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  genderChipTextActive: {
+    color: "#047857",
+    fontWeight: "700",
   },
 });

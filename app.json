@@ -50,8 +50,9 @@
       "supabaseUrl": "https://yffvnvusiazjnwmdylji.supabase.co",
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "eas": {
-        "projectId": "4a094560-0f17-4d14-9fd2-48972bcd9f51"
+        "projectId": "48625476-9f0a-4fc4-bb66-1baab72497a4"
       }
-    }
+    },
+    "owner": "mortart"
   }
 }

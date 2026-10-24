@@ -255,31 +255,118 @@ export const uploadProfileImage = async (
   }
 };
 
+export interface UploadedProfileImage {
+  id: string;
+  name: string;
+  url: string;
+  createdAt?: string | null;
+  fullPath: string;
+}
+
+/**
+ * List all profile pictures uploaded in 'doctor-pictures' bucket for a given user/doctor
+ */
+export const listDoctorProfileImages = async (
+  userIds: string | string[]
+): Promise<UploadedProfileImage[]> => {
+  try {
+    const ids = Array.isArray(userIds) ? userIds : [userIds];
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    const allImages: UploadedProfileImage[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const uid of uniqueIds) {
+      const folderPath = `profile/${uid}`;
+      const { data, error } = await supabase.storage
+        .from("doctor-pictures")
+        .list(folderPath, {
+          limit: 100,
+          sortBy: { column: "created_at", order: "desc" },
+        });
+
+      if (error) {
+        console.warn(`[ImageUpload] Could not list images in ${folderPath}:`, error.message);
+        continue;
+      }
+
+      if (data && data.length > 0) {
+        for (const file of data) {
+          if (!file.name || file.name.startsWith(".")) continue;
+          const fullPath = `${folderPath}/${file.name}`;
+          const { data: publicUrlData } = supabase.storage
+            .from("doctor-pictures")
+            .getPublicUrl(fullPath);
+
+          const url = publicUrlData?.publicUrl;
+          if (url && !seenUrls.has(url)) {
+            seenUrls.add(url);
+            allImages.push({
+              id: file.id || file.name,
+              name: file.name,
+              url,
+              createdAt: file.created_at,
+              fullPath,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort newest first
+    allImages.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return allImages;
+  } catch (error) {
+    console.error("[ImageUpload] Error listing doctor profile images:", error);
+    return [];
+  }
+};
+
 /**
  * Delete image from Supabase Storage
  */
-export const deleteProfileImage = async (imageUrl: string): Promise<void> => {
+export const deleteProfileImage = async (pathOrUrl: string): Promise<void> => {
   try {
-    // Extract path from URL
-    const urlParts = imageUrl.split("/storage/v1/object/public/doctor-pictures/");
-    if (urlParts.length < 2) {
-      throw new Error("Invalid image URL");
+    if (!pathOrUrl || typeof pathOrUrl !== "string") {
+      throw new Error("No image path or URL provided");
     }
 
-    const filePath = decodeURIComponent(urlParts[1]);
-    console.log("️  Deleting image:", filePath);
+    let filePath = pathOrUrl.trim();
 
-    const { error } = await supabase.storage
+    // If it's a full Supabase storage URL, extract the path after bucket name
+    if (filePath.includes("/storage/v1/object/public/doctor-pictures/")) {
+      const parts = filePath.split("/storage/v1/object/public/doctor-pictures/");
+      filePath = decodeURIComponent(parts[1]);
+    } else if (filePath.includes("/storage/v1/object/doctor-pictures/")) {
+      const parts = filePath.split("/storage/v1/object/doctor-pictures/");
+      filePath = decodeURIComponent(parts[1]);
+    } else if (filePath.startsWith("doctor-pictures/")) {
+      filePath = filePath.replace("doctor-pictures/", "");
+    }
+
+    // Strip any URL query parameters (e.g., ?t=123456789)
+    if (filePath.includes("?")) {
+      filePath = filePath.split("?")[0];
+    }
+
+    console.log("[ImageUpload] Deleting storage object from bucket 'doctor-pictures':", filePath);
+
+    const { data, error } = await supabase.storage
       .from("doctor-pictures")
       .remove([filePath]);
 
     if (error) {
-      throw error;
+      console.error("[ImageUpload] Supabase storage remove error:", error);
+      throw new Error(`Storage error: ${error.message}`);
     }
 
-    console.log(" Image deleted successfully");
+    console.log("[ImageUpload] Image removed from storage successfully:", data);
   } catch (error) {
-    console.error(" Delete failed:", error);
+    console.error("[ImageUpload] Delete failed:", error);
     throw error;
   }
 };

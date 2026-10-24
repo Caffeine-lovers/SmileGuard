@@ -25,6 +25,7 @@ export default function CompleteProfile() {
   const { currentUser: user } = useAuth();
   const [formData, setFormData] = useState({
     name: user?.name || "",
+    gender: "Male",
     specialization: "",
     licenseNumber: "",
     phoneNumber: "",
@@ -40,7 +41,7 @@ export default function CompleteProfile() {
   const handleSubmit = async () => {
     try {
       console.log("[CompleteProfile] Form submission started");
-      
+
       // Validate form
       if (!formData.name.trim()) {
         Alert.alert("Error", "Please enter your name");
@@ -72,22 +73,27 @@ export default function CompleteProfile() {
       console.log("[CompleteProfile] User metadata updated");
 
       // Create or update doctor profile
-      console.log("[CompleteProfile] Inserting doctor profile...");
-      const { error: insertError } = await supabase.from("doctors").insert([
+      console.log("[CompleteProfile] Upserting doctor profile...");
+      const nameParts = (formData.name || "").trim().split(" ");
+      const firstName = nameParts[0] || "Doctor";
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      const { error: insertError } = await supabase.from("doctors").upsert([
         {
           user_id: user?.id,
-          name: formData.name,
+          first_name: firstName,
+          last_name: lastName,
+          gender: formData.gender,
           specialization: formData.specialization,
           license_number: formData.licenseNumber,
-          phone_number: formData.phoneNumber,
+          doctor_phone: formData.phoneNumber,
         },
-      ]);
+      ], { onConflict: "user_id" });
 
-      if (insertError && insertError.code !== "23505") {
-        // 23505 is duplicate key error - if doctor exists, that's ok
+      if (insertError) {
         throw insertError;
       }
-      console.log("[CompleteProfile] Doctor profile inserted");
+      console.log("[CompleteProfile] Doctor profile upserted");
 
       console.log("✅ Profile completed successfully");
       Alert.alert("Success", "Profile updated successfully!");
@@ -132,7 +138,7 @@ export default function CompleteProfile() {
                 <Text style={styles.fieldLabel}>Full Name</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Dr. John Smith"
+                  placeholder="e.g., John Smith"
                   placeholderTextColor="#9ca3af"
                   value={formData.name}
                   onChangeText={(text) =>
@@ -140,6 +146,47 @@ export default function CompleteProfile() {
                   }
                   editable={!loading}
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Gender (determines Dr. or Dra. title)</Text>
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                  {[
+                    { label: "Male (Dr.)", value: "Male" },
+                    { label: "Female (Dra.)", value: "Female" },
+                  ].map((item) => {
+                    const isSelected = formData.gender.toLowerCase() === item.value.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={item.value}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          paddingHorizontal: 14,
+                          borderRadius: 8,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? "#047857" : "#CBD5E1",
+                          backgroundColor: isSelected ? "#ECFDF5" : "#F8FAFC",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        onPress={() => setFormData({ ...formData, gender: item.value })}
+                        disabled={loading}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: isSelected ? "700" : "600",
+                            color: isSelected ? "#047857" : "#64748B",
+                          }}
+                        >
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               <View style={styles.inputGroup}>

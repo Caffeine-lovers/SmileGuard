@@ -29,6 +29,7 @@ import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile } from "../../lib/doctorService";
+import { getDoctorFullName, getDoctorPrefix, getDoctorTitleName } from "@smileguard/shared-types";
 import { supabase } from '@smileguard/supabase-client';
 import {
   notifyAppointmentStatusChanged,
@@ -66,6 +67,8 @@ import {
   TIME_OPTIONS,
   getToday,
 } from "../../data/dashboardData";
+
+const APP_LOGO = require('../../assets/images/SmileGuard-Doc-Logo.png');
 
 // Type definitions
 export interface DashboardAppointment {
@@ -113,7 +116,20 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const notificationState = useNotifications(user?.id, true, handleIncomingNotification);
 
   // Doctor profile state
-  const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { doctor_name?: string }>(user);
+  const [doctorProfile, setDoctorProfile] = useState<CurrentUser & { first_name?: string; middle_name?: string; last_name?: string; doctor_name?: string; gender?: string }>(user);
+
+  // Sync when user prop updates
+  useEffect(() => {
+    if (user) {
+      setDoctorProfile(prev => ({
+        ...user,
+        ...prev,
+        gender: prev.gender || (user as any).gender,
+        first_name: prev.first_name || (user as any).first_name,
+        last_name: prev.last_name || (user as any).last_name,
+      }));
+    }
+  }, [user]);
 
   // Loading states
   const [loadingAppointments, setLoadingAppointments] = useState(true);
@@ -124,8 +140,19 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
 
   // Handle profile updates
-  const handleUpdateProfile = (updatedData: Partial<CurrentUser>) => {
-    setDoctorProfile(prev => ({ ...prev, ...updatedData }));
+  const handleUpdateProfile = (updatedData: any) => {
+    console.log('[DoctorDashboard] handleUpdateProfile called with:', updatedData);
+    const fullName = getDoctorFullName(updatedData);
+    setDoctorProfile(prev => ({
+      ...prev,
+      ...updatedData,
+      first_name: updatedData.first_name !== undefined ? updatedData.first_name : prev.first_name,
+      middle_name: updatedData.middle_name !== undefined ? updatedData.middle_name : prev.middle_name,
+      last_name: updatedData.last_name !== undefined ? updatedData.last_name : prev.last_name,
+      gender: updatedData.gender !== undefined ? updatedData.gender : prev.gender,
+      doctor_name: fullName || updatedData.doctor_name || prev.doctor_name,
+      name: fullName || updatedData.doctor_name || updatedData.name || prev.name,
+    }));
   };
 
   // Sidebar state
@@ -216,29 +243,31 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     }
   }, [selectedPatient]);
 
-  // ─────────────────────────────────────────
-  // FETCH DOCTOR PROFILE FROM DOCTORS TABLE
-  // ─────────────────────────────────────────
+  const fetchDoctorInfo = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const profile = await getDoctorProfile(user.id);
+      if (profile) {
+        const fullName = getDoctorFullName(profile);
+        setDoctorProfile(prev => ({
+          ...prev,
+          first_name: profile.first_name !== undefined ? profile.first_name : prev.first_name,
+          middle_name: profile.middle_name !== undefined ? profile.middle_name : prev.middle_name,
+          last_name: profile.last_name !== undefined ? profile.last_name : prev.last_name,
+          gender: profile.gender !== undefined ? profile.gender : prev.gender,
+          doctor_name: fullName || profile.doctor_name || prev.doctor_name,
+          name: fullName || profile.doctor_name || prev.name,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching doctor profile:", error);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    const fetchDoctorInfo = async () => {
-      if (!user?.id) return;
-
-      try {
-        const doctorProfile = await getDoctorProfile(user.id);
-        if (doctorProfile) {
-          setDoctorProfile(prev => ({
-            ...prev,
-            doctor_name: doctorProfile.doctor_name || doctorProfile.doctor_name,
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching doctor profile:", error);
-      }
-    };
-
     fetchDoctorInfo();
-  }, [user?.id]);
+  }, [fetchDoctorInfo]);
 
   // ─────────────────────────────────────────
   // FETCH DATA FROM SUPABASE
@@ -415,11 +444,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       console.error('❌ Error fetching dashboard data:', error);
       setErrorMessage('Failed to load dashboard data');
     } finally {
+      // Re-fetch doctor info to ensure prefix and gender remain fresh
+      fetchDoctorInfo();
       setLoadingAppointments(false);
       setLoadingPatients(false);
       setIsRefreshing(false);
     }
-  }, [user?.id, today]);
+  }, [user?.id, today, fetchDoctorInfo]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -433,6 +464,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   useFocusEffect(
     useCallback(() => {
       setLoadingOnTabSwitch(true);
+      fetchDoctorInfo();
       refreshDashboardData();
       setExpandPatientDetails(false);
 
@@ -444,7 +476,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       return () => {
         clearTimeout(timer);
       };
-    }, [refreshDashboardData])
+    }, [refreshDashboardData, fetchDoctorInfo])
   );
 
   // ─────────────────────────────────────────
@@ -663,7 +695,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
           <View style={styles.topBarCenter}>
             <Text style={styles.topBarDoctorName} numberOfLines={1}>
-              Dr. {doctorProfile.doctor_name || doctorProfile.name || 'Doctor'}
+              {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
             </Text>
             <Text style={styles.topBarClinic} numberOfLines={1}>
               {(doctorProfile as any)?.specialization || clinic?.clinic_name || 'SmileGuard'}
@@ -772,7 +804,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 <View style={{ marginBottom: 16 }}>
                   <Text style={styles.welcomeGreeting}>Welcome back,</Text>
                   <Text style={styles.welcomeName}>
-                    Dr. {doctorProfile.doctor_name || doctorProfile.name || 'Doctor'}
+                    {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
                   </Text>
                 </View>
 
@@ -1254,10 +1286,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         >
           <View style={styles.sidebarHeader}>
             <View style={styles.sidebarBrandRow}>
-              {clinic?.logo_url ? (
+              {clinic?.logo_url === 'APP_LOGO' ? (
+                <Image
+                  source={APP_LOGO}
+                  style={[styles.sidebarBrandLogo, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}
+                  resizeMode="contain"
+                />
+              ) : clinic?.logo_url ? (
                 <Image
                   source={{ uri: clinic.logo_url }}
                   style={styles.sidebarBrandLogo}
+                  resizeMode="cover"
                 />
               ) : (
                 <View style={styles.sidebarBrandIcon}>

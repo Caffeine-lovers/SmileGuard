@@ -13,6 +13,7 @@ export interface CurrentUser {
   role: "patient" | "doctor";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
+  gender?: string;
 }
 
 export interface FormData {
@@ -99,11 +100,14 @@ export interface Doctor {
   license_number: string;
   specialization: string;
   bio?: string;
-  doctor_name?: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  gender?: string; // "Male" | "Female" | string (used to identify Dr. vs Dra.)
+  doctor_name?: string; // Legacy fallback
   doctor_phone?: string;
   office_hours?: OfficeHours;
   years_of_experience?: number;
-  is_available?: boolean;
   profile_picture_url?: string;
   created_at?: string;
   updated_at?: string;
@@ -114,6 +118,10 @@ export const EMPTY_DOCTOR: Doctor = {
   license_number: "",
   specialization: "",
   bio: "",
+  first_name: "",
+  middle_name: "",
+  last_name: "",
+  gender: "",
   doctor_name: "",
   doctor_phone: "",
   office_hours: {
@@ -134,9 +142,116 @@ export const EMPTY_DOCTOR: Doctor = {
     },
   },
   years_of_experience: 0,
-  is_available: true,
   profile_picture_url: "",
 };
+
+/**
+ * Helper to get doctor prefix title ("Dr." or "Dra.") based on gender.
+ * Defaults to "Dr." if gender is unspecified, male, or non-female.
+ * Returns "Dra." when gender is female.
+ */
+export function getDoctorPrefix(
+  doctorOrGender?: { gender?: string | null } | string | null,
+  options?: { withDot?: boolean }
+): string {
+  const withDot = options?.withDot !== false;
+  const rawGender =
+    typeof doctorOrGender === "string"
+      ? doctorOrGender
+      : doctorOrGender?.gender;
+
+  const normalized = (rawGender || "").trim().toLowerCase();
+  const isFemale =
+    normalized === "female" ||
+    normalized === "f" ||
+    normalized === "dra" ||
+    normalized === "dra." ||
+    normalized === "doctora";
+
+  if (withDot) {
+    return isFemale ? "Dra." : "Dr.";
+  }
+  return isFemale ? "Dra" : "Dr";
+}
+
+/**
+ * Helper to construct the full name of a doctor
+ */
+export function getDoctorFullName(doctor?: {
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  doctor_name?: string;
+  name?: string;
+  gender?: string;
+}): string {
+  if (!doctor) return "";
+  const parts = [doctor.first_name, doctor.middle_name, doctor.last_name]
+    .map((p) => (p || "").trim())
+    .filter(Boolean);
+  if (parts.length > 0) return parts.join(" ");
+  return doctor.doctor_name || doctor.name || "";
+}
+
+/**
+ * Helper to construct doctor title with full name: [Dr.|Dra.] [First] [Middle] [Last]
+ */
+export function getDoctorTitleName(
+  doctor?: {
+    first_name?: string;
+    middle_name?: string;
+    last_name?: string;
+    doctor_name?: string;
+    name?: string;
+    gender?: string;
+  },
+  options?: { withDot?: boolean }
+): string {
+  if (!doctor) return "";
+  const prefix = getDoctorPrefix(doctor, options);
+  const fullName = getDoctorFullName(doctor);
+  if (!fullName) return prefix;
+  const cleanedName = fullName.replace(/^(?:Dr|Dra)\.?\s+/i, "");
+  return `${prefix} ${cleanedName}`.trim();
+}
+
+/**
+ * Helper to construct doctor display name: first_name, middle initial (if present), and last_name
+ */
+export function formatDoctorDisplayName(
+  doctor?: {
+    first_name?: string | null;
+    middle_name?: string | null;
+    last_name?: string | null;
+    gender?: string | null;
+  },
+  options?: { includePrefix?: boolean; withDot?: boolean }
+): string {
+  if (!doctor) return "";
+  const firstName = (doctor.first_name || "").trim();
+  const lastName = (doctor.last_name || "").trim();
+  const middleTrimmed = (doctor.middle_name || "").trim();
+
+  let middleInitial = "";
+  if (middleTrimmed) {
+    const match = middleTrimmed.match(/\p{L}/u);
+    if (match) {
+      middleInitial = `${match[0].toUpperCase()}.`;
+    }
+  }
+
+  const parts = [firstName, middleInitial, lastName].filter(Boolean);
+  const name = parts.join(" ");
+  if (!name) return "";
+
+  if (options?.includePrefix) {
+    const prefix = getDoctorPrefix(doctor, { withDot: options.withDot });
+    return `${prefix} ${name}`;
+  }
+
+  return name;
+}
+
 
 // ─────────────────────────────────────────
 // Treatment Types
