@@ -16,7 +16,7 @@
     "android": {
       "package": "com.smileguard.doctor",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/SmileGuard-Doc-Logo.png",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#00B4A0"
       }
     },
