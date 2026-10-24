@@ -3,7 +3,7 @@
  * Handles real-time Supabase subscriptions for table updates
  */
 
-import { supabase } from './supabase';
+import { supabase } from '@smileguard/supabase-client';
 import { Notification, NotificationType } from '../types/notifications';
 
 let notificationId = 0;

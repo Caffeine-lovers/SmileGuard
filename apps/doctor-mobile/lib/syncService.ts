@@ -1,5 +1,5 @@
 import AsyncStorageLib from "@react-native-async-storage/async-storage";
-import { supabase } from "./supabase";
+import { supabase } from "@smileguard/supabase-client";
 
 // @ts-ignore - AsyncStorage type mismatch across different React Native versions
 const AsyncStorage = AsyncStorageLib.default || AsyncStorageLib;
