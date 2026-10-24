@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
+import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
 import { getPatientAppointments, getDoctorDetails } from '@/lib/appointmentService';
 import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
@@ -30,6 +31,7 @@ export default function PatientDashboard() {
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
   const [doctorPictures, setDoctorPictures] = useState<Record<string, string>>({});
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -248,6 +250,7 @@ export default function PatientDashboard() {
                   date={apt.appointment_date}
                   time={apt.appointment_time}
                   status={apt.status}
+                  onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
             </div>
@@ -268,6 +271,28 @@ export default function PatientDashboard() {
                       <span className="skeuo-badge skeuo-badge-amber text-[10px] mb-2">Pending Confirmation</span>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
                       <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
+                      {apt.dentist_id && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {doctorPictures[apt.dentist_id] && (
+                            <img
+                              src={doctorPictures[apt.dentist_id]}
+                              alt="Doctor"
+                              className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
+                            />
+                          )}
+                          <p className="text-[11px] text-slate-500 font-semibold">
+                            Doctor:{' '}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDoctorId(apt.dentist_id)}
+                              className="text-slate-800 font-bold hover:text-emerald-700 hover:underline transition-colors"
+                              title="View doctor details"
+                            >
+                              {doctorNames[apt.dentist_id] || 'Attending Dentist'}
+                            </button>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -301,7 +326,17 @@ export default function PatientDashboard() {
                               className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
                             />
                           )}
-                          <p className="text-[11px] text-slate-500 font-semibold">Doctor: {doctorNames[apt.dentist_id] || 'Attending Dentist'}</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">
+                            Doctor:{' '}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDoctorId(apt.dentist_id)}
+                              className="text-slate-800 font-bold hover:text-emerald-700 hover:underline transition-colors"
+                              title="View doctor details"
+                            >
+                              {doctorNames[apt.dentist_id] || 'Attending Dentist'}
+                            </button>
+                          </p>
                         </div>
                       )}
                     </div>
@@ -328,6 +363,12 @@ export default function PatientDashboard() {
           <ChevronRight className="w-4 h-4 text-emerald-700" />
         </Link>
       </div>
+
+      {/* Doctor Profile Viewing Modal */}
+      <DoctorProfileModal
+        doctorId={selectedDoctorId}
+        onClose={() => setSelectedDoctorId(null)}
+      />
     </div>
   );
 }

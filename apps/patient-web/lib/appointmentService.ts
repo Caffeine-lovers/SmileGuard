@@ -1,5 +1,5 @@
 import { supabase } from '@smileguard/supabase-client';
-import { formatDoctorDisplayName, getDoctorTitleName } from '@smileguard/shared-types';
+import { formatDoctorDisplayName, getDoctorTitleName, Doctor } from '@smileguard/shared-types';
 
 export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
@@ -409,5 +409,49 @@ export async function getDoctorName(dentistId: string): Promise<string | null> {
 export async function getDoctorProfilePicture(dentistId: string): Promise<string | null> {
   const details = await getDoctorDetails(dentistId);
   return details.profilePictureUrl;
+}
+
+export async function getDoctorProfile(dentistId: string): Promise<Doctor | null> {
+  try {
+    if (!dentistId) return null;
+
+    const { data, error } = await supabase
+      .from('doctors')
+      .select('*')
+      .eq('user_id', dentistId)
+      .maybeSingle();
+
+    if (data) return data as Doctor;
+
+    // Fallback: check if dentistId is the doctor primary key id
+    const { data: byId } = await supabase
+      .from('doctors')
+      .select('*')
+      .eq('id', dentistId)
+      .maybeSingle();
+
+    if (byId) return byId as Doctor;
+
+    // Fallback: check profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', dentistId)
+      .maybeSingle();
+
+    if (profile?.name) {
+      return {
+        user_id: dentistId,
+        first_name: profile.name,
+        specialization: 'General Dentistry',
+        license_number: 'N/A',
+      } as Doctor;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error fetching doctor profile:', error);
+    return null;
+  }
 }
 
