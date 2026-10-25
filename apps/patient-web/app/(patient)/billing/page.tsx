@@ -1,11 +1,6 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-
-const BillingPayment = dynamic(
-  () => import('@/components/billing/BillingPayment'),
-  { loading: () => <div className="p-8 text-center">Loading...</div> }
-);
+import BillingPayment from '@/components/billing/BillingPayment';
 
 export default function BillingPage() {
   return (

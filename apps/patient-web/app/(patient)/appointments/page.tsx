@@ -1,12 +1,7 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-
-const BookAppointment = dynamic(
-  () => import('@/components/appointments/BookAppointment'),
-  { loading: () => <div className="p-8 text-center">Loading...</div> }
-);
+import BookAppointment from '@/components/appointments/BookAppointment';
 
 export default function AppointmentsPage() {
   const router = useRouter();

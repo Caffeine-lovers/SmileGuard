@@ -40,7 +40,7 @@ export default function BioDataPage() {
     if (!authLoading && currentUser) {
       fetchMedicalData();
     }
-  }, [authLoading, currentUser, router]);
+  }, [authLoading, currentUser?.id, router]);
 
   const fetchMedicalData = async () => {
     try {

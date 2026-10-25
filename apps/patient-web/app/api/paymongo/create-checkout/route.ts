@@ -5,7 +5,7 @@ import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '
 export const dynamic = 'force-dynamic';
 
 function getSupabaseAdmin() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!serviceRoleKey || !supabaseUrl) {
     return null;

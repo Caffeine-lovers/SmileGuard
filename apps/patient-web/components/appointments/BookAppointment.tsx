@@ -93,19 +93,29 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // Fetch clinic setup and blocked slots on component mount
   useEffect(() => {
+    let isMounted = true;
+
     const loadClinicData = async () => {
       setLoadingBlockedSlots(true);
       try {
-        const schedule = await getClinicSetup();
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+        const schedule = await Promise.race([getClinicSetup(), timeoutPromise]);
+        
+        if (!isMounted) return;
         setClinicSchedule(schedule);
         
-        const slots = await getAllBlockedSlots(schedule);
-        setBlockedSlots(slots);
+        const slots = await Promise.race([
+          getAllBlockedSlots(schedule),
+          new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000))
+        ]);
+        
+        if (!isMounted) return;
+        setBlockedSlots(slots || []);
         
         // Track only the blocked dates (not appointment counts)
         const blocked = new Set<string>();
         
-        for (const slot of slots) {
+        for (const slot of (slots || [])) {
           if (slot.service === 'blocked') {
             blocked.add(slot.date);
           }
@@ -115,15 +125,23 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         console.log('📊 [BookAppointment] Blocked dates:', Array.from(blocked));
       } catch (error) {
         console.error('Error loading clinic data:', error);
-        setBlockedSlots([]);
-        setClinicSchedule(null);
-        setBlockedDates(new Set());
+        if (isMounted) {
+          setBlockedSlots([]);
+          setClinicSchedule(null);
+          setBlockedDates(new Set());
+        }
       } finally {
-        setLoadingBlockedSlots(false);
+        if (isMounted) {
+          setLoadingBlockedSlots(false);
+        }
       }
     };
     
     loadClinicData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Update time slots when selected date changes

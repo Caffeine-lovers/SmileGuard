@@ -74,7 +74,7 @@ export default function PatientDashboard() {
     }
 
     fetchData();
-  }, [currentUser, authLoading, router]);
+  }, [currentUser?.id, authLoading, router]);
 
   if (authLoading) {
     return (

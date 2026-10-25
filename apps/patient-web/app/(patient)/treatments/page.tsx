@@ -18,18 +18,23 @@ import {
 export default function TreatmentsPage() {
   const { currentUser, loading } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
 
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id) {
+      setLoadingData(false);
+      return;
+    }
 
     const userId = currentUser.id;
 
     async function fetchTreatments() {
       setLoadingData(true);
       try {
-        const appts = await getPatientAppointments(userId);
-        const sorted = appts.sort(
+        const apptsPromise = getPatientAppointments(userId);
+        const timeoutPromise = new Promise<Appointment[]>((resolve) => setTimeout(() => resolve([]), 5000));
+        const appts = await Promise.race([apptsPromise, timeoutPromise]);
+        const sorted = (appts || []).sort(
           (a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()
         );
         setAppointments(sorted);

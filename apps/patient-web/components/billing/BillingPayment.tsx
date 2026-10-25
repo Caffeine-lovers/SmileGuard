@@ -11,7 +11,6 @@ import { getPatientAppointments } from '@/lib/appointmentService';
 import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
 import {
   CreditCard,
-  Banknote,
   Building2,
   Smartphone,
   FileText,
@@ -43,7 +42,7 @@ export default function BillingPayment({
   const [discountType, setDiscountType] = useState<Billing['discount_type']>('none');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
-  const [paymentMethod, setPaymentMethod] = useState<Billing['payment_method']>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<Billing['payment_method']>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [discountProof, setDiscountProof] = useState<string | null>(null);
   const [showProofUpload, setShowProofUpload] = useState(false);
@@ -488,9 +487,8 @@ export default function BillingPayment({
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
               Select Settlement Channel
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {[
-                { value: 'cash' as const, label: 'Clinic Cash', icon: Banknote },
                 { value: 'card' as const, label: 'Card (PayMongo)', icon: CreditCard },
                 { value: 'gcash' as const, label: 'GCash / Maya', icon: Smartphone },
                 { value: 'bank-transfer' as const, label: 'Bank Transfer', icon: Building2 },
