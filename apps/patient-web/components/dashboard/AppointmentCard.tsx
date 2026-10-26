@@ -5,11 +5,12 @@ interface AppointmentCardProps {
   time: string;
   date?: string;
   status?: string;
+  clinicName?: string;
   onClick?: () => void;
   isSelected?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, date, status, onClick, isSelected }: AppointmentCardProps) {
+export default function AppointmentCard({ name, service, time, date, status, clinicName, onClick, isSelected }: AppointmentCardProps) {
   const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SG';
 
   return (
@@ -41,7 +42,14 @@ export default function AppointmentCard({ name, service, time, date, status, onC
             </span>
           )}
         </div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">{service}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{service}</p>
+          {clinicName && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-xs border bg-emerald-50 text-emerald-800 border-emerald-200 truncate max-w-[120px]">
+              {clinicName}
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-right flex flex-col items-end shrink-0">
         {date && <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">{date}</span>}

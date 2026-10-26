@@ -25,9 +25,8 @@ function getSupabaseClient(authHeader?: string | null) {
   });
 }
 
-// Service prices — authoritative server-side source of truth
-// This prevents the FIN-01 client-side price tampering vulnerability
-const SERVICE_PRICES: Record<string, number> = {
+// Fallback service prices — authoritative baseline
+const DEFAULT_SERVICE_PRICES: Record<string, number> = {
   Cleaning: 1500,
   Whitening: 5000,
   Fillings: 2000,
@@ -49,13 +48,29 @@ const SERVICE_PRICES: Record<string, number> = {
   'General Checkup': 500,
 };
 
-function getServicePrice(serviceName?: string | null): number {
+function getServicePriceForClinic(
+  serviceName?: string | null,
+  clinicServices?: { id?: string; name?: string; price?: number }[]
+): number {
   if (!serviceName) return 1500;
-  if (SERVICE_PRICES[serviceName] && SERVICE_PRICES[serviceName] > 0) {
-    return SERVICE_PRICES[serviceName];
+  if (clinicServices && Array.isArray(clinicServices) && clinicServices.length > 0) {
+    const norm = serviceName.trim().toLowerCase();
+    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
+    if (exact && typeof exact.price === 'number' && exact.price > 0) {
+      return exact.price;
+    }
+    const partial = clinicServices.find(
+      (s) =>
+        s.name &&
+        (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
+    );
+    if (partial && typeof partial.price === 'number' && partial.price > 0) {
+      return partial.price;
+    }
   }
+
   const normalized = serviceName.trim().toLowerCase();
-  for (const [key, price] of Object.entries(SERVICE_PRICES)) {
+  for (const [key, price] of Object.entries(DEFAULT_SERVICE_PRICES)) {
     if (key.toLowerCase() === normalized) return price;
     if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
       return price;
@@ -90,18 +105,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Attempt to lookup appointment service from database
+    // Attempt to lookup appointment and clinic from database
     let serviceName: string | null = null;
+    let clinicName = 'SmileGuard Dental Clinic';
+    let clinicServices: any[] = [];
+
     if (supabase) {
       const { data: appointment } = await supabase
         .from('appointments')
-        .select('service, status')
+        .select('service, dentist_id, status')
         .eq('id', appointmentId)
         .eq('patient_id', patientId)
         .maybeSingle();
 
       if (appointment?.service) {
         serviceName = appointment.service;
+      }
+
+      // Fetch the clinic setup for this appointment's doctor/clinic
+      let clinicQuery = supabase
+        .from('clinic_setup')
+        .select('clinic_name, services');
+
+      if (appointment?.dentist_id) {
+        clinicQuery = clinicQuery.eq('user_id', appointment.dentist_id);
+      } else {
+        clinicQuery = clinicQuery.limit(1);
+      }
+
+      const { data: clinicData } = await clinicQuery.maybeSingle();
+      if (clinicData) {
+        if (clinicData.clinic_name) clinicName = clinicData.clinic_name;
+        if (Array.isArray(clinicData.services)) {
+          clinicServices = clinicData.services;
+        } else if (typeof clinicData.services === 'string') {
+          try {
+            clinicServices = JSON.parse(clinicData.services);
+          } catch {}
+        }
       }
     }
 
@@ -114,7 +155,7 @@ export async function POST(request: NextRequest) {
       serviceName = 'Dental Procedure';
     }
 
-    const baseAmount = getServicePrice(serviceName);
+    const baseAmount = getServicePriceForClinic(serviceName, clinicServices);
 
     // Apply statutory discount server-side
     let finalAmount = baseAmount;
@@ -147,7 +188,7 @@ export async function POST(request: NextRequest) {
           attributes: {
             line_items: [
               {
-                name: `Dental Procedure: ${serviceName}`,
+                name: `${serviceName} • ${clinicName}`,
                 amount: amountInCentavos,
                 currency: 'PHP',
                 quantity: 1,
@@ -159,13 +200,14 @@ export async function POST(request: NextRequest) {
             metadata: {
               appointment_id: appointmentId,
               patient_id: patientId,
+              clinic_name: clinicName,
               service: serviceName,
               billing_id: billingId || '',
               discount_type: discountType || 'none',
               discount_amount: String(discountAmount),
               base_amount: String(baseAmount),
             },
-            description: `SmileGuard - ${serviceName} (Ivy King Dental Clinic)`,
+            description: `SmileGuard - ${serviceName} (${clinicName})`,
           },
         },
       }),
@@ -187,6 +229,7 @@ export async function POST(request: NextRequest) {
       checkoutId,
       amount: finalAmount,
       discountAmount,
+      clinicName,
     });
   } catch (error) {
     console.error('Error creating PayMongo checkout:', error);

@@ -10,6 +10,8 @@ export interface Appointment {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  clinic_name?: string;
+  price?: number;
 }
 
 export interface Patient {

@@ -2,10 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
-import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
+import { 
+  bookSlot, 
+  getAllBlockedSlots, 
+  isSlotTaken, 
+  getPatientAppointments, 
+  getClinicSetup, 
+  getFullClinicSetup,
+  generateTimeSlots, 
+  type ClinicSchedule,
+  type ClinicDetails 
+} from '@/lib/appointmentService';
 import type { Appointment } from '@/lib/database';
 
-import { Check, CheckCircle2, Clock, ArrowUp } from 'lucide-react';
+import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 
 const SERVICES = [
   { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
@@ -62,6 +72,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [loadingUserData, setLoadingUserData]         = useState(true);
   const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
   const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
+  const [clinicDetails, setClinicDetails]             = useState<ClinicDetails | null>(null);
   const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
   const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
 
@@ -99,13 +110,20 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setLoadingBlockedSlots(true);
       try {
         const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
-        const schedule = await Promise.race([getClinicSetup(), timeoutPromise]);
+        const clinicInfo = await Promise.race([getFullClinicSetup(), timeoutPromise]);
         
         if (!isMounted) return;
-        setClinicSchedule(schedule);
+        if (clinicInfo) {
+          setClinicDetails(clinicInfo);
+          setClinicSchedule(clinicInfo.schedule);
+        } else {
+          const fallbackSchedule = await Promise.race([getClinicSetup(), timeoutPromise]);
+          setClinicSchedule(fallbackSchedule);
+        }
         
+        const scheduleToUse = clinicInfo ? clinicInfo.schedule : null;
         const slots = await Promise.race([
-          getAllBlockedSlots(schedule),
+          getAllBlockedSlots(scheduleToUse),
           new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000))
         ]);
         
@@ -225,8 +243,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const userId = currentUser.id;
     setIsBooking(true);
     try {
-      // Book the appointment
-      const result = await bookSlot(userId, '', selectedService.name, selectedDate, selectedTime);
+      // Book the appointment with the clinic's doctor user_id
+      const dentistIdToBook = clinicDetails?.user_id || '';
+      const result = await bookSlot(userId, dentistIdToBook, selectedService.name, selectedDate, selectedTime);
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
@@ -236,7 +255,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           onSuccess({
             id: result.appointmentId,
             patient_id: userId,
-            dentist_id: null,
+            dentist_id: dentistIdToBook || null,
+            clinic_name: clinicDetails?.clinic_name || 'SmileGuard Dental Clinic',
+            price: selectedService.price,
             service: selectedService.name,
             appointment_date: selectedDate,
             appointment_time: selectedTime,
@@ -280,10 +301,18 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   return (
     <div className="min-h-screen bg-bg-screen p-4 md:p-6">
 
-      {/* Page header */}
-      <div className="mb-5">
-        <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
-        <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
+      {/* Page header with Clinic Badge */}
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
+          <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-900 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs">
+            <Building2 className="w-4 h-4 text-emerald-700" />
+            {clinicDetails?.clinic_name || 'SmileGuard Dental Clinic'}
+          </span>
+        </div>
       </div>
 
       {/* Bento grid — 12-column base */}
@@ -298,12 +327,21 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {SERVICES.map((service) => {
+              // Check if clinic customized the price
+              const clinicCustom = clinicDetails?.services?.find(
+                (s) => s.name?.trim().toLowerCase() === service.name.trim().toLowerCase()
+              );
+              const effectivePrice =
+                clinicCustom && typeof clinicCustom.price === 'number' && clinicCustom.price > 0
+                  ? clinicCustom.price
+                  : service.price;
+
               const active = selectedService?.id === service.id;
               return (
                 <button
                   type="button"
                   key={service.id}
-                  onClick={() => setSelectedService(service)}
+                  onClick={() => setSelectedService({ ...service, price: effectivePrice })}
                   className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
@@ -316,7 +354,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   </p>
                   <p className="text-xs text-text-secondary mt-0.5">{service.duration} min</p>
                   <p className={`text-xs font-bold mt-2 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
-                    ₱{service.price.toLocaleString()}
+                    ₱{effectivePrice.toLocaleString()}
                   </p>
                   {active && (
                     <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-brand-primary flex items-center justify-center">

@@ -49,6 +49,52 @@ function parse12HourTime(timeString: string): { hour: number; minute: number } {
   return { hour, minute };
 }
 
+export interface ClinicDetails {
+  id: string;
+  user_id: string;
+  clinic_name: string;
+  address?: string;
+  services?: { id: string; name: string; price?: number }[];
+  schedule: ClinicSchedule;
+}
+
+// Get full clinic setup including clinic name, doctor user_id, and services
+export async function getFullClinicSetup(): Promise<ClinicDetails | null> {
+  try {
+    const { data, error } = await supabase
+      .from('clinic_setup')
+      .select('id, user_id, clinic_name, address, services, schedule')
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      console.warn('⚠️ No clinic setup record found');
+      return null;
+    }
+
+    const row = data[0];
+    let servicesList: any[] = [];
+    if (Array.isArray(row.services)) {
+      servicesList = row.services;
+    } else if (typeof row.services === 'string') {
+      try {
+        servicesList = JSON.parse(row.services);
+      } catch {}
+    }
+
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      clinic_name: row.clinic_name || 'SmileGuard Dental Clinic',
+      address: row.address,
+      services: servicesList,
+      schedule: row.schedule,
+    };
+  } catch (error) {
+    console.error('❌ Error getting full clinic setup:', error);
+    return null;
+  }
+}
+
 // Get clinic setup with schedule information
 export async function getClinicSetup(): Promise<ClinicSchedule | null> {
   try {

@@ -6,7 +6,7 @@ import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
-import { calculateOutstandingBalance } from '@/lib/outstandingBalanceService';
+import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
 import { 
@@ -18,7 +18,8 @@ import {
   AlertCircle, 
   Stethoscope, 
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Building2
 } from 'lucide-react';
 
 export default function PatientDashboard() {
@@ -43,12 +44,21 @@ export default function PatientDashboard() {
       try {
         if (!currentUser?.id) return;
         const userId = currentUser.id;
-        const [appts, balance] = await Promise.all([
+        const [appts, balance, { clinicMap, defaultClinic }] = await Promise.all([
           getPatientAppointments(userId),
           calculateOutstandingBalance(userId),
+          fetchClinicLookup(),
         ]);
 
-        setAppointments(appts);
+        const enrichedAppts = appts.map((a) => {
+          const clinic = (a.dentist_id ? clinicMap.get(a.dentist_id) : null) || defaultClinic;
+          return {
+            ...a,
+            clinic_name: clinic?.clinic_name || 'SmileGuard Dental Clinic',
+          };
+        });
+
+        setAppointments(enrichedAppts);
         setOutstandingBalance(balance);
 
         // Fetch doctor names
@@ -243,6 +253,7 @@ export default function PatientDashboard() {
                   date={apt.appointment_date}
                   time={apt.appointment_time}
                   status={apt.status}
+                  clinicName={apt.clinic_name}
                 />
               ))}
             </div>
@@ -260,7 +271,15 @@ export default function PatientDashboard() {
                 <div key={apt.id} className="skeuo-card p-4 border-2 border-amber-300 bg-amber-50/40 rounded-sm">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="skeuo-badge skeuo-badge-amber text-[10px] mb-2">Pending Confirmation</span>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className="skeuo-badge skeuo-badge-amber text-[10px]">Pending Confirmation</span>
+                        {apt.clinic_name && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-xs">
+                            <Building2 className="w-3 h-3 text-amber-700" />
+                            {apt.clinic_name}
+                          </span>
+                        )}
+                      </div>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
                       <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
                     </div>
@@ -282,9 +301,17 @@ export default function PatientDashboard() {
                 <div key={apt.id} className="skeuo-card p-4 border-2 border-slate-300 bg-slate-50/60 rounded-sm">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className={`skeuo-badge text-[10px] mb-2 ${apt.status === 'declined' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-red-100 text-red-800 border-red-300'}`}>
-                        {apt.status === 'declined' ? 'Declined by Clinic' : 'Cancelled'}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className={`skeuo-badge text-[10px] ${apt.status === 'declined' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                          {apt.status === 'declined' ? 'Declined by Clinic' : 'Cancelled'}
+                        </span>
+                        {apt.clinic_name && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-slate-200 border border-slate-300 px-1.5 py-0.5 rounded-xs">
+                            <Building2 className="w-3 h-3 text-slate-600" />
+                            {apt.clinic_name}
+                          </span>
+                        )}
+                      </div>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
                       <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
                       {apt.dentist_id && (

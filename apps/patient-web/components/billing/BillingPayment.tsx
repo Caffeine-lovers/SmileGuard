@@ -123,7 +123,7 @@ export default function BillingPayment({
         if (unpaidAppointments.length > 0 && !baseAmount) {
           const first = unpaidAppointments[0];
           setSelectedAppointment(first);
-          const initialAmt = getServicePrice(first.service);
+          const initialAmt = first.price ?? getServicePrice(first.service);
           setAmount(initialAmt);
           const result = calculateDiscount(initialAmt, discountType);
           setDiscountAmount(result.discountAmount);
@@ -141,7 +141,7 @@ export default function BillingPayment({
 
   const handleAppointmentSelect = (apt: Appointment) => {
     setSelectedAppointment(apt);
-    const newAmount = getServicePrice(apt.service);
+    const newAmount = apt.price ?? getServicePrice(apt.service);
     setAmount(newAmount);
     applyDiscount(newAmount, discountType);
     setPaymongoError(null);
@@ -376,7 +376,7 @@ export default function BillingPayment({
             {unpaidAppointments.length > 0 ? (
               <div className="space-y-2">
                 {unpaidAppointments.map((apt) => {
-                  const price = getServicePrice(apt.service);
+                  const price = apt.price ?? getServicePrice(apt.service);
                   const isSelected = selectedAppointment?.id === apt.id;
                   return (
                     <button
@@ -390,19 +390,25 @@ export default function BillingPayment({
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center ${
+                        <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center shrink-0 ${
                           isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-400'
                         }`}>
                           {isSelected && <CheckCircle2 className="w-3 h-3" />}
                         </div>
                         <div>
-                          <p className="font-bold text-sm text-slate-900">{apt.service}</p>
-                          <p className="text-xs font-mono text-slate-500">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold text-sm text-slate-900">{apt.service}</p>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              <Building2 className="w-2.5 h-2.5 text-emerald-700" />
+                              {apt.clinic_name || 'SmileGuard Clinic'}
+                            </span>
+                          </div>
+                          <p className="text-xs font-mono text-slate-500 mt-0.5">
                             {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
                           </p>
                         </div>
                       </div>
-                      <div className="font-mono font-black text-base text-emerald-800">
+                      <div className="font-mono font-black text-base text-emerald-800 shrink-0 ml-3">
                         ₱{price.toFixed(2)}
                       </div>
                     </button>
@@ -508,8 +514,19 @@ export default function BillingPayment({
               Payment Breakdown
             </h3>
             <div className="space-y-2 text-sm">
+              {selectedAppointment?.clinic_name && (
+                <div className="flex justify-between items-center text-slate-700 pb-2 border-b border-slate-200">
+                  <span className="flex items-center gap-1 font-semibold text-xs text-slate-600">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                    Billing Clinic:
+                  </span>
+                  <span className="font-bold text-xs text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300">
+                    {selectedAppointment.clinic_name}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-700">
-                <span>Standard Procedure Fee:</span>
+                <span>Clinic Procedure Fee:</span>
                 <span className="font-mono font-bold">₱{amount.toFixed(2)}</span>
               </div>
               {discountAmount > 0 && (
