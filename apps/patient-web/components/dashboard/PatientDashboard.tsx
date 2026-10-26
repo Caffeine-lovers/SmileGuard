@@ -19,7 +19,8 @@ import {
   Stethoscope, 
   ChevronRight,
   ShieldCheck,
-  Building2
+  Building2,
+  Sparkles
 } from 'lucide-react';
 
 export default function PatientDashboard() {
@@ -43,6 +44,14 @@ export default function PatientDashboard() {
     if (!currentUser && !authLoading) {
       router.push('/login');
       return;
+    }
+
+    if (currentUser?.id) {
+      const isDone = localStorage.getItem(`smileguard_patient_onboarding_completed_${currentUser.id}`);
+      if (!isDone) {
+        router.replace('/onboarding');
+        return;
+      }
     }
 
     async function fetchData() {
@@ -146,15 +155,26 @@ export default function PatientDashboard() {
             </div>
           </div>
 
-          <Link
-            href="/appointments"
-            className="skeuo-btn-primary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0 hidden sm:inline-flex"
-          >
-            <span className="flex items-center gap-2">
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span>Book Appointment</span>
-            </span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/onboarding"
+              className="py-2.5 px-3.5 text-xs font-bold uppercase tracking-wider rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 flex items-center gap-1.5 shadow-xs"
+              title="View the Onboarding Guide"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Guide</span>
+            </Link>
+
+            <Link
+              href="/appointments"
+              className="skeuo-btn-primary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0 hidden sm:inline-flex"
+            >
+              <span className="flex items-center gap-2">
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span>Book Appointment</span>
+              </span>
+            </Link>
+          </div>
         </div>
       </div>
 

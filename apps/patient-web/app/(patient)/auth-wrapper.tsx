@@ -50,6 +50,11 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     return null;
   }
 
+  // Full-screen wizard view for onboarding
+  if (pathname === '/onboarding') {
+    return <main className="min-h-screen">{children}</main>;
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-bg-screen">
       <header className="bg-bg-surface shadow-sm border-b border-border-card sticky top-0 z-50">

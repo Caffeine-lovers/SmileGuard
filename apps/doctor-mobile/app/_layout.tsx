@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClinicProvider } from "../contexts/ClinicContext";
 
 export default function RootLayout() {
@@ -82,11 +83,12 @@ export default function RootLayout() {
     const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
     const inOAuthRedirect = segments[0] === "oauth-redirect";
+    const inOnboarding = segments[0] === "onboarding";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // We only pause routing logic if on reset-password
-    if (inResetPassword) return;
+    // We only pause routing logic if on reset-password, oauth-redirect, or onboarding
+    if (inResetPassword || inOAuthRedirect || inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inSetupProfile) {
@@ -108,8 +110,16 @@ export default function RootLayout() {
               console.log("[RootLayout] No profile found, routing to /setup-profile");
               router.replace("/setup-profile");
             } else {
-              console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
-              router.replace("/(doctor)/dashboard");
+              const onboardingCompleted = await AsyncStorage.getItem(
+                `@smileguard_doctor_onboarding_completed_${user.id}`
+              );
+              if (!onboardingCompleted) {
+                console.log("[RootLayout] Onboarding pending, routing to /onboarding");
+                router.replace("/onboarding");
+              } else {
+                console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
+                router.replace("/(doctor)/dashboard");
+              }
             }
           } catch (err) {
             console.error("[RootLayout] Error checking doctor profile:", err);

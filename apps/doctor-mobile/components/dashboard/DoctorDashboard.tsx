@@ -13,7 +13,7 @@ import {
   ScrollView as RNScrollView,
 } from "react-native";
 import AppointmentCard from "./AppointmentCard";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClinic } from "../../contexts/ClinicContext";
@@ -58,7 +58,8 @@ import {
   ChevronDown,
   Clock,
   LayoutDashboard,
-  Bell
+  Bell,
+  Sparkles
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
 import {
@@ -96,6 +97,7 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clinic, loading: clinicLoading } = useClinic();
 
@@ -703,6 +705,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           </View>
 
           <View style={styles.topBarRightActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/onboarding')}
+              style={styles.topBarRefreshBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Clinic Onboarding Guide"
+            >
+              <Sparkles size={16} color="#047857" />
+            </TouchableOpacity>
             <NotificationBell
               unreadCount={notificationState.unreadCount}
               onPress={() => setShowNotificationCenter(true)}
