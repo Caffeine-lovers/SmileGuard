@@ -11,9 +11,10 @@ import {
   Image,
 } from 'react-native';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
-import { Settings as SettingsIcon, ChevronRight } from 'lucide-react-native';
+import { Settings as SettingsIcon, ChevronRight, CreditCard } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
+import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
 import { useAuth } from '../../hooks/useAuth';
 import { getDoctorProfile, updateDoctorProfile } from '../../lib/doctorService';
 
@@ -37,6 +38,7 @@ interface AppSettings {
 export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUpdated }: SettingsTabProps) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
+  const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
   const [doctorData, setDoctorData] = useState<Doctor>(EMPTY_DOCTOR);
   const [loadingDoctor, setLoadingDoctor] = useState(false);
@@ -235,6 +237,29 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
             </TouchableOpacity>
           </View>
 
+          {/* PayMongo Billing & Payout Section */}
+          <View style={{ marginBottom: 28 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Billing & Payouts</Text>
+            <TouchableOpacity
+              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: ACCENT_COLOR, borderWidth: 1, borderTopColor: BORDER_COLOR, borderRightColor: BORDER_COLOR, borderBottomColor: BORDER_COLOR }}
+              onPress={() => setShowPayMongoGuide(true)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY }}>PayMongo Gateway Guide</Text>
+                    <View style={{ backgroundColor: '#ECFDF5', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#A7F3D0' }}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#047857' }}>GUIDELINES</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Clinic merchant registration, GCash/Maya & bank payouts</Text>
+                </View>
+                <ChevronRight size={20} color={ACCENT_COLOR} />
+              </View>
+            </TouchableOpacity>
+          </View>
+
           {/* Notifications Section */}
           <View style={{ marginBottom: 28 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notifications</Text>
@@ -373,6 +398,12 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
           onClose={() => setEditingClinic(false)}
         />
       </Modal>
+
+      {/* PayMongo Doctor Onboarding & Guidelines Modal */}
+      <PayMongoDoctorGuideModal
+        visible={showPayMongoGuide}
+        onClose={() => setShowPayMongoGuide(false)}
+      />
     </>
   );
 }

@@ -25,11 +25,13 @@ import {
   Building2,
   Tag,
 } from "lucide-react-native";
+import PayMongoDoctorGuideModal from "../components/billing/PayMongoDoctorGuideModal";
 
 export default function DoctorOnboardingWizard() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -149,29 +151,29 @@ export default function DoctorOnboardingWizard() {
       ],
     },
     {
-      id: "invoicing",
-      badge: "Step 5 of 5 • Ready to Practice",
-      title: "Digital Billing & Records Ready",
-      subtitle: "Complete procedures and collect payments via PayMongo.",
+      id: "paymongo",
+      badge: "Step 5 of 5 • PayMongo Setup & Guidelines",
+      title: "PayMongo Payouts & Clinic Billing",
+      subtitle: "Set up GCash, Maya, and direct Philippine bank settlements.",
       description:
-        "Your clinic command center is now active. You can generate digital invoices paid securely by patients via GCash, Maya, GrabPay, or Cards, and update clinical chart notes effortlessly.",
-      icon: CheckCircle,
+        "SmileGuard integrates directly with PayMongo (BSP-Licensed) so your patients can pay via GCash, Maya, and Cards. Follow these clinic guidelines to start receiving automated payouts:",
+      icon: CreditCard,
       accentColor: "#10b981",
       features: [
         {
-          icon: CreditCard,
-          title: "PayMongo Integration",
-          desc: "Patients pay itemized invoices online; statuses update in real time on your dashboard.",
-        },
-        {
-          icon: Stethoscope,
-          title: "Comprehensive Dental History",
-          desc: "Keep thorough diagnostic and clinical records for every patient in your roster.",
-        },
-        {
           icon: Building2,
-          title: "Clinic Settings Anytime",
-          desc: "Relaunch this guide or modify clinic rules anytime from the Settings tab.",
+          title: "1. Register Merchant Account",
+          desc: "Create an account on dashboard.paymongo.com with your BIR Form 2303 / COR, DTI/SEC certificate, and valid ID.",
+        },
+        {
+          icon: CreditCard,
+          title: "2. Activate GCash & Maya Channels",
+          desc: "Enable Philippine e-wallets, QR Ph, and Cards for 1-click patient checkout without expensive POS hardware.",
+        },
+        {
+          icon: CheckCircle,
+          title: "3. Direct Bank Payouts & BIR 2307",
+          desc: "Collected patient revenues deposit into your clinic bank account with official BIR Form 2307 withholding certificates.",
         },
       ],
     },
@@ -303,15 +305,24 @@ export default function DoctorOnboardingWizard() {
         {/* Final Step Actions */}
         {currentStep === steps.length - 1 && (
           <View style={styles.quickStartCard}>
-            <Text style={styles.quickStartTitle}>Recommended First Actions:</Text>
+            <Text style={styles.quickStartTitle}>PayMongo Payout & Clinic Setup:</Text>
             <View style={styles.quickActionButtons}>
               <TouchableOpacity
-                onPress={() => handleComplete("/(doctor)/dashboard")}
+                onPress={() => setShowPayMongoGuide(true)}
                 style={styles.actionBtnPrimary}
                 activeOpacity={0.8}
               >
-                <Building2 size={16} color="#022c22" />
-                <Text style={styles.actionBtnPrimaryText}>Go to Dashboard</Text>
+                <CreditCard size={16} color="#022c22" />
+                <Text style={styles.actionBtnPrimaryText}>PayMongo Checklist</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleComplete("/(doctor)/dashboard")}
+                style={[styles.actionBtnPrimary, { backgroundColor: "#065f46" }]}
+                activeOpacity={0.8}
+              >
+                <Building2 size={16} color="#ffffff" />
+                <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>Go to Dashboard</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -359,6 +370,11 @@ export default function DoctorOnboardingWizard() {
           </TouchableOpacity>
         </View>
       </View>
+      {/* PayMongo Doctor Onboarding & Guidelines Modal */}
+      <PayMongoDoctorGuideModal
+        visible={showPayMongoGuide}
+        onClose={() => setShowPayMongoGuide(false)}
+      />
     </SafeAreaView>
   );
 }

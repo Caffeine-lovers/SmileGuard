@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
-import { FileText, X, ChevronDown, RefreshCw, Users, User, Check, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { FileText, X, ChevronDown, RefreshCw, Users, User, Check, ChevronLeft, ChevronRight, CreditCard, ShieldCheck, Sparkles } from 'lucide-react-native';
+import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
 import { AppColors } from '../../constants/theme';
 
 interface Patient {
@@ -63,6 +64,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [loadingAppointment, setLoadingAppointment] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
   const scrollViewRef = useRef<any>(null);
 
   // Fetch all patients and billings on screen focus
@@ -346,7 +348,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
       <ScrollView ref={scrollViewRef} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         <View style={{ padding: 16, gap: 16 }}>
           {/* Header */}
-          <View style={{ marginBottom: 8 }}>
+          <View style={{ marginBottom: 4 }}>
             <Text style={{ fontSize: 24, fontWeight: '700', color: '#111', marginBottom: 4 }}>
               Billing Ledger
             </Text>
@@ -354,6 +356,47 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
               Manage patient billings and payment statuses
             </Text>
           </View>
+
+          {/* PayMongo Onboarding & Guidelines Card */}
+          <TouchableOpacity
+            onPress={() => setShowPayMongoGuide(true)}
+            style={{
+              backgroundColor: '#042F2E',
+              borderRadius: 14,
+              padding: 16,
+              borderWidth: 1,
+              borderColor: '#0D9488',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#115E59', alignItems: 'center', justifyContent: 'center' }}>
+                <CreditCard size={22} color="#34D399" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>PayMongo Payout Guide</Text>
+                  <View style={{ backgroundColor: '#059669', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>GUIDELINES</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 12, color: '#99F6E4', lineHeight: 16 }}>
+                  Step-by-step setup: BIR Form 2303, GCash/Maya & direct bank settlements.
+                </Text>
+              </View>
+            </View>
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#10B981', borderRadius: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#042F2E' }}>Open Steps</Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Action Buttons */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -1099,6 +1142,12 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           </SafeAreaView>
         </View>
       </Modal>
+
+      {/* PayMongo Doctor Onboarding & Guidelines Modal */}
+      <PayMongoDoctorGuideModal
+        visible={showPayMongoGuide}
+        onClose={() => setShowPayMongoGuide(false)}
+      />
     </SafeAreaView>
   );
 }
