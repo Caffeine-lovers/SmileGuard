@@ -374,21 +374,29 @@ export default function BillingPayment({
       )}
 
       {paymentStatusBanner === 'cancelled' && (
-        <div className="flex items-center justify-between p-4 bg-amber-50 border-2 border-amber-500 rounded-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50 border-2 border-amber-500 rounded-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             <div>
               <p className="text-xs font-black uppercase tracking-wider">Payment Cancelled</p>
-              <p className="text-xs text-amber-700">The PayMongo checkout process was cancelled. You can retry anytime.</p>
+              <p className="text-xs text-amber-700">The PayMongo checkout process was cancelled. No funds were deducted. You can retry anytime.</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setPaymentStatusBanner(null)}
-            className="text-xs font-bold text-amber-700 hover:text-amber-900 uppercase cursor-pointer"
-          >
-            Dismiss
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <Link
+              href="/billing/cancelled"
+              className="text-xs font-bold text-amber-800 hover:text-amber-950 underline uppercase cursor-pointer"
+            >
+              Details
+            </Link>
+            <button
+              type="button"
+              onClick={() => setPaymentStatusBanner(null)}
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 uppercase cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 

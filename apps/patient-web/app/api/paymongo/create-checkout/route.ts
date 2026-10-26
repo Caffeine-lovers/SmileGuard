@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
             ],
             payment_method_types: ['card', 'gcash', 'grab_pay', 'paymaya'],
             success_url: `${appUrl}/billing?status=success&apt=${appointmentId}`,
-            cancel_url: `${appUrl}/billing?status=cancelled`,
+            cancel_url: `${appUrl}/billing/cancelled`,
             metadata: {
               appointment_id: appointmentId,
               patient_id: patientId,
