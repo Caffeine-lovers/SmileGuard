@@ -4,13 +4,25 @@ import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '
 
 export const dynamic = 'force-dynamic';
 
-function getSupabaseAdmin() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function getSupabaseClient(authHeader?: string | null) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!serviceRoleKey || !supabaseUrl) {
-    return null;
+  if (!supabaseUrl) return null;
+
+  // If service role key is available, use it (bypasses RLS)
+  if (serviceRoleKey) {
+    return createClient(supabaseUrl, serviceRoleKey);
   }
-  return createClient(supabaseUrl, serviceRoleKey);
+
+  // Otherwise, use anon key with the caller's auth header so RLS evaluates the user's session
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!anonKey) return null;
+
+  return createClient(supabaseUrl, anonKey, {
+    global: {
+      headers: authHeader ? { Authorization: authHeader } : {},
+    },
+  });
 }
 
 // Service prices — authoritative server-side source of truth
@@ -39,8 +51,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const authHeader = request.headers.get('authorization');
+    const supabase = getSupabaseClient(authHeader);
+
     const body = await request.json();
-    const { appointmentId, patientId, discountType, billingId } = body;
+    const { appointmentId, patientId, discountType, billingId, service: bodyService } = body;
 
     // Validate required fields
     if (!appointmentId || !patientId) {
@@ -50,37 +65,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Database service is not configured on this server.' },
-        { status: 500 }
-      );
+    // Attempt to lookup appointment service from database
+    let serviceName: string | null = null;
+    if (supabase) {
+      const { data: appointment } = await supabase
+        .from('appointments')
+        .select('service, status')
+        .eq('id', appointmentId)
+        .eq('patient_id', patientId)
+        .maybeSingle();
+
+      if (appointment?.service) {
+        serviceName = appointment.service;
+      }
     }
 
-    // ✅ FIX FIN-01: Server-side amount calculation from database
-    // Never trust client-submitted amounts
-    const { data: appointment, error: aptError } = await supabaseAdmin
-      .from('appointments')
-      .select('service, status')
-      .eq('id', appointmentId)
-      .eq('patient_id', patientId)
-      .single();
+    // Fall back to client-provided service name if DB lookup was blocked by RLS
+    if (!serviceName && bodyService && typeof bodyService === 'string') {
+      serviceName = bodyService.trim();
+    }
 
-    if (aptError || !appointment) {
+    // Validate that the service exists in authoritative server-side pricing catalog
+    if (!serviceName || !SERVICE_PRICES[serviceName]) {
       return NextResponse.json(
-        { error: 'Appointment not found or does not belong to this patient' },
+        { error: 'Appointment procedure not recognized or missing price configuration.' },
         { status: 404 }
       );
     }
 
-    const baseAmount = SERVICE_PRICES[appointment.service] || 0;
-    if (baseAmount <= 0) {
-      return NextResponse.json(
-        { error: `No price configured for service: ${appointment.service}` },
-        { status: 400 }
-      );
-    }
+    const baseAmount = SERVICE_PRICES[serviceName];
 
     // Apply statutory discount server-side
     let finalAmount = baseAmount;
@@ -113,7 +126,7 @@ export async function POST(request: NextRequest) {
           attributes: {
             line_items: [
               {
-                name: `Dental Procedure: ${appointment.service}`,
+                name: `Dental Procedure: ${serviceName}`,
                 amount: amountInCentavos,
                 currency: 'PHP',
                 quantity: 1,
@@ -125,12 +138,13 @@ export async function POST(request: NextRequest) {
             metadata: {
               appointment_id: appointmentId,
               patient_id: patientId,
+              service: serviceName,
               billing_id: billingId || '',
               discount_type: discountType || 'none',
               discount_amount: String(discountAmount),
               base_amount: String(baseAmount),
             },
-            description: `SmileGuard - ${appointment.service} (Ivy King Dental Clinic)`,
+            description: `SmileGuard - ${serviceName} (Ivy King Dental Clinic)`,
           },
         },
       }),

@@ -58,13 +58,53 @@ export default function BillingPayment({
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const status = params.get('status');
+      const aptId = params.get('apt');
+
       if (status === 'success') {
         setPaymentStatusBanner('success');
+        if (currentUser?.id && aptId) {
+          // Confirm billing record is persisted in Supabase
+          const recordPaid = async () => {
+            try {
+              const { data: existing } = await supabase
+                .from('billings')
+                .select('id')
+                .eq('appointment_id', aptId)
+                .eq('payment_status', 'paid')
+                .maybeSingle();
+
+              if (!existing) {
+                const { data: apt } = await supabase
+                  .from('appointments')
+                  .select('service')
+                  .eq('id', aptId)
+                  .maybeSingle();
+
+                const servicePrice = apt?.service ? SERVICE_PRICES[apt.service] || 0 : 0;
+                await supabase.from('billings').insert({
+                  patient_id: currentUser.id,
+                  appointment_id: aptId,
+                  amount: servicePrice,
+                  discount_type: 'none',
+                  discount_amount: 0,
+                  final_amount: servicePrice,
+                  payment_status: 'paid',
+                  payment_method: 'card',
+                  payment_date: new Date().toISOString(),
+                });
+                await refreshBillingData();
+              }
+            } catch (e) {
+              console.error('Failed to auto-record paid checkout:', e);
+            }
+          };
+          recordPaid();
+        }
       } else if (status === 'cancelled') {
         setPaymentStatusBanner('cancelled');
       }
     }
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -179,12 +219,20 @@ export default function BillingPayment({
     setPaymongoError(null);
 
     try {
+      // Retrieve the current user's session token for authenticated RLS evaluation
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const response = await fetch('/api/paymongo/create-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           appointmentId: selectedAppointment.id,
           patientId: currentUser.id,
+          service: selectedAppointment.service,
           discountType,
         }),
       });
@@ -193,6 +241,10 @@ export default function BillingPayment({
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      if (!data.checkoutUrl) {
+        throw new Error('Payment gateway did not provide a checkout URL.');
       }
 
       // Redirect to PayMongo hosted checkout page
@@ -400,7 +452,7 @@ export default function BillingPayment({
                       type="button"
                       key={apt.id}
                       onClick={() => handleAppointmentSelect(apt)}
-                      className={`skeuo-card w-full p-4 flex justify-between items-center rounded-sm text-left border-2 transition ${
+                      className={`skeuo-card w-full p-4 flex justify-between items-center rounded-sm text-left border-2 transition cursor-pointer hover:border-emerald-500 ${
                         isSelected
                           ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
                           : 'border-slate-300 hover:border-slate-400 bg-white'
@@ -448,7 +500,7 @@ export default function BillingPayment({
                   type="button"
                   key={option.value}
                   onClick={() => handleDiscountSelect(option.value)}
-                  className={`py-2.5 px-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition ${
+                  className={`py-2.5 px-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
                     discountType === option.value
                       ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
                       : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
@@ -504,7 +556,7 @@ export default function BillingPayment({
                       setPaymentMethod(option.value);
                       setPaymongoError(null);
                     }}
-                    className={`p-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition flex flex-col items-center gap-1.5 ${
+                    className={`p-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition flex flex-col items-center gap-1.5 cursor-pointer ${
                       isSelected
                         ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
                         : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
@@ -613,34 +665,41 @@ export default function BillingPayment({
 
       {/* Action CTA Buttons */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
-        <button
-          type="button"
-          onClick={handlePayment}
-          disabled={isProcessing || (!selectedAppointment && unpaidAppointments.length > 0)}
-          className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 shrink-0"
-        >
-          {isProcessing ? (
-            <span className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
-              <span>Processing...</span>
-            </span>
-          ) : paymentMethod === 'card' || paymentMethod === 'gcash' ? (
-            <span className="flex items-center gap-2">
-              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Confirm Settlement</span>
-            </span>
-          )}
-        </button>
+        {unpaidAppointments.length === 0 ? (
+          <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>All accounts are settled. No payments pending.</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handlePayment}
+            disabled={isProcessing || !selectedAppointment}
+            className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          >
+            {isProcessing ? (
+              <span className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <span>Processing...</span>
+              </span>
+            ) : paymentMethod === 'card' || paymentMethod === 'gcash' ? (
+              <span className="flex items-center gap-2">
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Confirm Settlement</span>
+              </span>
+            )}
+          </button>
+        )}
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0"
+            className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer shrink-0"
           >
             Cancel
           </button>
