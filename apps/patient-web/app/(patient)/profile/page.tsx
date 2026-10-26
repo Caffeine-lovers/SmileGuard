@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatientProfilePicture';
+import { withTimeout } from '@/lib/appointmentService';
 
 interface MedicalIntake {
   patient_id: string;
@@ -49,7 +50,7 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!authLoading && currentUser) {
+    if (currentUser) {
       fetchMedicalData();
     }
   }, [authLoading, currentUser?.id, router]);
@@ -59,11 +60,17 @@ export default function ProfilePage() {
       setIsLoadingData(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('medical_intake')
-        .select('*')
-        .eq('patient_id', currentUser?.id)
-        .maybeSingle();
+      const res = await withTimeout<any>(
+        supabase
+          .from('medical_intake')
+          .select('*')
+          .eq('patient_id', currentUser?.id)
+          .maybeSingle(),
+        3000,
+        { data: null, error: null }
+      );
+
+      const { data, error: fetchError } = res || { data: null, error: null };
 
       if (fetchError) {
         console.error('[BioData] Error fetching medical data:', fetchError);
@@ -139,16 +146,6 @@ export default function ProfilePage() {
   const handleInputChange = (field: keyof MedicalIntake, value: string | null) => {
     setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
   };
-
-  if (authLoading || isLoadingData) {
-    return (
-      <div className="max-w-4xl mx-auto p-6 text-center py-16">
-        <div className="skeuo-panel p-8 max-w-sm mx-auto">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Loading Clinical Records...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -492,6 +489,10 @@ export default function ProfilePage() {
             </div>
           )}
         </form>
+      ) : isLoadingData ? (
+        <div className="bg-bg-surface border border-border-card rounded-lg p-10 text-center animate-pulse">
+          <p className="text-text-secondary text-xs font-bold uppercase tracking-wider">Syncing clinical profile records...</p>
+        </div>
       ) : (
         <div className="bg-bg-surface border border-border-card rounded-lg p-8 text-center">
           <p className="text-text-secondary mb-4">No bio data on file yet.</p>

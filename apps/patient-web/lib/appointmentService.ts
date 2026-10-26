@@ -7,9 +7,9 @@ export function setTotalSlotsPerDay(total: number): void {
   TOTAL_SLOTS_PER_DAY = total;
 }
 
-export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+export function withTimeout<T>(promise: PromiseLike<T> | Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
   ]);
 }

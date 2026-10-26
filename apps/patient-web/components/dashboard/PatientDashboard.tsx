@@ -39,10 +39,11 @@ export default function PatientDashboard() {
   }, []);
 
   useEffect(() => {
-    if (authLoading && !authTimedOut) return;
-
-    if (!currentUser && !authLoading) {
-      router.push('/login');
+    if (!currentUser) {
+      if (authLoading && !authTimedOut) return;
+      if (!authLoading || authTimedOut) {
+        router.push('/login');
+      }
       return;
     }
 
@@ -95,19 +96,6 @@ export default function PatientDashboard() {
     fetchData();
   }, [currentUser?.id, authLoading, authTimedOut, router]);
 
-  if (authLoading && !authTimedOut && !currentUser) {
-    return (
-      <div className="p-8 max-w-5xl mx-auto">
-        <div className="skeuo-panel p-12 text-center max-w-md mx-auto border-2 border-slate-300">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-b-emerald-600 mx-auto mb-3"></div>
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Initializing Clinic Session...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentUser) return null;
-
   const formatDate = (dateStr: string) => {
     if (!dateStr || dateStr === 'None scheduled') return 'None scheduled';
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -140,7 +128,7 @@ export default function PatientDashboard() {
                   SmileGuard Patient Portal
                 </span>
               </div>
-              <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">{currentUser?.name}</h1>
+              <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">{currentUser?.name || 'Patient'}</h1>
               <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
                 Dental Chart & Treatment Registry
               </p>

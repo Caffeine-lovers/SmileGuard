@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         } else if (typeof clinicData.services === 'string') {
           try {
             clinicServices = JSON.parse(clinicData.services);
-          } catch {}
+          } catch { }
         }
       }
     }

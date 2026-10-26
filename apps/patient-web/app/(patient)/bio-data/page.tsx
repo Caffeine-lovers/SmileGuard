@@ -21,6 +21,8 @@ interface MedicalIntake {
   pregnancy_status: string | null;
 }
 
+import { withTimeout } from '@/lib/appointmentService';
+
 export default function BioDataPage() {
   const router = useRouter();
   const { currentUser, loading: authLoading } = useAuth();
@@ -37,7 +39,7 @@ export default function BioDataPage() {
       return;
     }
 
-    if (!authLoading && currentUser) {
+    if (currentUser) {
       fetchMedicalData();
     }
   }, [authLoading, currentUser?.id, router]);
@@ -47,11 +49,17 @@ export default function BioDataPage() {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('medical_intake')
-        .select('*')
-        .eq('patient_id', currentUser?.id)
-        .maybeSingle();
+      const res = await withTimeout<any>(
+        supabase
+          .from('medical_intake')
+          .select('*')
+          .eq('patient_id', currentUser?.id)
+          .maybeSingle(),
+        3000,
+        { data: null, error: null }
+      );
+
+      const { data, error: fetchError } = res || { data: null, error: null };
 
       if (fetchError) {
         console.error('[BioData] Error fetching medical data:', fetchError);
@@ -125,17 +133,6 @@ export default function BioDataPage() {
   const handleInputChange = (field: keyof MedicalIntake, value: string | null) => {
     setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
   };
-
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
-          <p className="text-text-primary">Loading your bio data...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -441,6 +438,10 @@ export default function BioDataPage() {
             </div>
           )}
         </form>
+      ) : loading ? (
+        <div className="bg-bg-surface border border-border-card rounded-lg p-10 text-center animate-pulse">
+          <p className="text-text-secondary text-xs font-bold uppercase tracking-wider">Syncing medical bio data records...</p>
+        </div>
       ) : (
         <div className="bg-bg-surface border border-border-card rounded-lg p-8 text-center">
           <p className="text-text-secondary mb-4">No bio data on file yet.</p>
