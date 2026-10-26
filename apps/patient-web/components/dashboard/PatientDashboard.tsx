@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
-import { getPatientAppointments, getDoctorName } from '@/lib/appointmentService';
+import { getPatientAppointments, getDoctorName, withTimeout } from '@/lib/appointmentService';
 import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
@@ -30,11 +30,17 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
+  const [authTimedOut, setAuthTimedOut] = useState(false);
 
   useEffect(() => {
-    if (authLoading) return;
+    const timer = setTimeout(() => setAuthTimedOut(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
-    if (!currentUser) {
+  useEffect(() => {
+    if (authLoading && !authTimedOut) return;
+
+    if (!currentUser && !authLoading) {
       router.push('/login');
       return;
     }
@@ -44,13 +50,15 @@ export default function PatientDashboard() {
       try {
         if (!currentUser?.id) return;
         const userId = currentUser.id;
-        const [appts, balance, { clinicMap, defaultClinic }] = await Promise.all([
-          getPatientAppointments(userId),
-          calculateOutstandingBalance(userId),
-          fetchClinicLookup(),
+
+        const [appts, balance, clinicLookup] = await Promise.all([
+          withTimeout(getPatientAppointments(userId), 2500, []),
+          withTimeout(calculateOutstandingBalance(userId), 2500, 0),
+          withTimeout(fetchClinicLookup(), 2500, { clinicMap: new Map(), defaultClinic: null }),
         ]);
 
-        const enrichedAppts = appts.map((a) => {
+        const { clinicMap, defaultClinic } = clinicLookup;
+        const enrichedAppts = (appts || []).map((a) => {
           const clinic = (a.dentist_id ? clinicMap.get(a.dentist_id) : null) || defaultClinic;
           return {
             ...a,
@@ -61,9 +69,9 @@ export default function PatientDashboard() {
         setAppointments(enrichedAppts);
         setOutstandingBalance(balance);
 
-        // Fetch doctor names
+        // Fetch doctor names with fast timeout
         const doctorIds = Array.from(new Set(
-          appts
+          (appts || [])
             .map(a => a.dentist_id)
             .filter((id): id is string => Boolean(id))
         ));
@@ -71,7 +79,7 @@ export default function PatientDashboard() {
         const names: Record<string, string> = {};
         await Promise.all(
           doctorIds.map(async (docId) => {
-            const name = await getDoctorName(docId);
+            const name = await withTimeout(getDoctorName(docId), 1500, null);
             if (name) names[docId] = name;
           })
         );
@@ -84,9 +92,9 @@ export default function PatientDashboard() {
     }
 
     fetchData();
-  }, [currentUser?.id, authLoading, router]);
+  }, [currentUser?.id, authLoading, authTimedOut, router]);
 
-  if (authLoading) {
+  if (authLoading && !authTimedOut && !currentUser) {
     return (
       <div className="p-8 max-w-5xl mx-auto">
         <div className="skeuo-panel p-12 text-center max-w-md mx-auto border-2 border-slate-300">

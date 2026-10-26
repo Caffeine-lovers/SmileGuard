@@ -10,6 +10,7 @@ import {
   getClinicSetup, 
   getFullClinicSetup,
   generateTimeSlots, 
+  withTimeout,
   type ClinicSchedule,
   type ClinicDetails 
 } from '@/lib/appointmentService';
@@ -109,23 +110,21 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const loadClinicData = async () => {
       setLoadingBlockedSlots(true);
       try {
-        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
-        const clinicInfo = await Promise.race([getFullClinicSetup(), timeoutPromise]);
+        const clinicInfo = await withTimeout(getFullClinicSetup(), 2500, null);
         
         if (!isMounted) return;
+        let scheduleToUse: ClinicSchedule | null = null;
         if (clinicInfo) {
           setClinicDetails(clinicInfo);
           setClinicSchedule(clinicInfo.schedule);
+          scheduleToUse = clinicInfo.schedule;
         } else {
-          const fallbackSchedule = await Promise.race([getClinicSetup(), timeoutPromise]);
+          const fallbackSchedule = await withTimeout(getClinicSetup(), 2500, null);
           setClinicSchedule(fallbackSchedule);
+          scheduleToUse = fallbackSchedule;
         }
         
-        const scheduleToUse = clinicInfo ? clinicInfo.schedule : null;
-        const slots = await Promise.race([
-          getAllBlockedSlots(scheduleToUse),
-          new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000))
-        ]);
+        const slots = await withTimeout(getAllBlockedSlots(scheduleToUse), 2500, []);
         
         if (!isMounted) return;
         setBlockedSlots(slots || []);
@@ -185,7 +184,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     async function fetchUserAppointments() {
       setLoadingUserData(true);
       try {
-        const appointments = await getPatientAppointments(userId);
+        const appointments = await withTimeout(getPatientAppointments(userId), 2500, []);
         const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
@@ -281,16 +280,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
   };
 
-
-  // ─── Loading ────────────────────────────────────────────────────────────────
-  if (loadingBlockedSlots) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-bg-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-cyan" />
-      </div>
-    );
-  }
-
   const formattedDate = selectedDate
     ? new Date(selectedDate + 'T00:00').toLocaleDateString('en-PH', {
         month: 'long', day: 'numeric', year: 'numeric',
@@ -308,6 +297,12 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
         </div>
         <div className="flex items-center gap-2">
+          {loadingBlockedSlots && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md border border-slate-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              Syncing calendar...
+            </span>
+          )}
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-900 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs">
             <Building2 className="w-4 h-4 text-emerald-700" />
             {clinicDetails?.clinic_name || 'SmileGuard Dental Clinic'}

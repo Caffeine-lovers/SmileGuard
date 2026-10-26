@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
@@ -11,6 +11,13 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
   const { currentUser, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAuthTimedOut(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!loading && (!currentUser || currentUser.role !== 'patient')) {
@@ -31,7 +38,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     }
   };
 
-  if (loading) {
+  if (loading && !authTimedOut) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
-import { getPatientAppointments } from '@/lib/appointmentService';
+import { getPatientAppointments, withTimeout } from '@/lib/appointmentService';
 import { 
   CheckCircle2, 
   Calendar, 
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function TreatmentsPage() {
-  const { currentUser, loading } = useAuth();
+  const { currentUser } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
@@ -31,9 +31,7 @@ export default function TreatmentsPage() {
     async function fetchTreatments() {
       setLoadingData(true);
       try {
-        const apptsPromise = getPatientAppointments(userId);
-        const timeoutPromise = new Promise<Appointment[]>((resolve) => setTimeout(() => resolve([]), 5000));
-        const appts = await Promise.race([apptsPromise, timeoutPromise]);
+        const appts = await withTimeout(getPatientAppointments(userId), 2500, []);
         const sorted = (appts || []).sort(
           (a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()
         );
@@ -88,14 +86,6 @@ export default function TreatmentsPage() {
     }
   };
 
-  if (loading || loadingData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-b-emerald-600"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       {/* Clinic Header Banner */}
@@ -111,7 +101,12 @@ export default function TreatmentsPage() {
       </div>
 
       <div className="skeuo-panel p-6 border-2 border-slate-300">
-        {appointments.length > 0 ? (
+        {loadingData ? (
+          <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-sm">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-b-emerald-600 mx-auto mb-2"></div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Loading clinical ledger...</p>
+          </div>
+        ) : appointments.length > 0 ? (
           <div className="space-y-3">
             {appointments.map((appointment) => (
               <div
