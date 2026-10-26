@@ -38,21 +38,44 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     }
   };
 
+  // Full-screen wizard view for onboarding - always render immediately
+  if (pathname === '/onboarding') {
+    return <main className="min-h-screen">{children}</main>;
+  }
+
   if (loading && !authTimedOut) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
+      <div className="flex items-center justify-center min-h-screen bg-bg-screen">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-300 border-b-emerald-600"></div>
       </div>
     );
   }
 
-  if (!currentUser || currentUser.role !== 'patient') {
-    return null;
+  if (loading && authTimedOut && !currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-bg-screen">
+        <div className="skeuo-panel p-8 max-w-sm w-full border-2 border-slate-300">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-2">Connecting Session...</h2>
+          <p className="text-xs text-slate-600 mb-5">Establishing secure clinical session with your profile.</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="skeuo-btn-primary py-2.5 px-4 text-xs uppercase tracking-wider w-full mb-3"
+          >
+            Go to Login
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs text-emerald-700 font-semibold hover:underline"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
   }
 
-  // Full-screen wizard view for onboarding
-  if (pathname === '/onboarding') {
-    return <main className="min-h-screen">{children}</main>;
+  if (!currentUser) {
+    return null;
   }
 
   return (

@@ -110,16 +110,8 @@ export default function RootLayout() {
               console.log("[RootLayout] No profile found, routing to /setup-profile");
               router.replace("/setup-profile");
             } else {
-              const onboardingCompleted = await AsyncStorage.getItem(
-                `@smileguard_doctor_onboarding_completed_${user.id}`
-              );
-              if (!onboardingCompleted) {
-                console.log("[RootLayout] Onboarding pending, routing to /onboarding");
-                router.replace("/onboarding");
-              } else {
-                console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
-                router.replace("/(doctor)/dashboard");
-              }
+              console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
+              router.replace("/(doctor)/dashboard");
             }
           } catch (err) {
             console.error("[RootLayout] Error checking doctor profile:", err);

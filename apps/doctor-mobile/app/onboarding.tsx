@@ -34,9 +34,9 @@ export default function DoctorOnboardingWizard() {
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.id) {
-        setUserId(user.id);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        setUserId(session.user.id);
       }
     });
   }, []);

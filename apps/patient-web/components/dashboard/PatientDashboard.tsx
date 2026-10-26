@@ -46,14 +46,6 @@ export default function PatientDashboard() {
       return;
     }
 
-    if (currentUser?.id) {
-      const isDone = localStorage.getItem(`smileguard_patient_onboarding_completed_${currentUser.id}`);
-      if (!isDone) {
-        router.replace('/onboarding');
-        return;
-      }
-    }
-
     async function fetchData() {
       setLoading(true);
       try {
