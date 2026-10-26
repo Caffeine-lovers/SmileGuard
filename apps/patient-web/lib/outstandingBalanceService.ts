@@ -6,13 +6,38 @@ const SERVICE_PRICES: Record<string, number> = {
   Cleaning: 1500,
   Whitening: 5000,
   Fillings: 2000,
+  Filling: 2000,
   'Root Canal': 8000,
+  'Root Canals': 8000,
   Extraction: 1500,
+  Aligners: 25000,
   'Braces Consultation': 35000,
+  Braces: 35000,
   'Implants Consultation': 45000,
+  Implants: 45000,
   'X-Ray': 500,
   'Check-up': 300,
+  Checkup: 300,
+  Consultation: 500,
+  'Initial Consultation': 500,
+  General: 500,
+  'General Checkup': 500,
 };
+
+export function getServicePrice(serviceName?: string | null): number {
+  if (!serviceName) return 1500;
+  if (SERVICE_PRICES[serviceName] && SERVICE_PRICES[serviceName] > 0) {
+    return SERVICE_PRICES[serviceName];
+  }
+  const normalized = serviceName.trim().toLowerCase();
+  for (const [key, price] of Object.entries(SERVICE_PRICES)) {
+    if (key.toLowerCase() === normalized) return price;
+    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
+      return price;
+    }
+  }
+  return 1500;
+}
 
 export async function calculateOutstandingBalance(userId: string): Promise<number> {
   console.log("[calculateOutstandingBalance] Starting calculation for user:", userId);
@@ -42,7 +67,7 @@ export async function calculateOutstandingBalance(userId: string): Promise<numbe
 
     console.log("[calculateOutstandingBalance] Unpaid appointments:", unpaid.length);
 
-    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + getServicePrice(a.service), 0);
     const total = balance + unpaidApptsSum;
     
     console.log("[calculateOutstandingBalance] Calculation complete:", { baseBalance: balance, unpaidServices: unpaidApptsSum, total });
@@ -85,7 +110,7 @@ export async function fetchBillingDataForDashboard(
       !paidApptIds.has(a.id)
     );
 
-    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + getServicePrice(a.service), 0);
 
     const result = {
       outstandingBalance: balance + unpaidApptsSum,

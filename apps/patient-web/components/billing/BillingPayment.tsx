@@ -8,7 +8,7 @@ import type { Billing, Appointment } from '@/lib/database';
 import { calculateDiscount } from '@/lib/database';
 import { getBalance, getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
-import { fetchBillingDataForDashboard, SERVICE_PRICES } from '@/lib/outstandingBalanceService';
+import { fetchBillingDataForDashboard, getServicePrice } from '@/lib/outstandingBalanceService';
 import {
   CreditCard,
   Building2,
@@ -32,7 +32,7 @@ interface BillingPaymentProps {
 export default function BillingPayment({
   appointmentId: _appointmentId,
   baseAmount = 0,
-  onSuccess,
+  onSuccess: _onSuccess,
   onCancel,
 }: BillingPaymentProps) {
   const { currentUser } = useAuth();
@@ -42,7 +42,6 @@ export default function BillingPayment({
   const [discountType, setDiscountType] = useState<Billing['discount_type']>('none');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
-  const [paymentMethod, setPaymentMethod] = useState<Billing['payment_method']>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [discountProof, setDiscountProof] = useState<string | null>(null);
   const [showProofUpload, setShowProofUpload] = useState(false);
@@ -80,7 +79,7 @@ export default function BillingPayment({
                   .eq('id', aptId)
                   .maybeSingle();
 
-                const servicePrice = apt?.service ? SERVICE_PRICES[apt.service] || 0 : 0;
+                const servicePrice = getServicePrice(apt?.service);
                 await supabase.from('billings').insert({
                   patient_id: currentUser.id,
                   appointment_id: aptId,
@@ -124,7 +123,7 @@ export default function BillingPayment({
         if (unpaidAppointments.length > 0 && !baseAmount) {
           const first = unpaidAppointments[0];
           setSelectedAppointment(first);
-          const initialAmt = SERVICE_PRICES[first.service] || 0;
+          const initialAmt = getServicePrice(first.service);
           setAmount(initialAmt);
           const result = calculateDiscount(initialAmt, discountType);
           setDiscountAmount(result.discountAmount);
@@ -138,11 +137,11 @@ export default function BillingPayment({
     }
 
     fetchBillingData();
-  }, [currentUser?.id, baseAmount, discountType]);
+  }, [currentUser?.id, baseAmount]);
 
   const handleAppointmentSelect = (apt: Appointment) => {
     setSelectedAppointment(apt);
-    const newAmount = SERVICE_PRICES[apt.service] || 0;
+    const newAmount = getServicePrice(apt.service);
     setAmount(newAmount);
     applyDiscount(newAmount, discountType);
     setPaymongoError(null);
@@ -191,7 +190,7 @@ export default function BillingPayment({
 
     const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
     const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
-    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + (SERVICE_PRICES[a.service] || 0), 0);
+    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + getServicePrice(a.service), 0);
 
     setOutstandingBalance(balance + unpaidApptsSum);
     setBillingHistory(billings);
@@ -259,83 +258,7 @@ export default function BillingPayment({
     }
   };
 
-  // Handle non-online payment (existing flow for cash, bank-transfer)
-  const handleNonCardPayment = async () => {
-    if (discountType !== 'none' && !discountProof) {
-      alert('Please upload proof of PWD/Senior ID.');
-      return;
-    }
-
-    if (!selectedAppointment || !currentUser?.id) {
-      alert('Please select an appointment to pay.');
-      return;
-    }
-
-    const userId = currentUser.id;
-    setIsProcessing(true);
-    try {
-      // Simulate payment processing for non-online methods
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Save billing record to database
-      const { error } = await supabase
-        .from('billings')
-        .insert({
-          patient_id: userId,
-          appointment_id: selectedAppointment.id,
-          amount,
-          discount_type: discountType,
-          discount_amount: discountAmount,
-          final_amount: finalAmount,
-          payment_status: 'paid',
-          payment_method: paymentMethod,
-          payment_date: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-
-      alert(
-        `Payment Successful!\nAmount Paid: ₱${finalAmount.toFixed(2)}\nPayment Method: ${
-          (paymentMethod as string).charAt(0).toUpperCase() + (paymentMethod as string).slice(1)
-        }${
-          discountType !== 'none' ? `\nDiscount: -₱${discountAmount.toFixed(2)}` : ''
-        }`
-      );
-
-      // Callback for parent component
-      if (onSuccess) {
-        onSuccess({
-          id: Date.now().toString(),
-          patient_id: userId,
-          appointment_id: selectedAppointment.id,
-          amount,
-          discount_type: discountType,
-          discount_amount: discountAmount,
-          final_amount: finalAmount,
-          payment_status: 'paid',
-          payment_method: paymentMethod,
-          payment_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        });
-      }
-
-      await refreshBillingData();
-    } catch (error) {
-      console.error('Error processing payment:', error);
-      alert('Failed to process payment');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handlePayment = async () => {
-    // Online payment methods go through PayMongo checkout
-    if (paymentMethod === 'card' || paymentMethod === 'gcash') {
-      await handlePayMongoCheckout();
-    } else {
-      await handleNonCardPayment();
-    }
-  };
+  const handlePayment = handlePayMongoCheckout;
 
   return (
     <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
@@ -453,7 +376,7 @@ export default function BillingPayment({
             {unpaidAppointments.length > 0 ? (
               <div className="space-y-2">
                 {unpaidAppointments.map((apt) => {
-                  const price = SERVICE_PRICES[apt.service] || 0;
+                  const price = getServicePrice(apt.service);
                   const isSelected = selectedAppointment?.id === apt.id;
                   return (
                     <button
@@ -542,44 +465,39 @@ export default function BillingPayment({
             </div>
           )}
 
-          {/* Payment Method Selection */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Select Settlement Channel
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {[
-                { value: 'card' as const, label: 'Card (PayMongo)', icon: CreditCard },
-                { value: 'gcash' as const, label: 'GCash / Maya', icon: Smartphone },
-                { value: 'bank-transfer' as const, label: 'Bank Transfer', icon: Building2 },
-              ].map((option) => {
-                const IconComponent = option.icon;
-                const isSelected = paymentMethod === option.value;
-                const isOnlineMethod = option.value === 'card' || option.value === 'gcash';
-                return (
-                  <button
-                    type="button"
-                    key={option.value}
-                    onClick={() => {
-                      setPaymentMethod(option.value);
-                      setPaymongoError(null);
-                    }}
-                    className={`p-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition flex flex-col items-center gap-1.5 cursor-pointer ${
-                      isSelected
-                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
-                        : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
-                    }`}
-                  >
-                    <IconComponent className={`w-4 h-4 ${isSelected ? 'text-emerald-700' : 'text-slate-500'}`} />
-                    <span>{option.label}</span>
-                    {isOnlineMethod && (
-                      <span className="text-[9px] font-semibold text-emerald-600 normal-case tracking-normal">
-                        Secure Online
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+          {/* Payment Gateway - PayMongo Unified Portal */}
+          <div className="skeuo-card p-5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                  Payment Gateway &bull; PayMongo Checkout
+                </span>
+              </div>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300">
+                All Channels Accepted
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              PayMongo processes all clinic settlements securely. You will select your preferred channel (Cards, GCash, Maya, GrabPay, or QR Ph) on the hosted checkout page.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                <CreditCard className="w-3.5 h-3.5 text-blue-700" />
+                Credit / Debit Card
+              </span>
+              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                GCash
+              </span>
+              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                Maya
+              </span>
+              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                GrabPay / QR Ph
+              </span>
             </div>
           </div>
 
@@ -615,20 +533,6 @@ export default function BillingPayment({
             </div>
           )}
 
-          {/* Online Payment Info Banner */}
-          {(paymentMethod === 'card' || paymentMethod === 'gcash') && (
-            <div className="flex items-start gap-3 p-4 bg-blue-50/60 border-2 border-blue-300 rounded-sm">
-              <ExternalLink className="w-4 h-4 shrink-0 text-blue-700 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-blue-900 uppercase tracking-wider">Secure Redirect</p>
-                <p className="text-xs text-blue-700 mt-1">
-                  You will be redirected to PayMongo&apos;s secure payment page to complete your transaction.
-                  PayMongo supports Visa, Mastercard, GCash, Maya, GrabPay, and QR Ph.
-                  You will be returned to this page after payment.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -690,15 +594,10 @@ export default function BillingPayment({
                 <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
                 <span>Processing...</span>
               </span>
-            ) : paymentMethod === 'card' || paymentMethod === 'gcash' ? (
+            ) : (
               <span className="flex items-center gap-2">
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Confirm Settlement</span>
               </span>
             )}
           </button>
@@ -715,12 +614,10 @@ export default function BillingPayment({
       </div>
 
       {/* Security Badge */}
-      {(paymentMethod === 'card' || paymentMethod === 'gcash') && (
-        <p className="text-center text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          Secured by PayMongo (BSP-Licensed). Card details are handled on PayMongo&apos;s PCI-DSS compliant servers.
-        </p>
-      )}
+      <p className="text-center text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+        Secured by PayMongo (BSP-Licensed). Card & e-wallet details are handled on PayMongo&apos;s PCI-DSS compliant servers.
+      </p>
     </div>
   );
 }

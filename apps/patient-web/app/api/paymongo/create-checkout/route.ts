@@ -31,20 +31,45 @@ const SERVICE_PRICES: Record<string, number> = {
   Cleaning: 1500,
   Whitening: 5000,
   Fillings: 2000,
+  Filling: 2000,
   'Root Canal': 8000,
+  'Root Canals': 8000,
   Extraction: 1500,
+  Aligners: 25000,
   'Braces Consultation': 35000,
+  Braces: 35000,
   'Implants Consultation': 45000,
+  Implants: 45000,
   'X-Ray': 500,
   'Check-up': 300,
+  Checkup: 300,
+  Consultation: 500,
+  'Initial Consultation': 500,
+  General: 500,
+  'General Checkup': 500,
 };
+
+function getServicePrice(serviceName?: string | null): number {
+  if (!serviceName) return 1500;
+  if (SERVICE_PRICES[serviceName] && SERVICE_PRICES[serviceName] > 0) {
+    return SERVICE_PRICES[serviceName];
+  }
+  const normalized = serviceName.trim().toLowerCase();
+  for (const [key, price] of Object.entries(SERVICE_PRICES)) {
+    if (key.toLowerCase() === normalized) return price;
+    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
+      return price;
+    }
+  }
+  return 1500;
+}
 
 export async function POST(request: NextRequest) {
   try {
     if (!isPayMongoConfigured) {
       return NextResponse.json(
         {
-          error: 'PayMongo payments are not configured on this server yet. Please use Cash or Bank Transfer.',
+          error: 'PayMongo payments are not configured on this server yet.',
           unconfigured: true,
         },
         { status: 503 }
@@ -85,15 +110,11 @@ export async function POST(request: NextRequest) {
       serviceName = bodyService.trim();
     }
 
-    // Validate that the service exists in authoritative server-side pricing catalog
-    if (!serviceName || !SERVICE_PRICES[serviceName]) {
-      return NextResponse.json(
-        { error: 'Appointment procedure not recognized or missing price configuration.' },
-        { status: 404 }
-      );
+    if (!serviceName) {
+      serviceName = 'Dental Procedure';
     }
 
-    const baseAmount = SERVICE_PRICES[serviceName];
+    const baseAmount = getServicePrice(serviceName);
 
     // Apply statutory discount server-side
     let finalAmount = baseAmount;
