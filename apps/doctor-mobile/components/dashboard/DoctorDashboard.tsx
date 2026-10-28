@@ -37,6 +37,8 @@ import {
   notifyDoctorProfileUpdated,
   createManualNotification,
 } from "../../lib/notificationService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
@@ -59,7 +61,8 @@ import {
   Clock,
   LayoutDashboard,
   Bell,
-  Sparkles
+  Sparkles,
+  Compass
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
 import {
@@ -178,6 +181,205 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
+
+  // ─────────────────────────────────────────
+  // INTERACTIVE APP TOUR SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+  const dashboardScrollRef = useRef<any>(null);
+
+  const tourSteps: TourStep[] = [
+    {
+      id: "welcome",
+      title: "Welcome to SmileGuard Doctor!",
+      description: "Your digital dental clinic command center. Let's take a quick 1-minute walkthrough to show you how navigation and daily workflows work.",
+      icon: Stethoscope,
+      placement: "center",
+      onEnter: () => setSidebarOpen(false),
+    },
+    {
+      id: "menu-btn",
+      target: "menu-btn",
+      title: "Clinic Navigation Drawer",
+      description: "Tap this menu icon anytime to slide out your navigation drawer and jump between clinic modules.",
+      icon: Menu,
+      padding: 6,
+      radius: 12,
+      onEnter: () => setSidebarOpen(false),
+    },
+    {
+      id: "sidebar-nav",
+      target: "sidebar-nav",
+      title: "Clinic Modules & Tools",
+      description: "Easily navigate through Patient Records, Chair Appointments, Booking Requests, PayMongo Billings, and Clinic Settings.",
+      icon: LayoutDashboard,
+      padding: 6,
+      radius: 14,
+      placement: "bottom",
+      onEnter: () => setSidebarOpen(true),
+      delay: 450,
+    },
+    {
+      id: "notifications-btn",
+      target: "notifications-btn",
+      title: "Live Patient Notifications",
+      description: "Instant alerts ring whenever patients book online, request schedule changes, or submit their digital medical intake.",
+      icon: Bell,
+      padding: 4,
+      radius: 10,
+      onEnter: () => setSidebarOpen(false),
+      delay: 350,
+    },
+    {
+      id: "stats-panel",
+      target: "stats-panel",
+      title: "Daily Practice Metrics",
+      description: "See your live patient volume, confirmed appointments, and verified PayMongo paid billings in real-time.",
+      icon: Activity,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+      },
+    },
+    {
+      id: "today-appointments",
+      target: "today-appointments",
+      title: "Today's Patient Schedule",
+      description: "Chronological queue of patients arriving today. Tap any patient card to immediately inspect their chart and notes.",
+      icon: Calendar,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+      },
+    },
+    {
+      id: "patient-details",
+      target: "patient-details",
+      title: "Medical Charting & Actions",
+      description: "View the patient's requested service, contact details, medical history, allergies, and update their appointment status (Completed, Cancelled, etc.).",
+      icon: Users,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+      },
+    },
+    {
+      id: "guide-btn",
+      target: "guide-btn",
+      title: "Replay Guide Anytime",
+      description: "You can tap this Sparkles button anytime to replay this interactive walkthrough or view the PayMongo setup checklist.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 12,
+      onEnter: () => setSidebarOpen(false),
+    },
+    {
+      id: "finish",
+      title: "You're All Set, Doctor!",
+      description: "SmileGuard keeps your schedule organized and synced across web and mobile. Let's make every smile shine!",
+      icon: ShieldCheck,
+      placement: "center",
+      onEnter: () => setSidebarOpen(false),
+    },
+  ];
+
+  // Auto-prompt tour on first login
+  useEffect(() => {
+    if (!user?.id || loadingAppointments || loadingPatients) return;
+
+    let isMounted = true;
+    const checkFirstTimeTour = async () => {
+      try {
+        const key = `@smileguard_doctor_interactive_tour_completed_${user.id}`;
+        const hasCompleted = await AsyncStorage.getItem(key);
+        if (!hasCompleted && isMounted) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setTourIndex(0);
+              setTourVisible(true);
+            }
+          }, 1200);
+          return () => clearTimeout(timer);
+        }
+      } catch (e) {
+        console.warn("[DoctorDashboard] Failed checking tour status", e);
+      }
+    };
+
+    checkFirstTimeTour();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, loadingAppointments, loadingPatients]);
+
+  const handleFinishTour = async () => {
+    setTourVisible(false);
+    setSidebarOpen(false);
+    if (user?.id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
+          "true"
+        );
+      } catch (e) {
+        console.warn("[DoctorDashboard] Failed persisting tour completion", e);
+      }
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setTourVisible(false);
+    setSidebarOpen(false);
+    if (user?.id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
+          "true"
+        );
+      } catch (e) {
+        console.warn("[DoctorDashboard] Failed persisting tour skip", e);
+      }
+    }
+  };
+
+  const handleRestartTour = () => {
+    setSidebarOpen(false);
+    setActiveTab("dashboard");
+    setTourIndex(0);
+    setTourVisible(true);
+  };
+
+  const handleOpenGuideOptions = () => {
+    Alert.alert(
+      "SmileGuard Doctor Guide",
+      "Choose what you would like to explore:",
+      [
+        {
+          text: "Start App Walkthrough",
+          onPress: handleRestartTour,
+        },
+        {
+          text: "Clinic & PayMongo Guide",
+          onPress: () => router.push("/onboarding"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
 
   const today = getToday();
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
@@ -683,17 +885,19 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <View style={styles.mainContainer}>
+      <View ref={tour.setContainer} collapsable={false} style={styles.mainContainer}>
         {/* Modern HeroUI Top App Bar */}
         <View style={styles.topAppBar}>
-          <TouchableOpacity
-            style={styles.menuIconButton}
-            onPress={() => setSidebarOpen(true)}
-            accessibilityLabel="Open sidebar menu"
-            activeOpacity={0.7}
-          >
-            <Menu size={22} color="#047857" />
-          </TouchableOpacity>
+          <View ref={tour.register("menu-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
+            <TouchableOpacity
+              style={styles.menuIconButton}
+              onPress={() => setSidebarOpen(true)}
+              accessibilityLabel="Open sidebar menu"
+              activeOpacity={0.7}
+            >
+              <Menu size={22} color="#047857" />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.topBarCenter}>
             <Text style={styles.topBarDoctorName} numberOfLines={1}>
@@ -705,19 +909,23 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           </View>
 
           <View style={styles.topBarRightActions}>
-            <TouchableOpacity
-              onPress={() => router.push('/onboarding')}
-              style={styles.topBarRefreshBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Clinic Onboarding Guide"
-            >
-              <Sparkles size={16} color="#047857" />
-            </TouchableOpacity>
-            <NotificationBell
-              unreadCount={notificationState.unreadCount}
-              onPress={() => setShowNotificationCenter(true)}
-              animateOnNewNotification={true}
-            />
+            <View ref={tour.register("guide-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
+              <TouchableOpacity
+                onPress={handleOpenGuideOptions}
+                style={styles.topBarRefreshBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Clinic Guide & Interactive Tour"
+              >
+                <Sparkles size={16} color="#047857" />
+              </TouchableOpacity>
+            </View>
+            <View ref={tour.register("notifications-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
+              <NotificationBell
+                unreadCount={notificationState.unreadCount}
+                onPress={() => setShowNotificationCenter(true)}
+                animateOnNewNotification={true}
+              />
+            </View>
             <TouchableOpacity
               onPress={() => {
                 setIsRefreshing(true);
@@ -808,7 +1016,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
         <View style={styles.contentArea}>
           {activeTab === 'dashboard' ? (
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
               <View style={styles.container}>
                 {/* Greeting Banner */}
                 <View style={{ marginBottom: 16 }}>
@@ -819,7 +1027,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 </View>
 
                 {/* Stats Panel - from Supabase with Iconic Lucide Icons */}
-                <View style={styles.firstPanel}>
+                <View ref={tour.register("stats-panel")} collapsable={false} style={styles.firstPanel}>
                   <StatCard
                     number={patients.length}
                     label="Patients"
@@ -849,7 +1057,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                 <View style={styles.dashboardColumns}>
                   {/* Left Column: Today's Appointments */}
-                  <View style={styles.column}>
+                  <View ref={tour.register("today-appointments")} collapsable={false} style={styles.column}>
                     <View style={styles.sectionHeaderRow}>
                       <View style={styles.sectionTitleGroup}>
                         <Text style={styles.sectionHeaderTitle}>Today's Appointments</Text>
@@ -887,7 +1095,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
 
                   {/* Right Column: Patient Details */}
-                  <View style={styles.column}>
+                  <View ref={tour.register("patient-details")} collapsable={false} style={styles.column}>
                     <View style={styles.sectionHeaderRow}>
                       <Text style={styles.sectionHeaderTitle}>Patient Details</Text>
                       {selectedPatient && (
@@ -1234,6 +1442,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 const notification = notifyDoctorProfileUpdated(doctorName, doctorId);
                 notificationState.actions.addNotification(notification);
               }}
+              onStartTutorial={() => {
+                setActiveTab('dashboard');
+                setTimeout(() => {
+                  setTourIndex(0);
+                  setTourVisible(true);
+                }, 250);
+              }}
             />
           )}
         </View>
@@ -1332,7 +1547,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </View>
 
-          <View style={styles.navItems}>
+          <View ref={tour.register("sidebar-nav")} collapsable={false} style={styles.navItems}>
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
               onPress={() => {
@@ -1400,18 +1615,32 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.sidebarLogoutBtn}
-            onPress={() => {
-              Alert.alert("Confirm Logout", "Are you sure?", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: onLogout },
-              ]);
-            }}
-          >
-            <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.sidebarLogoutText}>Logout</Text>
-          </TouchableOpacity>
+          <View style={{ gap: 8, marginTop: 12 }}>
+            <TouchableOpacity
+              style={styles.sidebarTourBtn}
+              onPress={() => {
+                setSidebarOpen(false);
+                setTimeout(() => handleRestartTour(), 300);
+              }}
+              activeOpacity={0.8}
+            >
+              <Compass size={18} color="#A7F3D0" style={{ marginRight: 8 }} />
+              <Text style={styles.sidebarTourText}>App Walkthrough</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sidebarLogoutBtn}
+              onPress={() => {
+                Alert.alert("Confirm Logout", "Are you sure?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Logout", style: "destructive", onPress: onLogout },
+                ]);
+              }}
+            >
+              <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.sidebarLogoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         {/* Loading Overlay for Tab Navigation */}
@@ -1486,6 +1715,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </SafeAreaView>
         </Modal>
+
+        {/* Interactive Walkthrough Tour */}
+        <AppTour
+          visible={tourVisible}
+          steps={tourSteps}
+          index={tourIndex}
+          onIndexChange={setTourIndex}
+          measureTarget={tour.measure}
+          onFinish={handleFinishTour}
+          onSkip={handleSkipTour}
+        />
       </View>
     </SafeAreaView>
   );
@@ -1670,6 +1910,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+
+  sidebarTourBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    backgroundColor: 'rgba(16, 185, 129, 0.22)',
+    borderWidth: 1,
+    borderColor: '#34D399',
+    borderRadius: 10,
+  },
+
+  sidebarTourText: {
+    color: '#E6FFFA',
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   sidebarLogoutBtn: {
