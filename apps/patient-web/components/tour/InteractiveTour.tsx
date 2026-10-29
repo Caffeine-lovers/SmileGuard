@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import {
+import { 
   ChevronRight, 
   ChevronLeft, 
   X, 
@@ -25,7 +25,7 @@ export interface TourStep {
 
 export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   {
-    targetSelector: '[data-tour="profile-header"]',
+    targetSelector: '[data-tour="profile-card"]',
     badge: 'Step 1 of 7 • Patient Profile',
     title: 'Dental Chart & Statutory Status',
     description: 'Your patient identity and verification hub. Once Dr. Kyler approves your PWD or Senior Citizen ID card, a verified badge will appear here to activate your statutory 20% discount on clinic billings.',
@@ -73,7 +73,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     ]
   },
   {
-    targetSelector: '[data-tour="nav-analysis"]',
+    targetSelector: '[data-tour="quick-analysis"]',
     badge: 'Step 5 of 7 • AI Vision Screening',
     title: 'Computer Vision Oral Health Scan',
     description: 'Launch our real-time camera engine to detect signs of early gingivitis, redness, and plaque accumulation. Take an oral scan anytime before coming in to the clinic.',
@@ -88,7 +88,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     }
   },
   {
-    targetSelector: '[data-tour="nav-billing"]',
+    targetSelector: '[data-tour="quick-billing"]',
     badge: 'Step 6 of 7 • Payments & Statutory Discounts',
     title: 'Digital Payments & PWD Verification',
     description: 'Review itemized dental invoices and settle balances securely via GCash, Maya, or Cards. You can also upload your official PWD or Senior Citizen ID here to request your 20% discount.',
@@ -130,6 +130,7 @@ export default function InteractiveTour({
 }: InteractiveTourProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [targetBorderRadius, setTargetBorderRadius] = useState<string>('6px');
   const [isMounted, setIsMounted] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -142,55 +143,80 @@ export default function InteractiveTour({
   const updateTargetRect = useCallback(() => {
     if (!isOpen || !currentStep) return;
 
-    // Try finding element by current selector
     let el = document.querySelector(currentStep.targetSelector) as HTMLElement | null;
 
-    // Fallbacks if not visible or selector not found
     if (!el || el.offsetParent === null) {
-      if (currentStep.targetSelector === '[data-tour="nav-analysis"]') {
-        el = document.querySelector('[data-tour="quick-analysis"]') || document.querySelector('header a[href="/analysis"]');
-      } else if (currentStep.targetSelector === '[data-tour="nav-billing"]') {
-        el = document.querySelector('[data-tour="quick-billing"]') || document.querySelector('header a[href="/billing"]');
+      if (currentStep.targetSelector === '[data-tour="quick-analysis"]') {
+        el = document.querySelector('header a[href="/analysis"]');
+      } else if (currentStep.targetSelector === '[data-tour="quick-billing"]') {
+        el = document.querySelector('header a[href="/billing"]');
+      } else if (currentStep.targetSelector === '[data-tour="profile-card"]') {
+        el = document.querySelector('[data-tour="profile-header"]');
       }
     }
 
     if (el) {
       const rect = el.getBoundingClientRect();
       setTargetRect(rect);
+      try {
+        const computed = window.getComputedStyle(el);
+        if (computed.borderRadius && computed.borderRadius !== '0px') {
+          setTargetBorderRadius(computed.borderRadius);
+        } else {
+          setTargetBorderRadius('6px');
+        }
+      } catch {
+        setTargetBorderRadius('6px');
+      }
     } else {
       setTargetRect(null);
     }
   }, [isOpen, currentStep]);
 
-  // Scroll to target element on step change
+  // Smooth scroll and continuous 60fps tracking during step transitions
   useEffect(() => {
     if (!isOpen) return;
 
     let el = document.querySelector(currentStep.targetSelector) as HTMLElement | null;
     if (!el || el.offsetParent === null) {
-      if (currentStep.targetSelector === '[data-tour="nav-analysis"]') {
-        el = document.querySelector('[data-tour="quick-analysis"]') || document.querySelector('header a[href="/analysis"]');
-      } else if (currentStep.targetSelector === '[data-tour="nav-billing"]') {
-        el = document.querySelector('[data-tour="quick-billing"]') || document.querySelector('header a[href="/billing"]');
+      if (currentStep.targetSelector === '[data-tour="quick-analysis"]') {
+        el = document.querySelector('header a[href="/analysis"]');
+      } else if (currentStep.targetSelector === '[data-tour="quick-billing"]') {
+        el = document.querySelector('header a[href="/billing"]');
+      } else if (currentStep.targetSelector === '[data-tour="profile-card"]') {
+        el = document.querySelector('[data-tour="profile-header"]');
       }
     }
 
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const rect = el.getBoundingClientRect();
+      const inView = 
+        rect.top >= 80 && 
+        rect.bottom <= (window.innerHeight - 80) &&
+        rect.left >= 0 &&
+        rect.right <= window.innerWidth;
+
+      if (!inView) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
 
-    // Update rect immediately and after smooth scroll completes
-    updateTargetRect();
-    const timer1 = setTimeout(updateTargetRect, 200);
-    const timer2 = setTimeout(updateTargetRect, 500);
+    let animationFrameId: number;
+    const startTime = performance.now();
+    const trackPosition = (now: number) => {
+      updateTargetRect();
+      if (now - startTime < 650) {
+        animationFrameId = requestAnimationFrame(trackPosition);
+      }
+    };
+    animationFrameId = requestAnimationFrame(trackPosition);
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      cancelAnimationFrame(animationFrameId);
     };
   }, [currentStepIndex, isOpen, currentStep, updateTargetRect]);
 
-  // Listen to window scroll & resize to adjust spotlight
+  // Listen to window scroll & resize events
   useEffect(() => {
     if (!isOpen) return;
 
@@ -198,12 +224,12 @@ export default function InteractiveTour({
       updateTargetRect();
     };
 
-    window.addEventListener('resize', handleUpdate);
-    window.addEventListener('scroll', handleUpdate, true);
+    window.addEventListener('resize', handleUpdate, { passive: true });
+    window.addEventListener('scroll', handleUpdate, { capture: true, passive: true });
 
     return () => {
       window.removeEventListener('resize', handleUpdate);
-      window.removeEventListener('scroll', handleUpdate, true);
+      window.removeEventListener('scroll', handleUpdate, { capture: true });
     };
   }, [isOpen, updateTargetRect]);
 
@@ -235,8 +261,8 @@ export default function InteractiveTour({
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === steps.length - 1;
 
-  // Calculate popover positioning relative to targetRect
-  const padding = 8;
+  // Bounding rect calculations with precise padding
+  const pad = 6;
   const cardWidth = 380;
   const cardHeightEstimate = 320;
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
@@ -246,75 +272,71 @@ export default function InteractiveTour({
   let popoverLeft = Math.max(16, (viewportWidth - cardWidth) / 2);
 
   if (targetRect) {
-    const spaceBelow = viewportHeight - (targetRect.bottom + padding);
-    const spaceAbove = targetRect.top - padding;
+    const spaceBelow = viewportHeight - (targetRect.bottom + pad);
+    const spaceAbove = targetRect.top - pad;
 
-    if (spaceBelow >= cardHeightEstimate || spaceBelow >= spaceAbove) {
-      popoverTop = Math.min(viewportHeight - cardHeightEstimate - 20, targetRect.bottom + padding + 12);
+    if (spaceBelow >= cardHeightEstimate + 20) {
+      popoverTop = targetRect.bottom + pad + 16;
+    } else if (spaceAbove >= cardHeightEstimate + 20) {
+      popoverTop = Math.max(16, targetRect.top - pad - cardHeightEstimate - 16);
     } else {
-      popoverTop = Math.max(20, targetRect.top - padding - cardHeightEstimate - 12);
+      if (spaceBelow > spaceAbove) {
+        popoverTop = Math.min(viewportHeight - cardHeightEstimate - 16, targetRect.bottom + pad + 12);
+      } else {
+        popoverTop = Math.max(16, targetRect.top - pad - cardHeightEstimate - 12);
+      }
     }
 
     const targetCenter = targetRect.left + targetRect.width / 2;
     popoverLeft = targetCenter - cardWidth / 2;
-    // Clamp to viewport
     popoverLeft = Math.max(16, Math.min(viewportWidth - cardWidth - 16, popoverLeft));
   } else {
-    // Default center
     popoverTop = Math.max(40, (viewportHeight - cardHeightEstimate) / 2);
     popoverLeft = Math.max(16, (viewportWidth - cardWidth) / 2);
   }
 
   return (
     <div className="fixed inset-0 z-[9999] pointer-events-auto">
-      {/* SVG Spotlight Mask */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-auto">
-        <defs>
-          <mask id="spotlight-mask">
-            {/* White covers all (opaque mask) */}
-            <rect x="0" y="0" width="100%" height="100%" fill="white" />
-            {/* Black cuts out the spotlight hole */}
-            {targetRect && (
-              <rect
-                x={Math.max(0, targetRect.left - padding)}
-                y={Math.max(0, targetRect.top - padding)}
-                width={targetRect.width + padding * 2}
-                height={targetRect.height + padding * 2}
-                rx="8"
-                ry="8"
-                fill="black"
-              />
-            )}
-          </mask>
-        </defs>
-        {/* Dark translucent backdrop with cutout */}
-        <rect
-          x="0"
-          y="0"
-          width="100%"
-          height="100%"
-          fill="rgba(15, 23, 42, 0.78)"
-          mask="url(#spotlight-mask)"
-        />
-      </svg>
-
-      {/* Target Focus Ring Indicator */}
+      {/* Precision Cutout Frame & Outer Spotlight Shadow */}
       {targetRect && (
         <div
-          className="absolute pointer-events-none rounded-lg border-2 border-emerald-400 ring-4 ring-emerald-400/30 shadow-[0_0_25px_rgba(52,211,153,0.4)] transition-all duration-300 animate-pulse"
           style={{
-            left: Math.max(0, targetRect.left - padding),
-            top: Math.max(0, targetRect.top - padding),
-            width: targetRect.width + padding * 2,
-            height: targetRect.height + padding * 2,
+            position: 'fixed',
+            top: `${Math.max(0, targetRect.top - pad)}px`,
+            left: `${Math.max(0, targetRect.left - pad)}px`,
+            width: `${Math.min(viewportWidth, targetRect.width + pad * 2)}px`,
+            height: `${targetRect.height + pad * 2}px`,
+            borderRadius: targetBorderRadius || '6px',
+            boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.78), 0 0 25px rgba(16, 185, 129, 0.45)',
+            pointerEvents: 'none',
+            transition: 'top 0.25s cubic-bezier(0.16, 1, 0.3, 1), left 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1), height 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-radius 0.25s',
           }}
-        />
+          className="z-[9998] border-2 border-emerald-400"
+        >
+          {/* Inner High-Precision Dashed Outline Ring */}
+          <div
+            style={{ borderRadius: targetBorderRadius || '6px' }}
+            className="absolute -inset-[3px] border-2 border-dashed border-emerald-300/80 animate-pulse pointer-events-none"
+          />
+
+          {/* 4 Precision Corner Reticle Brackets */}
+          <span className="absolute -top-1 -left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-white pointer-events-none shadow-xs" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-white pointer-events-none shadow-xs" />
+          <span className="absolute -bottom-1 -left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-white pointer-events-none shadow-xs" />
+          <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-white pointer-events-none shadow-xs" />
+
+          {/* Focused Element Subject Tag */}
+          <div className="absolute -top-6 left-1 px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider rounded-t-xs shadow-md flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-ping" />
+            <span>Target Box</span>
+          </div>
+        </div>
       )}
 
       {/* Floating Tour Tooltip Card */}
       <div
         ref={popoverRef}
-        className="absolute z-10 w-[calc(100vw-32px)] sm:w-[380px] bg-white rounded-lg shadow-2xl border-2 border-emerald-800/20 overflow-hidden transition-all duration-200 animate-in fade-in zoom-in-95"
+        className="fixed z-[10000] w-[calc(100vw-32px)] sm:w-[380px] bg-white rounded-lg shadow-2xl border-2 border-emerald-800/20 overflow-hidden transition-all duration-200 animate-in fade-in zoom-in-95"
         style={{
           top: `${popoverTop}px`,
           left: `${popoverLeft}px`,

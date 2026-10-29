@@ -148,7 +148,7 @@ export default function PatientDashboard() {
       <div data-tour="profile-header" className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-white/30"></div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div data-tour="profile-card" className="flex items-center gap-3 sm:gap-4 min-w-0">
             <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/10 rounded-sm border border-white/20 flex items-center justify-center shrink-0 shadow-inner">
               <Stethoscope className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-200" />
             </div>
