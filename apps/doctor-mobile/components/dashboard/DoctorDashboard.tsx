@@ -1150,8 +1150,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     ) : (
                       <View style={[styles.detailsCard, styles.shadow, {
                         position: 'relative',
-                        borderLeftWidth: 3.5,
-                        borderLeftColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#F59E0B' : '#047857',
                       }]}>
                         {/* Status Badge - Top Right Corner */}
                         <View style={{
@@ -2276,10 +2274,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1.5,
     borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
     borderRightColor: '#CBD5E1',
     borderBottomColor: '#CBD5E1',
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
     padding: 14,
     marginBottom: 10,
     shadowColor: '#0F172A',

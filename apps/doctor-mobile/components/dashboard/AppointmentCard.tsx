@@ -79,9 +79,7 @@ const styles = StyleSheet.create({
   },
   cardHighlighted: {
     backgroundColor: "#F0FDF4",
-    borderLeftWidth: 3.5,
-    borderLeftColor: "#047857",
-    borderColor: "#A7F3D0",
+    borderColor: "#10B981",
   },
   avatarContainer: {
     marginRight: 10,
