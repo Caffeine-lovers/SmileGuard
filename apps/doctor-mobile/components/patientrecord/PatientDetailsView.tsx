@@ -31,7 +31,7 @@ export type AppointmentType = {
   notes: string;
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'; // Appointment status
+  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'; // Appointment status
   // Medical intake fields
   dateOfBirth?: string;
   address?: string;

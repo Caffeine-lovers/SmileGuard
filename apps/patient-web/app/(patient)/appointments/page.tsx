@@ -19,7 +19,7 @@ export default function AppointmentsPage() {
           {/* Book Appointment (Center) - Main Form */}
           <div className="lg:col-span-2">
             <div className="sticky top-8 shadow-lg rounded-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_30px_rgba(41,171,226,0.4)]">
-              <BookAppointment onSuccess={() => router.push('/dashboard')} />
+              <BookAppointment onSuccess={() => router.push('/dashboard?tab=pending')} />
             </div>
           </div>
 

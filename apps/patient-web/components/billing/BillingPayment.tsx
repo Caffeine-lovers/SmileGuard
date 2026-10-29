@@ -4,10 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
-import type { Billing, Appointment } from '@/lib/database';
-import { calculateDiscount } from '@/lib/database';
-import { getBalance, getBillings } from '@/lib/paymentService';
-import { getPatientAppointments } from '@/lib/appointmentService';
+import type { Billing, Appointment, AppointmentBillingRow, AppointmentBillingStatus } from '@/lib/database';
+import { calculateDiscount, isPendingAppointment } from '@/lib/database';
 import { fetchBillingDataForDashboard, getServicePrice } from '@/lib/outstandingBalanceService';
 import {
   CreditCard,
@@ -47,6 +45,8 @@ export default function BillingPayment({
   const [showProofUpload, setShowProofUpload] = useState(false);
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [billingHistory, setBillingHistory] = useState<Billing[]>([]);
+  const [ledger, setLedger] = useState<AppointmentBillingRow[]>([]);
+  const [ledgerFilter, setLedgerFilter] = useState<'ALL' | AppointmentBillingStatus>('ALL');
   const [loadingData, setLoadingData] = useState(true);
 
   // PayMongo-specific state
@@ -65,14 +65,28 @@ export default function BillingPayment({
           // Confirm billing record is persisted in Supabase
           const recordPaid = async () => {
             try {
-              const { data: existing } = await supabase
+              const { data: existingRows } = await supabase
                 .from('billings')
-                .select('id')
-                .eq('appointment_id', aptId)
-                .eq('payment_status', 'paid')
-                .maybeSingle();
+                .select('id, payment_status')
+                .eq('appointment_id', aptId);
 
-              if (!existing) {
+              const rows = existingRows || [];
+              const alreadyPaid = rows.some((r) => r.payment_status === 'paid');
+              const pendingRow = rows.find((r) => r.payment_status !== 'paid');
+
+              if (alreadyPaid) {
+                // Webhook already recorded it
+              } else if (pendingRow) {
+                await supabase
+                  .from('billings')
+                  .update({
+                    payment_status: 'paid',
+                    payment_method: 'card',
+                    payment_date: new Date().toISOString(),
+                  })
+                  .eq('id', pendingRow.id);
+                await refreshBillingData();
+              } else {
                 const { data: apt } = await supabase
                   .from('appointments')
                   .select('service')
@@ -113,12 +127,13 @@ export default function BillingPayment({
     async function fetchBillingData() {
       setLoadingData(true);
       try {
-        const { outstandingBalance, unpaidAppointments, billingHistory } =
+        const { outstandingBalance, unpaidAppointments, billingHistory, ledger } =
           await fetchBillingDataForDashboard(userId);
 
         setOutstandingBalance(outstandingBalance);
         setBillingHistory(billingHistory);
         setUnpaidAppointments(unpaidAppointments);
+        setLedger(ledger);
 
         if (unpaidAppointments.length > 0 && !baseAmount) {
           const first = unpaidAppointments[0];
@@ -182,19 +197,14 @@ export default function BillingPayment({
     if (!currentUser?.id) return;
     const userId = currentUser.id;
 
-    const [balance, billings, appts] = await Promise.all([
-      getBalance(userId),
-      getBillings(userId),
-      getPatientAppointments(userId),
-    ]);
+    // Same derivation as initial load so the ledger always mirrors the appointments table
+    const { outstandingBalance, unpaidAppointments, billingHistory, ledger } =
+      await fetchBillingDataForDashboard(userId);
 
-    const paidApptIds = new Set(billings.filter(b => b.payment_status === 'paid' && b.appointment_id).map(b => b.appointment_id));
-    const unpaid = appts.filter(a => a.status !== 'cancelled' && !paidApptIds.has(a.id));
-    const unpaidApptsSum = unpaid.reduce((sum, a) => sum + getServicePrice(a.service), 0);
-
-    setOutstandingBalance(balance + unpaidApptsSum);
-    setBillingHistory(billings);
-    setUnpaidAppointments(unpaid);
+    setOutstandingBalance(outstandingBalance);
+    setBillingHistory(billingHistory);
+    setUnpaidAppointments(unpaidAppointments);
+    setLedger(ledger);
     setSelectedAppointment(null);
     setAmount(0);
     setDiscountType('none');
@@ -259,6 +269,13 @@ export default function BillingPayment({
   };
 
   const handlePayment = handlePayMongoCheckout;
+
+  const ledgerCounts: Record<AppointmentBillingStatus, number> = {
+    PAID: ledger.filter((r) => r.billing_status === 'PAID').length,
+    'NOT PAID': ledger.filter((r) => r.billing_status === 'NOT PAID').length,
+    CANCELLED: ledger.filter((r) => r.billing_status === 'CANCELLED').length,
+  };
+  const filteredLedger = ledgerFilter === 'ALL' ? ledger : ledger.filter((r) => r.billing_status === ledgerFilter);
 
   return (
     <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
@@ -334,9 +351,15 @@ export default function BillingPayment({
             </div>
           </Link>
           <div className="skeuo-card p-5 border-2 border-slate-300 rounded-sm">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Total Transactions</span>
-            <p className="text-2xl font-black tracking-tight text-slate-900 mt-1">{billingHistory.length}</p>
-            <p className="text-[11px] font-semibold text-slate-500 mt-1">Settled on Ledger</p>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
+            <div className="flex items-baseline gap-3 mt-1">
+              <span className="text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
+              <span className="text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
+              <span className="text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
+            </div>
+            <p className="text-[11px] font-semibold text-slate-500 mt-1">
+              Paid · Not Paid · Cancelled ({billingHistory.length} receipts)
+            </p>
           </div>
           <div className="skeuo-card p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
@@ -400,7 +423,7 @@ export default function BillingPayment({
                             <p className="font-bold text-sm text-slate-900">{apt.service}</p>
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
                               <Building2 className="w-2.5 h-2.5 text-emerald-700" />
-                              {apt.clinic_name || 'SmileGuard Clinic'}
+                              {apt.clinic_name || "Kyler's Clinic"}
                             </span>
                           </div>
                           <p className="text-xs font-mono text-slate-500 mt-0.5">
@@ -553,39 +576,89 @@ export default function BillingPayment({
         </div>
       </div>
 
-      {/* Billing History Table */}
-      {billingHistory.length > 0 && (
+      {/* Appointment Billing Ledger — mirrors the appointments table */}
+      {ledger.length > 0 && (
         <div className="skeuo-panel p-6 border-2 border-slate-300">
-          <h2 className="text-base font-black uppercase tracking-tight text-slate-900 mb-4">
-            Recent Billing Transactions
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
+              Appointment Billing Status
+            </h2>
+            <div className="flex gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm">
+              {(['ALL', 'PAID', 'NOT PAID', 'CANCELLED'] as const).map((f) => (
+                <button
+                  type="button"
+                  key={f}
+                  onClick={() => setLedgerFilter(f)}
+                  className={`px-3 py-1 rounded-sm text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                    ledgerFilter === f ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {f === 'ALL' ? `All (${ledger.length})` : `${f} (${ledgerCounts[f]})`}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-300 text-slate-500 uppercase tracking-wider">
-                  <th className="text-left p-2.5 font-bold">Transaction Date</th>
+                  <th className="text-left p-2.5 font-bold">Appointment</th>
                   <th className="text-left p-2.5 font-bold">Clinical Service</th>
-                  <th className="text-right p-2.5 font-bold">Amount Paid</th>
-                  <th className="text-center p-2.5 font-bold">Audit Status</th>
+                  <th className="text-left p-2.5 font-bold">Appointment Status</th>
+                  <th className="text-right p-2.5 font-bold">Amount</th>
+                  <th className="text-center p-2.5 font-bold">Billing</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {billingHistory.slice(0, 5).map((bill, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="p-2.5 text-slate-700 font-mono">
-                      {bill.created_at ? new Date(bill.created_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td className="p-2.5 text-slate-900 font-bold">{bill.appointment_id ? 'Dental Appointment' : 'Clinical Service'}</td>
-                    <td className="p-2.5 text-right font-mono font-bold text-slate-900">
-                      ₱{bill.amount?.toFixed(2)}
-                    </td>
-                    <td className="p-2.5 text-center">
-                      <span className={bill.payment_status === 'paid' ? 'skeuo-badge skeuo-badge-mint' : 'skeuo-badge skeuo-badge-amber'}>
-                        {bill.payment_status === 'paid' ? 'Paid' : 'Pending'}
-                      </span>
+                {filteredLedger.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-4 text-center text-slate-500 font-bold uppercase tracking-wider">
+                      No {ledgerFilter.toLowerCase()} appointments
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredLedger.map((row) => {
+                    const awaitingApproval = isPendingAppointment(row);
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50">
+                        <td className="p-2.5 text-slate-700 font-mono whitespace-nowrap">
+                          {new Date(row.appointment_date).toLocaleDateString()} @ {row.appointment_time}
+                        </td>
+                        <td className="p-2.5 text-slate-900 font-bold">
+                          {row.service}
+                          {row.clinic_name && (
+                            <span className="block text-[10px] font-semibold text-slate-500">{row.clinic_name}</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-slate-700 capitalize">
+                          {awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status}
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                          ₱{row.amount_due.toFixed(2)}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <span
+                            className={`skeuo-badge text-[10px] ${
+                              row.billing_status === 'PAID'
+                                ? 'skeuo-badge-mint'
+                                : row.billing_status === 'CANCELLED'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                : 'bg-red-100 text-red-800 border-red-300'
+                            }`}
+                          >
+                            {row.billing_status}
+                          </span>
+                          {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
+                            <span className="block text-[10px] font-semibold text-amber-700 mt-1">Paid · refund due</span>
+                          )}
+                          {row.billing_status === 'NOT PAID' && awaitingApproval && (
+                            <span className="block text-[10px] font-semibold text-amber-700 mt-1">Payable once approved</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
