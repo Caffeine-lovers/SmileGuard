@@ -63,6 +63,8 @@ import {
   LayoutDashboard,
   Bell,
   Sparkles,
+  FileText,
+  Phone,
   Compass
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
@@ -1125,97 +1127,167 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         <TouchableOpacity
                           style={styles.seeAllBtn}
                           activeOpacity={0.7}
+                          onPress={() => {
+                            setViewingPatient(selectedPatient);
+                            setShowPatientDetails(true);
+                          }}
                         >
-                          <Text style={styles.seeAllBtnText}>Edit</Text>
+                          <Text style={styles.seeAllBtnText}>Full Chart</Text>
                           <ChevronRight size={14} color="#047857" />
                         </TouchableOpacity>
                       )}
                     </View>
                     {!selectedPatient ? (
-                      <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 120 }]}>
-                        <Users size={28} color="#94A3B8" style={{ marginBottom: 8 }} />
-                        <Text style={{ color: '#64748B', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>No appointment selected</Text>
+                      <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 140, paddingVertical: 24, backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}>
+                        <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: '#EDF2F7', borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                          <Users size={22} color="#047857" />
+                        </View>
+                        <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>No Patient Selected</Text>
+                        <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', textAlign: 'center', marginTop: 4, maxWidth: 220 }}>
+                          Select an appointment from Today's Schedule or Requests to inspect clinical records.
+                        </Text>
                       </View>
                     ) : (
-                      <View style={[styles.detailsCard, styles.shadow, { position: 'relative' }]}>
+                      <View style={[styles.detailsCard, styles.shadow, {
+                        position: 'relative',
+                        borderLeftWidth: 3.5,
+                        borderLeftColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#F59E0B' : '#047857',
+                      }]}>
                         {/* Status Badge - Top Right Corner */}
                         <View style={{
                           position: 'absolute',
                           top: 12,
                           right: 12,
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
+                          paddingHorizontal: 8,
+                          paddingVertical: 3.5,
                           borderRadius: 4,
                           borderWidth: 1,
-                          borderColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#F59E0B' : '#047857',
+                          borderColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#F59E0B' : '#6EE7B7',
                           backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FEF3C7' : '#D1FAE5',
                           zIndex: 10,
                         }}>
                           <Text style={{
                             fontWeight: '800',
                             color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#B45309' : '#065F46',
-                            fontSize: 10,
-                            letterSpacing: 0.5,
+                            fontSize: 9.5,
+                            letterSpacing: 0.6,
                           }}>
                             {(selectedPatient.status || 'scheduled').toUpperCase()}
                           </Text>
                         </View>
 
                         {/* Patient Header */}
-                        <View style={{ alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
+                        <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
                           <Image
                             source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                            style={{ width: 60, height: 60, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 10 }}
+                            style={{ width: 62, height: 62, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 8 }}
                           />
-                          <Text style={{ fontWeight: "bold", fontSize: 18 }}>
+                          <Text style={{ fontWeight: "900", fontSize: 17, color: '#0F172A', letterSpacing: -0.3 }}>
                             {selectedPatient.name}
                           </Text>
+                          {(selectedPatient.email || selectedPatient.contact) && (
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', letterSpacing: 0.5, marginTop: 2 }}>
+                              {selectedPatient.email || selectedPatient.contact}
+                            </Text>
+                          )}
                         </View>
 
-                        {/* Appointment Details */}
-                        <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>APPOINTMENT DETAILS</Text>
-                          <DetailRow label="Service" value={selectedPatient.service || "Not specified"} />
-                          <DetailRow label="Time" value={selectedPatient.time || "Not specified"} />
+                        {/* Appointment Details Box */}
+                        <View style={{
+                          marginBottom: 14,
+                          backgroundColor: '#F8FAFC',
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: '#E2E8F0',
+                          padding: 10,
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                            <Calendar size={13} color="#047857" />
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>APPOINTMENT DETAILS</Text>
+                          </View>
+                          <DetailRow label="Service" value={selectedPatient.service || "General Dental"} />
+                          <DetailRow label="Time" value={selectedPatient.time ? formatAppointmentTime(selectedPatient.time) : "Not specified"} isHighlight={true} />
                           <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
                         </View>
 
-                        {/* See More Button */}
+                        {/* Action: Open Full Medical Record */}
                         <TouchableOpacity
                           style={{
-                            paddingVertical: 14,
-                            paddingHorizontal: 16,
-                            marginBottom: 24,
-                            backgroundColor: expandPatientDetails ? '#ECFDF5' : '#F1F5F9',
+                            paddingVertical: 10,
+                            paddingHorizontal: 12,
+                            marginBottom: 12,
+                            backgroundColor: '#047857',
                             borderRadius: 6,
-                            borderWidth: 1.5,
-                            borderColor: expandPatientDetails ? '#10B981' : '#CBD5E1',
+                            borderWidth: 1,
+                            borderColor: '#064E3B',
+                            borderBottomWidth: 2.5,
+                            borderBottomColor: '#022C22',
                             flexDirection: 'row',
                             justifyContent: 'center',
                             alignItems: 'center',
-                            gap: 8,
+                            gap: 6,
+                          }}
+                          onPress={() => {
+                            setViewingPatient(selectedPatient);
+                            setShowPatientDetails(true);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <FileText size={13} color="#FFFFFF" />
+                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>VIEW FULL MEDICAL RECORD</Text>
+                          <ChevronRight size={13} color="#6EE7B7" />
+                        </TouchableOpacity>
+
+                        {/* See More Toggle Button */}
+                        <TouchableOpacity
+                          style={{
+                            paddingVertical: 11,
+                            paddingHorizontal: 14,
+                            marginBottom: expandPatientDetails ? 16 : 4,
+                            backgroundColor: expandPatientDetails ? '#ECFDF5' : '#F1F5F9',
+                            borderRadius: 6,
+                            borderWidth: 1.5,
+                            borderBottomWidth: 2.5,
+                            borderColor: expandPatientDetails ? '#10B981' : '#CBD5E1',
+                            borderBottomColor: expandPatientDetails ? '#047857' : '#94A3B8',
+                            flexDirection: 'row',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 6,
                           }}
                           onPress={() => setExpandPatientDetails(!expandPatientDetails)}
+                          activeOpacity={0.7}
                         >
                           <Text style={{
-                            fontSize: 13,
-                            fontWeight: '700',
+                            fontSize: 12,
+                            fontWeight: '800',
                             color: expandPatientDetails ? '#047857' : '#475569',
+                            letterSpacing: 0.4,
                           }}>
-                            {expandPatientDetails ? 'Show Less' : 'See More'}
+                            {expandPatientDetails ? 'HIDE CLINICAL INTAKE' : 'EXPAND CLINICAL INTAKE'}
                           </Text>
                           <ChevronDown
-                            size={16}
+                            size={15}
                             color={expandPatientDetails ? '#047857' : '#475569'}
                             style={{ transform: [{ rotate: expandPatientDetails ? '180deg' : '0deg' }] }}
                           />
                         </TouchableOpacity>
 
-                        {/* Contact Information - Expanded */}
+                        {/* Contact Information & Intake - Expanded */}
                         {expandPatientDetails && (
-                          <>
-                            <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>CONTACT INFORMATION</Text>
+                          <View style={{ gap: 12 }}>
+                            {/* Contact Box */}
+                            <View style={{
+                              backgroundColor: '#F8FAFC',
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: '#E2E8F0',
+                              padding: 10,
+                            }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                <Phone size={13} color="#047857" />
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>CONTACT INFORMATION</Text>
+                              </View>
                               <DetailRow label="Email" value={selectedPatient.email || "Not provided"} />
                               <DetailRow label="Phone" value={selectedPatient.contact || "Not provided"} />
                             </View>
@@ -1223,24 +1295,55 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             {/* Personal Details */}
                             {selectedPatient.medicalIntake && (
                               <>
-                                <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>PERSONAL DETAILS</Text>
+                                <View style={{
+                                  backgroundColor: '#F8FAFC',
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: '#E2E8F0',
+                                  padding: 10,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                    <Users size={13} color="#047857" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>PERSONAL DETAILS</Text>
+                                  </View>
                                   <DetailRow label="Gender" value={selectedPatient.medicalIntake.gender || "Not specified"} />
                                   <DetailRow label="Date of Birth" value={formatDateOfBirth(selectedPatient.medicalIntake.dateOfBirth)} />
                                   <DetailRow label="Address" value={selectedPatient.medicalIntake.address || "Not provided"} />
                                 </View>
 
                                 {/* Emergency Contact */}
-                                <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>EMERGENCY CONTACT</Text>
+                                <View style={{
+                                  backgroundColor: '#F8FAFC',
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: '#E2E8F0',
+                                  padding: 10,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                    <Phone size={13} color="#047857" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>EMERGENCY CONTACT</Text>
+                                  </View>
                                   <DetailRow label="Contact Name" value={selectedPatient.medicalIntake.emergencyContactName || "Not provided"} />
                                   <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake.emergencyContactPhone || "Not provided"} />
                                 </View>
 
                                 {/* Medical History */}
-                                <View style={{ marginHorizontal: 0 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>MEDICAL HISTORY</Text>
-                                  <DetailRow label="Allergies" value={selectedPatient.medicalIntake.allergies || "None"} />
+                                <View style={{
+                                  backgroundColor: '#F8FAFC',
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: '#E2E8F0',
+                                  padding: 10,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                    <Activity size={13} color="#047857" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>MEDICAL HISTORY</Text>
+                                  </View>
+                                  <DetailRow
+                                    label="Allergies"
+                                    value={selectedPatient.medicalIntake.allergies || "None"}
+                                    isAlert={Boolean(selectedPatient.medicalIntake.allergies && selectedPatient.medicalIntake.allergies.toLowerCase() !== 'none')}
+                                  />
                                   <DetailRow label="Current Medications" value={selectedPatient.medicalIntake.currentMedications || "None"} />
                                   <DetailRow label="Medical Conditions" value={selectedPatient.medicalIntake.medicalConditions || "None"} />
                                   <DetailRow label="Past Surgeries" value={selectedPatient.medicalIntake.pastSurgeries || "None"} />
@@ -1248,7 +1351,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                                 </View>
                               </>
                             )}
-                          </>
+                          </View>
                         )}
                       </View>
                     )}
@@ -2473,35 +2576,85 @@ const styles = StyleSheet.create({
 // HELPER COMPONENT
 // ─────────────────────────────────────────
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  isHighlight,
+  isAlert,
+}: {
+  label: string;
+  value: string;
+  isHighlight?: boolean;
+  isAlert?: boolean;
+}) {
   return (
     <View style={{
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      paddingVertical: 18,
-      paddingHorizontal: 8,
-      borderBottomColor: '#f0f0f0',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+      borderBottomColor: '#F1F5F9',
       borderBottomWidth: 1,
-      gap: 20,
+      gap: 10,
     }}>
       <Text style={{
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#666',
-        flexShrink: 1,
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#64748B',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+        flexShrink: 0,
       }}>
         {label}
       </Text>
-      <Text style={{
-        fontSize: 13,
-        color: '#333',
-        textAlign: 'right',
-        fontWeight: '500',
-        flexShrink: 1,
-      }}>
-        {value}
-      </Text>
+      {isAlert ? (
+        <View style={{
+          backgroundColor: '#FEF2F2',
+          borderWidth: 1,
+          borderColor: '#FCA5A5',
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+          borderRadius: 4,
+        }}>
+          <Text style={{
+            fontSize: 11.5,
+            fontWeight: '800',
+            color: '#B91C1C',
+            textAlign: 'right',
+          }}>
+            {value}
+          </Text>
+        </View>
+      ) : isHighlight ? (
+        <View style={{
+          backgroundColor: '#ECFDF5',
+          borderWidth: 1,
+          borderColor: '#A7F3D0',
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+          borderRadius: 4,
+        }}>
+          <Text style={{
+            fontSize: 11.5,
+            fontWeight: '800',
+            color: '#047857',
+            textAlign: 'right',
+          }}>
+            {value}
+          </Text>
+        </View>
+      ) : (
+        <Text style={{
+          fontSize: 12.5,
+          color: '#0F172A',
+          textAlign: 'right',
+          fontWeight: '700',
+          flexShrink: 1,
+        }}>
+          {value}
+        </Text>
+      )}
     </View>
   );
 }
