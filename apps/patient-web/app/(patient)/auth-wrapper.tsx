@@ -97,7 +97,8 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                 return (
                   <Link 
                     key={link.href}
-                    href={link.href} 
+                    href={link.href}
+                    data-tour={link.href === '/analysis' ? 'nav-analysis' : link.href === '/billing' ? 'nav-billing' : undefined}
                     className={`text-sm font-semibold transition hover:text-brand-primary ${
                       isActive ? 'text-brand-primary border-b-2 border-brand-primary pb-0.5' : 'text-slate-700'
                     }`}

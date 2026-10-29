@@ -10,8 +10,10 @@ import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandin
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
 import { isPendingAppointment, isCancelledAppointment } from '@/lib/database';
+import InteractiveTour from '@/components/tour/InteractiveTour';
 import { 
-  Calendar, 
+  Calendar,
+  Compass, 
   CreditCard, 
   Clock, 
   Plus, 
@@ -32,6 +34,19 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
+  const [isTourOpen, setIsTourOpen] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const storageKey = `smileguard_patient_tour_completed_${currentUser.id}`;
+    const completed = localStorage.getItem(storageKey);
+    if (!completed) {
+      const timer = setTimeout(() => {
+        setIsTourOpen(true);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser?.id]);
   
 
   useEffect(() => {
@@ -130,7 +145,7 @@ export default function PatientDashboard() {
   return (
     <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Clinic Header Banner - Skeumorphic Mint Green */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
+      <div data-tour="profile-header" className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-white/30"></div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -163,11 +178,21 @@ export default function PatientDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 pt-2 sm:pt-0 border-t border-white/10 sm:border-0">
+          <div data-tour="guide-controls" className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 pt-2 sm:pt-0 border-t border-white/10 sm:border-0">
+            <button
+              type="button"
+              onClick={() => setIsTourOpen(true)}
+              className="py-2 px-3 sm:py-2.5 sm:px-3.5 text-xs font-bold uppercase tracking-wider rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="Take Interactive UI Spotlight Tour"
+            >
+              <Compass className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Tour UI</span>
+            </button>
+
             <Link
               href="/onboarding"
               className="py-2 px-3 sm:py-2.5 sm:px-3.5 text-xs font-bold uppercase tracking-wider rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 flex items-center gap-1.5 shadow-xs"
-              title="View the Onboarding Guide"
+              title="View Full Onboarding Wizard"
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
               <span>Guide</span>
@@ -175,6 +200,7 @@ export default function PatientDashboard() {
 
             <Link
               href="/appointments"
+              data-tour="book-visit-btn"
               className="skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-4 text-xs uppercase tracking-wider shrink-0 inline-flex items-center gap-1.5 sm:gap-2"
             >
               <Plus className="w-3.5 h-3.5 shrink-0" />
@@ -186,7 +212,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div data-tour="stats-grid" className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard 
           icon={<Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />} 
           number={loading ? '...' : appointments.length} 
@@ -206,7 +232,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* Appointments Management Panel */}
-      <div className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
+      <div data-tour="appointments-panel" className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-5 pb-4 border-b-2 border-slate-200">
           <div>
             <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
@@ -373,20 +399,34 @@ export default function PatientDashboard() {
       </div>
 
       {/* Quick Navigation Footer */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link href="/appointments" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <Link href="/appointments" data-tour="quick-appointments" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
           <span>Book Appointment</span>
           <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
         </Link>
-        <Link href="/billing" className="skeuo-btn-secondary p-4 justify-between text-xs uppercase tracking-wider text-slate-800">
-          <span>Billing & Payments</span>
-          <ChevronRight className="w-4 h-4 text-emerald-700" />
+        <Link href="/analysis" data-tour="quick-analysis" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
+          <span className="flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+            <span>AI Oral Screening</span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
         </Link>
-        <Link href="/profile" className="skeuo-btn-secondary p-4 justify-between text-xs uppercase tracking-wider text-slate-800">
+        <Link href="/billing" data-tour="quick-billing" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
+          <span>Billing & Payments</span>
+          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
+        </Link>
+        <Link href="/profile" data-tour="quick-profile" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
           <span>Medical Profile</span>
-          <ChevronRight className="w-4 h-4 text-emerald-700" />
+          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
         </Link>
       </div>
+
+      {/* Interactive In-App Tour Overlay */}
+      <InteractiveTour
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        storageKey={`smileguard_patient_tour_completed_${currentUser?.id || 'guest'}`}
+      />
     </div>
   );
 }
