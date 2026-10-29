@@ -157,12 +157,38 @@ export async function POST(request: NextRequest) {
 
     const baseAmount = getServicePriceForClinic(serviceName, clinicServices);
 
-    // Apply statutory discount server-side
+    // Apply statutory discount server-side ONLY if verified & approved by clinic doctor
     let finalAmount = baseAmount;
     let discountAmount = 0;
+    let effectiveDiscountType = discountType || 'none';
+
     if (discountType === 'pwd' || discountType === 'senior') {
-      discountAmount = baseAmount * 0.2; // 20% statutory discount (RA 9994 / RA 10754)
-      finalAmount = baseAmount - discountAmount;
+      let isDoctorApproved = false;
+      if (supabase && patientId) {
+        try {
+          const { data: patientProfile } = await supabase
+            .from('profiles')
+            .select('pwd_status, pwd_type')
+            .eq('id', patientId)
+            .maybeSingle();
+
+          if (patientProfile?.pwd_status === 'approved') {
+            isDoctorApproved = true;
+          }
+        } catch (e) {
+          console.warn('[PayMongo] Exception checking patient PWD approval:', e);
+        }
+      }
+
+      if (isDoctorApproved) {
+        discountAmount = baseAmount * 0.2; // 20% statutory discount (RA 9994 / RA 10754)
+        finalAmount = baseAmount - discountAmount;
+      } else {
+        console.warn(`[PayMongo] Patient ${patientId} unapproved for ${discountType}. Charging standard rate.`);
+        effectiveDiscountType = 'none';
+        discountAmount = 0;
+        finalAmount = baseAmount;
+      }
     }
 
     const amountInCentavos = Math.round(finalAmount * 100);
@@ -203,7 +229,7 @@ export async function POST(request: NextRequest) {
               clinic_name: clinicName,
               service: serviceName,
               billing_id: billingId || '',
-              discount_type: discountType || 'none',
+              discount_type: effectiveDiscountType || 'none',
               discount_amount: String(discountAmount),
               base_amount: String(baseAmount),
             },

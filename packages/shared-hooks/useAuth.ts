@@ -123,16 +123,35 @@ export function useAuth(options: UseAuthOptions = {}) {
     activeFetches.add(userId);
 
     try {
-      const dbPromise = supabase
+      let dbPromise = supabase
         .from("profiles")
         .select(`
           name, 
           email, 
           role,
+          pwd_status,
+          pwd_type,
+          pwd_id_url,
           medical_intake!left (patient_id)
         `)
         .eq("id", userId)
-        .maybeSingle();
+        .maybeSingle()
+        .then(async (res) => {
+          if (res.error && res.error.message?.includes("pwd_status")) {
+            // Graceful fallback if migration 035 not yet applied to database
+            return await supabase
+              .from("profiles")
+              .select(`
+                name, 
+                email, 
+                role,
+                medical_intake!left (patient_id)
+              `)
+              .eq("id", userId)
+              .maybeSingle();
+          }
+          return res;
+        });
 
       const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
         setTimeout(() => resolve({ data: null, error: new Error("Profile query timed out") }), 4000)
@@ -165,7 +184,10 @@ export function useAuth(options: UseAuthOptions = {}) {
           name: data.name, 
           email: data.email, 
           role: data.role as "patient" | "doctor",
-          hasMedicalIntake: hasIntake 
+          hasMedicalIntake: hasIntake,
+          pwd_status: (data as any).pwd_status || 'none',
+          pwd_type: (data as any).pwd_type || undefined,
+          pwd_id_url: (data as any).pwd_id_url || undefined,
         };
         setCurrentUser(authUserObj);
         setCachedUserCookie(authUserObj);

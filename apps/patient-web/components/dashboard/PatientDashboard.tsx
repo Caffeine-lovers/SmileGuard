@@ -138,11 +138,21 @@ export default function PatientDashboard() {
               <Stethoscope className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-200" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
                   <ShieldCheck className="w-3 h-3 text-emerald-950" />
                   SmileGuard Patient Portal
                 </span>
+                {currentUser?.pwd_status === 'approved' && (
+                  <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-900 bg-emerald-100 border-emerald-300 font-bold">
+                    ✓ Verified {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'}
+                  </span>
+                )}
+                {currentUser?.pwd_status === 'pending' && (
+                  <span className="skeuo-badge text-[9px] sm:text-[10px] text-amber-900 bg-amber-100 border-amber-300 font-bold">
+                    ⏳ PWD Verification Pending
+                  </span>
+                )}
               </div>
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight truncate">
                 {currentUser?.name || 'Patient'}

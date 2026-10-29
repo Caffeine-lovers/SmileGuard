@@ -54,6 +54,7 @@ export default function AnalysisPage() {
   // Camera & Capture state
   const [inputMode, setInputMode] = useState<'camera' | 'upload'>('camera');
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
@@ -65,6 +66,19 @@ export default function AnalysisPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Callback ref to guarantee stream is attached immediately when video element mounts
+  const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+    if (element && mediaStreamRef.current) {
+      if (element.srcObject !== mediaStreamRef.current) {
+        element.srcObject = mediaStreamRef.current;
+      }
+      element.play().catch((err) => {
+        console.warn('[Camera] Autoplay waiting for user gesture:', err);
+      });
+    }
+  }, []);
+
   // Stop camera media stream
   const stopCamera = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -75,49 +89,80 @@ export default function AnalysisPage() {
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
+    setIsCameraLoading(false);
   }, []);
 
-  // Start camera stream
+  // Start camera stream with multi-level graceful fallbacks
   const startCamera = useCallback(async (facing: 'user' | 'environment' = facingMode) => {
     stopCamera();
     setCameraError(null);
+    setIsCameraLoading(true);
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setCameraError('Camera access is not supported by your browser. Please use the upload option.');
+      setCameraError('Live camera is not supported by your browser environment. Please use "Open Phone Camera" or the "Upload" tab.');
+      setIsCameraLoading(false);
       return;
     }
 
     try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: facing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      };
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (e1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: facing } },
+            audio: false,
+          });
+        } catch (e2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       mediaStreamRef.current = stream;
+      setIsCameraActive(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        await videoRef.current.play().catch((playErr) => {
+          console.warn('[Camera] play() error:', playErr);
+        });
       }
-      setIsCameraActive(true);
     } catch (err: unknown) {
       console.warn('[Camera] Failed to initialize live camera:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Permission') || msg.includes('NotAllowedError')) {
-        setCameraError('Camera permission was denied. Please allow camera permissions in your browser or select a photo from your gallery.');
+      if (msg.includes('Permission') || msg.includes('NotAllowedError') || msg.includes('PermissionDeniedError')) {
+        setCameraError('Camera permission was blocked. Please tap the camera icon in your address bar to allow camera access, or use "Open Phone Camera" below.');
       } else if (msg.includes('NotFound') || msg.includes('DevicesNotFoundError')) {
-        setCameraError('No camera found on this device. Please upload a saved image instead.');
+        setCameraError('No camera found on this device. Please select a photo from your gallery or files.');
       } else {
-        setCameraError('Could not start camera. You can still upload a photo or use your phone camera below.');
+        setCameraError(`Could not access camera (${msg}). You can still use the "Open Phone Camera" button below.`);
       }
       setIsCameraActive(false);
+    } finally {
+      setIsCameraLoading(false);
     }
   }, [facingMode, stopCamera]);
+
+  // Sync stream to video element when isCameraActive changes
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && mediaStreamRef.current) {
+      if (videoRef.current.srcObject !== mediaStreamRef.current) {
+        videoRef.current.srcObject = mediaStreamRef.current;
+      }
+      videoRef.current.play().catch((err) => console.warn('[Camera] Sync play error:', err));
+    }
+  }, [isCameraActive]);
 
   // Clean up camera on unmount
   useEffect(() => {
@@ -140,8 +185,8 @@ export default function AnalysisPage() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
+    const width = video.videoWidth || video.clientWidth || 1280;
+    const height = video.videoHeight || video.clientHeight || 720;
 
     canvas.width = width;
     canvas.height = height;
@@ -426,11 +471,17 @@ export default function AnalysisPage() {
                   {isFlashing && (
                     <div className="absolute inset-0 bg-white z-30 animate-out fade-out duration-200" />
                   )}
+                  {isCameraLoading && (
+                    <div className="absolute inset-0 bg-slate-950/80 z-25 flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
+                      <span className="text-xs font-semibold text-emerald-200">Starting camera...</span>
+                    </div>
+                  )}
 
                   {isCameraActive ? (
                     <div className="relative w-full aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
                       <video
-                        ref={videoRef}
+                        ref={setVideoRef}
                         autoPlay
                         playsInline
                         muted
