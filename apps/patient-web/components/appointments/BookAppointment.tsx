@@ -316,13 +316,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // ─── BENTO LAYOUT ──────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-bg-screen p-4 md:p-6">
+    <div className="min-h-screen bg-bg-screen p-3 sm:p-4 md:p-6">
 
       {/* Page header with Clinic Badge */}
       <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
-          <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
+          <p className="text-text-secondary text-xs sm:text-sm mt-1">Complete each card in order to confirm your visit.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {loadingBlockedSlots && (
@@ -360,16 +360,16 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       </div>
 
       {/* Bento grid — 12-column base */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-start">
 
         {/* ━━━━ CELL A: Service picker (col 1–8, row 1) ━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+        <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={1} done={step1Complete} />
             Choose a Service
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
             {SERVICES.map((service) => {
               // Check if clinic customized the price
               const clinicCustom = clinicDetails?.services?.find(
@@ -386,18 +386,18 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   type="button"
                   key={service.id}
                   onClick={() => setSelectedService({ ...service, price: effectivePrice })}
-                  className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                  className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
                       : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
                   }`}
                 >
-                  <span className="text-2xl block mb-2">{service.icon}</span>
-                  <p className={`font-semibold text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
+                  <span className="text-xl sm:text-2xl block mb-1.5">{service.icon}</span>
+                  <p className={`font-semibold text-xs sm:text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
                     {service.name}
                   </p>
-                  <p className="text-xs text-text-secondary mt-0.5">{service.duration} min</p>
-                  <p className={`text-xs font-bold mt-2 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
+                  <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">{service.duration} min</p>
+                  <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
                     ₱{effectivePrice.toLocaleString()}
                   </p>
                   {active && (
@@ -414,11 +414,11 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
         {/* ━━━━ CELL B: Booking summary (col 9–12, rows 1–2) ━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-4 flex flex-col gap-4">
+        <div className="md:col-span-4 flex flex-col gap-3 sm:gap-4">
 
           {/* Live snapshot card */}
-          <div className="bg-brand-primary rounded-2xl p-5 text-white shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-4">Your Booking</p>
+          <div className="bg-brand-primary rounded-2xl p-4 sm:p-5 text-white shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-3 sm:mb-4">Your Booking</p>
             <div className="space-y-3">
               {[
                 { icon: selectedService?.icon ?? '—', label: 'Service', value: selectedService?.name ?? null },
@@ -446,7 +446,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
           {/* Prior bookings pill */}
           {!loadingUserData && userAppointments.length > 0 && (
-            <div className="bg-bg-surface rounded-2xl border border-border-card p-4 flex items-center gap-4">
+            <div className="bg-bg-surface rounded-2xl border border-border-card p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-sm flex-shrink-0">
                 {userAppointments.length}
               </div>
@@ -459,15 +459,15 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
        {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6 flex flex-col">
+        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6 flex flex-col">
           {!step1Complete && <LockedOverlay message="Pick a service first" />}
           
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
             <p className="text-xs font-bold uppercase tracking-widest text-text-secondary flex items-center">
               <StepBadge n={2} done={step2Complete} />
               Select Date
             </p>
-            <div className="grid grid-cols-[1fr_2fr_1fr] bg-bg-notes rounded-lg overflow-hidden border border-border-card w-[200px]">
+            <div className="grid grid-cols-[1fr_2fr_1fr] bg-bg-notes rounded-lg overflow-hidden border border-border-card w-full sm:w-[190px]">
               <button 
                 type="button"
                 onClick={handlePrevMonth} 
@@ -519,7 +519,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const isDisabled = isTodayOrPast || isClinicClosed || isBlockedDate || isFullyBookedDate || !step1Complete;
 
               let cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
-              let dateNumStyle = 'text-sm font-semibold text-text-primary';
+              let dateNumStyle = 'text-xs sm:text-sm font-semibold text-text-primary';
 
               if (isSelected) {
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-brand-primary text-white shadow-md border-2 border-brand-primary font-bold cursor-pointer';
@@ -530,10 +530,10 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               } else if (isBlockedDate || isClinicClosed || isFullyBookedDate) {
                 // Blocked dates, clinic closed, or fully booked - gray out
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
-                dateNumStyle = 'text-sm font-semibold text-gray-500 line-through';
+                dateNumStyle = 'text-xs sm:text-sm font-semibold text-gray-500 line-through';
               } else if (isPast) {
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-100 text-gray-400 cursor-not-allowed';
-                dateNumStyle = 'text-sm font-semibold text-gray-400';
+                dateNumStyle = 'text-xs sm:text-sm font-semibold text-gray-400';
               }
 
               return (
@@ -573,13 +573,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
          {/* ━━━━ CELL D: Time picker (col 6–12, row 2) ━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+        <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           {!step2Complete && <LockedOverlay message="Pick a date first" />}
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={3} done={step3Complete} />
             Select a Time
           </p>
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5 sm:gap-2">
             {timeSlots.length > 0 ? (
               timeSlots.map((time) => {
                 const disabled = isSlotDisabled(selectedDate, time);
@@ -612,7 +612,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
         {/* ━━━━ CELL E: Notes (col 1–8, row 3) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-8 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+        <div className="md:col-span-8 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           {!step3Complete && <LockedOverlay message="Complete steps 1–3 first" />}
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={4} done={step3Complete && notes.length > 0} />
@@ -625,7 +625,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             disabled={!step3Complete}
             placeholder="Any special requests, medical concerns, or conditions we should know about…"
             rows={4}
-            className="w-full p-4 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
+            className="w-full p-3 sm:p-4 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
           />
         </div>
 

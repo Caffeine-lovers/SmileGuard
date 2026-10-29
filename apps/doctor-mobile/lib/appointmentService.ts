@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '@smileguard/supabase-client';
 export async function cancelAppointment(
   appointmentId: string
 ): Promise<{ success: boolean; message: string }> {

@@ -365,42 +365,42 @@ export default function AnalysisPage() {
 
   return (
     <div className="min-h-screen bg-bg-screen">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-2">
             <Sparkles className="w-3.5 h-3.5" />
             AI Intraoral Screening
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-text-primary tracking-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-text-primary tracking-tight">
             AI Oral Analysis
           </h1>
-          <p className="text-text-secondary text-sm sm:text-base mt-2 max-w-lg mx-auto">
+          <p className="text-text-secondary text-xs sm:text-sm mt-1.5 max-w-lg mx-auto">
             Take a photo or upload an intraoral scan of your teeth for automated quality verification and deep anomaly detection.
           </p>
         </div>
 
         {/* Main Card */}
-        <div className="bg-bg-surface rounded-card shadow-sm border border-border-card p-6 sm:p-8">
+        <div className="bg-bg-surface rounded-card shadow-sm border border-border-card p-4 sm:p-6 md:p-8">
           {/* Step Selector / Photo Capture Hub (Hidden if photo is already taken) */}
           {!imagePreview && (
             <div className="mb-6 space-y-4">
               {/* Mode Tabs */}
-              <div className="grid grid-cols-2 gap-2 p-1 bg-bg-card rounded-lg border border-border-card">
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 p-1 bg-bg-card rounded-lg border border-border-card">
                 <button
                   type="button"
                   onClick={() => {
                     setInputMode('camera');
                     if (!isCameraActive) startCamera();
                   }}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 sm:px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
                     inputMode === 'camera'
                       ? 'bg-brand-primary text-text-on-avatar shadow-xs'
                       : 'text-text-secondary hover:text-text-primary hover:bg-bg-surface'
                   }`}
                 >
-                  <Camera className="w-4 h-4" />
-                  Take Photo (Camera)
+                  <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Camera</span>
                 </button>
                 <button
                   type="button"
@@ -408,14 +408,14 @@ export default function AnalysisPage() {
                     setInputMode('upload');
                     stopCamera();
                   }}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 sm:px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
                     inputMode === 'upload'
                       ? 'bg-brand-primary text-text-on-avatar shadow-xs'
                       : 'text-text-secondary hover:text-text-primary hover:bg-bg-surface'
                   }`}
                 >
-                  <UploadCloud className="w-4 h-4" />
-                  Upload Photo
+                  <UploadCloud className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Upload</span>
                 </button>
               </div>
 
@@ -887,38 +887,38 @@ export default function AnalysisPage() {
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-text-primary capitalize">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-semibold text-text-primary capitalize text-xs sm:text-sm">
                               {det.class_name.replace('_', ' ')}
                             </h4>
-                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium">
+                            <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-medium">
                               {(det.confidence * 100).toFixed(1)}% confidence
                             </span>
                           </div>
                           
                           {/* Bounding Box Information */}
-                          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Pixel Coordinates (X1, Y1, X2, Y2)</p>
-                              <p className="font-mono text-text-primary">
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Pixel Coordinates (X1, Y1, X2, Y2)</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 ({det.bbox_xyxy[0].toFixed(0)}, {det.bbox_xyxy[1].toFixed(0)}, {det.bbox_xyxy[2].toFixed(0)}, {det.bbox_xyxy[3].toFixed(0)})
                               </p>
                             </div>
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Box Width × Height</p>
-                              <p className="font-mono text-text-primary">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Box Width × Height</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 {(det.bbox_xyxy[2] - det.bbox_xyxy[0]).toFixed(0)} × {(det.bbox_xyxy[3] - det.bbox_xyxy[1]).toFixed(0)} px
                               </p>
                             </div>
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Normalized Coords (Xc, Yc, W, H)</p>
-                              <p className="font-mono text-text-primary text-xs">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Normalized Coords (Xc, Yc, W, H)</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 ({det.bbox_xywhn[0].toFixed(3)}, {det.bbox_xywhn[1].toFixed(3)}, {det.bbox_xywhn[2].toFixed(3)}, {det.bbox_xywhn[3].toFixed(3)})
                               </p>
                             </div>
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Class ID</p>
-                              <p className="font-mono text-text-primary">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Class ID</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 {det.class_id}
                               </p>
                             </div>

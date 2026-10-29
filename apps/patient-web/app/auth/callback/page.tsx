@@ -8,198 +8,148 @@ export default function AuthCallbackPage() {
   const router = useRouter();
   const [message, setMessage] = useState('Processing authentication...');
   const [error, setError] = useState<string | null>(null);
+
   const addDebug = (msg: string) => {
     console.log('[AUTH CALLBACK]', msg);
   };
 
   useEffect(() => {
+    let isHandled = false;
+
+    const checkRegistrationAndRoute = async (userId: string, _userEmail?: string) => {
+      if (isHandled) return;
+
+      try {
+        addDebug(`Checking registration status for user: ${userId}`);
+
+        // 1. Fetch profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, name, role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          addDebug(`Profile fetch error: ${profileError.message}`);
+        }
+
+        // 2. Fetch medical_intake
+        const { data: intake, error: intakeError } = await supabase
+          .from('medical_intake')
+          .select('id, date_of_birth, gender, phone')
+          .eq('patient_id', userId)
+          .maybeSingle();
+
+        if (intakeError && intakeError.code !== 'PGRST116') {
+          addDebug(`Medical intake fetch error: ${intakeError.message}`);
+        }
+
+        // A user has completed registration IF:
+        // - Profile exists with a valid name and role === 'patient'
+        // - Medical intake exists and has actual data (date_of_birth or gender or phone filled in)
+        const hasValidProfile = Boolean(
+          profile && 
+          profile.name && 
+          profile.name.trim() !== '' && 
+          profile.name.toLowerCase() !== 'patient' && 
+          profile.name.toLowerCase() !== 'user' &&
+          profile.role === 'patient'
+        );
+
+        const hasValidIntake = Boolean(
+          intake && (
+            (intake.date_of_birth && intake.date_of_birth.trim() !== '') ||
+            (intake.gender && intake.gender.trim() !== '') ||
+            (intake.phone && intake.phone.trim() !== '')
+          )
+        );
+
+        const isFullyRegistered = hasValidProfile && hasValidIntake;
+
+        addDebug(`Registration check: hasValidProfile=${hasValidProfile}, hasValidIntake=${hasValidIntake}, isFullyRegistered=${isFullyRegistered}`);
+
+        if (!isFullyRegistered) {
+          // User MUST be prompted to complete registration flow
+          addDebug('Registration incomplete: routing to /signup/register?oauth=true');
+          isHandled = true;
+          localStorage.setItem('oauth_signup_flow', 'true');
+          setMessage('Welcome! Prompting to registration details...');
+          await new Promise(resolve => setTimeout(resolve, 400));
+          router.replace('/signup/register?oauth=true');
+          return;
+        }
+
+        // Registration is complete -> proceed to dashboard
+        addDebug('Registration complete: routing to dashboard');
+        isHandled = true;
+        localStorage.removeItem('oauth_signup_flow');
+        setMessage('Authentication successful! Loading dashboard...');
+        await new Promise(resolve => setTimeout(resolve, 400));
+        router.replace('/dashboard');
+      } catch (err) {
+        addDebug(`Registration check exception: ${err instanceof Error ? err.message : String(err)}`);
+        // Fallback: prompt user to registration for OAuth flow
+        isHandled = true;
+        localStorage.setItem('oauth_signup_flow', 'true');
+        router.replace('/signup/register?oauth=true');
+      }
+    };
+
     const handleCallback = async () => {
       try {
         addDebug('Callback page loaded');
         addDebug(`URL: ${window.location.href}`);
-        addDebug(`Hash present: ${!!window.location.hash}`);
-        
+
         // Check for error in URL search params
         const params = new URLSearchParams(window.location.search);
         const errorCode = params.get('error');
         const errorDescription = params.get('error_description');
-        
+
         if (errorCode) {
           addDebug(`OAuth error detected: ${errorCode}`);
           setError(`Authentication failed: ${errorDescription || errorCode}`);
-          setMessage('Authentication failed. Redirecting...');
+          setMessage('Authentication failed. Redirecting to login...');
           await new Promise(resolve => setTimeout(resolve, 2000));
-          router.push('/signup');
+          router.push('/login');
           return;
         }
-        
-        // Wait a bit for Supabase to process the callback from the URL hash
-        addDebug('Waiting for Supabase to process OAuth callback...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Get the current session
-        addDebug('Checking for session...');
+
+        // Wait a short delay for Supabase client to parse URL hash session
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Check current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
         if (sessionError) {
           addDebug(`Session error: ${sessionError.message}`);
         }
-        
-        if (session) {
-          addDebug(`Session found for user: ${session.user.email}`);
-          
-          // Check if user has completed registration by checking medical_intake record
-          // medical_intake exists = user has completed the full registration flow
-          try {
-            const { data: medicalIntake, error: intakeError } = await supabase
-              .from('medical_intake')
-              .select('id')
-              .eq('patient_id', session.user.id)
-              .maybeSingle();
-            
-            if (intakeError) {
-              addDebug(`Medical intake query error: ${intakeError.message}`);
-              addDebug(`Error code: ${intakeError.code}`);
-              addDebug(`Error details: ${JSON.stringify(intakeError)}`);
-            }
-            
-            if (!medicalIntake) {
-              // User has no medical_intake record - check if profile exists
-              const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('id', session.user.id)
-                .single();
-              
-              if (profileError && profileError.code !== 'PGRST116') {
-                addDebug(`Profile query error: ${profileError.message}`);
-              }
-              
-              if (profile) {
-                // Profile exists but no medical_intake - skip register, go to medical
-                addDebug('Profile exists but no medical intake - still routing to register');
-                setMessage('Completing your medical information...');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                router.push('/signup');
-                return;
-              } else {
-                // No profile exists - go to register
-                addDebug('No profile found - user needs to register');
-                setMessage('Completing your profile...');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                router.push('/signup');
-                return;
-              }
-            } else {
-              // User has medical_intake record - registration complete
-              addDebug('Medical intake found - registration complete');
-            }
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Unknown error';
-            addDebug(`Medical intake check failed: ${msg}`);
-          }
-          
-          // Clear flag after all checks
-          localStorage.removeItem('oauth_signup_flow');
-          
-          setMessage('Authentication successful! Redirecting to dashboard...');
-          await new Promise(resolve => setTimeout(resolve, 500));
-          router.push('/dashboard');
+
+        if (session?.user) {
+          addDebug(`Session detected for: ${session.user.email}`);
+          await checkRegistrationAndRoute(session.user.id, session.user.email);
           return;
         }
-        
-        // If no session, listen for auth state change
-        addDebug('No session yet, waiting for auth state to update...');
-        
-        let completed = false;
+
+        // If no session yet, wait with onAuthStateChange listener
+        addDebug('Waiting for onAuthStateChange event...');
         const timeout = setTimeout(() => {
-          if (!completed) {
-            addDebug('Auth state change timeout - redirecting to login');
-            completed = true;
-            setError('Session not established. Please try again.');
+          if (!isHandled) {
+            addDebug('Session establishment timed out');
+            isHandled = true;
+            setError('Session could not be established. Please try again.');
             setMessage('Redirecting to login...');
             router.push('/login');
           }
-        }, 5000);
-        
+        }, 6000);
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            addDebug(`Auth state change event: ${event}`);
-            
-            if (completed) return;
-            
-            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-              addDebug(`User authenticated: ${session.user.email}`);
-              
-              // Check if user has completed registration by checking medical_intake record
-              try {
-                const { data: medicalIntake, error: intakeError } = await supabase
-                  .from('medical_intake')
-                  .select('id')
-                  .eq('patient_id', session.user.id)
-                  .maybeSingle();
-                
-                if (intakeError) {
-                  addDebug(`Medical intake query error (auth state): ${intakeError.message}`);
-                  addDebug(`Error code: ${intakeError.code}`);
-                  addDebug(`Error details: ${JSON.stringify(intakeError)}`);
-                }
-                
-                if (!medicalIntake) {
-                  // User has no medical_intake record - check if profile exists
-                  const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('id', session.user.id)
-                    .single();
-                  
-                  if (profileError && profileError.code !== 'PGRST116') {
-                    addDebug(`Profile query error: ${profileError.message}`);
-                  }
-                  
-                  if (profile) {
-                    // Profile exists but no medical_intake - routing to register for password setup
-                    addDebug('Profile exists but no medical intake - routing to register for password setup');
-                    localStorage.setItem('oauth_signup_flow', 'true');
-                    clearTimeout(timeout);
-                    completed = true;
-                    subscription?.unsubscribe();
-                    setMessage('Completing your profile...');
-                    setTimeout(() => {
-                      router.push('/signup');
-                    }, 500);
-                    return;
-                  } else {
-                    // No profile exists - go to register
-                    addDebug('No profile found - user needs to register');
-                    clearTimeout(timeout);
-                    completed = true;
-                    subscription?.unsubscribe();
-                    setMessage('Completing your profile...');
-                    setTimeout(() => {
-                      router.push('/signup');
-                    }, 500);
-                    return;
-                  }
-                } else {
-                  // User has medical_intake record - registration complete
-                  addDebug('Medical intake found - registration complete');
-                }
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : 'Unknown error';
-                addDebug(`Medical intake check failed: ${msg}`);
-              }
-              
-              // Clear flag after all checks
-              localStorage.removeItem('oauth_signup_flow');
-              
+          async (event, currentSession) => {
+            addDebug(`Auth state change: ${event}`);
+            if (isHandled) return;
+
+            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && currentSession?.user) {
               clearTimeout(timeout);
-              completed = true;
               subscription?.unsubscribe();
-              setMessage('Authentication successful. Redirecting to dashboard...');
-              setTimeout(() => {
-                router.push('/dashboard');
-              }, 500);
+              await checkRegistrationAndRoute(currentSession.user.id, currentSession.user.email);
             }
           }
         );
@@ -208,9 +158,8 @@ export default function AuthCallbackPage() {
         addDebug(`Callback error: ${errorMsg}`);
         console.error('[AUTH CALLBACK] Error:', err);
         setError(errorMsg);
-        setMessage('An error occurred. Redirecting...');
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        setMessage('An error occurred. Redirecting to login...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
         router.push('/login');
       }
     };

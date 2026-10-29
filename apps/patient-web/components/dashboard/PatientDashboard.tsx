@@ -139,33 +139,35 @@ export default function PatientDashboard() {
     .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
 
   return (
-    <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
+    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Clinic Header Banner - Skeumorphic Mint Green */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-white/30"></div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/10 rounded-sm border border-white/20 flex items-center justify-center shrink-0 shadow-inner">
-              <Stethoscope className="w-8 h-8 text-emerald-200" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/10 rounded-sm border border-white/20 flex items-center justify-center shrink-0 shadow-inner">
+              <Stethoscope className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-200" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="skeuo-badge skeuo-badge-mint text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
+                <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
                   <ShieldCheck className="w-3 h-3 text-emerald-950" />
                   SmileGuard Patient Portal
                 </span>
               </div>
-              <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">{currentUser?.name || 'Patient'}</h1>
-              <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight truncate">
+                {currentUser?.name || 'Patient'}
+              </h1>
+              <p className="text-emerald-100 text-[11px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5 truncate">
                 Dental Chart & Treatment Registry
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 pt-2 sm:pt-0 border-t border-white/10 sm:border-0">
             <Link
               href="/onboarding"
-              className="py-2.5 px-3.5 text-xs font-bold uppercase tracking-wider rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 flex items-center gap-1.5 shadow-xs"
+              className="py-2 px-3 sm:py-2.5 sm:px-3.5 text-xs font-bold uppercase tracking-wider rounded border border-white/20 bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0 flex items-center gap-1.5 shadow-xs"
               title="View the Onboarding Guide"
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
@@ -174,26 +176,25 @@ export default function PatientDashboard() {
 
             <Link
               href="/appointments"
-              className="skeuo-btn-primary py-2.5 px-4 text-xs uppercase tracking-wider shrink-0 hidden sm:inline-flex"
+              className="skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-4 text-xs uppercase tracking-wider shrink-0 inline-flex items-center gap-1.5 sm:gap-2"
             >
-              <span className="flex items-center gap-2">
-                <Plus className="w-3.5 h-3.5 shrink-0" />
-                <span>Book Appointment</span>
-              </span>
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xs:inline sm:inline">Book Visit</span>
+              <span className="xs:hidden">Book</span>
             </Link>
           </div>
         </div>
       </div>
 
       {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard 
-          icon={<Calendar className="w-6 h-6 text-emerald-700" />} 
+          icon={<Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />} 
           number={loading ? '...' : appointments.length} 
           label="Registered Appointments" 
         />
         <StatCard 
-          icon={<CreditCard className="w-6 h-6 text-emerald-700" />} 
+          icon={<CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />} 
           number={loading ? '...' : `₱${outstandingBalance.toFixed(2)}`} 
           label="Outstanding Balance" 
           href="/billing" 
@@ -206,21 +207,21 @@ export default function PatientDashboard() {
       </div>
 
       {/* Appointments Management Panel */}
-      <div className="skeuo-panel p-6 border-2 border-slate-300">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-slate-200">
+      <div className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-5 pb-4 border-b-2 border-slate-200">
           <div>
-            <h2 className="text-lg font-black uppercase tracking-tight text-slate-900">
+            <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
               Your Clinical Appointments
             </h2>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
               Review upcoming visits and confirmed bookings
             </p>
           </div>
 
-          <div className="flex gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm">
+          <div className="w-full sm:w-auto flex overflow-x-auto no-scrollbar gap-1 sm:gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm">
             <button
               onClick={() => setActiveTab('scheduled')}
-              className={`px-3.5 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition ${
+              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'scheduled'
                   ? 'bg-emerald-700 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -230,7 +231,7 @@ export default function PatientDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('pending')}
-              className={`px-3.5 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition flex items-center gap-1.5 ${
+              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap flex items-center justify-center gap-1.5 ${
                 activeTab === 'pending'
                   ? 'bg-emerald-700 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -245,7 +246,7 @@ export default function PatientDashboard() {
             </button>
             <button
               onClick={() => setActiveTab('cancelled')}
-              className={`px-3.5 py-1.5 rounded-sm text-xs font-bold uppercase tracking-wider transition flex items-center gap-1.5 ${
+              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap flex items-center justify-center gap-1.5 ${
                 activeTab === 'cancelled'
                   ? 'bg-emerald-700 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
