@@ -437,7 +437,7 @@ export default function AppTour({
               <Text style={styles.stepLabel}>
                 Step {index + 1} of {steps.length}
               </Text>
-              <Text style={styles.title} numberOfLines={1}>
+              <Text style={styles.title}>
                 {step.title}
               </Text>
             </View>
@@ -451,7 +451,7 @@ export default function AppTour({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.description} numberOfLines={3}>
+          <Text style={styles.description}>
             {step.description}
           </Text>
 
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
     marginBottom: 8,
   },
