@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
+import { setPatientUserCookie } from '@/lib/auth-cookie';
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -81,6 +82,13 @@ export default function AuthCallbackPage() {
 
         // Registration is complete -> proceed to dashboard
         addDebug('Registration complete: routing to dashboard');
+        setPatientUserCookie({
+          id: userId,
+          name: profile?.name || 'Patient',
+          email: _userEmail || '',
+          role: 'patient',
+          hasMedicalIntake: true,
+        });
         isHandled = true;
         localStorage.removeItem('oauth_signup_flow');
         setMessage('Authentication successful! Loading dashboard...');

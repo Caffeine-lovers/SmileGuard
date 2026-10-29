@@ -14,6 +14,34 @@ interface UseAuthOptions {
   autoCreateProfile?: boolean;
 }
 
+
+function getCachedUserCookie(): AuthUser | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const row = document.cookie.split('; ').find(r => r.startsWith('sg_patient_user='));
+    if (!row) return null;
+    const val = decodeURIComponent(row.split('=')[1]);
+    const parsed = JSON.parse(val);
+    if (parsed && parsed.id && parsed.role) {
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function setCachedUserCookie(user: AuthUser | null) {
+  if (typeof document === 'undefined') return;
+  try {
+    if (!user) {
+      document.cookie = 'sg_patient_user=; Path=/; Max-Age=0; SameSite=Lax';
+    } else {
+      const serialized = encodeURIComponent(JSON.stringify(user));
+      const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      document.cookie = `sg_patient_user=${serialized}; Path=/; Max-Age=604800; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+    }
+  } catch (e) {}
+}
+
 type AuthUser = CurrentUser & {
   hasMedicalIntake?: boolean;
 };
@@ -21,8 +49,8 @@ type AuthUser = CurrentUser & {
 export function useAuth(options: UseAuthOptions = {}) {
   const { autoCreateProfile = true } = options;
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCachedUserCookie());
+  const [loading, setLoading] = useState(() => !getCachedUserCookie());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,6 +73,7 @@ export function useAuth(options: UseAuthOptions = {}) {
       async (_event: AuthChangeEvent, session: Session | null) => {
         console.log("[useAuth] Auth state change:", _event);
         if (_event === "SIGNED_OUT") {
+          setCachedUserCookie(null);
           setCurrentUser(null);
           setLoading(false);
         } else if (session?.user) {
@@ -94,13 +123,15 @@ export function useAuth(options: UseAuthOptions = {}) {
           policyHint: "If rawIntakeData is [] but data exists in DB, check RLS SELECT policy on medical_intake table."
         });
 
-        setCurrentUser({ 
+        const authUserObj: AuthUser = { 
           id: userId, 
           name: data.name, 
           email: data.email, 
           role: data.role as "patient" | "doctor",
           hasMedicalIntake: hasIntake 
-        });
+        };
+        setCurrentUser(authUserObj);
+        setCachedUserCookie(authUserObj);
       } else {
         console.warn("[useAuth] No profile found for UID:", userId);
         if (autoCreateProfile) {
@@ -210,6 +241,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     setLoading(true);
     try {
       await supabase.auth.signOut();
+      setCachedUserCookie(null);
       setCurrentUser(null);
     } finally {
       setLoading(false);

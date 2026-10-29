@@ -604,7 +604,15 @@ export default function ClinicSetup({
         return;
       }
 
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const effectiveUserId = currentUser?.id || authUser?.id;
+      if (!effectiveUserId) {
+        Alert.alert('Error', 'Doctor session not authenticated.');
+        return;
+      }
+
       const { error } = await supabase.from('clinic_blockout_dates').insert({
+        user_id: effectiveUserId,
         blockout_date: dateStr,
         reason: blockoutReason.trim() || 'Blocked',
         is_blocked: true,

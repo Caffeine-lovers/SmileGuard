@@ -49,6 +49,8 @@ interface SignupContextType {
   showConfirmPassword: boolean;
   setShowConfirmPassword: (value: boolean) => void;
 
+  purgeIncompleteRegistration: () => void;
+
   clearSignupData: () => void;
 }
 
@@ -152,6 +154,23 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const purgeIncompleteRegistration = () => {
+    setFormData(prev => ({
+      ...prev,
+      medicalIntake: INITIAL_MEDICAL_STATE,
+    }));
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.formData) {
+          parsed.formData.medicalIntake = INITIAL_MEDICAL_STATE;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        }
+      }
+    } catch (e) {}
+  };
+
   const clearSignupData = () => {
     setFormData(INITIAL_FORM_STATE);
     setVerificationMethod(null);
@@ -198,6 +217,7 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     setShowPassword,
     showConfirmPassword,
     setShowConfirmPassword,
+    purgeIncompleteRegistration,
     clearSignupData,
   };
 
