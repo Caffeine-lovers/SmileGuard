@@ -41,7 +41,7 @@ interface AppointmentDetails {
   service: string;
   appointment_date: string;
   appointment_time: string;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  status: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -993,7 +993,9 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                                   ? '#ef4444'
                                   : selectedAppointment.status === 'no-show'
                                     ? '#f59e0b'
-                                    : '#10B981',
+                                    : selectedAppointment.status === 'pending'
+                                      ? '#f59e0b'
+                                      : '#10B981',
                             paddingHorizontal: 10,
                             paddingVertical: 6,
                             borderRadius: 6,

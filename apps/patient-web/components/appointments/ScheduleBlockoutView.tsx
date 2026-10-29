@@ -59,6 +59,13 @@ export default function ScheduleBlockoutView({ compact = false }: ScheduleBlocko
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'pending':
+        return (
+          <span className="skeuo-badge skeuo-badge-amber">
+            <Clock className="w-3 h-3 text-amber-700" />
+            Pending
+          </span>
+        );
       case 'scheduled':
         return (
           <span className="skeuo-badge skeuo-badge-mint">

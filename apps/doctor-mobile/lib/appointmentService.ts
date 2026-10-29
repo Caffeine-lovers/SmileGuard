@@ -38,7 +38,7 @@ export interface DoctorAppointment {
   service: string;
   appointment_date: string; // YYYY-MM-DD
   appointment_time: string;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  status: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -169,8 +169,8 @@ async function fallbackGetDoctorAppointments(
       .from('appointments')
       .select('*');
 
-    // Show only assigned appointments (dentist_id IS NOT NULL)
-    query = query.not('dentist_id', 'is', null);
+    // Show only assigned, approved appointments (pending requests live in the Requests tab)
+    query = query.not('dentist_id', 'is', null).neq('status', 'pending');
 
     if (startDate) {
       query = query.gte('appointment_date', startDate);
@@ -324,8 +324,8 @@ async function fallbackGetAppointmentsByDate(
       .select('*')
       .eq('appointment_date', date);
 
-    // Show only assigned appointments (dentist_id IS NOT NULL)
-    query = query.not('dentist_id', 'is', null);
+    // Show only assigned, approved appointments (pending requests live in the Requests tab)
+    query = query.not('dentist_id', 'is', null).neq('status', 'pending');
 
     const { data: appointmentsData, error } = await query
       .order('appointment_time', { ascending: true });
@@ -387,7 +387,7 @@ async function fallbackGetAppointmentsByDate(
 // ─────────────────────────────────────────
 export async function updateDoctorAppointmentStatus(
   appointmentId: string,
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+  status: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
   doctorId: string,
   additionalUpdates?: { dentist_id?: string }
 ): Promise<{ success: boolean; message: string }> {
@@ -438,21 +438,31 @@ export async function updateDoctorAppointmentStatus(
 
 
 // ─────────────────────────────────────────
-// GET APPOINTMENT REQUESTS (NO DENTIST ASSIGNED)
+// GET APPOINTMENT REQUESTS (PENDING APPROVAL)
 // ─────────────────────────────────────────
 export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
   try {
-    // Fetch all appointments where dentist_id IS NULL
-    const { data: appointmentsData, error } = await supabase
-      .from('appointments')
-      .select('*')
-      .is('dentist_id', null)
-      .order('appointment_date', { ascending: true })
-      .order('appointment_time', { ascending: true });
+    // Requests = status 'pending' (migration 032) plus legacy rows with no dentist assigned.
+    // Prefer the SECURITY DEFINER RPC; fall back to a direct query if it isn't deployed.
+    let appointmentsData: any[] | null = null;
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_appointment_requests');
 
-    if (error) {
-      console.error('❌ Error fetching appointment requests:', error);
-      return [];
+    if (!rpcError && rpcData) {
+      appointmentsData = rpcData as any[];
+    } else {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .or('status.eq.pending,dentist_id.is.null')
+        .not('status', 'in', '(cancelled,declined,completed,no-show)')
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
+
+      if (error) {
+        console.error('❌ Error fetching appointment requests:', error);
+        return [];
+      }
+      appointmentsData = data;
     }
 
     if (!appointmentsData || appointmentsData.length === 0) {

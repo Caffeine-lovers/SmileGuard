@@ -9,6 +9,7 @@ import { getPatientAppointments, getDoctorName, withTimeout } from '@/lib/appoin
 import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
+import { isPendingAppointment, isCancelledAppointment } from '@/lib/database';
 import { 
   Calendar, 
   CreditCard, 
@@ -39,6 +40,16 @@ export default function PatientDashboard() {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'pending' || tabParam === 'scheduled' || tabParam === 'cancelled') {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (!currentUser) {
       if (authLoading && !authTimedOut) return;
       if (!authLoading || authTimedOut) {
@@ -54,9 +65,9 @@ export default function PatientDashboard() {
         const userId = currentUser.id;
 
         const [appts, balance, clinicLookup] = await Promise.all([
-          withTimeout(getPatientAppointments(userId), 2500, []),
-          withTimeout(calculateOutstandingBalance(userId), 2500, 0),
-          withTimeout(fetchClinicLookup(), 2500, { clinicMap: new Map(), defaultClinic: null }),
+          withTimeout(getPatientAppointments(userId), 5000, []),
+          withTimeout(calculateOutstandingBalance(userId), 5000, 0),
+          withTimeout(fetchClinicLookup(), 5000, { clinicMap: new Map(), defaultClinic: null }),
         ]);
 
         const { clinicMap, defaultClinic } = clinicLookup;
@@ -64,12 +75,24 @@ export default function PatientDashboard() {
           const clinic = (a.dentist_id ? clinicMap.get(a.dentist_id) : null) || defaultClinic;
           return {
             ...a,
-            clinic_name: clinic?.clinic_name || 'SmileGuard Dental Clinic',
+            clinic_name: clinic?.clinic_name || "Kyler's Clinic",
           };
         });
 
         setAppointments(enrichedAppts);
         setOutstandingBalance(balance);
+
+        // If no scheduled visits exist but pending requests do, default to the pending tab
+        const pendingCount = (enrichedAppts || []).filter(isPendingAppointment).length;
+        const scheduledCount = (enrichedAppts || []).filter(
+          (apt) => !isPendingAppointment(apt) && !isCancelledAppointment(apt)
+        ).length;
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          if (!params.get('tab') && scheduledCount === 0 && pendingCount > 0) {
+            setActiveTab('pending');
+          }
+        }
 
         // Fetch doctor names with fast timeout
         const doctorIds = Array.from(new Set(
@@ -101,15 +124,19 @@ export default function PatientDashboard() {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  // Categorise strictly by appointments.status (see migration 032):
+  //   pending   → awaiting clinic approval
+  //   cancelled → cancelled / declined
+  //   scheduled → everything the clinic has approved (scheduled, completed, no-show)
+  const pendingAppointments = appointments.filter(isPendingAppointment);
+  const cancelledAppointments = appointments.filter(isCancelledAppointment);
   const scheduledAppointments = appointments.filter(
-    apt => apt.dentist_id !== null && apt.status !== 'cancelled' && apt.status !== 'declined'
+    apt => !isPendingAppointment(apt) && !isCancelledAppointment(apt)
   );
-  const pendingAppointments = appointments.filter(
-    apt => apt.dentist_id === null && apt.status !== 'cancelled' && apt.status !== 'declined'
-  );
-  const cancelledAppointments = appointments.filter(
-    apt => apt.status === 'cancelled' || apt.status === 'declined'
-  );
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const nextVisit = scheduledAppointments
+    .filter(apt => apt.status === 'scheduled' && apt.appointment_date >= todayStr)
+    .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
 
   return (
     <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
@@ -173,7 +200,7 @@ export default function PatientDashboard() {
         />
         <StatCard 
           icon={<Clock className="w-6 h-6 text-emerald-700" />} 
-          number={loading ? '...' : formatDate(appointments[0]?.appointment_date ?? '')} 
+          number={loading ? '...' : formatDate(nextVisit?.appointment_date ?? 'None scheduled')} 
           label="Next Scheduled Visit" 
         />
       </div>
@@ -234,6 +261,25 @@ export default function PatientDashboard() {
           </div>
         </div>
 
+        {/* Pending Banner Alert */}
+        {pendingAppointments.length > 0 && activeTab !== 'pending' && (
+          <div className="flex items-center justify-between p-3.5 bg-amber-50 border-2 border-amber-300 rounded-sm text-amber-900 shadow-xs mb-4">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+              <p className="text-xs font-bold">
+                You have {pendingAppointments.length} appointment request{pendingAppointments.length > 1 ? 's' : ''} awaiting clinic approval.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('pending')}
+              className="text-xs font-black uppercase tracking-wider text-amber-800 hover:text-amber-950 underline cursor-pointer shrink-0 ml-3"
+            >
+              View Pending &rarr;
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="py-12 text-center text-xs font-bold uppercase tracking-wider text-slate-500">
             Fetching appointment ledger...
@@ -276,23 +322,15 @@ export default function PatientDashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {pendingAppointments.map((apt) => (
-                <div key={apt.id} className="skeuo-card p-4 border-2 border-amber-300 bg-amber-50/40 rounded-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <span className="skeuo-badge skeuo-badge-amber text-[10px]">Pending Confirmation</span>
-                        {apt.clinic_name && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-xs">
-                            <Building2 className="w-3 h-3 text-amber-700" />
-                            {apt.clinic_name}
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-black text-sm text-slate-900">{apt.service}</p>
-                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
-                    </div>
-                  </div>
-                </div>
+                <AppointmentCard
+                  key={apt.id}
+                  name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : (apt.clinic_name || "Kyler's Clinic")}
+                  service={apt.service}
+                  date={apt.appointment_date}
+                  time={apt.appointment_time}
+                  status="pending"
+                  clinicName={apt.clinic_name}
+                />
               ))}
             </div>
           )
