@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
@@ -10,6 +10,7 @@ export default function SignupRegisterPage() {
   const router = useRouter();
   const {
     formData,
+    setFormData,
     updateFormField,
     isOAuthFlow,
     setIsOAuthFlow,
@@ -30,8 +31,13 @@ export default function SignupRegisterPage() {
     length: false,
   });
 
-  // Check for OAuth flow on mount
+  const oauthInitializedRef = useRef(false);
+
+  // Check for OAuth flow on mount ONCE (never overwrite user's edits)
   useEffect(() => {
+    if (oauthInitializedRef.current) return;
+    oauthInitializedRef.current = true;
+
     const checkOAuthFlow = async () => {
       const params = new URLSearchParams(window.location.search);
       const isOauthParam = params.get('oauth') === 'true';
@@ -44,20 +50,29 @@ export default function SignupRegisterPage() {
         if (user) {
           setCurrentAuthUser(user);
           setIsOAuthFlow(true);
-          updateFormField('email', user.email || '');
-          const fullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
-          if (fullName) {
-            updateFormField('name', fullName);
-          } else if (user.email) {
-            updateFormField('name', user.email.split('@')[0]);
-          }
+
+          setFormData((prev) => {
+            const currentEmail = prev.email || user.email || '';
+            // If the user already has a name typed or stored, PRESERVE it completely!
+            if (prev.name && prev.name.trim().length > 0) {
+              return { ...prev, email: currentEmail };
+            }
+            // Only set a default if empty
+            const googleFullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+            const fallbackName = googleFullName || (user.email ? user.email.split('@')[0] : '');
+            return {
+              ...prev,
+              email: currentEmail,
+              name: fallbackName,
+            };
+          });
         }
       }
     };
 
     checkOAuthFlow();
     purgeIncompleteRegistration();
-  }, [setCurrentAuthUser, updateFormField, setIsOAuthFlow, purgeIncompleteRegistration]);
+  }, [setCurrentAuthUser, setIsOAuthFlow, setFormData, purgeIncompleteRegistration]);
 
   const checkPasswordStrength = (password: string) => {
     return {
@@ -125,11 +140,14 @@ export default function SignupRegisterPage() {
           </label>
           <input
             type="text"
-            value={formData.name}
+            id="fullLegalName"
+            name="name"
+            value={formData.name || ''}
             onChange={(e) => updateFormField('name', e.target.value)}
             required
             className="skeuo-input w-full text-sm"
             placeholder="e.g. Maria Santos"
+            autoComplete="name"
           />
         </div>
 

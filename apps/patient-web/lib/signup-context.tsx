@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 import type { MedicalIntakeData } from '@smileguard/shared-types';
 export type { MedicalIntakeData };
@@ -17,7 +17,7 @@ export interface SignupFormData {
 
 interface SignupContextType {
   formData: SignupFormData;
-  setFormData: (data: SignupFormData) => void;
+  setFormData: React.Dispatch<React.SetStateAction<SignupFormData>>;
   updateFormField: (key: keyof SignupFormData, value: any) => void;
   updateMedicalField: (key: keyof MedicalIntakeData, value: any) => void;
 
@@ -140,11 +140,11 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
   }, [formData, verificationMethod, verificationEmail, verificationPhone, verificationCode, countryCode, otpSentAt, resendAttempts, resendCooldownEnd, isOAuthFlow]);
 
-  const updateFormField = (key: keyof SignupFormData, value: any) => {
+  const updateFormField = useCallback((key: keyof SignupFormData, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
-  };
+  }, []);
 
-  const updateMedicalField = (key: keyof MedicalIntakeData, value: any) => {
+  const updateMedicalField = useCallback((key: keyof MedicalIntakeData, value: any) => {
     setFormData(prev => ({
       ...prev,
       medicalIntake: {
@@ -152,9 +152,9 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
         [key]: value,
       },
     }));
-  };
+  }, []);
 
-  const purgeIncompleteRegistration = () => {
+  const purgeIncompleteRegistration = useCallback(() => {
     setFormData(prev => ({
       ...prev,
       medicalIntake: INITIAL_MEDICAL_STATE,
@@ -169,9 +169,9 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e) {}
-  };
+  }, []);
 
-  const clearSignupData = () => {
+  const clearSignupData = useCallback(() => {
     setFormData(INITIAL_FORM_STATE);
     setVerificationMethod(null);
     setVerificationEmail('');
@@ -186,9 +186,9 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     setShowPassword(false);
     setShowConfirmPassword(false);
     localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
 
-  const value: SignupContextType = {
+  const value: SignupContextType = useMemo(() => ({
     formData,
     setFormData,
     updateFormField,
@@ -219,7 +219,25 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     setShowConfirmPassword,
     purgeIncompleteRegistration,
     clearSignupData,
-  };
+  }), [
+    formData,
+    updateFormField,
+    updateMedicalField,
+    verificationMethod,
+    verificationEmail,
+    verificationPhone,
+    verificationCode,
+    countryCode,
+    otpSentAt,
+    resendAttempts,
+    resendCooldownEnd,
+    isOAuthFlow,
+    currentAuthUser,
+    showPassword,
+    showConfirmPassword,
+    purgeIncompleteRegistration,
+    clearSignupData,
+  ]);
 
   return <SignupContext.Provider value={value}>{children}</SignupContext.Provider>;
 }
