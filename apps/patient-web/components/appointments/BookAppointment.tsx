@@ -6,6 +6,7 @@ import { useAuth } from '@smileguard/shared-hooks';
 import { 
   bookSlot, 
   getAllBlockedSlots, 
+  getBlockoutDates,
   isSlotTaken, 
   getPatientAppointments, 
   getFullClinicSetup,
@@ -136,13 +137,16 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           }
         }
         
-        const slots = await withTimeout(getAllBlockedSlots(scheduleToUse), 4000, []);
+        const [blockoutDatesList, slots] = await Promise.all([
+          withTimeout(getBlockoutDates(), 4000, []),
+          withTimeout(getAllBlockedSlots(scheduleToUse), 4000, []),
+        ]);
         
         if (!isMounted) return;
         setBlockedSlots(slots || []);
         
-        // Track only the blocked dates (not appointment counts)
-        const blocked = new Set<string>();
+        // Track blocked dates from both direct blockout records and slots
+        const blocked = new Set<string>(blockoutDatesList || []);
         
         for (const slot of (slots || [])) {
           if (slot.service === 'blocked') {
