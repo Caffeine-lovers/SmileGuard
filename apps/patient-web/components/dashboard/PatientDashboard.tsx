@@ -25,19 +25,14 @@ import {
 } from 'lucide-react';
 
 export default function PatientDashboard() {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser } = useAuth();
   const router = useRouter();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
-  const [authTimedOut, setAuthTimedOut] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setAuthTimedOut(true), 2500);
-    return () => clearTimeout(timer);
-  }, []);
+  
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -50,13 +45,7 @@ export default function PatientDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) {
-      if (authLoading && !authTimedOut) return;
-      if (!authLoading || authTimedOut) {
-        router.push('/login');
-      }
-      return;
-    }
+    if (!currentUser) return;
 
     async function fetchData() {
       setLoading(true);
@@ -117,7 +106,7 @@ export default function PatientDashboard() {
     }
 
     fetchData();
-  }, [currentUser?.id, authLoading, authTimedOut, router]);
+  }, [currentUser?.id, router]);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr || dateStr === 'None scheduled') return 'None scheduled';

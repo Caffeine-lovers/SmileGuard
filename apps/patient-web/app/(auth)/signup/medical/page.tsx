@@ -1,203 +1,391 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSignup } from '@/lib/signup-context';
+import { 
+  ShieldCheck, 
+  User, 
+  PhoneCall, 
+  Activity, 
+  FileHeart, 
+  ArrowLeft, 
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
+
+const TOTAL_STEPS = 4;
 
 export default function SignupMedicalPage() {
   const router = useRouter();
   const { formData, updateMedicalField } = useSignup();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [stepError, setStepError] = useState<string | null>(null);
 
-  const handleNext = (e: React.FormEvent) => {
+  const isFemale = formData.medicalIntake.gender === 'female';
+  const isMale = formData.medicalIntake.gender === 'male';
+
+  const handleGenderChange = (gender: string) => {
+    updateMedicalField('gender', gender);
+    // Cascading prevention: male patients are automatically set to 'na'
+    if (gender === 'male') {
+      updateMedicalField('pregnancy_status', 'na');
+    }
+  };
+
+  const validateStep = (step: number): boolean => {
+    setStepError(null);
+    if (step === 1) {
+      if (!formData.medicalIntake.date_of_birth) {
+        setStepError('Please provide your date of birth.');
+        return false;
+      }
+      if (!formData.medicalIntake.phone || formData.medicalIntake.phone.trim().length < 7) {
+        setStepError('Please provide a valid contact phone number.');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
-    router.push('/signup/confirm');
+    if (!validateStep(currentStep)) return;
+
+    if (currentStep < TOTAL_STEPS) {
+      // Auto-set pregnancy status to 'na' if male before proceeding
+      if (isMale) {
+        updateMedicalField('pregnancy_status', 'na');
+      }
+      setCurrentStep(prev => prev + 1);
+    } else {
+      // Final step -> navigate to Review & Confirm page (does NOT save to DB yet)
+      if (isMale || !formData.medicalIntake.pregnancy_status) {
+        if (isMale) updateMedicalField('pregnancy_status', 'na');
+      }
+      router.push('/signup/confirm');
+    }
+  };
+
+  const handlePrevStep = () => {
+    setStepError(null);
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+    } else {
+      router.push('/signup/register');
+    }
   };
 
   return (
-    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
-      <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
-        Medical Information
-      </h2>
-      <p className="text-center text-text-secondary mb-8">
-        Step 2 of 3: Help us understand your health background
-      </p>
+    <div className="skeuo-panel p-5 sm:p-8 border-2 border-slate-300 max-w-lg mx-auto">
+      {/* Header & Step Indicator */}
+      <div className="text-center mb-6">
+        <span className="skeuo-badge skeuo-badge-mint mb-2">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+          Clinical Medical Intake
+        </span>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">
+          Health Background
+        </h2>
+        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
+          Step {currentStep} of {TOTAL_STEPS}: {
+            currentStep === 1 ? 'Demographics & Identity' :
+            currentStep === 2 ? 'Emergency Contacts' :
+            currentStep === 3 ? 'Medical History & Lifestyle' :
+            'Clinical Health Specifics'
+          }
+        </p>
 
-      <form onSubmit={handleNext} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Date of Birth</label>
-          <input
-            type="date"
-            value={formData.medicalIntake.date_of_birth || ''}
-            onChange={(e) => updateMedicalField('date_of_birth', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-          />
+        {/* Step Progress Bar */}
+        <div className="grid grid-cols-4 gap-2 mt-4">
+          {[1, 2, 3, 4].map((stepNum) => (
+            <div 
+              key={stepNum}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                stepNum <= currentStep ? 'bg-emerald-600 shadow-xs' : 'bg-slate-200'
+              }`}
+            />
+          ))}
         </div>
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Gender</label>
-          <select
-            value={formData.medicalIntake.gender || ''}
-            onChange={(e) => updateMedicalField('gender', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-          >
-            <option value="">Prefer not to say</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select>
+      {stepError && (
+        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-3.5 py-2.5 rounded-sm mb-5 text-xs font-semibold flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{stepError}</span>
         </div>
+      )}
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Phone</label>
-          <input
-            type="tel"
-            value={formData.medicalIntake.phone || ''}
-            onChange={(e) => updateMedicalField('phone', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-            placeholder="+63 912 345 6789"
-          />
-        </div>
+      <form onSubmit={handleNextStep} className="space-y-4">
+        {/* ── QUESTIONNAIRE STEP 1: Demographics ── */}
+        {currentStep === 1 && (
+          <div className="space-y-3.5 animate-fadeIn">
+            <div className="bg-slate-50 p-3 rounded-sm border border-slate-200 mb-3 flex items-center gap-2.5">
+              <User className="w-4 h-4 text-emerald-600 shrink-0" />
+              <p className="text-xs text-slate-700 font-medium">
+                Please enter your primary demographic details for clinical records.
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Address</label>
-          <input
-            type="text"
-            value={formData.medicalIntake.address || ''}
-            onChange={(e) => updateMedicalField('address', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-            placeholder="Street, City, Province"
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Date of Birth <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={formData.medicalIntake.date_of_birth || ''}
+                onChange={(e) => updateMedicalField('date_of_birth', e.target.value)}
+                className="skeuo-input w-full text-sm"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Emergency Contact Name</label>
-          <input
-            type="text"
-            value={formData.medicalIntake.emergency_contact_name || ''}
-            onChange={(e) => updateMedicalField('emergency_contact_name', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-            placeholder="Juan Dela Cruz"
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Gender
+              </label>
+              <select
+                value={formData.medicalIntake.gender || ''}
+                onChange={(e) => handleGenderChange(e.target.value)}
+                className="skeuo-input w-full text-sm"
+              >
+                <option value="">Prefer not to say</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Emergency Contact Phone</label>
-          <input
-            type="tel"
-            value={formData.medicalIntake.emergency_contact_phone || ''}
-            onChange={(e) => updateMedicalField('emergency_contact_phone', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-            placeholder="+63 912 345 6789"
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Primary Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={formData.medicalIntake.phone || ''}
+                onChange={(e) => updateMedicalField('phone', e.target.value)}
+                className="skeuo-input w-full text-sm"
+                placeholder="+63 912 345 6789"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Allergies <span className="text-text-secondary font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={formData.medicalIntake.allergies || ''}
-            onChange={(e) => updateMedicalField('allergies', e.target.value)}
-            rows={2}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none resize-none text-sm"
-            placeholder="e.g. Penicillin, latex..."
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Residential Address
+              </label>
+              <input
+                type="text"
+                value={formData.medicalIntake.address || ''}
+                onChange={(e) => updateMedicalField('address', e.target.value)}
+                className="skeuo-input w-full text-sm"
+                placeholder="Street address, City, Province"
+              />
+            </div>
+          </div>
+        )}
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Current Medications <span className="text-text-secondary font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={formData.medicalIntake.current_medications || ''}
-            onChange={(e) => updateMedicalField('current_medications', e.target.value)}
-            rows={2}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none resize-none text-sm"
-            placeholder="e.g. Metformin, Aspirin..."
-          />
-        </div>
+        {/* ── QUESTIONNAIRE STEP 2: Emergency Contact ── */}
+        {currentStep === 2 && (
+          <div className="space-y-3.5 animate-fadeIn">
+            <div className="bg-slate-50 p-3 rounded-sm border border-slate-200 mb-3 flex items-center gap-2.5">
+              <PhoneCall className="w-4 h-4 text-emerald-600 shrink-0" />
+              <p className="text-xs text-slate-700 font-medium">
+                Who should we contact in case of emergency during your clinical visit?
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Medical Conditions <span className="text-text-secondary font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={formData.medicalIntake.medical_conditions || ''}
-            onChange={(e) => updateMedicalField('medical_conditions', e.target.value)}
-            rows={2}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none resize-none text-sm"
-            placeholder="e.g. Diabetes, Hypertension..."
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Emergency Contact Full Name
+              </label>
+              <input
+                type="text"
+                value={formData.medicalIntake.emergency_contact_name || ''}
+                onChange={(e) => updateMedicalField('emergency_contact_name', e.target.value)}
+                className="skeuo-input w-full text-sm"
+                placeholder="e.g. Juan Dela Cruz (Spouse / Parent)"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Past Surgeries <span className="text-text-secondary font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={formData.medicalIntake.past_surgeries || ''}
-            onChange={(e) => updateMedicalField('past_surgeries', e.target.value)}
-            rows={2}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none resize-none text-sm"
-            placeholder="e.g. Appendectomy (2019)..."
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Emergency Contact Phone
+              </label>
+              <input
+                type="tel"
+                value={formData.medicalIntake.emergency_contact_phone || ''}
+                onChange={(e) => updateMedicalField('emergency_contact_phone', e.target.value)}
+                className="skeuo-input w-full text-sm"
+                placeholder="+63 912 345 6789"
+              />
+            </div>
+          </div>
+        )}
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Smoking Status</label>
-          <select
-            value={formData.medicalIntake.smoking_status || ''}
-            onChange={(e) => updateMedicalField('smoking_status', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-          >
-            <option value="">Prefer not to say</option>
-            <option value="never">Never</option>
-            <option value="former">Former smoker</option>
-            <option value="current">Current smoker</option>
-          </select>
-        </div>
+        {/* ── QUESTIONNAIRE STEP 3: Medical History & Lifestyle ── */}
+        {currentStep === 3 && (
+          <div className="space-y-3.5 animate-fadeIn">
+            <div className="bg-slate-50 p-3 rounded-sm border border-slate-200 mb-3 flex items-center gap-2.5">
+              <Activity className="w-4 h-4 text-emerald-600 shrink-0" />
+              <p className="text-xs text-slate-700 font-medium">
+                Help our dental team anticipate drug interactions and health sensitivities.
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">Pregnancy Status</label>
-          <select
-            value={formData.medicalIntake.pregnancy_status || ''}
-            onChange={(e) => updateMedicalField('pregnancy_status', e.target.value)}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-          >
-            <option value="">Select status</option>
-            <option value="na">Not applicable</option>
-            <option value="no">Not pregnant</option>
-            <option value="yes">Currently pregnant</option>
-          </select>
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Known Drug / Material Allergies
+              </label>
+              <textarea
+                value={formData.medicalIntake.allergies || ''}
+                onChange={(e) => updateMedicalField('allergies', e.target.value)}
+                rows={2}
+                className="skeuo-input w-full text-sm resize-none"
+                placeholder="e.g. Penicillin, Latex, Aspirin (or leave empty if None)"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">
-            Additional Notes <span className="text-text-secondary font-normal">(optional)</span>
-          </label>
-          <textarea
-            value={formData.medicalIntake.notes || ''}
-            onChange={(e) => updateMedicalField('notes', e.target.value)}
-            rows={2}
-            className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none resize-none text-sm"
-            placeholder="Anything else your dentist should know..."
-          />
-        </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Current Maintenance Medications
+              </label>
+              <textarea
+                value={formData.medicalIntake.current_medications || ''}
+                onChange={(e) => updateMedicalField('current_medications', e.target.value)}
+                rows={2}
+                className="skeuo-input w-full text-sm resize-none"
+                placeholder="e.g. Blood thinners, Metformin, Amlodipine"
+              />
+            </div>
 
-        <p className="text-xs text-text-secondary">All fields are optional except where required by your dentist.</p>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Chronic Medical Conditions
+              </label>
+              <textarea
+                value={formData.medicalIntake.medical_conditions || ''}
+                onChange={(e) => updateMedicalField('medical_conditions', e.target.value)}
+                rows={2}
+                className="skeuo-input w-full text-sm resize-none"
+                placeholder="e.g. Diabetes, Hypertension, Asthma"
+              />
+            </div>
 
-        <div className="flex gap-3 pt-2">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Past Surgeries / Major Procedures
+              </label>
+              <textarea
+                value={formData.medicalIntake.past_surgeries || ''}
+                onChange={(e) => updateMedicalField('past_surgeries', e.target.value)}
+                rows={2}
+                className="skeuo-input w-full text-sm resize-none"
+                placeholder="e.g. Heart surgery, Wisdom tooth extraction"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Smoking / Tobacco Status
+              </label>
+              <select
+                value={formData.medicalIntake.smoking_status || ''}
+                onChange={(e) => updateMedicalField('smoking_status', e.target.value)}
+                className="skeuo-input w-full text-sm"
+              >
+                <option value="">Prefer not to say</option>
+                <option value="never">Never smoked</option>
+                <option value="former">Former smoker</option>
+                <option value="current">Current smoker</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* ── QUESTIONNAIRE STEP 4: Cascading Health Specifics & Notes ── */}
+        {currentStep === 4 && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="bg-slate-50 p-3 rounded-sm border border-slate-200 mb-3 flex items-center gap-2.5">
+              <FileHeart className="w-4 h-4 text-emerald-600 shrink-0" />
+              <p className="text-xs text-slate-700 font-medium">
+                Final clinical questionnaire before proceeding to confirmation.
+              </p>
+            </div>
+
+            {/* CASCADING LOGIC: Only display pregnancy question for female patients */}
+            {isFemale ? (
+              <div className="bg-emerald-50/60 p-4 border-2 border-emerald-300 rounded-sm space-y-2">
+                <label className="block text-xs font-black uppercase tracking-wider text-emerald-950">
+                  Pregnancy Status
+                </label>
+                <p className="text-xs text-emerald-800">
+                  Certain dental anesthetics and X-rays require clinical adjustment during pregnancy.
+                </p>
+                <select
+                  value={formData.medicalIntake.pregnancy_status || 'no'}
+                  onChange={(e) => updateMedicalField('pregnancy_status', e.target.value)}
+                  className="skeuo-input w-full text-sm bg-white"
+                >
+                  <option value="no">Not currently pregnant</option>
+                  <option value="yes">Currently pregnant</option>
+                  <option value="na">Not applicable</option>
+                </select>
+              </div>
+            ) : isMale ? (
+              <div className="p-3 bg-slate-100 border border-slate-200 rounded-sm text-xs text-slate-600 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Gender-specific questions (pregnancy) automatically bypassed.</span>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Pregnancy Status
+                </label>
+                <select
+                  value={formData.medicalIntake.pregnancy_status || 'na'}
+                  onChange={(e) => updateMedicalField('pregnancy_status', e.target.value)}
+                  className="skeuo-input w-full text-sm"
+                >
+                  <option value="na">Not applicable</option>
+                  <option value="no">Not pregnant</option>
+                  <option value="yes">Currently pregnant</option>
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Additional Clinical Notes
+              </label>
+              <textarea
+                value={formData.medicalIntake.notes || ''}
+                onChange={(e) => updateMedicalField('notes', e.target.value)}
+                rows={3}
+                className="skeuo-input w-full text-sm resize-none"
+                placeholder="Any special dental fears, tooth sensitivity, or comments for Dr. Kyler..."
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex gap-3 pt-3 border-t border-slate-200">
           <button
             type="button"
-            onClick={() => window.history.back()}
-            className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
+            onClick={handlePrevStep}
+            className="skeuo-btn-secondary flex-1 py-2.5 text-xs uppercase tracking-wider"
           >
-            Back
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>{currentStep === 1 ? 'Back to Profile' : 'Back'}</span>
           </button>
           <button
             type="submit"
-            className="flex-1 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium py-2 px-4 rounded-lg transition"
+            className="skeuo-btn-primary flex-1 py-2.5 text-xs uppercase tracking-wider"
           >
-            Next: Review
+            <span>{currentStep === TOTAL_STEPS ? 'Review & Confirm' : 'Next Step'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </form>

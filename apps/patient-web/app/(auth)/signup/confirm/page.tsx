@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
+import { setPatientUserCookie } from '@/lib/auth-cookie';
 
 import { 
   normalizePregnancyStatus, 
@@ -86,6 +87,13 @@ export default function SignupConfirmPage() {
 
         console.log('[SignupConfirm] OAuth signup complete');
         localStorage.removeItem('oauth_signup_flow');
+        setPatientUserCookie({
+          id: effectiveUser.id,
+          name: formData.name,
+          email: formData.email ?? effectiveUser.email ?? '',
+          role: 'patient',
+          hasMedicalIntake: true,
+        });
         clearSignupData();
         router.push('/dashboard');
 

@@ -2,7 +2,7 @@
  * useAuth Hook - Shared authentication hook for patient-web and doctor-mobile
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CurrentUser, FormData } from "@smileguard/shared-types";
 import { supabase } from "@smileguard/supabase-client";
 import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
@@ -14,58 +14,116 @@ interface UseAuthOptions {
   autoCreateProfile?: boolean;
 }
 
+function getCachedUserCookie(): AuthUser | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const row = document.cookie.split('; ').find(r => r.startsWith('sg_patient_user='));
+    if (!row) return null;
+    const val = decodeURIComponent(row.split('=')[1]);
+    const parsed = JSON.parse(val);
+    if (parsed && parsed.id && parsed.role) {
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function setCachedUserCookie(user: AuthUser | null) {
+  if (typeof document === 'undefined') return;
+  try {
+    if (!user) {
+      document.cookie = 'sg_patient_user=; Path=/; Max-Age=0; SameSite=Lax';
+    } else {
+      const serialized = encodeURIComponent(JSON.stringify(user));
+      const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      document.cookie = `sg_patient_user=${serialized}; Path=/; Max-Age=604800; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+    }
+  } catch (e) {}
+}
+
 type AuthUser = CurrentUser & {
   hasMedicalIntake?: boolean;
 };
 
+// Global in-flight tracking to prevent multiple concurrent profile fetches
+const activeFetches = new Set<string>();
+
 export function useAuth(options: UseAuthOptions = {}) {
   const { autoCreateProfile = true } = options;
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCachedUserCookie());
+  const [loading, setLoading] = useState(() => !getCachedUserCookie());
   const [error, setError] = useState<string | null>(null);
 
+  const currentUserRef = useRef<AuthUser | null>(currentUser);
+  currentUserRef.current = currentUser;
+
   useEffect(() => {
+    let isMounted = true;
     console.log("[useAuth] Initializing auth hook...");
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }: { data: { session: Session | null } }) => {
+
+    // Defensive timeout wrapper for initial session fetch
+    const fetchSessionWithTimeout = async () => {
+      try {
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null } }), 3500)
+        );
+
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+        if (!isMounted) return;
+
         if (session?.user) {
-          fetchProfile(session.user.id);
+          await fetchProfile(session.user.id);
         } else {
           setLoading(false);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("[useAuth] Error getting initial session:", err);
-        setLoading(false);
-      });
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchSessionWithTimeout();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: AuthChangeEvent, session: Session | null) => {
+      (_event: AuthChangeEvent, session: Session | null) => {
         console.log("[useAuth] Auth state change:", _event);
+        if (!isMounted) return;
+
         if (_event === "SIGNED_OUT") {
+          setCachedUserCookie(null);
           setCurrentUser(null);
           setLoading(false);
         } else if (session?.user) {
-          if (currentUser?.id === session.user.id) return;
-          await fetchProfile(session.user.id);
+          if (currentUserRef.current?.id === session.user.id && currentUserRef.current?.hasMedicalIntake !== undefined) {
+            setLoading(false);
+            return;
+          }
+          // Decouple profile fetching from the synchronous auth state listener
+          setTimeout(() => {
+            if (isMounted) {
+              fetchProfile(session.user.id);
+            }
+          }, 0);
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
+    if (activeFetches.has(userId)) {
+      return;
+    }
+    activeFetches.add(userId);
+
     try {
-      /**
-       * CRITICAL CHECK: 
-       * In the .select() below, 'medical_intake!left(patient_id)' assumes 
-       * your foreign key column is named 'patient_id'. 
-       * If it's just 'id' or 'user_id', change the name inside the parentheses.
-       */
-      const { data, error: fetchError } = await supabase
+      const dbPromise = supabase
         .from("profiles")
         .select(`
           name, 
@@ -76,31 +134,41 @@ export function useAuth(options: UseAuthOptions = {}) {
         .eq("id", userId)
         .maybeSingle();
 
+      const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: new Error("Profile query timed out") }), 4000)
+      );
+
+      const { data, error: fetchError } = await Promise.race([dbPromise, timeoutPromise]);
+
       if (fetchError) {
-        console.error("[useAuth] Profile Fetch DB Error:", fetchError);
-        throw fetchError;
+        console.warn("[useAuth] Profile Fetch DB Error/Timeout:", fetchError.message);
+        // If we have a cached user cookie, retain it
+        const cached = getCachedUserCookie();
+        if (cached && cached.id === userId) {
+          setCurrentUser(cached);
+        }
+        return;
       }
 
       if (data) {
-        // If data.medical_intake comes back as null or [], hasIntake is false.
         const intakeArray = data.medical_intake as any[];
         const hasIntake = intakeArray && intakeArray.length > 0;
 
         console.log("[useAuth] Medical Intake Debug:", {
           userId,
           foundProfile: true,
-          rawIntakeData: data.medical_intake,
           hasIntake,
-          policyHint: "If rawIntakeData is [] but data exists in DB, check RLS SELECT policy on medical_intake table."
         });
 
-        setCurrentUser({ 
+        const authUserObj: AuthUser = { 
           id: userId, 
           name: data.name, 
           email: data.email, 
           role: data.role as "patient" | "doctor",
           hasMedicalIntake: hasIntake 
-        });
+        };
+        setCurrentUser(authUserObj);
+        setCachedUserCookie(authUserObj);
       } else {
         console.warn("[useAuth] No profile found for UID:", userId);
         if (autoCreateProfile) {
@@ -111,36 +179,42 @@ export function useAuth(options: UseAuthOptions = {}) {
       console.error("[useAuth] fetchProfile caught error:", err);
       setError(err instanceof Error ? err.message : "Profile load failed");
     } finally {
+      activeFetches.delete(userId);
       setLoading(false);
     }
   };
 
   const handleAutoCreate = async (userId: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-    
-    const { data: created, error: cErr } = await supabase
-      .from("profiles")
-      .upsert([{
-        id: userId,
-        name: user?.user_metadata?.name || "User",
-        email: user?.email || "",
-        role: user?.user_metadata?.role || "patient",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }], { onConflict: "id" })
-      .select()
-      .maybeSingle();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data: created, error: cErr } = await supabase
+        .from("profiles")
+        .upsert([{
+          id: userId,
+          name: user?.user_metadata?.name || "User",
+          email: user?.email || "",
+          role: user?.user_metadata?.role || "patient",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }], { onConflict: "id" })
+        .select()
+        .maybeSingle();
 
-    if (cErr) throw cErr;
-    
-    setCurrentUser({
-      id: userId,
-      name: created?.name || "User",
-      email: created?.email || "",
-      role: (created?.role || "patient") as "patient" | "doctor",
-      hasMedicalIntake: false
-    });
+      if (cErr) throw cErr;
+      
+      const newAuthUser: AuthUser = {
+        id: userId,
+        name: created?.name || "User",
+        email: created?.email || "",
+        role: (created?.role || "patient") as "patient" | "doctor",
+        hasMedicalIntake: false
+      };
+      setCurrentUser(newAuthUser);
+      setCachedUserCookie(newAuthUser);
+    } catch (err) {
+      console.error("[useAuth] Auto-create profile failed:", err);
+    }
   };
 
   const register = async (formData: FormData, role: "patient" | "doctor") => {
@@ -210,6 +284,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     setLoading(true);
     try {
       await supabase.auth.signOut();
+      setCachedUserCookie(null);
       setCurrentUser(null);
     } finally {
       setLoading(false);

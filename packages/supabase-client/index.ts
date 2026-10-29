@@ -24,6 +24,10 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: typeof window !== "undefined",
+    // Bypass navigator.locks to prevent deadlocks and hanging on concurrent auth calls
+    lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => {
+      return await fn();
+    },
   },
 });
 

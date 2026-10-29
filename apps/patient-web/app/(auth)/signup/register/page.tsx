@@ -18,6 +18,7 @@ export default function SignupRegisterPage() {
     setShowPassword,
     showConfirmPassword,
     setShowConfirmPassword,
+    purgeIncompleteRegistration,
   } = useSignup();
 
   const [localError, setLocalError] = useState<string | null>(null);
@@ -55,7 +56,8 @@ export default function SignupRegisterPage() {
     };
 
     checkOAuthFlow();
-  }, [setCurrentAuthUser, updateFormField, setIsOAuthFlow]);
+    purgeIncompleteRegistration();
+  }, [setCurrentAuthUser, updateFormField, setIsOAuthFlow, purgeIncompleteRegistration]);
 
   const checkPasswordStrength = (password: string) => {
     return {
@@ -69,6 +71,7 @@ export default function SignupRegisterPage() {
 
   const handlePasswordChange = (newPassword: string) => {
     updateFormField('password', newPassword);
+    if (isOAuthFlow) updateFormField('confirmPassword', newPassword);
     setPasswordCheck(checkPasswordStrength(newPassword));
   };
 
@@ -81,24 +84,14 @@ export default function SignupRegisterPage() {
       return;
     }
 
-    if (!isOAuthFlow) {
-      if (!formData.password) {
-        setLocalError('Please enter a password');
-        return;
-      }
+    if (!formData.password) {
+      setLocalError('Please enter a password');
+      return;
+    }
 
-      if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-        setLocalError('Password does not meet clinical security requirements');
-        return;
-      }
-    } else {
-      // If OAuth user entered a password, check that it meets security requirements
-      if (formData.password) {
-        if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-          setLocalError('Password does not meet clinical security requirements');
-          return;
-        }
-      }
+    if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
+      setLocalError('Password does not meet clinical security requirements');
+      return;
     }
 
     router.push('/signup/medical');
@@ -160,21 +153,21 @@ export default function SignupRegisterPage() {
               Google Account Connected
             </p>
             <p className="text-xs text-emerald-700 mt-0.5">
-              Confirm your legal name below. You may optionally set a clinic portal password.
+              Confirm your legal name and set your clinic portal password below.
             </p>
           </div>
         )}
 
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-            {isOAuthFlow ? 'Set Portal Password (Optional)' : 'Password'}
+            {isOAuthFlow ? 'Set Portal Password' : 'Password'}
           </label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => handlePasswordChange(e.target.value)}
-              required={!isOAuthFlow}
+              required
               className="skeuo-input w-full text-sm pr-10"
               placeholder="••••••••"
             />
