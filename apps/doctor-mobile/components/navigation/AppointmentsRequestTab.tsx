@@ -14,14 +14,17 @@ import { updateDoctorAppointmentStatus, getAppointmentRequests } from '../../lib
 import { createManualNotification } from '../../lib/notificationService';
 import { formatAppointmentDate, formatAppointmentTime } from '../../lib/dateFormatters';
 import { DashboardAppointment } from '../dashboard/DoctorDashboard';
-import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
+import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AppointmentsRequestTabProps {
   userId: string;
   onRequestAccepted?: () => void;
   onRequestAcceptedWithNotification?: (notification: any) => void;
   styles: any;
+  startTourTrigger?: number;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -31,12 +34,205 @@ export default function AppointmentsRequestTab({
   onRequestAccepted,
   onRequestAcceptedWithNotification,
   styles,
+  startTourTrigger,
 }: AppointmentsRequestTabProps) {
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const scrollViewRef = useRef<any>(null);
+
+  const totalPages = Math.max(1, Math.ceil(appointmentRequests.length / ITEMS_PER_PAGE));
+
+  // ─────────────────────────────────────────
+  // INTERACTIVE WALKTHROUGH SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+
+
+
+  const tourSteps: TourStep[] = [
+    {
+      id: "requests-welcome",
+      title: "Welcome to Appointment Requests!",
+      description: "Review, evaluate, and triage incoming booking requests submitted by your patients in real time.",
+      icon: Inbox,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "requests-actions",
+      target: "requests-actions",
+      title: "Sync & Walkthrough Guide",
+      description: "Tap the refresh icon anytime to sync real-time patient requests from the cloud, or tap Sparkles to replay this guide.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 8,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "requests-counter",
+      target: "requests-counter",
+      title: "Request Queue Counter",
+      description: "See the exact number of patient booking requests currently waiting in your triage queue.",
+      icon: Clock,
+      padding: 6,
+      radius: 8,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    ...(appointmentRequests.length > 0
+      ? [
+          {
+            id: "requests-first-card",
+            target: "requests-first-card",
+            title: "Patient & Booking Details",
+            description: "Inspect the patient's name, email, contact number, requested service, preferred date, and formatted AM/PM visit time.",
+            icon: Calendar,
+            padding: 6,
+            radius: 8,
+            placement: "bottom" as const,
+            onEnter: () => {
+              try {
+                scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+              } catch (e) {}
+            },
+          },
+          {
+            id: "requests-action-buttons",
+            target: "requests-action-buttons",
+            title: "Accept or Decline",
+            description: "Tap Accept to confirm the appointment and add it to your daily schedule, or tap Decline to reject the request.",
+            icon: UserCheck,
+            padding: 6,
+            radius: 8,
+            placement: "auto" as const,
+          },
+        ]
+      : [
+          {
+            id: "requests-empty-state",
+            target: "requests-empty-state",
+            title: "Clean Triage Queue",
+            description: "When patient booking requests arrive, they will appear here with full clinical details and one-tap approval actions.",
+            icon: Inbox,
+            padding: 8,
+            radius: 8,
+            placement: "bottom" as const,
+          },
+        ]),
+    ...(totalPages > 1
+      ? [
+          {
+            id: "requests-pagination",
+            target: "requests-pagination",
+            title: "Queue Pagination",
+            description: "Browse across multiple pages of pending bookings easily using page numbers or next/previous buttons.",
+            icon: ChevronRight,
+            padding: 6,
+            radius: 8,
+            placement: "auto" as const,
+            onEnter: () => {
+              try {
+                scrollViewRef.current?.scrollToEnd?.({ animated: false });
+              } catch (e) {}
+            },
+          },
+        ]
+      : []),
+    {
+      id: "requests-finish",
+      title: "You're All Set, Doctor!",
+      description: "You're now ready to manage your clinic's patient requests swiftly and efficiently. Enjoy a smooth triage workflow!",
+      icon: ShieldCheck,
+      placement: "center",
+    },
+  ];
+
+  const handleStartTour = () => {
+    setTourIndex(0);
+    setTourVisible(true);
+  };
+
+  const handleFinishTour = async () => {
+    setTourVisible(false);
+    if (userId) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_appointment_requests_walkthrough_completed_${userId}`,
+          "true"
+        );
+      } catch (err) {
+        console.error("Error saving request walkthrough status:", err);
+      }
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setTourVisible(false);
+    if (userId) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_appointment_requests_walkthrough_completed_${userId}`,
+          "true"
+        );
+      } catch (err) {
+        console.error("Error saving request walkthrough status:", err);
+      }
+    }
+  };
+
+  // Auto-prompt walkthrough on first visit to AppointmentsRequestTab
+  useEffect(() => {
+    if (!userId) return;
+
+    let isMounted = true;
+    const checkFirstTimeTour = async () => {
+      try {
+        const key = `@smileguard_doctor_appointment_requests_walkthrough_completed_${userId}`;
+        const hasCompleted = await AsyncStorage.getItem(key);
+        if (!hasCompleted && isMounted) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setTourIndex(0);
+              setTourVisible(true);
+            }
+          }, 600);
+          return () => clearTimeout(timer);
+        }
+      } catch (err) {
+        console.error("Error checking appointment requests walkthrough status:", err);
+      }
+    };
+
+    checkFirstTimeTour();
+    return () => {
+      isMounted = false;
+    };
+  }, [userId]);
+
+  // Support triggering walkthrough from parent
+  useEffect(() => {
+    if (startTourTrigger && startTourTrigger > 0) {
+      setTourIndex(0);
+      setTourVisible(true);
+    }
+  }, [startTourTrigger]);
 
   // Fetch appointment requests
   const fetchAppointmentRequests = useCallback(async () => {
@@ -219,7 +415,6 @@ export default function AppointmentsRequestTab({
     );
   };
 
-  const totalPages = Math.max(1, Math.ceil(appointmentRequests.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedRequests = appointmentRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
@@ -271,34 +466,63 @@ export default function AppointmentsRequestTab({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: AppColors.background }}>
+    <View
+      ref={tour.setContainer}
+      collapsable={false}
+      style={{ flex: 1, backgroundColor: AppColors.background }}
+    >
       {/* Header */}
       <View style={tabStyles.header}>
-        <View style={tabStyles.headerContent}>
+        <View
+          ref={tour.register("requests-counter")}
+          collapsable={false}
+          style={tabStyles.headerContent}
+        >
           <Text style={tabStyles.headerTitle}>Appointment Requests</Text>
           <View style={tabStyles.badgeContainer}>
             <Text style={tabStyles.badgeText}>{appointmentRequests.length}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={() => {
-            setIsRefreshing(true);
-            fetchAppointmentRequests();
-          }}
-          disabled={isRefreshing}
-          style={tabStyles.refreshButton}
-          activeOpacity={0.7}
+
+        <View
+          ref={tour.register("requests-actions")}
+          collapsable={false}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
         >
-          {isRefreshing ? (
-            <ActivityIndicator size="small" color={AppColors.primary} />
-          ) : (
-            <RefreshCw size={20} color={AppColors.primaryDark} />
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setIsRefreshing(true);
+              fetchAppointmentRequests();
+            }}
+            disabled={isRefreshing}
+            style={tabStyles.refreshButton}
+            activeOpacity={0.7}
+            accessibilityLabel="Refresh Requests"
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color={AppColors.primary} />
+            ) : (
+              <RefreshCw size={18} color={AppColors.primaryDark} />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleStartTour}
+            style={tabStyles.tourButton}
+            activeOpacity={0.7}
+            accessibilityLabel="Start Walkthrough"
+          >
+            <Sparkles size={18} color="#047857" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {appointmentRequests.length === 0 ? (
-        <View style={tabStyles.emptyState}>
+        <View
+          ref={tour.register("requests-empty-state")}
+          collapsable={false}
+          style={tabStyles.emptyState}
+        >
           <Inbox size={48} color={AppColors.textMuted} style={{ marginBottom: 16 }} />
           <Text style={tabStyles.emptyStateTitle}>No Appointment Requests</Text>
           <Text style={tabStyles.emptyStateMessage}>
@@ -321,8 +545,13 @@ export default function AppointmentsRequestTab({
             )}
           </View>
 
-          {paginatedRequests.map((request) => (
-            <View key={request.id} style={tabStyles.requestCard}>
+          {paginatedRequests.map((request, index) => (
+            <View
+              key={request.id}
+              ref={index === 0 ? tour.register("requests-first-card") : undefined}
+              collapsable={false}
+              style={tabStyles.requestCard}
+            >
               {/* Patient Info */}
               <View style={tabStyles.patientSection}>
                 <Image
@@ -361,7 +590,11 @@ export default function AppointmentsRequestTab({
               </View>
 
               {/* Action Buttons */}
-              <View style={tabStyles.actionButtons}>
+              <View
+                ref={index === 0 ? tour.register("requests-action-buttons") : undefined}
+                collapsable={false}
+                style={tabStyles.actionButtons}
+              >
                 <TouchableOpacity
                   onPress={() => handleAcceptAppointmentRequest(request)}
                   style={tabStyles.acceptButton}
@@ -382,7 +615,11 @@ export default function AppointmentsRequestTab({
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <View style={tabStyles.paginationContainer}>
+            <View
+              ref={tour.register("requests-pagination")}
+              collapsable={false}
+              style={tabStyles.paginationContainer}
+            >
               {/* Previous Button */}
               <TouchableOpacity
                 style={[
@@ -448,6 +685,17 @@ export default function AppointmentsRequestTab({
           )}
         </ScrollView>
       )}
+
+      {/* Interactive Walkthrough Tour */}
+      <AppTour
+        visible={tourVisible}
+        steps={tourSteps}
+        index={tourIndex}
+        onIndexChange={setTourIndex}
+        measureTarget={tour.measure}
+        onFinish={handleFinishTour}
+        onSkip={handleSkipTour}
+      />
     </View>
   );
 }
@@ -493,17 +741,31 @@ const tabStyles = StyleSheet.create({
   },
 
   refreshButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 4, // Sharp micro-radius
-    backgroundColor: '#DDE4E8',
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
     borderTopColor: '#FFFFFF',
-    borderLeftColor: '#FFFFFF',
-    borderBottomColor: '#B0BAC5',
-    borderRightColor: '#B0BAC5',
+    borderLeftColor: '#E2E8F0',
+    borderBottomColor: '#CBD5E1',
+    borderRightColor: '#CBD5E1',
+  },
+
+  tourButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderBottomColor: '#CBD5E1',
+    borderRightColor: '#CBD5E1',
   },
 
   requestsList: {
@@ -536,23 +798,20 @@ const tabStyles = StyleSheet.create({
   },
 
   requestCard: {
-    backgroundColor: '#E6ECEF',
-    borderRadius: 4, // Sharp defined micro-radius
-    borderTopWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderLeftWidth: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
     borderTopColor: '#FFFFFF',
-    borderRightColor: '#B0BAC5',
-    borderBottomColor: '#B0BAC5',
-    borderLeftColor: AppColors.primary,
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
     padding: 16,
     marginBottom: 16,
     elevation: 2,
-    shadowColor: '#9AA7B5',
-    shadowOffset: { width: 1, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
 
   patientSection: {
