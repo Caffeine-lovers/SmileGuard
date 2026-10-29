@@ -56,6 +56,9 @@ function parse12HourTime(timeString: string): { hour: number; minute: number } {
   return { hour, minute };
 }
 
+export const DEFAULT_CLINIC_NAME = "Kyler's Clinic";
+export const DEFAULT_DOCTOR_ID = "7c9b5331-3f19-4560-8256-44c7742e11ad";
+
 export interface ClinicDetails {
   id: string;
   user_id: string;
@@ -65,40 +68,92 @@ export interface ClinicDetails {
   schedule: ClinicSchedule;
 }
 
-// Get full clinic setup including clinic name, doctor user_id, and services
+const FALLBACK_KYLER_CLINIC: ClinicDetails = {
+  id: "6572586e-f38b-4d1e-894c-52f038228282",
+  user_id: DEFAULT_DOCTOR_ID,
+  clinic_name: DEFAULT_CLINIC_NAME,
+  address: "Malabon",
+  services: [
+    { id: "default_service_1", name: "Cleaning", price: 1500 },
+    { id: "default_service_2", name: "Whitening", price: 5000 },
+    { id: "default_service_3", name: "Fillings", price: 2000 },
+    { id: "default_service_4", name: "Root Canal", price: 8000 },
+    { id: "default_service_5", name: "Extraction", price: 1500 },
+    { id: "default_service_6", name: "Braces Consultation", price: 35000 },
+    { id: "default_service_7", name: "Implants Consultation", price: 45000 },
+    { id: "default_service_8", name: "X-Ray", price: 500 },
+    { id: "default_service_9", name: "Checkup", price: 300 },
+    { id: "1792844640600", name: "Scan", price: 1500 },
+  ],
+  schedule: {
+    friday: { isOpen: true, opening_time: "10:00 AM", closing_time: "3:00 PM" },
+    monday: { isOpen: false, opening_time: "10:00 AM", closing_time: "3:00 PM" },
+    sunday: { isOpen: false, opening_time: "10:00 AM", closing_time: "5:00 PM" },
+    tuesday: { isOpen: true, opening_time: "10:00 AM", closing_time: "3:00 PM" },
+    saturday: { isOpen: true, opening_time: "10:00 AM", closing_time: "3:00 PM" },
+    thursday: { isOpen: true, opening_time: "10:00 AM", closing_time: "3:00 PM" },
+    wednesday: { isOpen: true, opening_time: "10:00 AM", closing_time: "3:00 PM" },
+  },
+};
+
+// Get full clinic setup — defaults to Kyler's Clinic
 export async function getFullClinicSetup(): Promise<ClinicDetails | null> {
+  try {
+    const clinics = await getAllClinicsSetup();
+    if (clinics.length > 0) {
+      // Prioritize Kyler's Clinic
+      const kyler = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler'));
+      return kyler || clinics[0];
+    }
+    return FALLBACK_KYLER_CLINIC;
+  } catch (error) {
+    console.error('❌ Error getting full clinic setup:', error);
+    return FALLBACK_KYLER_CLINIC;
+  }
+}
+
+// Get all clinics registered in clinic_setup, ordered with Kyler's Clinic first
+export async function getAllClinicsSetup(): Promise<ClinicDetails[]> {
   try {
     const { data, error } = await supabase
       .from('clinic_setup')
-      .select('id, user_id, clinic_name, address, services, schedule')
-      .limit(1);
+      .select('id, user_id, clinic_name, address, services, schedule');
 
     if (error || !data || data.length === 0) {
-      console.warn('⚠️ No clinic setup record found');
-      return null;
+      return [FALLBACK_KYLER_CLINIC];
     }
 
-    const row = data[0];
-    let servicesList: any[] = [];
-    if (Array.isArray(row.services)) {
-      servicesList = row.services;
-    } else if (typeof row.services === 'string') {
-      try {
-        servicesList = JSON.parse(row.services);
-      } catch {}
-    }
+    const list: ClinicDetails[] = data.map((row: any) => {
+      let servicesList: any[] = [];
+      if (Array.isArray(row.services)) {
+        servicesList = row.services;
+      } else if (typeof row.services === 'string') {
+        try {
+          servicesList = JSON.parse(row.services);
+        } catch {}
+      }
 
-    return {
-      id: row.id,
-      user_id: row.user_id,
-      clinic_name: row.clinic_name || 'SmileGuard Dental Clinic',
-      address: row.address,
-      services: servicesList,
-      schedule: row.schedule,
-    };
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        clinic_name: row.clinic_name || DEFAULT_CLINIC_NAME,
+        address: row.address,
+        services: servicesList,
+        schedule: row.schedule || FALLBACK_KYLER_CLINIC.schedule,
+      };
+    });
+
+    // Sort Kyler's Clinic first by default
+    list.sort((a, b) => {
+      const aKyler = a.clinic_name.toLowerCase().includes('kyler') ? -1 : 1;
+      const bKyler = b.clinic_name.toLowerCase().includes('kyler') ? -1 : 1;
+      return aKyler - bKyler;
+    });
+
+    return list;
   } catch (error) {
-    console.error('❌ Error getting full clinic setup:', error);
-    return null;
+    console.error('❌ Error getting all clinics:', error);
+    return [FALLBACK_KYLER_CLINIC];
   }
 }
 
@@ -175,7 +230,7 @@ export async function getBookedSlots(date: string): Promise<string[]> {
     .from('appointments')
     .select('appointment_time')
     .eq('appointment_date', date)
-    .neq('status', 'cancelled');
+    .not('status', 'in', '(cancelled,declined)');
 
   if (error) {
     console.error('Error fetching booked slots:', error);
@@ -197,12 +252,21 @@ export async function bookSlot(
 ): Promise<{ success: boolean; message: string; appointmentId?: string }> {
   console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
   
+  // Validation: No same-day booking allowed (must be at least 1 day in advance)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (appointmentDate <= todayStr) {
+    return {
+      success: false,
+      message: 'Same-day booking is not permitted. Please schedule your appointment at least 1 day in advance.',
+    };
+  }
+
   const { data: existing, error: checkError } = await supabase
     .from('appointments')
     .select('id')
     .eq('appointment_date', appointmentDate)
     .eq('appointment_time', appointmentTime)
-    .neq('status', 'cancelled');
+    .not('status', 'in', '(cancelled,declined)');
 
   if (checkError) {
     console.error('Check availability error:', checkError);
@@ -210,7 +274,10 @@ export async function bookSlot(
   }
   if (existing && existing.length > 0) return { success: false, message: 'Sorry, this slot was just taken!' };
 
-  const { data: insertedData, error: insertError } = await supabase
+  let insertedData: any = null;
+  let insertError: any = null;
+
+  const insertRes = await supabase
     .from('appointments')
     .insert({
       patient_id: patientId,
@@ -218,9 +285,31 @@ export async function bookSlot(
       service,
       appointment_date: appointmentDate,
       appointment_time: appointmentTime,
-      status: 'scheduled',
+      status: 'pending', // awaits clinic approval; doctor app sets 'scheduled' on accept
     })
     .select('id');
+
+  insertedData = insertRes.data;
+  insertError = insertRes.error;
+
+  // Resilient fallback if DB check constraint does not yet allow 'pending' (migration 032 not yet applied)
+  if (insertError && (insertError.message?.toLowerCase().includes('check') || insertError.code === '23514')) {
+    console.warn('⚠️ appointments_status_check in DB does not yet allow "pending". Retrying with legacy unapproved format (dentist_id=null)...');
+    const fallbackRes = await supabase
+      .from('appointments')
+      .insert({
+        patient_id: patientId,
+        dentist_id: null, // Marks as unassigned request
+        service,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        status: 'scheduled',
+      })
+      .select('id');
+
+    insertedData = fallbackRes.data;
+    insertError = fallbackRes.error;
+  }
 
   if (insertError) {
     console.error('Insert Error Detail:', insertError);
@@ -241,7 +330,7 @@ export async function checkDayFull(date: string): Promise<boolean> {
     .from('appointments')
     .select('id')
     .eq('appointment_date', date)
-    .neq('status', 'cancelled');
+    .not('status', 'in', '(cancelled,declined)');
 
   if (error) {
     console.error('Error checking day:', error);
@@ -343,7 +432,7 @@ export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null)
   const { data: appointments, error: appointmentError } = await supabase
     .from('appointments')
     .select('appointment_date, appointment_time, patient_id, service')
-    .neq('status', 'cancelled')
+    .not('status', 'in', '(cancelled,declined)')
     .order('appointment_date', { ascending: true });
 
   if (appointmentError) {

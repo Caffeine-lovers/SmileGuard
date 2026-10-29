@@ -7,8 +7,9 @@ import {
   getAllBlockedSlots, 
   isSlotTaken, 
   getPatientAppointments, 
-  getClinicSetup, 
   getFullClinicSetup,
+  getAllClinicsSetup,
+  DEFAULT_CLINIC_NAME,
   generateTimeSlots, 
   withTimeout,
   type ClinicSchedule,
@@ -74,6 +75,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
   const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
   const [clinicDetails, setClinicDetails]             = useState<ClinicDetails | null>(null);
+  const [availableClinics, setAvailableClinics]       = useState<ClinicDetails[]>([]);
   const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
   const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
 
@@ -110,21 +112,30 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const loadClinicData = async () => {
       setLoadingBlockedSlots(true);
       try {
-        const clinicInfo = await withTimeout(getFullClinicSetup(), 2500, null);
+        const clinics = await withTimeout(getAllClinicsSetup(), 4000, []);
         
         if (!isMounted) return;
+        setAvailableClinics(clinics);
+
+        // Pick Kyler's Clinic by default, or first available
+        const defaultClinic = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler')) || clinics[0];
+
         let scheduleToUse: ClinicSchedule | null = null;
-        if (clinicInfo) {
-          setClinicDetails(clinicInfo);
-          setClinicSchedule(clinicInfo.schedule);
-          scheduleToUse = clinicInfo.schedule;
+        if (defaultClinic) {
+          console.log('🏥 [BookAppointment] Default clinic selected:', defaultClinic.clinic_name);
+          setClinicDetails(defaultClinic);
+          setClinicSchedule(defaultClinic.schedule);
+          scheduleToUse = defaultClinic.schedule;
         } else {
-          const fallbackSchedule = await withTimeout(getClinicSetup(), 2500, null);
-          setClinicSchedule(fallbackSchedule);
-          scheduleToUse = fallbackSchedule;
+          const fallbackClinic = await withTimeout(getFullClinicSetup(), 2500, null);
+          if (fallbackClinic) {
+            setClinicDetails(fallbackClinic);
+            setClinicSchedule(fallbackClinic.schedule);
+            scheduleToUse = fallbackClinic.schedule;
+          }
         }
         
-        const slots = await withTimeout(getAllBlockedSlots(scheduleToUse), 2500, []);
+        const slots = await withTimeout(getAllBlockedSlots(scheduleToUse), 4000, []);
         
         if (!isMounted) return;
         setBlockedSlots(slots || []);
@@ -161,6 +172,16 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     };
   }, []);
 
+  const handleClinicChange = (clinicId: string) => {
+    const selected = availableClinics.find((c) => c.id === clinicId);
+    if (!selected) return;
+    setClinicDetails(selected);
+    if (selected.schedule) {
+      setClinicSchedule(selected.schedule);
+    }
+    setSelectedTime('');
+  };
+
   // Update time slots when selected date changes
   useEffect(() => {
     if (selectedDate && clinicSchedule) {
@@ -185,7 +206,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       setLoadingUserData(true);
       try {
         const appointments = await withTimeout(getPatientAppointments(userId), 2500, []);
-        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
+        const scheduledAppointments = appointments.filter(apt => apt.status === 'pending' || apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
         console.error('Error fetching user appointments:', err);
@@ -206,6 +227,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // Check if a date is available based on clinic schedule
   const isDateAvailable = (date: Date): boolean => {
+    // No same-day booking: appointments must be at least 1 day in advance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date.getTime() <= today.getTime()) {
+      return false;
+    }
+
     if (!clinicSchedule) return true; // Default to available if no schedule
     
     const day = date.getDate();
@@ -248,20 +276,20 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
-        alert('Appointment booked successfully!');
+        alert('Appointment request sent! It will appear under Pending until the clinic approves it.');
         
         if (onSuccess) {
           onSuccess({
             id: result.appointmentId,
             patient_id: userId,
             dentist_id: dentistIdToBook || null,
-            clinic_name: clinicDetails?.clinic_name || 'SmileGuard Dental Clinic',
+            clinic_name: clinicDetails?.clinic_name || DEFAULT_CLINIC_NAME,
             price: selectedService.price,
             service: selectedService.name,
             appointment_date: selectedDate,
             appointment_time: selectedTime,
             notes: notes || '',
-            status: 'scheduled',
+            status: 'pending',
             created_at: new Date().toISOString(),
           });
         }
@@ -303,10 +331,31 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               Syncing calendar...
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-50 text-emerald-900 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs">
-            <Building2 className="w-4 h-4 text-emerald-700" />
-            {clinicDetails?.clinic_name || 'SmileGuard Dental Clinic'}
-          </span>
+          {availableClinics.length > 1 ? (
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="clinic-select" className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                Clinic:
+              </label>
+              <select
+                id="clinic-select"
+                value={clinicDetails?.id}
+                onChange={(e) => handleClinicChange(e.target.value)}
+                className="px-3 py-1.5 bg-emerald-50 text-emerald-950 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs cursor-pointer focus:outline-none focus:border-emerald-600"
+              >
+                {availableClinics.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.clinic_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-900 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs">
+              <Building2 className="w-4 h-4 text-emerald-700" />
+              {clinicDetails?.clinic_name || DEFAULT_CLINIC_NAME}
+            </span>
+          )}
         </div>
       </div>
 
@@ -456,19 +505,28 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const dd = String(date.getDate()).padStart(2, '0');
               const dateString = `${yyyy}-${mm}-${dd}`;
               
-              const isPast = date < new Date(new Date().setHours(0,0,0,0));
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const isToday = date.getTime() === today.getTime();
+              const isPast = date < today;
+              const isTodayOrPast = date <= today;
               const isClinicClosed = !isDateAvailable(date);
               const isBlockedDate = blockedDates.has(dateString);
               const isFullyBookedDate = isFullyBooked(dateString);
               const isSelected = selectedDate === dateString;
               
-              const isDisabled = isPast || isClinicClosed || isBlockedDate || isFullyBookedDate || !step1Complete;
+              const isDisabled = isTodayOrPast || isClinicClosed || isBlockedDate || isFullyBookedDate || !step1Complete;
 
               let cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
               let dateNumStyle = 'text-xs sm:text-sm font-semibold text-text-primary';
 
               if (isSelected) {
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-brand-primary text-white shadow-md border-2 border-brand-primary font-bold cursor-pointer';
+              } else if (isToday) {
+                // Today is disabled - no same day booking permitted
+                cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-amber-50/70 text-amber-800/60 cursor-not-allowed border border-amber-300/60';
+                dateNumStyle = 'text-sm font-semibold text-amber-800/60 line-through';
               } else if (isBlockedDate || isClinicClosed || isFullyBookedDate) {
                 // Blocked dates, clinic closed, or fully booked - gray out
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
@@ -486,7 +544,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   disabled={isDisabled}
                   className={cellStyle}
                   title={
-                    isBlockedDate
+                    isToday
+                      ? 'Same-day booking is not permitted — please book at least 1 day in advance'
+                      : isBlockedDate
                       ? 'Blocked date - no appointments available'
                       : isFullyBookedDate
                       ? 'Fully booked - 3 appointments already scheduled'
@@ -501,6 +561,14 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                 </button>
               );
             })}
+          </div>
+
+          {/* Same-day booking notice */}
+          <div className="mt-3 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-900 text-xs">
+            <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span className="leading-snug">
+              <strong>Advance Booking Only:</strong> Same-day booking is disabled. Appointments must be scheduled at least 1 day in advance.
+            </span>
           </div>
         </div>
 

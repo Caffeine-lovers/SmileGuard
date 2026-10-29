@@ -5,6 +5,8 @@
 
 export const getStatusColor = (status?: string): string => {
   switch (status) {
+    case 'pending':
+      return '#FF9800';
     case 'scheduled':
       return '#FFC107';
     case 'completed':
@@ -22,6 +24,8 @@ export const getStatusColor = (status?: string): string => {
 
 export const getStatusBgColor = (status?: string): string => {
   switch (status) {
+    case 'pending':
+      return '#FFE0B2';
     case 'scheduled':
       return '#FFF9C4';
     case 'completed':

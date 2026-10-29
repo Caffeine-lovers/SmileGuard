@@ -22,7 +22,8 @@ interface AppointmentEditProps {
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
 }
 
-const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'> = [
+const STATUS_OPTIONS: Array<'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'> = [
+  'pending',
   'scheduled',
   'completed',
   'cancelled',
@@ -31,6 +32,7 @@ const STATUS_OPTIONS: Array<'scheduled' | 'completed' | 'cancelled' | 'no-show' 
 ];
 
 const STATUS_COLORS: { [key: string]: string } = {
+  pending: '#D97706', // Warm Amber
   scheduled: '#10B981', // Mint / Emerald Green
   completed: '#047857', // Deep Forest Green
   cancelled: '#6B9080', // Muted Sage Green
@@ -46,7 +48,7 @@ export default function AppointmentEdit({
   onSave,
   onAppointmentStatusUpdated,
 }: AppointmentEditProps) {
-  const [selectedStatus, setSelectedStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('scheduled');
+  const [selectedStatus, setSelectedStatus] = useState<'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('scheduled');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -91,7 +93,7 @@ export default function AppointmentEdit({
         console.log('✅ Appointment status updated successfully');
         
         // Trigger notification callback if status changed and callback is provided
-        if (selectedStatus !== 'scheduled' && onAppointmentStatusUpdated) {
+        if (selectedStatus !== 'scheduled' && selectedStatus !== 'pending' && onAppointmentStatusUpdated) {
           onAppointmentStatusUpdated(
             selectedStatus,
             appointment.name || appointment.patient_name || 'Patient',
@@ -252,6 +254,9 @@ export default function AppointmentEdit({
 
             {/* Status Descriptions */}
             <View style={styles.descriptionBox}>
+              {selectedStatus === 'pending' && (
+                <Text style={styles.descriptionText}>Appointment is awaiting clinic approval</Text>
+              )}
               {selectedStatus === 'scheduled' && (
                 <Text style={styles.descriptionText}>Appointment is scheduled</Text>
               )}

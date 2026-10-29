@@ -154,6 +154,7 @@ describe("Appointment Type Safety", () => {
 
   it("should enforce appointment status enum", () => {
     const validStatuses: Appointment["status"][] = [
+      "pending",
       "scheduled",
       "completed",
       "cancelled",

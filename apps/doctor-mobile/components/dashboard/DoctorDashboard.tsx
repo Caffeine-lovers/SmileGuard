@@ -85,7 +85,7 @@ export interface DashboardAppointment {
   notes: string;
   imageUrl: string | number;
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
