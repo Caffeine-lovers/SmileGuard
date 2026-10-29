@@ -12,7 +12,8 @@ import {
   ClipboardList, 
   ArrowLeft,
   ShieldCheck,
-  Stethoscope
+  Stethoscope,
+  Clock
 } from 'lucide-react';
 
 export default function TreatmentsPage() {
@@ -48,6 +49,13 @@ export default function TreatmentsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'pending':
+        return (
+          <span className="skeuo-badge bg-amber-50 text-amber-700 border-amber-300">
+            <Clock className="w-3 h-3 text-amber-600" />
+            Pending Approval
+          </span>
+        );
       case 'completed':
         return (
           <span className="skeuo-badge skeuo-badge-mint">

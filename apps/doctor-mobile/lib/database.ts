@@ -9,7 +9,7 @@ export interface Appointment {
   service: string;
   appointment_date: string;
   appointment_time: string;
-  status: "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
+  status: "pending" | "PENDING" | "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
   notes?: string;
   created_at?: string;
   updated_at?: string;

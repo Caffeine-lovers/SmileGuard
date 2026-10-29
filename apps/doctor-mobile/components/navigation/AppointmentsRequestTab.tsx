@@ -45,7 +45,8 @@ export default function AppointmentsRequestTab({
       const appointmentRequestsData = await getAppointmentRequests();
       
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        const transformedRequests = appointmentRequestsData.map((apt: any) => ({
+        const filteredRequests = appointmentRequestsData.filter((apt: any) => !['cancelled', 'declined', 'completed', 'no-show'].includes((apt.status || '').toLowerCase()));
+        const transformedRequests = filteredRequests.map((apt: any) => ({
           id: apt.id || '',
           name: apt.patient_name || 'Patient',
           service: apt.service || '',
@@ -57,7 +58,7 @@ export default function AppointmentsRequestTab({
           email: apt.profiles?.email || '',
           notes: apt.notes || '',
           imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+          status: (apt.status?.toLowerCase() === 'pending' ? 'pending' : (apt.status || 'pending')) as any,
           patient_id: apt.patient_id,
           dentist_id: apt.dentist_id,
           medicalIntake: apt.patient_profile ? {
@@ -332,6 +333,9 @@ export default function AppointmentsRequestTab({
                   <Text style={tabStyles.patientName}>{request.name}</Text>
                   <Text style={tabStyles.patientEmail}>{request.email || 'No email'}</Text>
                 </View>
+                <View style={tabStyles.pendingBadge}>
+                  <Text style={tabStyles.pendingBadgeText}>PENDING</Text>
+                </View>
               </View>
 
               {/* Appointment Details */}
@@ -583,6 +587,23 @@ const tabStyles = StyleSheet.create({
   patientEmail: {
     fontSize: 12,
     color: AppColors.textSecondary,
+  },
+
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'center',
+  },
+
+  pendingBadgeText: {
+    color: '#B45309',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 
   detailsSection: {

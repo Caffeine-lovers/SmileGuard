@@ -88,7 +88,7 @@ export interface DashboardAppointment {
   notes: string;
   imageUrl: string | number;
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
@@ -487,10 +487,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       setLoadingPatients(true);
       setErrorMessage(null);
 
-      // Fetch appointment requests (dentist_id IS NULL)
+      // Fetch appointment requests (pending approval)
       const appointmentRequestsData = await getAppointmentRequests();
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        const transformedRequests = appointmentRequestsData.map((apt: any) => {
+        const filteredRequests = appointmentRequestsData.filter((apt: any) => !['cancelled', 'declined', 'completed', 'no-show'].includes((apt.status || '').toLowerCase()));
+        const transformedRequests = filteredRequests.map((apt: any) => {
           const medicalData = apt.patient_profile;
 
           const medicalIntake = medicalData ? {
@@ -521,7 +522,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             email: apt.profiles?.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+            status: (apt.status?.toLowerCase() === 'pending' ? 'pending' : (apt.status || 'pending')) as any,
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
             medicalIntake: medicalIntake,
@@ -532,8 +533,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         setAppointmentRequests([]);
       }
 
-      // Use RPC function to get ALL appointments including cancelled (bypasses RLS)
-      const rpcAppointments = await getDoctorAppointments(user.id);
+      // Use RPC function to get ALL appointments including cancelled (bypasses RLS, excludes pending)
+      const rawRpcAppointments = await getDoctorAppointments(user.id);
+      const rpcAppointments = (rawRpcAppointments || []).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
       console.log('[DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);

@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     // Attempt to lookup appointment and clinic from database
     let serviceName: string | null = null;
-    let clinicName = 'SmileGuard Dental Clinic';
+    let clinicName = "Kyler's Clinic";
     let clinicServices: any[] = [];
 
     if (supabase) {
