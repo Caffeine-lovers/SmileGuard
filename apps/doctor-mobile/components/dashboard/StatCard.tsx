@@ -19,13 +19,13 @@ export default function StatCard({
   return (
     <View style={styles.card}>
       {icon && (
-        <View style={[styles.iconChip, { backgroundColor: bgTint }]}>
+        <View style={[styles.iconChip, { backgroundColor: bgTint, borderColor: accentColor + '40' }]}>
           {icon}
         </View>
       )}
-      <Text style={[styles.statNumber, { color: accentColor }]}>{number}</Text>
+      <Text style={styles.statNumber}>{number}</Text>
       <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>
-        {label}
+        {label.toUpperCase()}
       </Text>
     </View>
   );
@@ -36,34 +36,40 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 90,
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius: 6, // Sharp, defined skeuo micro-radius matching patient-web
+    borderWidth: 1.5,
+    borderTopColor: "#FFFFFF",
+    borderLeftColor: "#E2E8F0",
+    borderRightColor: "#CBD5E1",
+    borderBottomColor: "#CBD5E1",
     paddingVertical: 12,
     paddingHorizontal: 10,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
   },
   iconChip: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
+    borderWidth: 1,
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "900",
     letterSpacing: -0.5,
+    color: "#0F172A",
   },
   statLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "800",
     color: "#64748B",
-    marginTop: 2,
+    letterSpacing: 0.5,
+    marginTop: 3,
   },
 });
