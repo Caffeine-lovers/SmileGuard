@@ -12,6 +12,7 @@ export default function SignupRegisterPage() {
     formData,
     updateFormField,
     isOAuthFlow,
+    setIsOAuthFlow,
     setCurrentAuthUser,
     showPassword,
     setShowPassword,
@@ -32,19 +33,29 @@ export default function SignupRegisterPage() {
   useEffect(() => {
     const checkOAuthFlow = async () => {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('oauth') === 'true') {
+      const isOauthParam = params.get('oauth') === 'true';
+      const isOauthStorage = typeof window !== 'undefined' && localStorage.getItem('oauth_signup_flow') === 'true';
+
+      if (isOauthParam || isOauthStorage) {
+        setIsOAuthFlow(true);
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
           setCurrentAuthUser(user);
+          setIsOAuthFlow(true);
           updateFormField('email', user.email || '');
-          updateFormField('name', user.user_metadata?.full_name || user.email?.split('@')[0] || '');
+          const fullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+          if (fullName) {
+            updateFormField('name', fullName);
+          } else if (user.email) {
+            updateFormField('name', user.email.split('@')[0]);
+          }
         }
       }
     };
 
     checkOAuthFlow();
-  }, [setCurrentAuthUser, updateFormField]);
+  }, [setCurrentAuthUser, updateFormField, setIsOAuthFlow]);
 
   const checkPasswordStrength = (password: string) => {
     return {
@@ -81,14 +92,12 @@ export default function SignupRegisterPage() {
         return;
       }
     } else {
-      if (!formData.password) {
-        setLocalError('Please set a password for future logins');
-        return;
-      }
-
-      if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-        setLocalError('Password does not meet clinical security requirements');
-        return;
+      // If OAuth user entered a password, check that it meets security requirements
+      if (formData.password) {
+        if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
+          setLocalError('Password does not meet clinical security requirements');
+          return;
+        }
       }
     }
 
@@ -148,24 +157,24 @@ export default function SignupRegisterPage() {
         {isOAuthFlow && (
           <div className="bg-emerald-50 border-2 border-emerald-500 rounded-sm p-3 mb-2">
             <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
-              Credential Setup Required
+              Google Account Connected
             </p>
             <p className="text-xs text-emerald-700 mt-0.5">
-              Set a portal password so you can sign in directly without Google in the future.
+              Confirm your legal name below. You may optionally set a clinic portal password.
             </p>
           </div>
         )}
 
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-            {isOAuthFlow ? 'Set Portal Password' : 'Password'}
+            {isOAuthFlow ? 'Set Portal Password (Optional)' : 'Password'}
           </label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => handlePasswordChange(e.target.value)}
-              required
+              required={!isOAuthFlow}
               className="skeuo-input w-full text-sm pr-10"
               placeholder="••••••••"
             />

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "SmileGuard - AI-powered dental management system",
   "scripts": {
+    "vercel-build": "next build",
     "doctor:android": "pnpm --filter doctor-mobile android",
     "doctor:android:expogo": "pnpm --filter doctor-mobile android:expo-go",
     "doctor:ios": "pnpm --filter doctor-mobile ios",
@@ -32,6 +33,3 @@
     }
   }
 }
-
-
-

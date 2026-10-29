@@ -3,7 +3,7 @@
  * Fetches dashboard data from Supabase tables
  */
 
-import { supabase } from './supabase';
+import { supabase } from '@smileguard/supabase-client';
 import { Appointment } from '@smileguard/shared-types';
 
 // ─────────────────────────────────────────

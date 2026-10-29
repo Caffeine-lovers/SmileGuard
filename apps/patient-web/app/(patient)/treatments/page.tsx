@@ -87,53 +87,55 @@ export default function TreatmentsPage() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen p-3 sm:p-4 md:p-6 max-w-4xl mx-auto space-y-4 sm:space-y-6">
       {/* Clinic Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-6 text-white border-2 border-emerald-950 shadow-md">
-        <span className="skeuo-badge skeuo-badge-mint text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
+        <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">
           <ShieldCheck className="w-3 h-3 text-emerald-950" />
           Clinical Chart
         </span>
-        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Treatment Records</h1>
-        <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Treatment Records</h1>
+        <p className="text-emerald-100 text-[11px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
           Chronological ledger of dental procedures, cleanings & consultations
         </p>
       </div>
 
-      <div className="skeuo-panel p-6 border-2 border-slate-300">
+      <div className="skeuo-panel p-3.5 sm:p-6 border-2 border-slate-300">
         {loadingData ? (
           <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-sm">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-b-emerald-600 mx-auto mb-2"></div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Loading clinical ledger...</p>
           </div>
         ) : appointments.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
             {appointments.map((appointment) => (
               <div
                 key={appointment.id}
-                className="skeuo-card p-4 rounded-sm border-2 border-slate-300 flex flex-col gap-3"
+                className="skeuo-card p-3 sm:p-4 rounded-sm border-2 border-slate-300 flex flex-col gap-2.5 sm:gap-3"
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-sm bg-emerald-50 border border-emerald-300 flex items-center justify-center shrink-0">
                       <Stethoscope className="w-4 h-4 text-emerald-700" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900">{appointment.service}</h3>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 font-mono mt-0.5">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900">{appointment.service}</h3>
+                      <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-slate-500 font-mono mt-0.5">
                         <span>{new Date(appointment.appointment_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         <span>•</span>
                         <span>{appointment.appointment_time || 'General slot'}</span>
                       </div>
                     </div>
                   </div>
-                  {getStatusBadge(appointment.status)}
+                  <div className="self-start xs:self-auto shrink-0">
+                    {getStatusBadge(appointment.status)}
+                  </div>
                 </div>
 
                 {appointment.notes && (
-                  <div className="bg-slate-50 rounded-xs p-3 border border-slate-200 text-xs">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Attending Dentist Notes:</p>
-                    <p className="text-slate-800 leading-relaxed font-medium">{appointment.notes}</p>
+                  <div className="bg-slate-50 rounded-xs p-2.5 sm:p-3 border border-slate-200 text-xs">
+                    <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Attending Dentist Notes:</p>
+                    <p className="text-slate-800 leading-relaxed font-medium text-xs">{appointment.notes}</p>
                   </div>
                 )}
               </div>

@@ -261,25 +261,25 @@ export default function BillingPayment({
   const handlePayment = handlePayMongoCheckout;
 
   return (
-    <div className="p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-6">
+    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Clinic Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-6 text-white border-2 border-emerald-950 shadow-md">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="skeuo-badge skeuo-badge-mint text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
             <ShieldCheck className="w-3 h-3 text-emerald-950" />
             Clinic Billing Portal
           </span>
         </div>
-        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
-        <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
+        <p className="text-emerald-100 text-[11px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
           Settle procedure balances and review financial ledgers
         </p>
       </div>
 
       {/* PayMongo Checkout Redirect Banners */}
       {paymentStatusBanner === 'success' && (
-        <div className="flex items-center justify-between p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm text-emerald-900 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between p-3.5 sm:p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm text-emerald-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <div>
               <p className="text-xs font-black uppercase tracking-wider">Payment Confirmed!</p>
@@ -289,7 +289,7 @@ export default function BillingPayment({
           <button
             type="button"
             onClick={() => setPaymentStatusBanner(null)}
-            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 uppercase cursor-pointer"
+            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 uppercase cursor-pointer shrink-0 ml-2"
           >
             Dismiss
           </button>
@@ -297,8 +297,8 @@ export default function BillingPayment({
       )}
 
       {paymentStatusBanner === 'cancelled' && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50 border-2 border-amber-500 rounded-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-amber-50 border-2 border-amber-500 rounded-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             <div>
               <p className="text-xs font-black uppercase tracking-wider">Payment Cancelled</p>
@@ -325,49 +325,49 @@ export default function BillingPayment({
 
       {/* Financial Summary Stats */}
       {!loadingData && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <Link href="/billing" className="block no-underline">
-            <div className="skeuo-card p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
-              <p className="text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
-              <p className="text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
+            <div className="skeuo-card p-4 sm:p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
+              <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
+              <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
             </div>
           </Link>
-          <div className="skeuo-card p-5 border-2 border-slate-300 rounded-sm">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Total Transactions</span>
-            <p className="text-2xl font-black tracking-tight text-slate-900 mt-1">{billingHistory.length}</p>
-            <p className="text-[11px] font-semibold text-slate-500 mt-1">Settled on Ledger</p>
+          <div className="skeuo-card p-4 sm:p-5 border-2 border-slate-300 rounded-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Total Transactions</span>
+            <p className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 mt-1">{billingHistory.length}</p>
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Settled on Ledger</p>
           </div>
-          <div className="skeuo-card p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
+          <div className="skeuo-card p-4 sm:p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
             <div className="flex items-center gap-2 mt-1">
               {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
                 <>
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <p className="text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
+                  <p className="text-lg sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
                 </>
               ) : (
                 <>
                   <Clock className="w-5 h-5 text-amber-600" />
-                  <p className="text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
+                  <p className="text-lg sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
                 </>
               )}
             </div>
-            <p className="text-[11px] font-semibold text-slate-500 mt-1">Clinical Settlement Status</p>
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Clinical Settlement Status</p>
           </div>
         </div>
       )}
 
       {/* Payment Form */}
-      <div className="skeuo-panel p-6 border-2 border-slate-300">
-        <div className="flex items-center gap-2 pb-4 mb-6 border-b-2 border-slate-200">
+      <div className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
+        <div className="flex items-center gap-2 pb-3 sm:pb-4 mb-4 sm:mb-6 border-b-2 border-slate-200">
           <Receipt className="w-5 h-5 text-emerald-700" />
-          <h2 className="text-lg font-black uppercase tracking-tight text-slate-900">
+          <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
             Process Invoice Payment
           </h2>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           {/* Availed Services from Appointments */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
@@ -383,22 +383,22 @@ export default function BillingPayment({
                       type="button"
                       key={apt.id}
                       onClick={() => handleAppointmentSelect(apt)}
-                      className={`skeuo-card w-full p-4 flex justify-between items-center rounded-sm text-left border-2 transition cursor-pointer hover:border-emerald-500 ${
+                      className={`skeuo-card w-full p-3 sm:p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-2.5 rounded-sm text-left border-2 transition cursor-pointer hover:border-emerald-500 ${
                         isSelected
                           ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
                           : 'border-slate-300 hover:border-slate-400 bg-white'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center shrink-0 ${
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 ${
                           isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-400'
                         }`}>
                           {isSelected && <CheckCircle2 className="w-3 h-3" />}
                         </div>
                         <div>
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                             <p className="font-bold text-sm text-slate-900">{apt.service}</p>
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[9px] sm:text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
                               <Building2 className="w-2.5 h-2.5 text-emerald-700" />
                               {apt.clinic_name || 'SmileGuard Clinic'}
                             </span>
@@ -408,7 +408,7 @@ export default function BillingPayment({
                           </p>
                         </div>
                       </div>
-                      <div className="font-mono font-black text-base text-emerald-800 shrink-0 ml-3">
+                      <div className="font-mono font-black text-sm sm:text-base text-emerald-800 shrink-0 self-end sm:self-auto sm:ml-3">
                         ₱{price.toFixed(2)}
                       </div>
                     </button>
@@ -427,7 +427,7 @@ export default function BillingPayment({
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
               Eligible Statutory Discount
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
               {[
                 { value: 'none' as const, label: 'Standard Rate' },
                 { value: 'pwd' as const, label: 'PWD (20%)' },
@@ -437,7 +437,7 @@ export default function BillingPayment({
                   type="button"
                   key={option.value}
                   onClick={() => handleDiscountSelect(option.value)}
-                  className={`py-2.5 px-3 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
+                  className={`py-2 sm:py-2.5 px-1 sm:px-3 rounded-sm border-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer ${
                     discountType === option.value
                       ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
                       : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
@@ -451,7 +451,7 @@ export default function BillingPayment({
 
           {/* Proof Upload for Discounts */}
           {showProofUpload && (discountType === 'pwd' || discountType === 'senior') && (
-            <div className="p-5 bg-emerald-50/40 border-2 border-dashed border-emerald-400 rounded-sm text-center">
+            <div className="p-4 sm:p-5 bg-emerald-50/40 border-2 border-dashed border-emerald-400 rounded-sm text-center">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center justify-center gap-1.5">
                 <FileText className="w-4 h-4 text-emerald-700" />
                 Upload Valid {discountType === 'pwd' ? 'PWD' : 'Senior Citizen'} Identification Card
@@ -460,7 +460,7 @@ export default function BillingPayment({
                 type="file"
                 accept="image/*"
                 onChange={handleProofUpload}
-                className="block mx-auto text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-emerald-700 file:bg-emerald-700 file:text-white file:text-xs file:font-bold file:uppercase file:cursor-pointer cursor-pointer"
+                className="block mx-auto text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-emerald-700 file:bg-emerald-700 file:text-white file:text-xs file:font-bold file:uppercase file:cursor-pointer cursor-pointer max-w-full"
               />
               {discountProof && (
                 <p className="text-xs font-bold text-emerald-700 mt-2 flex items-center justify-center gap-1">
@@ -472,35 +472,35 @@ export default function BillingPayment({
           )}
 
           {/* Payment Gateway - PayMongo Unified Portal */}
-          <div className="skeuo-card p-5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="skeuo-card p-4 sm:p-5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-3">
+            <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1.5">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
-                  Payment Gateway &bull; PayMongo Checkout
+                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-950">
+                  Payment Gateway &bull; PayMongo
                 </span>
               </div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
                 All Channels Accepted
               </span>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
               PayMongo processes all clinic settlements securely. You will select your preferred channel (Cards, GCash, Maya, GrabPay, or QR Ph) on the hosted checkout page.
             </p>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1">
+              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
                 <CreditCard className="w-3.5 h-3.5 text-blue-700" />
                 Credit / Debit Card
               </span>
-              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
                 <Smartphone className="w-3.5 h-3.5 text-blue-600" />
                 GCash
               </span>
-              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
                 <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
                 Maya
               </span>
-              <span className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xs text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
                 <Building2 className="w-3.5 h-3.5 text-amber-600" />
                 GrabPay / QR Ph
               </span>
@@ -508,19 +508,19 @@ export default function BillingPayment({
           </div>
 
           {/* Amount Summary */}
-          <div className="skeuo-card p-5 bg-slate-50 border-2 border-slate-300 rounded-sm">
+          <div className="skeuo-card p-4 sm:p-5 bg-slate-50 border-2 border-slate-300 rounded-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
               <Receipt className="w-3.5 h-3.5 text-slate-600" />
               Payment Breakdown
             </h3>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-xs sm:text-sm">
               {selectedAppointment?.clinic_name && (
                 <div className="flex justify-between items-center text-slate-700 pb-2 border-b border-slate-200">
                   <span className="flex items-center gap-1 font-semibold text-xs text-slate-600">
                     <Building2 className="w-3.5 h-3.5 text-emerald-700" />
                     Billing Clinic:
                   </span>
-                  <span className="font-bold text-xs text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300">
+                  <span className="font-bold text-xs text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 truncate max-w-[160px] sm:max-w-none">
                     {selectedAppointment.clinic_name}
                   </span>
                 </div>
@@ -535,7 +535,7 @@ export default function BillingPayment({
                   <span className="font-mono font-bold">-₱{discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-base font-black text-slate-900">
+              <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-sm sm:text-base font-black text-slate-900">
                 <span className="uppercase tracking-wide">Net Settlement:</span>
                 <span className="font-mono text-emerald-800">₱{finalAmount.toFixed(2)}</span>
               </div>
@@ -555,12 +555,12 @@ export default function BillingPayment({
 
       {/* Billing History Table */}
       {billingHistory.length > 0 && (
-        <div className="skeuo-panel p-6 border-2 border-slate-300">
-          <h2 className="text-base font-black uppercase tracking-tight text-slate-900 mb-4">
+        <div className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
+          <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 mb-4">
             Recent Billing Transactions
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <table className="w-full text-xs min-w-[480px]">
               <thead>
                 <tr className="border-b-2 border-slate-300 text-slate-500 uppercase tracking-wider">
                   <th className="text-left p-2.5 font-bold">Transaction Date</th>
@@ -593,7 +593,7 @@ export default function BillingPayment({
       )}
 
       {/* Action CTA Buttons */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         {unpaidAppointments.length === 0 ? (
           <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -604,15 +604,15 @@ export default function BillingPayment({
             type="button"
             onClick={handlePayment}
             disabled={isProcessing || !selectedAppointment}
-            className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+            className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
           >
             {isProcessing ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
                 <span>Processing...</span>
               </span>
             ) : (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
               </span>
@@ -623,7 +623,7 @@ export default function BillingPayment({
           <button
             type="button"
             onClick={onCancel}
-            className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer shrink-0"
+            className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer w-full sm:w-auto"
           >
             Cancel
           </button>
@@ -631,8 +631,8 @@ export default function BillingPayment({
       </div>
 
       {/* Security Badge */}
-      <p className="text-center text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide">
-        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+      <p className="text-center text-[10px] sm:text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide px-2">
+        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
         Secured by PayMongo (BSP-Licensed). Card & e-wallet details are handled on PayMongo&apos;s PCI-DSS compliant servers.
       </p>
     </div>

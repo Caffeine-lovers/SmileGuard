@@ -163,10 +163,10 @@ export default function SignupMedicalPage() {
             onChange={(e) => updateMedicalField('pregnancy_status', e.target.value)}
             className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
           >
-            <option value="">Not applicable</option>
-            <option value="not_pregnant">Not pregnant</option>
-            <option value="pregnant">Pregnant</option>
-            <option value="breastfeeding">Breastfeeding</option>
+            <option value="">Select status</option>
+            <option value="na">Not applicable</option>
+            <option value="no">Not pregnant</option>
+            <option value="yes">Currently pregnant</option>
           </select>
         </div>
 
