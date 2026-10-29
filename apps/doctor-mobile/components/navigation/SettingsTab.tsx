@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
-import { Settings as SettingsIcon, ChevronRight, CreditCard, Compass, Sparkles, Users } from 'lucide-react-native';
+import { Settings as SettingsIcon, ChevronRight, CreditCard, Compass, Sparkles, Users, Calendar } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
@@ -26,6 +26,7 @@ interface SettingsTabProps {
   onProfileUpdated?: (doctorName: string, doctorId: string) => void;
   onStartTutorial?: () => void;
   onStartRecordsTutorial?: () => void;
+  onStartAppointmentsTutorial?: () => void;
 }
 
 type Theme = 'light' | 'dark';
@@ -45,6 +46,7 @@ export default function SettingsTab({
   onProfileUpdated,
   onStartTutorial,
   onStartRecordsTutorial,
+  onStartAppointmentsTutorial,
 }: SettingsTabProps) {
   const router = useRouter();
   const [editingProfile, setEditingProfile] = useState(false);
@@ -419,6 +421,46 @@ export default function SettingsTab({
                 </View>
               </View>
               <ChevronRight size={20} color="#059669" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: CARD_BG,
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 10,
+                borderLeftWidth: 3,
+                borderLeftColor: '#047857',
+                borderWidth: 1,
+                borderTopColor: BORDER_COLOR,
+                borderRightColor: BORDER_COLOR,
+                borderBottomColor: BORDER_COLOR,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={onStartAppointmentsTutorial}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <View style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  backgroundColor: '#ECFDF5',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                }}>
+                  <Calendar size={20} color="#047857" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Appointments Walkthrough</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to browse calendar dates, filter statuses, and edit visits</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color="#047857" />
             </TouchableOpacity>
 
             <TouchableOpacity

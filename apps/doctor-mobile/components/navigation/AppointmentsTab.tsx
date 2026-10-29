@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,7 +19,18 @@ import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, 
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import { HeroIcon } from "../ui/HeroIcon";
-import { RefreshCw } from "lucide-react-native";
+import {
+  RefreshCw,
+  Calendar,
+  CalendarDays,
+  Search,
+  Filter,
+  Clock,
+  Sparkles,
+  ShieldCheck,
+} from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -34,6 +46,7 @@ interface AppointmentsTabProps {
   styles: any;
   doctorId?: string;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  startTourTrigger?: number;
 }
 
 export default function AppointmentsTab({
@@ -42,10 +55,12 @@ export default function AppointmentsTab({
   styles,
   doctorId: providedDoctorId,
   onAppointmentStatusUpdated,
+  startTourTrigger,
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
   
+  const scrollViewRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('all');
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -656,58 +671,279 @@ export default function AppointmentsTab({
   console.log('===================\n');
 
 
+  // ─────────────────────────────────────────
+  // INTERACTIVE APPOINTMENTS WALKTHROUGH SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+
+  const tourSteps: TourStep[] = [
+    {
+      id: "appointments-welcome",
+      title: "Welcome to Appointments!",
+      description: "Manage your daily patient schedules, view the monthly calendar, filter booking statuses, and edit appointment details effortlessly.",
+      icon: Calendar,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "appointments-search",
+      target: "appointments-search",
+      title: "Patient & Service Search",
+      description: "Quickly locate bookings by patient name, dental service or procedure, email address, or contact number.",
+      icon: Search,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "appointments-filter",
+      target: "appointments-filter",
+      title: "Status Filtering",
+      description: "Filter your schedule by status—Scheduled, Completed, Cancelled, No-show, or Declined—to focus on what needs attention.",
+      icon: Filter,
+      padding: 6,
+      radius: 14,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "appointments-calendar",
+      target: "appointments-calendar",
+      title: "Interactive Clinic Calendar",
+      description: "Browse month-by-month, inspect daily appointment badges, identify clinic blockouts or closed days, and select any date to view its patient roster.",
+      icon: CalendarDays,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 60, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "appointments-roster",
+      target: "appointments-roster",
+      title: "Daily Patient Roster & Actions",
+      description: "Review scheduled patients for the selected day with appointment times and service details. Tap 'Edit' to update status, add notes, or reschedule.",
+      icon: Clock,
+      padding: 6,
+      radius: 14,
+      placement: "auto",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollToEnd?.({ animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "appointments-actions",
+      target: "appointments-actions",
+      title: "Sync & Walkthrough Guide",
+      description: "Tap the refresh icon anytime to sync the latest appointments from cloud storage, or tap Sparkles to replay this walkthrough.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "appointments-finish",
+      title: "You're All Set, Doctor!",
+      description: "Your daily appointments and scheduling tools are ready. Enjoy a streamlined clinical day!",
+      icon: ShieldCheck,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+  ];
+
+  const handleFinishTour = async () => {
+    setTourVisible(false);
+    const id = doctorId || providedDoctorId;
+    if (id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_appointments_walkthrough_completed_${id}`,
+          "true"
+        );
+      } catch (err) {
+        console.error("Failed to save appointments walkthrough status:", err);
+      }
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setTourVisible(false);
+    const id = doctorId || providedDoctorId;
+    if (id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_appointments_walkthrough_completed_${id}`,
+          "true"
+        );
+      } catch (err) {
+        console.error("Failed to save appointments walkthrough status:", err);
+      }
+    }
+  };
+
+  const handleStartTour = () => {
+    setTourIndex(0);
+    setTourVisible(true);
+  };
+
+  // Auto-prompt walkthrough on first visit to AppointmentsTab
+  useEffect(() => {
+    const id = doctorId || providedDoctorId;
+    if (!id) return;
+
+    let isMounted = true;
+    const checkFirstTimeTour = async () => {
+      try {
+        const key = `@smileguard_doctor_appointments_walkthrough_completed_${id}`;
+        const hasCompleted = await AsyncStorage.getItem(key);
+        if (!hasCompleted && isMounted) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setTourIndex(0);
+              setTourVisible(true);
+            }
+          }, 600);
+          return () => clearTimeout(timer);
+        }
+      } catch (err) {
+        console.error("Error checking appointments walkthrough status:", err);
+      }
+    };
+
+    checkFirstTimeTour();
+    return () => {
+      isMounted = false;
+    };
+  }, [doctorId, providedDoctorId]);
+
+  // Support triggering walkthrough from parent (e.g. Settings tab)
+  useEffect(() => {
+    if (startTourTrigger && startTourTrigger > 0) {
+      setTourIndex(0);
+      setTourVisible(true);
+    }
+  }, [startTourTrigger]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <ScrollView style={{ flex: 1 }}>
-        {/* Title Section */}
-        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <Text style={{ fontSize: 28, fontWeight: 'bold', color: "#047857", marginTop: 15 }}>Appointments</Text>
-          <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Manage your patient appointments</Text>
-        </View>
-
-        {/* Header Section with Search and Filters */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          {/* Action Buttons */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
-            {/* Refresh Button */}
+      <View
+        ref={tour.setContainer}
+        collapsable={false}
+        style={{ flex: 1 }}
+      >
+      <ScrollView ref={scrollViewRef} style={{ flex: 1 }}>
+        {/* Title Section & Action Buttons */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={{ fontSize: 28, fontWeight: 'bold', color: "#047857" }}>Appointments</Text>
+            <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }}>Manage your patient appointments</Text>
+          </View>
+          <View
+            ref={tour.register("appointments-actions")}
+            collapsable={false}
+            style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
+          >
             <TouchableOpacity
               onPress={handleRefreshAppointments}
               disabled={loading}
               style={{
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: loading ? '#ccc' : '#10B981',
-                flexDirection: 'row',
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                backgroundColor: '#ECFDF5',
+                borderWidth: 1,
+                borderColor: '#A7F3D0',
+                justifyContent: 'center',
                 alignItems: 'center',
-                gap: 6,
               }}
+              activeOpacity={0.7}
+              accessibilityLabel="Refresh Appointments"
             >
-              <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </Text>
-              <RefreshCw size={16} color="#fff" style={{ opacity: loading ? 0.6 : 1 }} />
+              {loading ? (
+                <ActivityIndicator size="small" color="#047857" />
+              ) : (
+                <RefreshCw size={18} color="#047857" />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleStartTour}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                backgroundColor: '#ECFDF5',
+                borderWidth: 1,
+                borderColor: '#A7F3D0',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Appointments Walkthrough"
+            >
+              <Sparkles size={18} color="#047857" />
             </TouchableOpacity>
           </View>
-          
-          <TextInput
-            style={{
-              backgroundColor: '#fff',
-              borderColor: '#10B981',
-              borderWidth: 1,
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              fontSize: 14,
-              color: '#333',
-              marginBottom: 12,
-            }}
-            placeholder="Search by name, service, email, contact..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+        </View>
+
+        {/* Header Section with Search, Filters and Calendar */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+          <View
+            ref={tour.register("appointments-search")}
+            collapsable={false}
+            style={{ marginBottom: 12 }}
+          >
+            <TextInput
+              style={{
+                backgroundColor: '#fff',
+                borderColor: '#10B981',
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: '#333',
+              }}
+              placeholder="Search by name, service, email, contact..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+          <View
+            ref={tour.register("appointments-filter")}
+            collapsable={false}
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}
+          >
             <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666' }}>Filter:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -791,10 +1027,15 @@ export default function AppointmentsTab({
                 </TouchableOpacity>
               </View>
             </ScrollView>
+
           </View>
 
           {/* Calendar View */}
-          <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, borderColor: '#ddd', borderWidth: 1 }}>
+          <View
+            ref={tour.register("appointments-calendar")}
+            collapsable={false}
+            style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, borderColor: '#ddd', borderWidth: 1 }}
+          >
             {/* Month Navigation */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <TouchableOpacity onPress={goToPreviousMonth} style={{ padding: 8 }}>
@@ -971,7 +1212,11 @@ export default function AppointmentsTab({
         </View>
 
         {/* Appointments List */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}>
+        <View
+          ref={tour.register("appointments-roster")}
+          collapsable={false}
+          style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}
+        >
           {selectedDate && (
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 13, fontWeight: 'bold', color: "#047857", paddingBottom: 8 }}>
@@ -1047,6 +1292,18 @@ export default function AppointmentsTab({
           )}
         </View>
       </ScrollView>
+
+      {/* Interactive Walkthrough Tour */}
+      <AppTour
+        visible={tourVisible}
+        steps={tourSteps}
+        index={tourIndex}
+        onIndexChange={setTourIndex}
+        measureTarget={tour.measure}
+        onFinish={handleFinishTour}
+        onSkip={handleSkipTour}
+      />
+    </View>
 
       {/* AppointmentEdit Modal */}
       {editingAppointment && (

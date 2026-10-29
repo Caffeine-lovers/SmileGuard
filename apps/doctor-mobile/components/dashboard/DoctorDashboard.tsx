@@ -189,6 +189,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [tourVisible, setTourVisible] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
+  const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
   const dashboardScrollRef = useRef<any>(null);
 
   const tourSteps: TourStep[] = [
@@ -1386,6 +1387,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             />
           ) : activeTab === 'appointments' ? (
             <AppointmentsTab
+              startTourTrigger={appointmentsTourTrigger}
               appointments={appointments}
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               styles={styles}
@@ -1454,6 +1456,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               onStartRecordsTutorial={() => {
                 setActiveTab('records');
                 setRecordsTourTrigger((prev) => prev + 1);
+              }}
+              onStartAppointmentsTutorial={() => {
+                setActiveTab('appointments');
+                setAppointmentsTourTrigger((prev) => prev + 1);
               }}
             />
           )}
