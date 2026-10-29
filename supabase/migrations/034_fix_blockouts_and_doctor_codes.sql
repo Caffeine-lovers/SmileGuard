@@ -136,3 +136,4 @@ SET
   label = EXCLUDED.label,
   tier = EXCLUDED.tier,
   is_active = EXCLUDED.is_active;
+
