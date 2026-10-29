@@ -132,12 +132,25 @@ export default function InteractiveTour({
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [targetBorderRadius, setTargetBorderRadius] = useState<string>('6px');
   const [isMounted, setIsMounted] = useState(false);
+  const [windowSize, setWindowSize] = useState<{ width: number; height: number }>({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1000,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  });
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const currentStep = steps[currentStepIndex] || steps[0];
 
   useEffect(() => {
     setIsMounted(true);
+    const updateSize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize, { passive: true });
+    return () => window.removeEventListener('resize', updateSize);
   }, []);
 
   const updateTargetRect = useCallback(() => {
@@ -188,16 +201,21 @@ export default function InteractiveTour({
       }
     }
 
+    const isMobile = window.innerWidth < 640;
+
     if (el) {
       const rect = el.getBoundingClientRect();
       const inView = 
-        rect.top >= 80 && 
-        rect.bottom <= (window.innerHeight - 80) &&
+        rect.top >= 70 && 
+        rect.bottom <= (window.innerHeight - 70) &&
         rect.left >= 0 &&
         rect.right <= window.innerWidth;
 
       if (!inView) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: isMobile ? 'center' : 'center' 
+        });
       }
     }
 
@@ -224,11 +242,9 @@ export default function InteractiveTour({
       updateTargetRect();
     };
 
-    window.addEventListener('resize', handleUpdate, { passive: true });
     window.addEventListener('scroll', handleUpdate, { capture: true, passive: true });
 
     return () => {
-      window.removeEventListener('resize', handleUpdate);
       window.removeEventListener('scroll', handleUpdate, { capture: true });
     };
   }, [isOpen, updateTargetRect]);
@@ -261,39 +277,90 @@ export default function InteractiveTour({
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === steps.length - 1;
 
-  // Bounding rect calculations with precise padding
-  const pad = 6;
+  // Responsive device checks
+  const isMobile = windowSize.width < 640;
+  const pad = isMobile ? 4 : 6;
   const cardWidth = 380;
-  const cardHeightEstimate = 320;
-  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
-  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const cardHeightEstimate = 310;
+  const viewportWidth = windowSize.width;
+  const viewportHeight = windowSize.height;
 
-  let popoverTop = 100;
-  let popoverLeft = Math.max(16, (viewportWidth - cardWidth) / 2);
+  // Compute card positioning with full mobile adaptation
+  let popoverStyle: React.CSSProperties = {};
 
-  if (targetRect) {
-    const spaceBelow = viewportHeight - (targetRect.bottom + pad);
-    const spaceAbove = targetRect.top - pad;
+  if (isMobile) {
+    // MOBILE: Anchor as a top-sheet or bottom-sheet to prevent covering the target
+    if (targetRect) {
+      const targetCenterY = targetRect.top + targetRect.height / 2;
+      const isTargetInTopHalf = targetCenterY < viewportHeight * 0.52;
 
-    if (spaceBelow >= cardHeightEstimate + 20) {
-      popoverTop = targetRect.bottom + pad + 16;
-    } else if (spaceAbove >= cardHeightEstimate + 20) {
-      popoverTop = Math.max(16, targetRect.top - pad - cardHeightEstimate - 16);
-    } else {
-      if (spaceBelow > spaceAbove) {
-        popoverTop = Math.min(viewportHeight - cardHeightEstimate - 16, targetRect.bottom + pad + 12);
+      if (isTargetInTopHalf) {
+        // Target is in top half -> place card at bottom with breathing room
+        popoverStyle = {
+          position: 'fixed',
+          bottom: '16px',
+          left: '12px',
+          right: '12px',
+          maxWidth: 'calc(100vw - 24px)',
+        };
       } else {
-        popoverTop = Math.max(16, targetRect.top - pad - cardHeightEstimate - 12);
+        // Target is in lower half -> place card at top
+        popoverStyle = {
+          position: 'fixed',
+          top: '16px',
+          left: '12px',
+          right: '12px',
+          maxWidth: 'calc(100vw - 24px)',
+        };
       }
+    } else {
+      popoverStyle = {
+        position: 'fixed',
+        bottom: '16px',
+        left: '12px',
+        right: '12px',
+        maxWidth: 'calc(100vw - 24px)',
+      };
+    }
+  } else {
+    // DESKTOP: Dynamic floating tooltip clamped around target center
+    let popoverTop = 100;
+    let popoverLeft = Math.max(16, (viewportWidth - cardWidth) / 2);
+
+    if (targetRect) {
+      const spaceBelow = viewportHeight - (targetRect.bottom + pad);
+      const spaceAbove = targetRect.top - pad;
+
+      if (spaceBelow >= cardHeightEstimate + 20) {
+        popoverTop = targetRect.bottom + pad + 16;
+      } else if (spaceAbove >= cardHeightEstimate + 20) {
+        popoverTop = Math.max(16, targetRect.top - pad - cardHeightEstimate - 16);
+      } else {
+        if (spaceBelow > spaceAbove) {
+          popoverTop = Math.min(viewportHeight - cardHeightEstimate - 16, targetRect.bottom + pad + 12);
+        } else {
+          popoverTop = Math.max(16, targetRect.top - pad - cardHeightEstimate - 12);
+        }
+      }
+
+      const targetCenter = targetRect.left + targetRect.width / 2;
+      popoverLeft = targetCenter - cardWidth / 2;
+      popoverLeft = Math.max(16, Math.min(viewportWidth - cardWidth - 16, popoverLeft));
+    } else {
+      popoverTop = Math.max(40, (viewportHeight - cardHeightEstimate) / 2);
+      popoverLeft = Math.max(16, (viewportWidth - cardWidth) / 2);
     }
 
-    const targetCenter = targetRect.left + targetRect.width / 2;
-    popoverLeft = targetCenter - cardWidth / 2;
-    popoverLeft = Math.max(16, Math.min(viewportWidth - cardWidth - 16, popoverLeft));
-  } else {
-    popoverTop = Math.max(40, (viewportHeight - cardHeightEstimate) / 2);
-    popoverLeft = Math.max(16, (viewportWidth - cardWidth) / 2);
+    popoverStyle = {
+      position: 'fixed',
+      top: `${popoverTop}px`,
+      left: `${popoverLeft}px`,
+      width: `${cardWidth}px`,
+    };
   }
+
+  // Tag position adjustment for mobile to avoid off-screen clipping
+  const isTagNearTop = targetRect ? (targetRect.top - pad < 30) : false;
 
   return (
     <div className="fixed inset-0 z-[9999] pointer-events-auto">
@@ -325,30 +392,31 @@ export default function InteractiveTour({
           <span className="absolute -bottom-1 -left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-white pointer-events-none shadow-xs" />
           <span className="absolute -bottom-1 -right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-white pointer-events-none shadow-xs" />
 
-          {/* Focused Element Subject Tag */}
-          <div className="absolute -top-6 left-1 px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider rounded-t-xs shadow-md flex items-center gap-1">
+          {/* Focused Element Subject Tag with Mobile Top-Edge Fallback */}
+          <div 
+            className={`absolute ${
+              isTagNearTop ? 'top-full mt-1.5' : '-top-6'
+            } left-1 px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider rounded-xs shadow-md flex items-center gap-1`}
+          >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-ping" />
             <span>Target Box</span>
           </div>
         </div>
       )}
 
-      {/* Floating Tour Tooltip Card */}
+      {/* Floating Tour Tooltip Card (Adaptive Bottom/Top-Sheet on Mobile) */}
       <div
         ref={popoverRef}
-        className="fixed z-[10000] w-[calc(100vw-32px)] sm:w-[380px] bg-white rounded-lg shadow-2xl border-2 border-emerald-800/20 overflow-hidden transition-all duration-200 animate-in fade-in zoom-in-95"
-        style={{
-          top: `${popoverTop}px`,
-          left: `${popoverLeft}px`,
-        }}
+        className="z-[10000] bg-white rounded-lg shadow-2xl border-2 border-emerald-800/20 overflow-hidden flex flex-col max-h-[min(480px,calc(100vh-80px))] transition-all duration-200 animate-in fade-in zoom-in-95"
+        style={popoverStyle}
       >
         {/* Card Header */}
-        <div className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-emerald-950">
+        <div className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white p-3 sm:p-4 flex items-center justify-between border-b border-emerald-950 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center">
               <Compass className="w-3.5 h-3.5 text-emerald-300" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-200">
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-200 truncate max-w-[240px]">
               {currentStep.badge}
             </span>
           </div>
@@ -363,13 +431,13 @@ export default function InteractiveTour({
           </button>
         </div>
 
-        {/* Card Body */}
-        <div className="p-4 sm:p-5 space-y-3">
+        {/* Card Body - Scrollable on Small Mobile Screens */}
+        <div className="p-3.5 sm:p-5 space-y-2.5 sm:space-y-3 overflow-y-auto flex-1 overscroll-contain">
           <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight leading-tight">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
               {currentStep.title}
             </h3>
-            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
               {currentStep.description}
             </p>
           </div>
@@ -388,7 +456,7 @@ export default function InteractiveTour({
           )}
 
           {currentStep.actionLink && (
-            <div className="pt-2">
+            <div className="pt-1.5">
               <Link
                 href={currentStep.actionLink.href}
                 onClick={handleComplete}
@@ -401,8 +469,8 @@ export default function InteractiveTour({
           )}
         </div>
 
-        {/* Card Footer with Controls */}
-        <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between gap-2">
+        {/* Card Footer with Mobile Touch Controls */}
+        <div className="bg-slate-50 px-3.5 py-2.5 sm:px-4 sm:py-3 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
           {/* Progress Dots */}
           <div className="flex items-center gap-1">
             {steps.map((_, idx) => (
@@ -412,7 +480,7 @@ export default function InteractiveTour({
                 onClick={() => setCurrentStepIndex(idx)}
                 className={`h-1.5 rounded-full transition-all ${
                   idx === currentStepIndex
-                    ? 'w-5 bg-emerald-600'
+                    ? 'w-4 sm:w-5 bg-emerald-600'
                     : 'w-1.5 bg-slate-300 hover:bg-slate-400'
                 }`}
                 title={`Jump to step ${idx + 1}`}
@@ -420,13 +488,13 @@ export default function InteractiveTour({
             ))}
           </div>
 
-          {/* Navigation Buttons */}
+          {/* Navigation Buttons with Mobile Touch Target Sizes */}
           <div className="flex items-center gap-2">
             {!isFirstStep && (
               <button
                 type="button"
                 onClick={handlePrev}
-                className="px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-slate-900 rounded border border-slate-300 bg-white hover:bg-slate-100 transition flex items-center gap-1"
+                className="px-2.5 py-1.5 sm:py-2 text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-slate-900 rounded border border-slate-300 bg-white hover:bg-slate-100 transition flex items-center gap-1 min-h-[36px]"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
@@ -436,9 +504,9 @@ export default function InteractiveTour({
             <button
               type="button"
               onClick={handleNext}
-              className="skeuo-btn-primary px-3.5 py-1.5 text-xs uppercase tracking-wider inline-flex items-center gap-1.5"
+              className="skeuo-btn-primary px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs uppercase tracking-wider inline-flex items-center gap-1.5 min-h-[36px]"
             >
-              <span>{isLastStep ? 'Finish Tour' : 'Next'}</span>
+              <span>{isLastStep ? 'Finish' : 'Next'}</span>
               {!isLastStep && <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           </div>
