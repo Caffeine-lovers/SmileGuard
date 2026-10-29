@@ -40,7 +40,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
-import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
+import { formatDateOfBirth, formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
@@ -1314,7 +1314,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             {request.service}
                           </Text>
                           <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                            {formatAppointmentDate(request.date)} - {request.time}
+                            {formatAppointmentDate(request.date)} - {formatAppointmentTime(request.time)}
                           </Text>
                         </View>
                         <View style={{ flexDirection: 'row', gap: 8 }}>

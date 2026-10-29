@@ -87,3 +87,38 @@ export const formatDateWithTime = (dateStr: string): string => {
     return dateStr;
   }
 };
+
+/**
+ * Format appointment time from 24-hour (HH:MM or HH:MM:SS) to 12-hour AM/PM format
+ * @param timeStr - Time string like "09:00", "13:30", "14:00:00", or "9:00 AM"
+ * @returns Formatted time like "9:00 AM" or "1:30 PM"
+ */
+export const formatAppointmentTime = (timeStr?: string): string => {
+  if (!timeStr) return "Not specified";
+  const trimmed = timeStr.trim();
+
+  // If already in AM/PM format (e.g. "9:00 AM" or "09:00 am")
+  if (/am|pm/i.test(trimmed)) {
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)$/i);
+    if (match) {
+      const hour = parseInt(match[1], 10);
+      const min = match[2];
+      const period = match[3].toUpperCase();
+      return `${hour}:${min} ${period}`;
+    }
+    return trimmed;
+  }
+
+  // Parse 24-hour time e.g. "09:00", "13:30", "14:00:00"
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match24) {
+    let hour = parseInt(match24[1], 10);
+    const min = match24[2];
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    return `${hour}:${min} ${period}`;
+  }
+
+  return trimmed;
+};

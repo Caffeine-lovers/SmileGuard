@@ -12,7 +12,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { updateDoctorAppointmentStatus, getAppointmentRequests } from '../../lib/appointmentService';
 import { createManualNotification } from '../../lib/notificationService';
-import { formatAppointmentDate } from '../../lib/dateFormatters';
+import { formatAppointmentDate, formatAppointmentTime } from '../../lib/dateFormatters';
 import { DashboardAppointment } from '../dashboard/DoctorDashboard';
 import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
@@ -346,7 +346,7 @@ export default function AppointmentsRequestTab({
                 </View>
                 <View style={tabStyles.detailRow}>
                   <Text style={tabStyles.detailLabel}>Date & Time:</Text>
-                  <Text style={tabStyles.detailValue}>{formatAppointmentDate(request.date)} at {request.time}</Text>
+                  <Text style={tabStyles.detailValue}>{formatAppointmentDate(request.date)} at {formatAppointmentTime(request.time)}</Text>
                 </View>
                 <View style={tabStyles.detailRow}>
                   <Text style={tabStyles.detailLabel}>Contact:</Text>
