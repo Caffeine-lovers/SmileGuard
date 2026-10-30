@@ -236,14 +236,7 @@ export default function PatientDashboard() {
               <span>Guide</span>
             </Link>
 
-            <Link
-              href="/appointments"
-              data-tour="book-visit-btn"
-              className="skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-4 text-xs uppercase tracking-wider shrink-0 inline-flex md:hidden items-center gap-1.5 sm:gap-2"
-            >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span>Book Visit</span>
-            </Link>
+
           </div>
         </div>
       </div>

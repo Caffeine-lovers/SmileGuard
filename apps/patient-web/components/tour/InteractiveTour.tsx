@@ -36,7 +36,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     ]
   },
   {
-    targetSelector: '[data-tour="book-visit-btn"]',
+    targetSelector: '[data-tour="profile-header"]',
     badge: 'Step 2 of 7 • Online Scheduling',
     title: 'Conflict-Free Appointment Booking',
     description: 'Schedule cleanings, restorations, or general checkups directly. The appointment engine validates live clinic operating hours and automatically blocks out unavailable dates.',

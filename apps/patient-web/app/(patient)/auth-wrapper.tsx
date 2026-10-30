@@ -124,37 +124,14 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               {currentUser?.name || ''}
             </span>
 
-            {/* Desktop Logout Button */}
+            {/* Unified Single Logout Button (Text Only) */}
             <button
               type="button"
               onClick={handleLogout}
-              className="skeuo-btn-secondary py-1.5 px-2.5 sm:py-2 sm:px-3 text-xs uppercase tracking-wider text-red-600 hover:text-red-700 hidden sm:inline-flex"
-              title="Logout"
+              className="skeuo-btn-secondary py-1 px-2.5 sm:py-1.5 sm:px-3 text-xs font-bold uppercase tracking-wider text-red-600 hover:text-red-700 transition shrink-0"
+              title="Log out"
             >
-              <span className="flex items-center gap-1.5">
-                <LogOut className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden md:inline">Logout</span>
-              </span>
-            </button>
-
-            {/* Mobile View: Quick Book Calendar & Hamburger Menu archived to stash per design convention (Navbar handles mobile navigation) */}
-            {/* ARCHIVED MOBILE CONTROLS (STASH):
-            <Link href="/appointments" className="skeuo-btn-primary p-2 text-xs md:hidden" title="Book Appointment">
-              <CalendarPlus className="w-4 h-4 shrink-0" />
-            </Link>
-            <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded-sm border border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-900 md:hidden transition">
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-            */}
-
-            {/* Mobile Header Logout Pill (clean, uncrowded) */}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="p-1.5 text-xs uppercase tracking-wider text-red-600 hover:text-red-700 md:hidden flex items-center gap-1 font-bold"
-              title="Logout"
-            >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              Log out
             </button>
           </div>
         </div>
