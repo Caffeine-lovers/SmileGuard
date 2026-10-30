@@ -15,7 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
-import { FileText, X, ChevronDown, RefreshCw, Users, User, Check, ChevronLeft, ChevronRight, CreditCard, ShieldCheck, Sparkles } from 'lucide-react-native';
+import { FileText, X, ChevronDown, RefreshCw, Users, User, Check, ChevronLeft, ChevronRight, CreditCard, ShieldCheck, Sparkles, Receipt, DollarSign } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
+import { isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
 import { AppColors } from '../../constants/theme';
 
@@ -28,6 +31,7 @@ interface Patient {
 interface BillingTabProps {
   doctorId: string;
   styles: any;
+  startTourTrigger?: number;
 }
 
 interface BillingWithPatientName extends Billing {
@@ -49,7 +53,7 @@ interface AppointmentDetails {
 
 const ITEMS_PER_PAGE = 4;
 
-export default function BillingTab({ doctorId, styles }: BillingTabProps) {
+export default function BillingTab({ doctorId, styles, startTourTrigger }: BillingTabProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedPatientName, setSelectedPatientName] = useState<string>('');
@@ -90,6 +94,217 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
       };
     }, [selectedPatientId, doctorId])
   );
+
+  const totalPages = Math.max(1, Math.ceil(billings.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedBillings = billings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // ─────────────────────────────────────────
+  // INTERACTIVE BILLING WALKTHROUGH SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+
+  const tourSteps: TourStep[] = [
+    {
+      id: "billing-welcome",
+      title: "Welcome to Billing Ledger!",
+      description: "Track your clinic's billing history, monitor paid versus pending invoices, review patient discounts, and configure digital payment gateways.",
+      icon: Receipt,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "billing-paymongo",
+      target: "billing-paymongo",
+      title: "PayMongo Payout Guide",
+      description: "Step-by-step instructions on setting up your PayMongo account, submitting BIR Form 2303, and receiving automated payouts via GCash, Maya, or bank transfer.",
+      icon: CreditCard,
+      padding: 6,
+      radius: 14,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "billing-actions",
+      target: "billing-actions",
+      title: "Sync & Walkthrough Guide",
+      description: "Tap Refresh to fetch the latest billing records and payment statuses from the cloud, or tap Sparkles anytime to replay this walkthrough.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 8,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "billing-filter",
+      target: "billing-filter",
+      title: "Filter by Patient",
+      description: "Filter billing records for an individual patient or view the entire clinic ledger. Tap to search patients by name or email.",
+      icon: Users,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo({ y: 60, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "billing-summary",
+      target: "billing-summary",
+      title: "Revenue Overview",
+      description: "Quickly view clinic financials at a glance: Total billed volume, Paid collections, and Pending balances waiting for patient settlement.",
+      icon: DollarSign,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo({ y: 130, animated: false });
+        } catch (e) {}
+      },
+    },
+    ...(billings.length > 0
+      ? [
+          {
+            id: "billing-first-card",
+            target: "billing-first-card",
+            title: "Invoice & Payment Details",
+            description: "Inspect invoice numbers, live payment status (Paid, Pending, Overdue, Cancelled), original price, applied discounts, and payment methods.",
+            icon: FileText,
+            padding: 6,
+            radius: 12,
+            placement: "auto" as const,
+            onEnter: () => {
+              try {
+                scrollViewRef.current?.scrollTo({ y: 220, animated: false });
+              } catch (e) {}
+            },
+          },
+        ]
+      : [
+          {
+            id: "billing-empty-state",
+            target: "billing-empty-state",
+            title: "Billing Ledger Records",
+            description: "When treatments and appointments are billed, comprehensive invoice summaries will appear here for audit and tracking.",
+            icon: FileText,
+            padding: 8,
+            radius: 8,
+            placement: "bottom" as const,
+            onEnter: () => {
+              try {
+                scrollViewRef.current?.scrollTo({ y: 220, animated: false });
+              } catch (e) {}
+            },
+          },
+        ]),
+    ...(totalPages > 1
+      ? [
+          {
+            id: "billing-pagination",
+            target: "billing-pagination",
+            title: "Ledger Pagination",
+            description: "Navigate easily through multi-page billing records using numbered buttons or previous/next arrow controls.",
+            icon: ChevronRight,
+            padding: 6,
+            radius: 12,
+            placement: "auto" as const,
+            onEnter: () => {
+              try {
+                scrollViewRef.current?.scrollToEnd({ animated: false });
+              } catch (e) {}
+            },
+          },
+        ]
+      : []),
+    {
+      id: "billing-finish",
+      title: "You're All Set, Doctor!",
+      description: "Your billing ledger and financial tracking are ready. Manage clinic payments and patient billing with ease!",
+      icon: ShieldCheck,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+  ];
+
+  const handleStartTour = () => {
+    setTourIndex(0);
+    setTourVisible(true);
+  };
+
+  const handleFinishTour = async () => {
+    setTourVisible(false);
+    if (doctorId) {
+      await markDoctorGuideCompleted(doctorId, "billing");
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setTourVisible(false);
+    if (doctorId) {
+      await markDoctorGuideCompleted(doctorId, "billing");
+    }
+  };
+
+  // Auto-prompt walkthrough on first visit to BillingTab
+  useEffect(() => {
+    if (!doctorId) return;
+
+    let isMounted = true;
+    const checkFirstTimeTour = async () => {
+      try {
+        const alreadyDone = await isDoctorGuideCompleted(doctorId, "billing");
+        if (alreadyDone) return;
+
+        const key = `@smileguard_doctor_billing_walkthrough_completed_${doctorId}`;
+        const hasCompleted = await AsyncStorage.getItem(key);
+        if (!hasCompleted && isMounted) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setTourIndex(0);
+              setTourVisible(true);
+            }
+          }, 600);
+          return () => clearTimeout(timer);
+        }
+      } catch (err) {
+        console.error("Error checking billing walkthrough status:", err);
+      }
+    };
+
+    checkFirstTimeTour();
+    return () => {
+      isMounted = false;
+    };
+  }, [doctorId]);
+
+  // Support triggering walkthrough from parent (e.g. Settings tab)
+  useEffect(() => {
+    if (startTourTrigger && startTourTrigger > 0) {
+      setTourIndex(0);
+      setTourVisible(true);
+    }
+  }, [startTourTrigger]);
 
   const loadPatients = async (): Promise<Patient[]> => {
     try {
@@ -302,9 +517,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(billings.length / ITEMS_PER_PAGE));
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedBillings = billings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
 
   // Keep currentPage valid if totalPages shrinks
   useEffect(() => {
@@ -349,7 +562,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-      <ScrollView ref={scrollViewRef} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+      <View ref={tour.setContainer} collapsable={false} style={{ flex: 1 }}>
+        <ScrollView ref={scrollViewRef} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         <View style={{ padding: 16, gap: 16 }}>
           {/* Header */}
           <View style={{ marginBottom: 4 }}>
@@ -362,6 +576,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           </View>
 
           {/* PayMongo Onboarding & Guidelines Card */}
+          <View ref={tour.register("billing-paymongo")} collapsable={false}>
           <TouchableOpacity
             onPress={() => setShowPayMongoGuide(true)}
             style={{
@@ -401,9 +616,14 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
               <Text style={{ fontSize: 12, fontWeight: '800', color: '#042F2E' }}>Open Steps</Text>
             </View>
           </TouchableOpacity>
+          </View>
 
           {/* Action Buttons */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
+          <View
+            ref={tour.register("billing-actions")}
+            collapsable={false}
+            style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}
+          >
             {/* Refresh Button */}
             <TouchableOpacity
               onPress={handleRefresh}
@@ -418,14 +638,36 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                 gap: 6,
               }}
             >
+              <RefreshCw size={14} color="#fff" style={loading ? { opacity: 0.7 } : undefined} />
               <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
                 {loading ? 'Refreshing...' : 'Refresh'}
               </Text>
+            </TouchableOpacity>
+
+            {/* Walkthrough Button */}
+            <TouchableOpacity
+              onPress={handleStartTour}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: '#ECFDF5',
+                borderWidth: 1,
+                borderColor: '#A7F3D0',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Start Walkthrough"
+            >
+              <Sparkles size={16} color="#047857" />
             </TouchableOpacity>
           </View>
 
           {/* Patient Selection Card */}
           <View
+            ref={tour.register("billing-filter")}
+            collapsable={false}
             style={{
               backgroundColor: '#fff',
               borderRadius: 12,
@@ -479,7 +721,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
           </View>
 
           {/* Summary Cards */}
-          <View style={{ marginBottom: 16 }}>
+          <View ref={tour.register("billing-summary")} collapsable={false} style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {/* Total Amount Card */}
               <View
@@ -575,6 +817,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
               </View>
             ) : billings.length === 0 ? (
               <View
+                ref={tour.register("billing-empty-state")}
+                collapsable={false}
                 style={{
                   backgroundColor: '#E6ECEF',
                   borderRadius: 4,
@@ -618,8 +862,10 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   scrollEnabled={false}
                   data={paginatedBillings}
                   keyExtractor={(item) => item.id || Math.random().toString()}
-                  renderItem={({ item }) => (
+                  renderItem={({ item, index }) => (
                     <View
+                      ref={index === 0 ? tour.register("billing-first-card") : undefined}
+                      collapsable={false}
                       style={{
                         backgroundColor: '#fff',
                         borderRadius: 12,
@@ -752,7 +998,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
 
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
-                  <View style={localStyles.paginationContainer}>
+                  <View ref={tour.register("billing-pagination")} collapsable={false} style={localStyles.paginationContainer}>
                     {/* Previous Button */}
                     <TouchableOpacity
                       style={[
@@ -1154,6 +1400,18 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
         visible={showPayMongoGuide}
         onClose={() => setShowPayMongoGuide(false)}
       />
+
+      {/* Interactive Walkthrough Tour */}
+      <AppTour
+        visible={tourVisible}
+        steps={tourSteps}
+        index={tourIndex}
+        onIndexChange={setTourIndex}
+        measureTarget={tour.measure}
+        onFinish={handleFinishTour}
+        onSkip={handleSkipTour}
+      />
+      </View>
     </SafeAreaView>
   );
 }

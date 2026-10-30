@@ -27,6 +27,7 @@ interface SettingsTabProps {
   onStartTutorial?: () => void;
   onStartRecordsTutorial?: () => void;
   onStartAppointmentsTutorial?: () => void;
+  onStartBillingTutorial?: () => void;
 }
 
 type Theme = 'light' | 'dark';
@@ -47,6 +48,7 @@ export default function SettingsTab({
   onStartTutorial,
   onStartRecordsTutorial,
   onStartAppointmentsTutorial,
+  onStartBillingTutorial,
 }: SettingsTabProps) {
   const router = useRouter();
   const [editingProfile, setEditingProfile] = useState(false);
@@ -461,6 +463,46 @@ export default function SettingsTab({
                 </View>
               </View>
               <ChevronRight size={20} color="#047857" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: CARD_BG,
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 10,
+                borderLeftWidth: 3,
+                borderLeftColor: '#10B981',
+                borderWidth: 1,
+                borderTopColor: BORDER_COLOR,
+                borderRightColor: BORDER_COLOR,
+                borderBottomColor: BORDER_COLOR,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={onStartBillingTutorial}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <View style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  backgroundColor: '#ECFDF5',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                }}>
+                  <CreditCard size={20} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Billing Ledger Walkthrough</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to track revenue, filter invoices, and setup PayMongo</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color="#10B981" />
             </TouchableOpacity>
 
             <TouchableOpacity

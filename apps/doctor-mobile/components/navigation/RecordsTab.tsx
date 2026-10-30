@@ -30,6 +30,7 @@ import {
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
+import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -329,28 +330,14 @@ export default function RecordsTab({
   const handleFinishTour = async () => {
     setTourVisible(false);
     if (currentUser?.id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`,
-          "true"
-        );
-      } catch (err) {
-        console.error("Failed to save records walkthrough status:", err);
-      }
+      await markDoctorGuideCompleted(currentUser.id, "records");
     }
   };
 
   const handleSkipTour = async () => {
     setTourVisible(false);
     if (currentUser?.id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`,
-          "true"
-        );
-      } catch (err) {
-        console.error("Failed to save records walkthrough status:", err);
-      }
+      await markDoctorGuideCompleted(currentUser.id, "records");
     }
   };
 
@@ -366,6 +353,9 @@ export default function RecordsTab({
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
+        const alreadyDone = await isDoctorGuideCompleted(currentUser.id, "records");
+        if (alreadyDone) return;
+
         const key = `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`;
         const hasCompleted = await AsyncStorage.getItem(key);
         if (!hasCompleted && isMounted) {

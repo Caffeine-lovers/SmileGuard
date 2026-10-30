@@ -28,7 +28,7 @@ import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
 import * as dashboardService from "../../lib/dashboardService";
-import { getDoctorProfile } from "../../lib/doctorService";
+import { getDoctorProfile, isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from "../../lib/doctorService";
 import { getDoctorFullName, getDoctorPrefix, getDoctorTitleName } from "@smileguard/shared-types";
 import { supabase } from '@smileguard/supabase-client';
 import {
@@ -193,6 +193,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
+  const [billingTourTrigger, setBillingTourTrigger] = useState(0);
   const dashboardScrollRef = useRef<any>(null);
 
   const tourSteps: TourStep[] = [
@@ -306,6 +307,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
+        const alreadyDone = await isDoctorGuideCompleted(user?.id || "", "dashboard");
+        if (alreadyDone) return;
+
         const key = `@smileguard_doctor_interactive_tour_completed_${user.id}`;
         const hasCompleted = await AsyncStorage.getItem(key);
         if (!hasCompleted && isMounted) {
@@ -332,14 +336,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setTourVisible(false);
     setSidebarOpen(false);
     if (user?.id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
-          "true"
-        );
-      } catch (e) {
-        console.warn("[DoctorDashboard] Failed persisting tour completion", e);
-      }
+      await markDoctorGuideCompleted(user.id, "dashboard");
     }
   };
 
@@ -347,14 +344,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setTourVisible(false);
     setSidebarOpen(false);
     if (user?.id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
-          "true"
-        );
-      } catch (e) {
-        console.warn("[DoctorDashboard] Failed persisting tour skip", e);
-      }
+      await markDoctorGuideCompleted(user.id, "dashboard");
     }
   };
 
@@ -1576,6 +1566,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <BillingTab
               doctorId={user.id || ''}
               styles={styles}
+              startTourTrigger={billingTourTrigger}
             />
           ) : (
             <SettingsTab
@@ -1601,6 +1592,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               onStartAppointmentsTutorial={() => {
                 setActiveTab('appointments');
                 setAppointmentsTourTrigger((prev) => prev + 1);
+              }}
+              onStartBillingTutorial={() => {
+                setActiveTab('billing');
+                setBillingTourTrigger((prev) => prev + 1);
               }}
             />
           )}

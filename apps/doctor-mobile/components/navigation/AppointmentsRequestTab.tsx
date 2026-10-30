@@ -17,6 +17,7 @@ import { DashboardAppointment } from '../dashboard/DoctorDashboard';
 import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
+import { isDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AppointmentsRequestTabProps {
@@ -204,6 +205,9 @@ export default function AppointmentsRequestTab({
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
+        const alreadyDone = await isDoctorGuideCompleted(userId, "requests");
+        if (alreadyDone) return;
+
         const key = `@smileguard_doctor_appointment_requests_walkthrough_completed_${userId}`;
         const hasCompleted = await AsyncStorage.getItem(key);
         if (!hasCompleted && isMounted) {
