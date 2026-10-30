@@ -181,9 +181,9 @@ export default function PatientDashboard() {
     .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
 
   return (
-    <div className="w-full max-w-full sm:max-w-3xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1360px] mx-auto p-3 sm:p-4 md:p-6 lg:p-8 xl:p-10 space-y-4 sm:space-y-6 lg:space-y-8 min-h-screen flex flex-col items-stretch">
+    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6 w-full">
       {/* Clinic Header Banner - Skeumorphic Mint Green */}
-      <div data-tour="profile-header" className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 lg:p-8 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
+      <div data-tour="profile-header" className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-white/30"></div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div data-tour="profile-card" className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -252,7 +252,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* KPI Stats Grid */}
-      <div data-tour="stats-grid" className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+      <div data-tour="stats-grid" className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard 
           icon={<Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />} 
           number={loading ? '...' : appointments.length} 
@@ -272,7 +272,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* Appointments Management Panel */}
-      <div data-tour="appointments-panel" className="skeuo-panel p-4 sm:p-6 lg:p-8 border-2 border-slate-300 w-full">
+      <div data-tour="appointments-panel" className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-5 pb-4 border-b-2 border-slate-200">
           <div>
             <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
@@ -338,7 +338,7 @@ export default function PatientDashboard() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {scheduledAppointments.map((apt) => (
                 <AppointmentCard
                   key={apt.id}

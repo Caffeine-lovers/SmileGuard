@@ -359,17 +359,17 @@ export default function BillingPayment({
   const filteredLedger = ledgerFilter === 'ALL' ? ledger : ledger.filter((r) => r.billing_status === ledgerFilter);
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6">
+    <div className="w-full max-w-5xl mx-auto p-2.5 sm:p-4 md:p-6 min-h-screen space-y-3.5 sm:space-y-6">
       {/* Clinic Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-3.5 sm:p-6 text-white border-2 border-emerald-950 shadow-md w-full">
         <div className="flex items-center gap-2 mb-1">
           <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
             <ShieldCheck className="w-3 h-3 text-emerald-950" />
             Clinic Billing Portal
           </span>
         </div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
-        <p className="text-emerald-100 text-[11px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
+        <h1 className="text-lg sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
+        <p className="text-emerald-100 text-[10px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
           Settle procedure balances and review financial ledgers
         </p>
       </div>
@@ -423,37 +423,37 @@ export default function BillingPayment({
 
       {/* Financial Summary Stats */}
       {!loadingData && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 w-full">
           <Link href="/billing" className="block no-underline">
-            <div className="skeuo-card p-4 sm:p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
+            <div className="skeuo-card p-3.5 sm:p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
               <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
               <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
               <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
             </div>
           </Link>
-          <div className="skeuo-card p-5 border-2 border-slate-300 rounded-sm">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
-            <div className="flex items-baseline gap-3 mt-1">
-              <span className="text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
-              <span className="text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
-              <span className="text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
+          <div className="skeuo-card p-3.5 sm:p-5 border-2 border-slate-300 rounded-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
+            <div className="flex items-baseline gap-2.5 sm:gap-3 mt-1">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
             </div>
-            <p className="text-[11px] font-semibold text-slate-500 mt-1">
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">
               Paid · Not Paid · Cancelled ({billingHistory.length} receipts)
             </p>
           </div>
-          <div className="skeuo-card p-4 sm:p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
+          <div className="skeuo-card p-3.5 sm:p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
             <div className="flex items-center gap-2 mt-1">
               {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
                 <>
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <p className="text-lg sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
+                  <p className="text-base sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
                 </>
               ) : (
                 <>
                   <Clock className="w-5 h-5 text-amber-600" />
-                  <p className="text-lg sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
+                  <p className="text-base sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
                 </>
               )}
             </div>
@@ -463,7 +463,7 @@ export default function BillingPayment({
       )}
 
       {/* Payment Form */}
-      <div className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
+      <div className="skeuo-panel p-3.5 sm:p-6 border-2 border-slate-300 w-full">
         <div className="flex items-center gap-2 pb-3 sm:pb-4 mb-4 sm:mb-6 border-b-2 border-slate-200">
           <Receipt className="w-5 h-5 text-emerald-700" />
           <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
@@ -546,20 +546,20 @@ export default function BillingPayment({
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-3 w-full">
               {[
                 { value: 'none' as const, label: 'Standard Rate', badge: null },
                 {
                   value: 'pwd' as const,
                   label: 'PWD (20%)',
-                  badge: isPwdVerified ? 'Verified' : isPwdPendingReview ? 'Pending Review' : 'Requires Approval',
+                  badge: isPwdVerified ? 'Verified' : isPwdPendingReview ? 'Pending' : 'Needs ID',
                   isVerified: isPwdVerified,
                   isPending: isPwdPendingReview,
                 },
                 {
                   value: 'senior' as const,
                   label: 'Senior (20%)',
-                  badge: isSeniorVerified ? 'Verified' : isSeniorPendingReview ? 'Pending Review' : 'Requires Approval',
+                  badge: isSeniorVerified ? 'Verified' : isSeniorPendingReview ? 'Pending' : 'Needs ID',
                   isVerified: isSeniorVerified,
                   isPending: isSeniorPendingReview,
                 },
@@ -570,7 +570,7 @@ export default function BillingPayment({
                     type="button"
                     key={option.value}
                     onClick={() => handleDiscountSelect(option.value)}
-                    className={`py-2 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
+                    className={`py-1.5 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[9px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
                       isActive
                         ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
                         : option.value !== 'none' && !option.isVerified
@@ -578,9 +578,9 @@ export default function BillingPayment({
                         : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
                     }`}
                   >
-                    <div>{option.label}</div>
+                    <div className="truncate sm:overflow-visible">{option.label}</div>
                     {option.badge && (
-                      <span className={`block text-[8px] font-bold mt-0.5 ${
+                      <span className={`block text-[7.5px] sm:text-[8px] font-bold mt-0.5 truncate sm:overflow-visible ${
                         option.isVerified ? 'text-emerald-700' : option.isPending ? 'text-amber-700 font-black' : 'text-slate-500'
                       }`}>
                         {option.badge}
@@ -814,18 +814,18 @@ export default function BillingPayment({
 
       {/* Appointment Billing Ledger — mirrors the appointments table */}
       {ledger.length > 0 && (
-        <div className="skeuo-panel p-6 border-2 border-slate-300">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
+        <div className="skeuo-panel p-3 sm:p-5 md:p-6 border-2 border-slate-300 w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-4">
+            <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900">
               Appointment Billing Status
             </h2>
-            <div className="flex gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 sm:gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm w-full sm:w-auto">
               {(['ALL', 'PAID', 'NOT PAID', 'CANCELLED'] as const).map((f) => (
                 <button
                   type="button"
                   key={f}
                   onClick={() => setLedgerFilter(f)}
-                  className={`px-3 py-1 rounded-sm text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-sm text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition cursor-pointer text-center ${
                     ledgerFilter === f ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -834,7 +834,66 @@ export default function BillingPayment({
               ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile Dynamic Card View (< md) */}
+          <div className="md:hidden space-y-2.5 w-full">
+            {filteredLedger.length === 0 ? (
+              <div className="p-4 text-center text-slate-500 font-bold uppercase tracking-wider text-xs bg-slate-50 border border-slate-200 rounded-sm">
+                No {ledgerFilter.toLowerCase()} appointments
+              </div>
+            ) : (
+              filteredLedger.map((row) => {
+                const awaitingApproval = isPendingAppointment(row);
+                return (
+                  <div key={row.id} className="p-3 bg-white border border-slate-300 rounded-sm shadow-2xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-xs text-slate-900 leading-snug truncate">{row.service}</p>
+                        {row.clinic_name && (
+                          <p className="text-[10px] text-slate-500 font-medium truncate">{row.clinic_name}</p>
+                        )}
+                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                          {new Date(row.appointment_date).toLocaleDateString()} @ {row.appointment_time}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-black text-sm text-slate-900">
+                          ₱{row.amount_due.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
+                      <span className="text-slate-500 capitalize">
+                        {awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status}
+                      </span>
+                      <div className="text-right">
+                        <span
+                          className={`skeuo-badge text-[9px] ${
+                            row.billing_status === 'PAID'
+                              ? 'skeuo-badge-mint'
+                              : row.billing_status === 'CANCELLED'
+                              ? 'bg-slate-100 text-slate-700 border-slate-300'
+                              : 'bg-red-100 text-red-800 border-red-300'
+                          }`}
+                        >
+                          {row.billing_status}
+                        </span>
+                        {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
+                          <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Paid · refund due</span>
+                        )}
+                        {row.billing_status === 'NOT PAID' && awaitingApproval && (
+                          <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Payable once approved</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table View (>= md) */}
+          <div className="hidden md:block overflow-x-auto w-full">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-300 text-slate-500 uppercase tracking-wider">

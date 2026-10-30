@@ -79,11 +79,11 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
         )}
         <div className="flex justify-between items-center px-4 py-3 sm:px-6 sm:py-4 max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-6 lg:gap-8">
-            <Link href="/dashboard" className="flex items-center gap-2 group">
+            <Link href="/dashboard" className="flex items-center gap-1.5 sm:gap-2 group shrink-0">
               <span className="text-xl sm:text-2xl font-black text-brand-primary tracking-tight">
                 SmileGuard
               </span>
-              <span className="skeuo-badge skeuo-badge-mint text-[9px] hidden sm:inline-flex">
+              <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] inline-flex">
                 Patient
               </span>
             </Link>
@@ -125,11 +125,11 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               {currentUser?.name || ''}
             </span>
 
-            {/* Unified Single Logout Button (Text Only) */}
+            {/* Unified Single Logout Button (Clinical Palette with Subtle Logout Intent) */}
             <button
               type="button"
               onClick={handleLogout}
-              className="skeuo-btn-secondary py-1 px-2.5 sm:py-1.5 sm:px-3 text-xs font-bold uppercase tracking-wider text-red-600 hover:text-red-700 transition shrink-0"
+              className="py-1 px-2.5 sm:py-1.5 sm:px-3 text-xs font-semibold rounded border border-slate-300 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-300 shadow-2xs transition-all shrink-0 cursor-pointer"
               title="Log out"
             >
               Log out
@@ -203,9 +203,9 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
         )}
       </header>
 
-      {/* Main Content centered on mobile with horizontal overflow protection */}
-      <main className="flex-1 w-full overflow-x-hidden pb-28 md:pb-8 flex flex-col items-center">
-        <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 flex flex-col items-center">{children}</div>
+      {/* Main Content */}
+      <main className="flex-1 w-full overflow-x-hidden pb-28 md:pb-8">
+        <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6">{children}</div>
       </main>
 
       {/* Mobile Sticky Bottom Navigation Bar - Always visible */}
