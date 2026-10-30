@@ -7,8 +7,6 @@ import { useAuth } from '@smileguard/shared-hooks';
 import { 
   CalendarPlus, 
   LogOut, 
-  Menu, 
-  X, 
   LayoutDashboard, 
   Sparkles, 
   CreditCard, 
@@ -139,23 +137,24 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               </span>
             </button>
 
-            {/* Mobile Quick Book Button */}
-            <Link
-              href="/appointments"
-              className="skeuo-btn-primary p-2 text-xs md:hidden"
-              title="Book Appointment"
-            >
+            {/* Mobile View: Quick Book Calendar & Hamburger Menu archived to stash per design convention (Navbar handles mobile navigation) */}
+            {/* ARCHIVED MOBILE CONTROLS (STASH):
+            <Link href="/appointments" className="skeuo-btn-primary p-2 text-xs md:hidden" title="Book Appointment">
               <CalendarPlus className="w-4 h-4 shrink-0" />
             </Link>
+            <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded-sm border border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-900 md:hidden transition">
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            */}
 
-            {/* Mobile Hamburger Toggle */}
+            {/* Mobile Header Logout Pill (clean, uncrowded) */}
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-sm border border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-900 md:hidden transition"
-              aria-label="Toggle navigation menu"
+              onClick={handleLogout}
+              className="p-1.5 text-xs uppercase tracking-wider text-red-600 hover:text-red-700 md:hidden flex items-center gap-1 font-bold"
+              title="Logout"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
             </button>
           </div>
         </div>
@@ -226,14 +225,14 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
         )}
       </header>
 
-      {/* Main Content with bottom padding to avoid bottom nav clipping on mobile */}
-      <main className="flex-1 overflow-auto pb-24 md:pb-8">
-        <div className="max-w-7xl mx-auto w-full">{children}</div>
+      {/* Main Content centered on mobile with horizontal overflow protection */}
+      <main className="flex-1 w-full overflow-x-hidden pb-28 md:pb-8 flex flex-col items-center">
+        <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 flex flex-col items-center">{children}</div>
       </main>
 
-      {/* Mobile Fixed Bottom Navigation Bar */}
+      {/* Mobile Sticky Bottom Navigation Bar - Always visible */}
       <nav 
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] safe-area-bottom"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/98 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] safe-area-bottom"
         aria-label="Mobile Navigation"
       >
         <div className="flex items-center justify-around max-w-md mx-auto">
