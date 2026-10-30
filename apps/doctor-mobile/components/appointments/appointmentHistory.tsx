@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronLeft, Calendar } from "lucide-react-native";
 import { getPatientAppointments } from "../../lib/profilesPatients";
-import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
+import { getStatusColor, getStatusLabel } from "../../lib/statusHelpers";
 import { formatDateWithTime } from "../../lib/dateFormatters";
 import AppointmentEdit from "./appointmentEdit";
 
@@ -122,8 +122,7 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
     }
   })();
 
-  const statusColor = getStatusColor(appointment.status);
-  const statusBgColor = getStatusBgColor(appointment.status);
+  const statusColor = getStatusColor(appointment.status || 'scheduled');
 
   return (
     <View style={styles.appointmentCard}>
@@ -136,11 +135,11 @@ function AppointmentCard({ appointment, onEdit }: { appointment: any; onEdit: (a
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: statusBgColor },
+              { backgroundColor: statusColor },
             ]}
           >
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {appointment.status === 'no-show' ? 'No Show' : appointment.status ? appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) : 'Scheduled'}
+            <Text style={styles.statusText}>
+              {getStatusLabel(appointment.status)}
             </Text>
           </View>
           <TouchableOpacity 
@@ -472,15 +471,16 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   cardBody: {
     marginTop: 8,

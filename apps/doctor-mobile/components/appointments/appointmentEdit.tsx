@@ -32,7 +32,7 @@ const STATUS_OPTIONS: Array<'pending' | 'scheduled' | 'completed' | 'cancelled' 
 ];
 
 const STATUS_COLORS: { [key: string]: string } = {
-  pending: '#D97706', // Warm Amber
+  pending: '#65A30D', // Lime / Chartreuse Green
   scheduled: '#10B981', // Mint / Emerald Green
   completed: '#047857', // Deep Forest Green
   cancelled: '#6B9080', // Muted Sage Green

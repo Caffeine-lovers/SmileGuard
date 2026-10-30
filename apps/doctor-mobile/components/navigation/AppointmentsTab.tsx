@@ -16,6 +16,7 @@ import { useFocusEffect } from "expo-router";
 import { useClinic } from "../../contexts/ClinicContext";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
+import { getStatusColor, getStatusLabel } from "../../lib/statusHelpers";
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import { HeroIcon } from "../ui/HeroIcon";
@@ -62,7 +63,7 @@ export default function AppointmentsTab({
   
   const scrollViewRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('all');
+  const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('all');
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   // Helper to get today's date in YYYY-MM-DD format
@@ -90,7 +91,7 @@ export default function AppointmentsTab({
   const [clinicSchedule, setClinicSchedule] = useState<any>(null);
   const [blockoutDates, setBlockoutDates] = useState<any[]>([]);
 
-  const STATUS_OPTIONS = ['scheduled', 'completed', 'cancelled', 'no-show', 'declined'] as const;
+  const STATUS_OPTIONS = ['pending', 'scheduled', 'completed', 'cancelled', 'no-show', 'declined'] as const;
 
   // Log whenever blockoutDates changes
   useEffect(() => {
@@ -283,24 +284,6 @@ export default function AppointmentsTab({
     return `${year}-${month}-${day}`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return '#D97706'; // Warm Amber
-      case 'scheduled':
-        return '#10B981'; // Mint / Emerald Green
-      case 'completed':
-        return '#047857'; // Deep Forest Green
-      case 'cancelled':
-        return '#6B9080'; // Muted Sage Green
-      case 'no-show':
-        return '#4D7C0F'; // Olive / Moss Green
-      case 'declined':
-        return '#0F766E'; // Deep Pine / Spruce Green
-      default:
-        return '#10B981';
-    }
-  };
 
   const getFilterBadgeColor = (filter?: string) => {
     const target = filter || appointmentFilterBy;
@@ -329,6 +312,8 @@ export default function AppointmentsTab({
     // Apply the active filter to calendar counts
     if (appointmentFilterBy === 'all') {
       return appointmentsForDate.length;
+    } else if (appointmentFilterBy === 'pending') {
+      return appointmentsForDate.filter(apt => apt.status === 'pending').length;
     } else if (appointmentFilterBy === 'scheduled') {
       return appointmentsForDate.filter(apt => apt.status === 'scheduled').length;
     } else if (appointmentFilterBy === 'completed') {
@@ -645,6 +630,8 @@ export default function AppointmentsTab({
     // Apply status filter
     if (appointmentFilterBy === 'all') {
       return matchesSearch && matchesDate;
+    } else if (appointmentFilterBy === 'pending') {
+      return matchesSearch && matchesDate && apt.status === 'pending';
     } else if (appointmentFilterBy === 'scheduled') {
       return matchesSearch && matchesDate && apt.status === 'scheduled';
     } else if (appointmentFilterBy === 'completed') {
@@ -963,6 +950,19 @@ export default function AppointmentsTab({
                   <Text style={{ fontSize: 12, color: appointmentFilterBy === 'all' ? '#fff' : '#333', fontWeight: '500' }}>All</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  onPress={() => setAppointmentFilterBy('pending')}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    backgroundColor: appointmentFilterBy === 'pending' ? '#65A30D' : '#e0e0e0',
+                    borderWidth: 1,
+                    borderColor: appointmentFilterBy === 'pending' ? '#65A30D' : '#ccc',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'pending' ? '#fff' : '#333', fontWeight: '500' }}>Pending</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   onPress={() => setAppointmentFilterBy('scheduled')}
                   style={{
                     paddingHorizontal: 12,
@@ -1263,12 +1263,7 @@ export default function AppointmentsTab({
                       }}
                     >
                       <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>
-                        {appointment.status === 'pending' ? 'Pending' :
-                         appointment.status === 'scheduled' ? 'Scheduled' :
-                         appointment.status === 'completed' ? 'Completed' :
-                         appointment.status === 'cancelled' ? 'Cancelled' :
-                         appointment.status === 'declined' ? 'Declined' :
-                         appointment.status === 'no-show' ? 'No Show' : appointment.status}
+                        {getStatusLabel(appointment.status)}
                       </Text>
                     </View>
                   </View>

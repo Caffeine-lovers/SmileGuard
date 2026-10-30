@@ -1,42 +1,67 @@
 /**
  * Shared status helper functions
- * Used across multiple components for consistent status color handling
+ * All statuses aligned to shades of clinic green:
+ * - scheduled: Mint / Emerald Green (#10B981)
+ * - completed: Deep Forest Green (#047857)
+ * - pending: Lime / Chartreuse Green (#65A30D)
+ * - cancelled: Muted Sage Green (#6B9080)
+ * - no-show: Olive / Moss Green (#4D7C0F)
+ * - declined: Deep Pine / Spruce Green (#0F766E)
  */
 
 export const getStatusColor = (status?: string): string => {
   switch (status?.toLowerCase()) {
     case 'pending':
-      return '#FF9800';
+      return '#65A30D'; // Lime / Chartreuse Green
     case 'scheduled':
-      return '#FFC107';
+      return '#10B981'; // Mint / Emerald Green
     case 'completed':
-      return '#4CAF50';
+      return '#047857'; // Deep Forest Green
     case 'cancelled':
-      return '#F44336';
+      return '#6B9080'; // Muted Sage Green
     case 'no-show':
-      return '#9C27B0';
+      return '#4D7C0F'; // Olive / Moss Green
     case 'declined':
-      return '#FF6F00';
+      return '#0F766E'; // Deep Pine / Spruce Green
     default:
-      return '#666';
+      return '#10B981';
   }
 };
 
 export const getStatusBgColor = (status?: string): string => {
   switch (status?.toLowerCase()) {
     case 'pending':
-      return '#FFE0B2';
+      return '#ECFCCB'; // Light Lime Green
     case 'scheduled':
-      return '#FFF9C4';
+      return '#D1FAE5'; // Light Mint/Emerald Green
     case 'completed':
-      return '#C8E6C9';
+      return '#DCFCE7'; // Light Deep Forest Green
     case 'cancelled':
-      return '#FFCDD2';
+      return '#E2E8F0'; // Light Muted Sage / Gray
     case 'no-show':
-      return '#E1BEE7';
+      return '#F1F5E8'; // Light Olive / Moss Green
     case 'declined':
-      return '#FFE0B2';
+      return '#CCFBF1'; // Light Pine / Spruce Green
     default:
-      return '#f5f5f5';
+      return '#D1FAE5';
+  }
+};
+
+export const getStatusLabel = (status?: string): string => {
+  switch (status?.toLowerCase()) {
+    case 'pending':
+      return 'Pending';
+    case 'scheduled':
+      return 'Scheduled';
+    case 'completed':
+      return 'Completed';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'no-show':
+      return 'No Show';
+    case 'declined':
+      return 'Declined';
+    default:
+      return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Scheduled';
   }
 };
