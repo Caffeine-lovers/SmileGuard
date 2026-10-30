@@ -10,23 +10,32 @@ export default function DoctorLayout() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
 
   useEffect(() => {
+    let mounted = true;
+
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log("[DoctorLayout] Initial session check:", session ? "Found" : "Null");
-      // In doctor mobile app, we assume authenticated users are doctors
-      // Google OAuth doesn't set role automatically
-      setSession(session);
+      if (mounted) {
+        // In doctor mobile app, we assume authenticated users are doctors
+        // Google OAuth doesn't set role automatically
+        setSession(session);
+      }
     });
 
     // Listen for auth state changes (including logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
         console.log("[DoctorLayout] Auth changed:", event);
-        setSession(session);
+        if (mounted) {
+          setSession(session);
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (session === undefined) {

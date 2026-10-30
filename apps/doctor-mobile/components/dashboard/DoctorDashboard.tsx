@@ -1188,6 +1188,20 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                               {selectedPatient.email || selectedPatient.contact}
                             </Text>
                           )}
+                          {((selectedPatient as any).pwd_status === 'approved' || (selectedPatient as any).medicalIntake?.pwd_status === 'approved') && (
+                            <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 4, borderWidth: 1, borderColor: '#10B981' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>
+                                ✓ Verified {(selectedPatient as any).pwd_type === 'senior' ? 'Senior' : 'PWD'}
+                              </Text>
+                            </View>
+                          )}
+                          {((selectedPatient as any).pwd_status === 'pending' || (selectedPatient as any).medicalIntake?.pwd_status === 'pending') && (
+                            <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFBEB', borderRadius: 4, borderWidth: 1, borderColor: '#F59E0B' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>
+                                ⚠️ PWD/Senior Review Pending
+                              </Text>
+                            </View>
+                          )}
                         </View>
 
                         {/* Appointment Details Box */}

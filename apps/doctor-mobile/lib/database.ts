@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase } from "@smileguard/supabase-client";
 import { saveTransactionLocally, isOnline, syncPendingTransactions } from "./syncService";
 
 // Type definitions for database operations

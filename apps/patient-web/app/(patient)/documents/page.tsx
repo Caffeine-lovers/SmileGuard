@@ -69,44 +69,44 @@ function getDocIcon(type: Document['type']) {
 
 export default function DocumentsPage() {
   return (
-    <div className="min-h-screen p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen p-3 sm:p-4 md:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-6 text-white border-2 border-emerald-950 shadow-md">
-        <span className="skeuo-badge skeuo-badge-mint text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
+        <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">
           <ShieldCheck className="w-3 h-3 text-emerald-950" />
           Encrypted Medical Records
         </span>
-        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight">Clinical Documents</h1>
-        <p className="text-emerald-100 text-xs font-semibold tracking-wide uppercase mt-0.5">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Clinical Documents</h1>
+        <p className="text-emerald-100 text-[11px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
           Secure diagnostic images, prescriptions & treatment reports
         </p>
       </div>
 
-      <div className="skeuo-panel p-6 border-2 border-slate-300 space-y-3">
+      <div className="skeuo-panel p-3.5 sm:p-6 border-2 border-slate-300 space-y-2.5 sm:space-y-3">
         {mockDocuments.map((doc) => (
           <div
             key={doc.id}
-            className="skeuo-card p-4 rounded-sm border-2 border-slate-300 flex items-center justify-between gap-4"
+            className="skeuo-card p-3 sm:p-4 rounded-sm border-2 border-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4"
           >
-            <div className="flex items-center gap-3.5 flex-1 min-w-0">
-              <div className="w-10 h-10 rounded-sm bg-emerald-50 border border-emerald-300 flex items-center justify-center shrink-0 shadow-inner">
+            <div className="flex items-start sm:items-center gap-3 sm:gap-3.5 flex-1 min-w-0 w-full">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm bg-emerald-50 border border-emerald-300 flex items-center justify-center shrink-0 shadow-inner mt-0.5 sm:mt-0">
                 {getDocIcon(doc.type)}
               </div>
-              <div className="min-w-0">
-                <h3 className="font-bold text-sm text-slate-900 truncate">{doc.name}</h3>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5 font-medium">
-                  <span className="font-bold text-emerald-700 uppercase text-[10px]">{typeLabels[doc.type]}</span>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{doc.name}</h3>
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-500 mt-0.5 font-medium">
+                  <span className="font-bold text-emerald-700 uppercase text-[9px] sm:text-[10px]">{typeLabels[doc.type]}</span>
                   <span>•</span>
                   <span className="font-mono">{new Date(doc.date).toLocaleDateString()}</span>
                   <span>•</span>
                   <span className="font-mono">{doc.size}</span>
-                  <span>•</span>
-                  <span>Attending: {doc.dentist}</span>
+                  <span className="hidden xs:inline">•</span>
+                  <span className="hidden xs:inline">Attending: {doc.dentist}</span>
                 </div>
               </div>
             </div>
 
-            <button className="skeuo-btn-secondary px-3 py-1.5 text-xs uppercase tracking-wider shrink-0">
+            <button className="skeuo-btn-secondary px-3 py-1.5 text-xs uppercase tracking-wider shrink-0 self-end sm:self-auto">
               <Download className="w-3.5 h-3.5 text-slate-700" />
               <span>Export</span>
             </button>

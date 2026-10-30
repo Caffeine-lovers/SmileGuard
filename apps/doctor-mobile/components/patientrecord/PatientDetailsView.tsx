@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, getPatientBillingInfo, type PatientBillingInfo } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, getPatientBillingInfo, getPatientProfile, updatePatientPwdStatus, type PatientBillingInfo } from "../../lib/profilesPatients";
+import { Alert } from "react-native";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -132,6 +133,9 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const [scrollY, setScrollY] = useState(0);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [patientProfile, setPatientProfile] = useState<any>(null);
+  const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
+  const [updatingPwd, setUpdatingPwd] = useState(false);
 
   useEffect(() => {
     if (visible && patient?.id) {
@@ -148,12 +152,14 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   const loadPatientData = async (patientId: string) => {
     try {
-      // Load all three in parallel
-      const [intake, appts, billing] = await Promise.all([
+      // Load intake, appointments, billing, and profile in parallel
+      const [intake, appts, billing, profile] = await Promise.all([
         getPatientMedicalInfo(patientId),
         getPatientAppointments(patientId),
         getPatientBillingInfo(patientId),
+        getPatientProfile(patientId),
       ]);
+      setPatientProfile(profile);
 
       // Update medical intake
       setMedicalIntake(intake);
@@ -213,6 +219,48 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       console.log('Loaded appointments:', updatedAppts.length);
     } catch (error) {
       console.error('Error loading appointments:', error);
+    }
+  };
+
+
+  const handleApprovePwd = async () => {
+    if (!patient?.id) return;
+    const effectiveId = (patient as any).patient_id || patient.id;
+    setUpdatingPwd(true);
+    try {
+      const res = await updatePatientPwdStatus(effectiveId, 'approved', doctorId);
+      if (res.success) {
+        setPatientProfile((prev: any) => ({ ...prev, pwd_status: 'approved' }));
+        Alert.alert(
+          'Verification Approved',
+          'Patient has been certified as a verified ' + (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') + '. The statutory 20% discount is now active.'
+        );
+      } else {
+        Alert.alert('Error', res.error || 'Failed to approve PWD status.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setUpdatingPwd(false);
+    }
+  };
+
+  const handleRejectPwd = async () => {
+    if (!patient?.id) return;
+    const effectiveId = (patient as any).patient_id || patient.id;
+    setUpdatingPwd(true);
+    try {
+      const res = await updatePatientPwdStatus(effectiveId, 'rejected', doctorId);
+      if (res.success) {
+        setPatientProfile((prev: any) => ({ ...prev, pwd_status: 'rejected' }));
+        Alert.alert('Verification Declined', 'Patient verification was rejected. The patient will be notified to re-submit.');
+      } else {
+        Alert.alert('Error', res.error || 'Failed to reject PWD status.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setUpdatingPwd(false);
     }
   };
 
@@ -306,6 +354,102 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                 ) : null;
               })()}
               <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
+            </View>
+          </View>
+
+          {/* Statutory Discount & Verification Status */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Statutory Discount (PWD / Senior Citizen)</Text>
+            <View style={styles.infoContainer}>
+              {patientProfile?.pwd_status === 'approved' ? (
+                <View style={{ padding: 12, backgroundColor: '#ECFDF5', borderRadius: 8, borderWidth: 1, borderColor: '#10B981', gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#047857' }}>
+                    ✓ Verified {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} Patient
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#065F46', lineHeight: 16 }}>
+                    Approved by doctor. Patient receives statutory 20% discount on all procedures.
+                  </Text>
+                  {patientProfile?.pwd_id_url && (
+                    <TouchableOpacity
+                      onPress={() => setShowIdPhotoModal(true)}
+                      style={{ marginTop: 4, alignSelf: 'flex-start' }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', textDecorationLine: 'underline' }}>
+                        View Verified ID Card Photo
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={handleRejectPwd}
+                    disabled={updatingPwd}
+                    style={{ marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#FEE2E2', borderRadius: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FCA5A5' }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#B91C1C' }}>Revoke Discount Verification</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : patientProfile?.pwd_status === 'pending' ? (
+                <View style={{ padding: 12, backgroundColor: '#FFFBEB', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B', gap: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#92400E' }}>
+                    ⚠️ {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} Verification Request
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#78350F', lineHeight: 16 }}>
+                    Patient submitted government ID proof requesting 20% statutory deduction. Please review the ID below before approving.
+                  </Text>
+                  {patientProfile?.pwd_id_url && (
+                    <TouchableOpacity
+                      onPress={() => setShowIdPhotoModal(true)}
+                      style={{ borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#FCD34D', height: 140, backgroundColor: '#000' }}
+                    >
+                      <Image
+                        source={{ uri: patientProfile.pwd_id_url }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="contain"
+                      />
+                      <View style={{ position: 'absolute', bottom: 4, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>Tap to Expand</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                    <TouchableOpacity
+                      onPress={handleApprovePwd}
+                      disabled={updatingPwd}
+                      style={{ flex: 1, paddingVertical: 10, backgroundColor: '#047857', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>
+                        {updatingPwd ? 'Updating...' : '✓ Approve 20% Discount'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleRejectPwd}
+                      disabled={updatingPwd}
+                      style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#FEE2E2', borderRadius: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FCA5A5' }}
+                    >
+                      <Text style={{ color: '#B91C1C', fontSize: 12, fontWeight: '700' }}>✕ Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : patientProfile?.pwd_status === 'rejected' ? (
+                <View style={{ padding: 12, backgroundColor: '#FEF2F2', borderRadius: 8, borderWidth: 1, borderColor: '#F87171', gap: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#991B1B' }}>
+                    ✕ Verification Declined by Doctor
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#7F1D1D' }}>
+                    Patient has not been certified for statutory discounts.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={handleApprovePwd}
+                    disabled={updatingPwd}
+                    style={{ marginTop: 4, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#ECFDF5', borderRadius: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#A7F3D0' }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>Re-evaluate & Approve</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', padding: 8 }}>
+                  No statutory PWD or Senior Citizen discount requested. Standard clinic rates apply.
+                </Text>
+              )}
             </View>
           </View>
 
