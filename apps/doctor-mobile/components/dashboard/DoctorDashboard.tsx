@@ -13,7 +13,7 @@ import {
   ScrollView as RNScrollView,
 } from "react-native";
 import AppointmentCard from "./AppointmentCard";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClinic } from "../../contexts/ClinicContext";
@@ -58,7 +58,8 @@ import {
   ChevronDown,
   Clock,
   LayoutDashboard,
-  Bell
+  Bell,
+  Sparkles
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
 import {
@@ -84,7 +85,7 @@ export interface DashboardAppointment {
   notes: string;
   imageUrl: string | number;
   initials?: string;
-  status?: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
@@ -96,6 +97,7 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clinic, loading: clinicLoading } = useClinic();
 
@@ -703,6 +705,14 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           </View>
 
           <View style={styles.topBarRightActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/onboarding')}
+              style={styles.topBarRefreshBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Clinic Onboarding Guide"
+            >
+              <Sparkles size={16} color="#047857" />
+            </TouchableOpacity>
             <NotificationBell
               unreadCount={notificationState.unreadCount}
               onPress={() => setShowNotificationCenter(true)}
@@ -922,6 +932,20 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           <Text style={{ fontWeight: "bold", fontSize: 18 }}>
                             {selectedPatient.name}
                           </Text>
+                          {((selectedPatient as any).pwd_status === 'approved' || (selectedPatient as any).medicalIntake?.pwd_status === 'approved') && (
+                            <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 4, borderWidth: 1, borderColor: '#10B981' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>
+                                ✓ Verified {(selectedPatient as any).pwd_type === 'senior' ? 'Senior' : 'PWD'}
+                              </Text>
+                            </View>
+                          )}
+                          {((selectedPatient as any).pwd_status === 'pending' || (selectedPatient as any).medicalIntake?.pwd_status === 'pending') && (
+                            <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFBEB', borderRadius: 4, borderWidth: 1, borderColor: '#F59E0B' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>
+                                ⚠️ PWD/Senior Review Pending
+                              </Text>
+                            </View>
+                          )}
                         </View>
 
                         {/* Appointment Details */}

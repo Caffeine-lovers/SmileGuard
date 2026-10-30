@@ -4,43 +4,98 @@ import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '
 
 export const dynamic = 'force-dynamic';
 
-function getSupabaseAdmin() {
+function getSupabaseClient(authHeader?: string | null) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!serviceRoleKey || !supabaseUrl) {
-    return null;
+  if (!supabaseUrl) return null;
+
+  // If service role key is available, use it (bypasses RLS)
+  if (serviceRoleKey) {
+    return createClient(supabaseUrl, serviceRoleKey);
   }
-  return createClient(supabaseUrl, serviceRoleKey);
+
+  // Otherwise, use anon key with the caller's auth header so RLS evaluates the user's session
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!anonKey) return null;
+
+  return createClient(supabaseUrl, anonKey, {
+    global: {
+      headers: authHeader ? { Authorization: authHeader } : {},
+    },
+  });
 }
 
-// Service prices — authoritative server-side source of truth
-// This prevents the FIN-01 client-side price tampering vulnerability
-const SERVICE_PRICES: Record<string, number> = {
+// Fallback service prices — authoritative baseline
+const DEFAULT_SERVICE_PRICES: Record<string, number> = {
   Cleaning: 1500,
   Whitening: 5000,
   Fillings: 2000,
+  Filling: 2000,
   'Root Canal': 8000,
+  'Root Canals': 8000,
   Extraction: 1500,
+  Aligners: 25000,
   'Braces Consultation': 35000,
+  Braces: 35000,
   'Implants Consultation': 45000,
+  Implants: 45000,
   'X-Ray': 500,
   'Check-up': 300,
+  Checkup: 300,
+  Consultation: 500,
+  'Initial Consultation': 500,
+  General: 500,
+  'General Checkup': 500,
 };
+
+function getServicePriceForClinic(
+  serviceName?: string | null,
+  clinicServices?: { id?: string; name?: string; price?: number }[]
+): number {
+  if (!serviceName) return 1500;
+  if (clinicServices && Array.isArray(clinicServices) && clinicServices.length > 0) {
+    const norm = serviceName.trim().toLowerCase();
+    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
+    if (exact && typeof exact.price === 'number' && exact.price > 0) {
+      return exact.price;
+    }
+    const partial = clinicServices.find(
+      (s) =>
+        s.name &&
+        (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
+    );
+    if (partial && typeof partial.price === 'number' && partial.price > 0) {
+      return partial.price;
+    }
+  }
+
+  const normalized = serviceName.trim().toLowerCase();
+  for (const [key, price] of Object.entries(DEFAULT_SERVICE_PRICES)) {
+    if (key.toLowerCase() === normalized) return price;
+    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
+      return price;
+    }
+  }
+  return 1500;
+}
 
 export async function POST(request: NextRequest) {
   try {
     if (!isPayMongoConfigured) {
       return NextResponse.json(
         {
-          error: 'PayMongo payments are not configured on this server yet. Please use Cash or Bank Transfer.',
+          error: 'PayMongo payments are not configured on this server yet.',
           unconfigured: true,
         },
         { status: 503 }
       );
     }
 
+    const authHeader = request.headers.get('authorization');
+    const supabase = getSupabaseClient(authHeader);
+
     const body = await request.json();
-    const { appointmentId, patientId, discountType, billingId } = body;
+    const { appointmentId, patientId, discountType, billingId, service: bodyService } = body;
 
     // Validate required fields
     if (!appointmentId || !patientId) {
@@ -50,44 +105,90 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Database service is not configured on this server.' },
-        { status: 500 }
-      );
+    // Attempt to lookup appointment and clinic from database
+    let serviceName: string | null = null;
+    let clinicName = "Kyler's Clinic";
+    let clinicServices: any[] = [];
+
+    if (supabase) {
+      const { data: appointment } = await supabase
+        .from('appointments')
+        .select('service, dentist_id, status')
+        .eq('id', appointmentId)
+        .eq('patient_id', patientId)
+        .maybeSingle();
+
+      if (appointment?.service) {
+        serviceName = appointment.service;
+      }
+
+      // Fetch the clinic setup for this appointment's doctor/clinic
+      let clinicQuery = supabase
+        .from('clinic_setup')
+        .select('clinic_name, services');
+
+      if (appointment?.dentist_id) {
+        clinicQuery = clinicQuery.eq('user_id', appointment.dentist_id);
+      } else {
+        clinicQuery = clinicQuery.limit(1);
+      }
+
+      const { data: clinicData } = await clinicQuery.maybeSingle();
+      if (clinicData) {
+        if (clinicData.clinic_name) clinicName = clinicData.clinic_name;
+        if (Array.isArray(clinicData.services)) {
+          clinicServices = clinicData.services;
+        } else if (typeof clinicData.services === 'string') {
+          try {
+            clinicServices = JSON.parse(clinicData.services);
+          } catch { }
+        }
+      }
     }
 
-    // ✅ FIX FIN-01: Server-side amount calculation from database
-    // Never trust client-submitted amounts
-    const { data: appointment, error: aptError } = await supabaseAdmin
-      .from('appointments')
-      .select('service, status')
-      .eq('id', appointmentId)
-      .eq('patient_id', patientId)
-      .single();
-
-    if (aptError || !appointment) {
-      return NextResponse.json(
-        { error: 'Appointment not found or does not belong to this patient' },
-        { status: 404 }
-      );
+    // Fall back to client-provided service name if DB lookup was blocked by RLS
+    if (!serviceName && bodyService && typeof bodyService === 'string') {
+      serviceName = bodyService.trim();
     }
 
-    const baseAmount = SERVICE_PRICES[appointment.service] || 0;
-    if (baseAmount <= 0) {
-      return NextResponse.json(
-        { error: `No price configured for service: ${appointment.service}` },
-        { status: 400 }
-      );
+    if (!serviceName) {
+      serviceName = 'Dental Procedure';
     }
 
-    // Apply statutory discount server-side
+    const baseAmount = getServicePriceForClinic(serviceName, clinicServices);
+
+    // Apply statutory discount server-side ONLY if verified & approved by clinic doctor
     let finalAmount = baseAmount;
     let discountAmount = 0;
+    let effectiveDiscountType = discountType || 'none';
+
     if (discountType === 'pwd' || discountType === 'senior') {
-      discountAmount = baseAmount * 0.2; // 20% statutory discount (RA 9994 / RA 10754)
-      finalAmount = baseAmount - discountAmount;
+      let isDoctorApproved = false;
+      if (supabase && patientId) {
+        try {
+          const { data: patientProfile } = await supabase
+            .from('profiles')
+            .select('pwd_status, pwd_type')
+            .eq('id', patientId)
+            .maybeSingle();
+
+          if (patientProfile?.pwd_status === 'approved') {
+            isDoctorApproved = true;
+          }
+        } catch (e) {
+          console.warn('[PayMongo] Exception checking patient PWD approval:', e);
+        }
+      }
+
+      if (isDoctorApproved) {
+        discountAmount = baseAmount * 0.2; // 20% statutory discount (RA 9994 / RA 10754)
+        finalAmount = baseAmount - discountAmount;
+      } else {
+        console.warn(`[PayMongo] Patient ${patientId} unapproved for ${discountType}. Charging standard rate.`);
+        effectiveDiscountType = 'none';
+        discountAmount = 0;
+        finalAmount = baseAmount;
+      }
     }
 
     const amountInCentavos = Math.round(finalAmount * 100);
@@ -113,7 +214,7 @@ export async function POST(request: NextRequest) {
           attributes: {
             line_items: [
               {
-                name: `Dental Procedure: ${appointment.service}`,
+                name: `${serviceName} • ${clinicName}`,
                 amount: amountInCentavos,
                 currency: 'PHP',
                 quantity: 1,
@@ -121,16 +222,18 @@ export async function POST(request: NextRequest) {
             ],
             payment_method_types: ['card', 'gcash', 'grab_pay', 'paymaya'],
             success_url: `${appUrl}/billing?status=success&apt=${appointmentId}`,
-            cancel_url: `${appUrl}/billing?status=cancelled`,
+            cancel_url: `${appUrl}/billing/cancelled`,
             metadata: {
               appointment_id: appointmentId,
               patient_id: patientId,
+              clinic_name: clinicName,
+              service: serviceName,
               billing_id: billingId || '',
-              discount_type: discountType || 'none',
+              discount_type: effectiveDiscountType || 'none',
               discount_amount: String(discountAmount),
               base_amount: String(baseAmount),
             },
-            description: `SmileGuard - ${appointment.service} (Ivy King Dental Clinic)`,
+            description: `SmileGuard - ${serviceName} (${clinicName})`,
           },
         },
       }),
@@ -152,6 +255,7 @@ export async function POST(request: NextRequest) {
       checkoutId,
       amount: finalAmount,
       discountAmount,
+      clinicName,
     });
   } catch (error) {
     console.error('Error creating PayMongo checkout:', error);

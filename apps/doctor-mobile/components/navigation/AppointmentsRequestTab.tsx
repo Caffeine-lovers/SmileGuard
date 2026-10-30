@@ -57,7 +57,7 @@ export default function AppointmentsRequestTab({
           email: apt.profiles?.email || '',
           notes: apt.notes || '',
           imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-          status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show',
+          status: (apt.status || 'pending') as any,
           patient_id: apt.patient_id,
           dentist_id: apt.dentist_id,
           medicalIntake: apt.patient_profile ? {

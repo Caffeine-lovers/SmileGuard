@@ -14,6 +14,9 @@ export interface CurrentUser {
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
   gender?: string;
+  pwd_status?: "none" | "pending" | "approved" | "rejected";
+  pwd_type?: "pwd" | "senior";
+  pwd_id_url?: string;
 }
 
 export interface FormData {
@@ -38,7 +41,7 @@ export interface Appointment {
   service: string;
   appointment_date: string; // YYYY-MM-DD
   appointment_time: string; // HH:MM
-  status: "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
+  status: "pending" | "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
   notes?: string;
   created_at?: string;
   updated_at?: string;

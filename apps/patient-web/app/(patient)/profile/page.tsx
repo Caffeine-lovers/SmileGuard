@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatientProfilePicture';
+import { withTimeout } from '@/lib/appointmentService';
 
 interface MedicalIntake {
   patient_id: string;
@@ -21,6 +22,13 @@ interface MedicalIntake {
   smoking_status: string | null;
   pregnancy_status: string | null;
 }
+
+import { 
+  normalizePregnancyStatus, 
+  formatPregnancyStatus, 
+  normalizeSmokingStatus, 
+  formatSmokingStatus 
+} from '@/lib/medical-helpers';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -49,21 +57,27 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!authLoading && currentUser) {
+    if (currentUser) {
       fetchMedicalData();
     }
-  }, [authLoading, currentUser, router]);
+  }, [authLoading, currentUser?.id, router]);
 
   const fetchMedicalData = async () => {
     try {
       setIsLoadingData(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('medical_intake')
-        .select('*')
-        .eq('patient_id', currentUser?.id)
-        .maybeSingle();
+      const res = await withTimeout<any>(
+        supabase
+          .from('medical_intake')
+          .select('*')
+          .eq('patient_id', currentUser?.id)
+          .maybeSingle(),
+        3000,
+        { data: null, error: null }
+      );
+
+      const { data, error: fetchError } = res || { data: null, error: null };
 
       if (fetchError) {
         console.error('[BioData] Error fetching medical data:', fetchError);
@@ -109,10 +123,10 @@ export default function ProfilePage() {
           current_medications: medicalData.current_medications,
           medical_conditions: medicalData.medical_conditions,
           past_surgeries: medicalData.past_surgeries,
-          smoking_status: medicalData.smoking_status,
-          pregnancy_status: medicalData.pregnancy_status,
+          smoking_status: normalizeSmokingStatus(medicalData.smoking_status),
+          pregnancy_status: normalizePregnancyStatus(medicalData.pregnancy_status),
           updated_at: new Date().toISOString(),
-        },{onConflict: 'patient_id'});
+        }, { onConflict: 'patient_id' });
 
       if (saveError) {
         console.error('[BioData] Error saving medical data:', saveError);
@@ -140,22 +154,12 @@ export default function ProfilePage() {
     setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
   };
 
-  if (authLoading || isLoadingData) {
-    return (
-      <div className="max-w-4xl mx-auto p-6 text-center py-16">
-        <div className="skeuo-panel p-8 max-w-sm mx-auto">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Loading Clinical Records...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col items-center">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-border-card bg-bg-surface-secondary flex items-center justify-center">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-border-card">
+        <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+          <div className="flex flex-col items-center shrink-0">
+            <div className="w-18 h-18 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-border-card bg-bg-surface-secondary flex items-center justify-center shadow-xs">
               {profileImageUrl ? (
                 <img 
                   src={profileImageUrl} 
@@ -163,11 +167,11 @@ export default function ProfilePage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-text-secondary text-sm">No Image</span>
+                <span className="text-text-secondary text-xs sm:text-sm">No Image</span>
               )}
             </div>
             
-            <label className="mt-2 cursor-pointer text-sm text-brand-primary hover:underline font-medium">
+            <label className="mt-1.5 cursor-pointer text-xs text-brand-primary hover:underline font-semibold">
               {isUploadingImage ? 'Uploading...' : 'Change Picture'}
               <input
                 type="file"
@@ -191,14 +195,17 @@ export default function ProfilePage() {
               />
             </label>
           </div>
-          <div>
-            <h1 className="text-4xl font-bold text-text-primary">{currentUser?.name || currentUser?.name}</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary truncate">
+              {currentUser?.name || 'Patient Profile'}
+            </h1>
+            <p className="text-xs sm:text-sm text-text-secondary mt-0.5">SmileGuard Patient Portal</p>
           </div>
         </div>
         {!isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-medium py-2 px-6 rounded-lg transition"
+            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-medium py-2 px-5 sm:px-6 rounded-lg transition w-full sm:w-auto text-center cursor-pointer shadow-xs"
           >
             Edit Profile
           </button>
@@ -206,26 +213,26 @@ export default function ProfilePage() {
       </div>
 
       {error && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6">
+        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-xs sm:text-sm">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-brand-success/10 border border-brand-success text-brand-success px-4 py-3 rounded mb-6">
+        <div className="bg-brand-success/10 border border-brand-success text-brand-success px-4 py-3 rounded mb-6 text-xs sm:text-sm">
           {success}
         </div>
       )}
 
       {medicalData ? (
-        <form onSubmit={handleSave} className="space-y-8">
+        <form onSubmit={handleSave} className="space-y-6 sm:space-y-8">
           {/* Personal Information Section */}
-          <div className="bg-bg-surface border border-border-card rounded-lg p-6">
-            <h2 className="text-2xl font-semibold text-text-primary mb-6">Personal Information</h2>
+          <div className="bg-bg-surface border border-border-card rounded-lg p-4 sm:p-6">
+            <h2 className="text-xl sm:text-2xl font-semibold text-text-primary mb-4 sm:mb-6">Personal Information</h2>
             
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
                   Date of Birth
                 </label>
                 {isEditing ? (
@@ -233,24 +240,24 @@ export default function ProfilePage() {
                     type="date"
                     value={medicalData.date_of_birth || ''}
                     onChange={(e) => handleInputChange('date_of_birth', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   />
                 ) : (
-                  <p className="text-text-secondary py-2">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.date_of_birth ? new Date(medicalData.date_of_birth).toLocaleDateString() : 'Not provided'}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
                   Gender
                 </label>
                 {isEditing ? (
                   <select
                     value={medicalData.gender || ''}
                     onChange={(e) => handleInputChange('gender', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   >
                     <option value="">Select...</option>
                     <option value="Male">Male</option>
@@ -258,14 +265,14 @@ export default function ProfilePage() {
                     <option value="Other">Other</option>
                   </select>
                 ) : (
-                  <p className="text-text-secondary py-2">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.gender || 'Not provided'}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
                   Phone Number
                 </label>
                 {isEditing ? (
@@ -273,17 +280,17 @@ export default function ProfilePage() {
                     type="tel"
                     value={medicalData.phone || ''}
                     onChange={(e) => handleInputChange('phone', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   />
                 ) : (
-                  <p className="text-text-secondary py-2">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.phone || 'Not provided'}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
                   Address
                 </label>
                 {isEditing ? (
@@ -291,10 +298,10 @@ export default function ProfilePage() {
                     type="text"
                     value={medicalData.address || ''}
                     onChange={(e) => handleInputChange('address', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   />
                 ) : (
-                  <p className="text-text-secondary py-2">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.address || 'Not provided'}
                   </p>
                 )}
@@ -303,12 +310,12 @@ export default function ProfilePage() {
           </div>
 
           {/* Emergency Contact Section */}
-          <div className="bg-bg-surface border border-border-card rounded-lg p-6">
-            <h2 className="text-2xl font-semibold text-text-primary mb-6">Emergency Contact</h2>
+          <div className="bg-bg-surface border border-border-card rounded-lg p-4 sm:p-6">
+            <h2 className="text-xl sm:text-2xl font-semibold text-text-primary mb-4 sm:mb-6">Emergency Contact</h2>
             
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
                   Name
                 </label>
                 {isEditing ? (
@@ -316,17 +323,17 @@ export default function ProfilePage() {
                     type="text"
                     value={medicalData.emergency_contact_name || ''}
                     onChange={(e) => handleInputChange('emergency_contact_name', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   />
                 ) : (
-                  <p className="text-text-secondary py-2">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.emergency_contact_name || 'Not provided'}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
                   Phone
                 </label>
                 {isEditing ? (
@@ -334,10 +341,10 @@ export default function ProfilePage() {
                     type="tel"
                     value={medicalData.emergency_contact_phone || ''}
                     onChange={(e) => handleInputChange('emergency_contact_phone', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   />
                 ) : (
-                  <p className="text-text-secondary py-2">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.emergency_contact_phone || 'Not provided'}
                   </p>
                 )}
@@ -346,8 +353,8 @@ export default function ProfilePage() {
           </div>
 
           {/* Medical History Section */}
-          <div className="bg-bg-surface border border-border-card rounded-lg p-6">
-            <h2 className="text-2xl font-semibold text-text-primary mb-6">Medical History</h2>
+          <div className="bg-bg-surface border border-border-card rounded-lg p-4 sm:p-6">
+            <h2 className="text-xl sm:text-2xl font-semibold text-text-primary mb-4 sm:mb-6">Medical History</h2>
             
             <div className="space-y-6">
               <div>
@@ -428,18 +435,18 @@ export default function ProfilePage() {
                 </label>
                 {isEditing ? (
                   <select
-                    value={medicalData.smoking_status || ''}
+                    value={normalizeSmokingStatus(medicalData.smoking_status)}
                     onChange={(e) => handleInputChange('smoking_status', e.target.value || null)}
                     className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
                   >
                     <option value="">Select...</option>
-                    <option value="Never">Never smoked</option>
-                    <option value="Former">Former smoker</option>
-                    <option value="Current">Current smoker</option>
+                    <option value="never">Never smoked</option>
+                    <option value="former">Former smoker</option>
+                    <option value="current">Current smoker</option>
                   </select>
                 ) : (
                   <p className="text-text-secondary py-2">
-                    {medicalData.smoking_status || 'Not provided'}
+                    {formatSmokingStatus(medicalData.smoking_status)}
                   </p>
                 )}
               </div>
@@ -450,19 +457,18 @@ export default function ProfilePage() {
                 </label>
                 {isEditing ? (
                   <select
-                    value={medicalData.pregnancy_status || ''}
+                    value={normalizePregnancyStatus(medicalData.pregnancy_status)}
                     onChange={(e) => handleInputChange('pregnancy_status', e.target.value || null)}
                     className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
                   >
                     <option value="">Select...</option>
-                    <option value="Not applicable">Not applicable</option>
-                    <option value="Not pregnant">Not pregnant</option>
-                    <option value="Pregnant">Currently pregnant</option>
-                    <option value="Breastfeeding">Breastfeeding</option>
+                    <option value="na">Not applicable</option>
+                    <option value="no">Not pregnant</option>
+                    <option value="yes">Currently pregnant</option>
                   </select>
                 ) : (
                   <p className="text-text-secondary py-2">
-                    {medicalData.pregnancy_status || 'Not provided'}
+                    {formatPregnancyStatus(medicalData.pregnancy_status)}
                   </p>
                 )}
               </div>
@@ -492,6 +498,10 @@ export default function ProfilePage() {
             </div>
           )}
         </form>
+      ) : isLoadingData ? (
+        <div className="bg-bg-surface border border-border-card rounded-lg p-10 text-center animate-pulse">
+          <p className="text-text-secondary text-xs font-bold uppercase tracking-wider">Syncing clinical profile records...</p>
+        </div>
       ) : (
         <div className="bg-bg-surface border border-border-card rounded-lg p-8 text-center">
           <p className="text-text-secondary mb-4">No bio data on file yet.</p>

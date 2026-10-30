@@ -92,7 +92,9 @@ Thumbs.db
 
 # ============ Project-specific ============
 CHANGES-GUIDE.md
-/eas.json
 /.env.example
 .env.example
-\n# ============ Large Files ============\n*.pt\n*.onnx
+
+# ============ Large Files ============
+*.pt
+*.onnx

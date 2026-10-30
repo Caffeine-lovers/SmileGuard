@@ -61,6 +61,7 @@ export interface Service {
   id: string;
   name: string;
   description: string;
+  price?: number;
 }
 
 export interface DaySchedule {
@@ -115,6 +116,18 @@ const defaultSchedule: Schedule = {
   saturday: { isOpen: false, opening_time: '10:00 AM', closing_time: '3:00 PM' },
 };
 
+export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
+  'Cleaning': 1500,
+  'Whitening': 5000,
+  'Fillings': 2000,
+  'Root Canal': 8000,
+  'Extraction': 1500,
+  'Braces Consultation': 35000,
+  'Implants Consultation': 45000,
+  'X-Ray': 500,
+  'Checkup': 300,
+};
+
 const PREDEFINED_SERVICES = [
   'Cleaning',
   'Whitening',
@@ -131,6 +144,7 @@ const DEFAULT_SERVICES: Service[] = PREDEFINED_SERVICES.map((name, index) => ({
   id: `default_service_${index + 1}`,
   name,
   description: '',
+  price: DEFAULT_SERVICE_PRICES[name] || 1500,
 }));
 
 export default function ClinicSetup({
@@ -162,6 +176,7 @@ export default function ClinicSetup({
 
   // Editing state
   const [newService, setNewService] = useState('');
+  const [newServicePrice, setNewServicePrice] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [lastCustomLogoUrl, setLastCustomLogoUrl] = useState<string | null>(null);
   const [uploadingGallery, setUploadingGallery] = useState(false);
@@ -230,9 +245,21 @@ export default function ClinicSetup({
             if (Array.isArray(data.services)) {
               servicesList = data.services.map((s: any, idx: number) => {
                 if (typeof s === 'string') {
-                  return { id: `service_${idx}_${Date.now()}`, name: s, description: '' };
+                  return {
+                    id: `service_${idx}_${Date.now()}`,
+                    name: s,
+                    description: '',
+                    price: DEFAULT_SERVICE_PRICES[s] || 1500,
+                  };
                 }
-                return s;
+                const parsedPrice =
+                  typeof s.price === 'number'
+                    ? s.price
+                    : parseFloat(s.price) || DEFAULT_SERVICE_PRICES[s.name] || 1500;
+                return {
+                  ...s,
+                  price: parsedPrice,
+                };
               });
             } else if (typeof data.services === 'string') {
               try {
@@ -240,9 +267,21 @@ export default function ClinicSetup({
                 if (Array.isArray(parsed)) {
                   servicesList = parsed.map((s: any, idx: number) => {
                     if (typeof s === 'string') {
-                      return { id: `service_${idx}_${Date.now()}`, name: s, description: '' };
+                      return {
+                        id: `service_${idx}_${Date.now()}`,
+                        name: s,
+                        description: '',
+                        price: DEFAULT_SERVICE_PRICES[s] || 1500,
+                      };
                     }
-                    return s;
+                    const parsedPrice =
+                      typeof s.price === 'number'
+                        ? s.price
+                        : parseFloat(s.price) || DEFAULT_SERVICE_PRICES[s.name] || 1500;
+                    return {
+                      ...s,
+                      price: parsedPrice,
+                    };
                   });
                 }
               } catch {
@@ -293,7 +332,7 @@ export default function ClinicSetup({
   // ─────────────────────────────────────────────────────────────
   // SERVICES HANDLERS
   // ─────────────────────────────────────────────────────────────
-  const handleAddService = (nameToAdd?: string) => {
+  const handleAddService = (nameToAdd?: string, priceToAdd?: number) => {
     const serviceName = (nameToAdd || newService).trim();
     if (!serviceName) return;
 
@@ -301,6 +340,13 @@ export default function ClinicSetup({
       Alert.alert('Notice', 'This service has already been added.');
       return;
     }
+
+    const price =
+      priceToAdd !== undefined
+        ? priceToAdd
+        : newServicePrice
+        ? parseFloat(newServicePrice.replace(/[^0-9.]/g, '')) || (DEFAULT_SERVICE_PRICES[serviceName] || 1500)
+        : (DEFAULT_SERVICE_PRICES[serviceName] || 1500);
 
     setClinicData((prev) => ({
       ...prev,
@@ -310,10 +356,22 @@ export default function ClinicSetup({
           id: Date.now().toString(),
           name: serviceName,
           description: '',
+          price,
         },
       ],
     }));
-    if (!nameToAdd) setNewService('');
+    if (!nameToAdd) {
+      setNewService('');
+      setNewServicePrice('');
+    }
+  };
+
+  const handleUpdateServicePrice = (id: string, priceText: string) => {
+    const numeric = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 0;
+    setClinicData((prev) => ({
+      ...prev,
+      services: prev.services.map((s) => (s.id === id ? { ...s, price: numeric } : s)),
+    }));
   };
 
   const handleRemoveService = (id: string) => {
@@ -546,7 +604,11 @@ export default function ClinicSetup({
         return;
       }
 
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const effectiveUserId = currentUser?.id || authUser?.id || '7c9b5331-3f19-4560-8256-44c7742e11ad';
+
       const { error } = await supabase.from('clinic_blockout_dates').insert({
+        user_id: effectiveUserId,
         blockout_date: dateStr,
         reason: blockoutReason.trim() || 'Blocked',
         is_blocked: true,
@@ -938,6 +1000,11 @@ export default function ClinicSetup({
                 {clinicData.services.map((service) => (
                   <View key={service.id} style={styles.serviceChipView}>
                     <Text style={styles.serviceChipText}>{service.name}</Text>
+                    <View style={styles.servicePriceBadge}>
+                      <Text style={styles.servicePriceBadgeText}>
+                        ₱{(service.price ?? 1500).toLocaleString()}
+                      </Text>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -1321,33 +1388,15 @@ export default function ClinicSetup({
 
         {/* Section: Services Offered */}
         <Text style={styles.sectionHeader}>
-          Services Offered ({clinicData.services?.length || 0})
+          Services Offered & Price List ({clinicData.services?.length || 0})
         </Text>
         <Text style={styles.inputHelperText}>
-          Add services offered at your clinic. Tap predefined options or type a custom one.
+          Configure services and procedure prices offered at your clinic. Prices are reflected directly on the patient web portal.
         </Text>
-
-        {/* Added services chips */}
-        {clinicData.services.length > 0 && (
-          <View style={[styles.chipsContainer, { marginBottom: 12 }]}>
-            {clinicData.services.map((service) => (
-              <View key={service.id} style={styles.serviceChipActive}>
-                <Text style={styles.serviceChipActiveText}>{service.name}</Text>
-                <TouchableOpacity
-                  onPress={() => handleRemoveService(service.id)}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  style={{ marginLeft: 6 }}
-                >
-                  <X size={14} color="#047857" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Predefined Quick-Add Pills */}
         <Text style={styles.inputSubLabel}>Quick-Add Predefined Services:</Text>
-        <View style={[styles.chipsContainer, { marginBottom: 12 }]}>
+        <View style={[styles.chipsContainer, { marginBottom: 14 }]}>
           {PREDEFINED_SERVICES.map((predefined) => {
             const alreadyAdded = clinicData.services.some(
               (s) => s.name.toLowerCase() === predefined.toLowerCase()
@@ -1379,12 +1428,23 @@ export default function ClinicSetup({
         <Text style={styles.inputSubLabel}>Add Custom Service:</Text>
         <View style={styles.addServiceRow}>
           <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0 }]}
-            placeholder="e.g. Dental Veneers, Sedation..."
+            style={[styles.input, { flex: 2, marginBottom: 0 }]}
+            placeholder="Service name (e.g. Veneers)"
             value={newService}
             onChangeText={setNewService}
             placeholderTextColor="#9ca3af"
           />
+          <View style={[styles.input, { flex: 1.2, marginBottom: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 }]}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#047857', marginRight: 4 }}>₱</Text>
+            <TextInput
+              style={{ flex: 1, padding: 0, fontSize: 13, color: '#1E293B', fontWeight: '600' }}
+              placeholder="Price"
+              value={newServicePrice}
+              onChangeText={setNewServicePrice}
+              keyboardType="numeric"
+              placeholderTextColor="#9ca3af"
+            />
+          </View>
           <TouchableOpacity
             style={styles.addServiceBtn}
             onPress={() => handleAddService()}
@@ -1392,6 +1452,39 @@ export default function ClinicSetup({
             <Plus size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+
+        {/* Added services with editable prices list */}
+        {clinicData.services.length > 0 && (
+          <View style={styles.servicesEditableList}>
+            <Text style={[styles.inputSubLabel, { marginTop: 4, marginBottom: 6 }]}>Configured Clinic Rates:</Text>
+            {clinicData.services.map((service) => (
+              <View key={service.id} style={styles.serviceEditCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.serviceEditCardName}>{service.name}</Text>
+                  <Text style={styles.serviceEditCardHint}>Web Portal Rate</Text>
+                </View>
+                <View style={styles.servicePriceInputContainer}>
+                  <Text style={styles.servicePricePrefix}>₱</Text>
+                  <TextInput
+                    style={styles.servicePriceInput}
+                    value={service.price !== undefined ? service.price.toString() : '1500'}
+                    onChangeText={(val) => handleUpdateServicePrice(service.id, val)}
+                    keyboardType="numeric"
+                    placeholder="1500"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleRemoveService(service.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.serviceRemoveBtn}
+                >
+                  <Trash2 size={16} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Section: Operating Schedule */}
         <Text style={styles.sectionHeader}>Operating Schedule</Text>
@@ -2358,6 +2451,70 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#047857',
+  },
+  servicePriceBadge: {
+    backgroundColor: '#10B981',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    marginLeft: 6,
+  },
+  servicePriceBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  servicesEditableList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  serviceEditCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  serviceEditCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  serviceEditCardHint: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  servicePriceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    height: 36,
+    width: 100,
+  },
+  servicePricePrefix: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+    marginRight: 2,
+  },
+  servicePriceInput: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    padding: 0,
+  },
+  serviceRemoveBtn: {
+    padding: 6,
   },
   galleryViewScroll: {
     paddingVertical: 6,

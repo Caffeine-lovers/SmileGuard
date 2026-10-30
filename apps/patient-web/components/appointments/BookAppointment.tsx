@@ -1,11 +1,25 @@
 'use client';
 
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
-import { bookSlot, getAllBlockedSlots, isSlotTaken, getPatientAppointments, getClinicSetup, generateTimeSlots, type ClinicSchedule } from '@/lib/appointmentService';
+import { 
+  bookSlot, 
+  getAllBlockedSlots, 
+  getBlockoutDates,
+  isSlotTaken, 
+  getPatientAppointments, 
+  getFullClinicSetup,
+  getAllClinicsSetup,
+  DEFAULT_CLINIC_NAME,
+  generateTimeSlots, 
+  withTimeout,
+  type ClinicSchedule,
+  type ClinicDetails 
+} from '@/lib/appointmentService';
 import type { Appointment } from '@/lib/database';
 
-import { Check, CheckCircle2, Clock, ArrowUp } from 'lucide-react';
+import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 
 const SERVICES = [
   { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
@@ -62,6 +76,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [loadingUserData, setLoadingUserData]         = useState(true);
   const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
   const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
+  const [clinicDetails, setClinicDetails]             = useState<ClinicDetails | null>(null);
+  const [availableClinics, setAvailableClinics]       = useState<ClinicDetails[]>([]);
   const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
   const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
 
@@ -93,19 +109,46 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // Fetch clinic setup and blocked slots on component mount
   useEffect(() => {
+    let isMounted = true;
+
     const loadClinicData = async () => {
       setLoadingBlockedSlots(true);
       try {
-        const schedule = await getClinicSetup();
-        setClinicSchedule(schedule);
+        const clinics = await withTimeout(getAllClinicsSetup(), 4000, []);
         
-        const slots = await getAllBlockedSlots(schedule);
-        setBlockedSlots(slots);
+        if (!isMounted) return;
+        setAvailableClinics(clinics);
+
+        // Pick Kyler's Clinic by default, or first available
+        const defaultClinic = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler')) || clinics[0];
+
+        let scheduleToUse: ClinicSchedule | null = null;
+        if (defaultClinic) {
+          console.log('🏥 [BookAppointment] Default clinic selected:', defaultClinic.clinic_name);
+          setClinicDetails(defaultClinic);
+          setClinicSchedule(defaultClinic.schedule);
+          scheduleToUse = defaultClinic.schedule;
+        } else {
+          const fallbackClinic = await withTimeout(getFullClinicSetup(), 2500, null);
+          if (fallbackClinic) {
+            setClinicDetails(fallbackClinic);
+            setClinicSchedule(fallbackClinic.schedule);
+            scheduleToUse = fallbackClinic.schedule;
+          }
+        }
         
-        // Track only the blocked dates (not appointment counts)
-        const blocked = new Set<string>();
+        const [blockoutDatesList, slots] = await Promise.all([
+          withTimeout(getBlockoutDates(), 4000, []),
+          withTimeout(getAllBlockedSlots(scheduleToUse), 4000, []),
+        ]);
         
-        for (const slot of slots) {
+        if (!isMounted) return;
+        setBlockedSlots(slots || []);
+        
+        // Track blocked dates from both direct blockout records and slots
+        const blocked = new Set<string>(blockoutDatesList || []);
+        
+        for (const slot of (slots || [])) {
           if (slot.service === 'blocked') {
             blocked.add(slot.date);
           }
@@ -115,16 +158,34 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         console.log('📊 [BookAppointment] Blocked dates:', Array.from(blocked));
       } catch (error) {
         console.error('Error loading clinic data:', error);
-        setBlockedSlots([]);
-        setClinicSchedule(null);
-        setBlockedDates(new Set());
+        if (isMounted) {
+          setBlockedSlots([]);
+          setClinicSchedule(null);
+          setBlockedDates(new Set());
+        }
       } finally {
-        setLoadingBlockedSlots(false);
+        if (isMounted) {
+          setLoadingBlockedSlots(false);
+        }
       }
     };
     
     loadClinicData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  const handleClinicChange = (clinicId: string) => {
+    const selected = availableClinics.find((c) => c.id === clinicId);
+    if (!selected) return;
+    setClinicDetails(selected);
+    if (selected.schedule) {
+      setClinicSchedule(selected.schedule);
+    }
+    setSelectedTime('');
+  };
 
   // Update time slots when selected date changes
   useEffect(() => {
@@ -149,8 +210,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     async function fetchUserAppointments() {
       setLoadingUserData(true);
       try {
-        const appointments = await getPatientAppointments(userId);
-        const scheduledAppointments = appointments.filter(apt => apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
+        const appointments = await withTimeout(getPatientAppointments(userId), 2500, []);
+        const scheduledAppointments = appointments.filter(apt => apt.status === 'pending' || apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'Scheduled');
         setUserAppointments(scheduledAppointments);
       } catch (err) {
         console.error('Error fetching user appointments:', err);
@@ -171,6 +232,13 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // Check if a date is available based on clinic schedule
   const isDateAvailable = (date: Date): boolean => {
+    // No same-day booking: appointments must be at least 1 day in advance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date.getTime() <= today.getTime()) {
+      return false;
+    }
+
     if (!clinicSchedule) return true; // Default to available if no schedule
     
     const day = date.getDate();
@@ -207,23 +275,26 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const userId = currentUser.id;
     setIsBooking(true);
     try {
-      // Book the appointment
-      const result = await bookSlot(userId, '', selectedService.name, selectedDate, selectedTime);
+      // Book the appointment with the clinic's doctor user_id
+      const dentistIdToBook = clinicDetails?.user_id || '';
+      const result = await bookSlot(userId, dentistIdToBook, selectedService.name, selectedDate, selectedTime);
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
-        alert('Appointment booked successfully!');
+        alert('Appointment request sent! It will appear under Pending until the clinic approves it.');
         
         if (onSuccess) {
           onSuccess({
             id: result.appointmentId,
             patient_id: userId,
-            dentist_id: null,
+            dentist_id: dentistIdToBook || null,
+            clinic_name: clinicDetails?.clinic_name || DEFAULT_CLINIC_NAME,
+            price: selectedService.price,
             service: selectedService.name,
             appointment_date: selectedDate,
             appointment_time: selectedTime,
             notes: notes || '',
-            status: 'scheduled',
+            status: 'pending',
             created_at: new Date().toISOString(),
           });
         }
@@ -242,16 +313,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     }
   };
 
-
-  // ─── Loading ────────────────────────────────────────────────────────────────
-  if (loadingBlockedSlots) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-bg-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-cyan" />
-      </div>
-    );
-  }
-
   const formattedDate = selectedDate
     ? new Date(selectedDate + 'T00:00').toLocaleDateString('en-PH', {
         month: 'long', day: 'numeric', year: 'numeric',
@@ -260,45 +321,89 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // ─── BENTO LAYOUT ──────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-bg-screen p-4 md:p-6">
+    <div className="min-h-screen bg-bg-screen p-3 sm:p-4 md:p-6">
 
-      {/* Page header */}
-      <div className="mb-5">
-        <h1 className="text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
-        <p className="text-text-secondary text-sm mt-1">Complete each card in order to confirm your visit.</p>
+      {/* Page header with Clinic Badge */}
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-cyan tracking-tight">Book an Appointment</h1>
+          <p className="text-text-secondary text-xs sm:text-sm mt-1">Complete each card in order to confirm your visit.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {loadingBlockedSlots && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-500 bg-slate-100 rounded-md border border-slate-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              Syncing calendar...
+            </span>
+          )}
+          {availableClinics.length > 1 ? (
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="clinic-select" className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                Clinic:
+              </label>
+              <select
+                id="clinic-select"
+                value={clinicDetails?.id}
+                onChange={(e) => handleClinicChange(e.target.value)}
+                className="px-3 py-1.5 bg-emerald-50 text-emerald-950 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs cursor-pointer focus:outline-none focus:border-emerald-600"
+              >
+                {availableClinics.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.clinic_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-900 font-bold text-xs uppercase tracking-wider rounded-md border-2 border-emerald-300 shadow-xs">
+              <Building2 className="w-4 h-4 text-emerald-700" />
+              {clinicDetails?.clinic_name || DEFAULT_CLINIC_NAME}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Bento grid — 12-column base */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-start">
 
         {/* ━━━━ CELL A: Service picker (col 1–8, row 1) ━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+        <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={1} done={step1Complete} />
             Choose a Service
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
             {SERVICES.map((service) => {
+              // Check if clinic customized the price
+              const clinicCustom = clinicDetails?.services?.find(
+                (s) => s.name?.trim().toLowerCase() === service.name.trim().toLowerCase()
+              );
+              const effectivePrice =
+                clinicCustom && typeof clinicCustom.price === 'number' && clinicCustom.price > 0
+                  ? clinicCustom.price
+                  : service.price;
+
               const active = selectedService?.id === service.id;
               return (
                 <button
                   type="button"
                   key={service.id}
-                  onClick={() => setSelectedService(service)}
-                  className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                  onClick={() => setSelectedService({ ...service, price: effectivePrice })}
+                  className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
                       : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
                   }`}
                 >
-                  <span className="text-2xl block mb-2">{service.icon}</span>
-                  <p className={`font-semibold text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
+                  <span className="text-xl sm:text-2xl block mb-1.5">{service.icon}</span>
+                  <p className={`font-semibold text-xs sm:text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
                     {service.name}
                   </p>
-                  <p className="text-xs text-text-secondary mt-0.5">{service.duration} min</p>
-                  <p className={`text-xs font-bold mt-2 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
-                    ₱{service.price.toLocaleString()}
+                  <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">{service.duration} min</p>
+                  <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
+                    ₱{effectivePrice.toLocaleString()}
                   </p>
                   {active && (
                     <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-brand-primary flex items-center justify-center">
@@ -314,11 +419,11 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
         {/* ━━━━ CELL B: Booking summary (col 9–12, rows 1–2) ━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-4 flex flex-col gap-4">
+        <div className="md:col-span-4 flex flex-col gap-3 sm:gap-4">
 
           {/* Live snapshot card */}
-          <div className="bg-brand-primary rounded-2xl p-5 text-white shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-4">Your Booking</p>
+          <div className="bg-brand-primary rounded-2xl p-4 sm:p-5 text-white shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-3 sm:mb-4">Your Booking</p>
             <div className="space-y-3">
               {[
                 { icon: selectedService?.icon ?? '—', label: 'Service', value: selectedService?.name ?? null },
@@ -346,7 +451,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
           {/* Prior bookings pill */}
           {!loadingUserData && userAppointments.length > 0 && (
-            <div className="bg-bg-surface rounded-2xl border border-border-card p-4 flex items-center gap-4">
+            <div className="bg-bg-surface rounded-2xl border border-border-card p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-sm flex-shrink-0">
                 {userAppointments.length}
               </div>
@@ -359,15 +464,15 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
        {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6 flex flex-col">
+        <div className="md:col-span-5 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6 flex flex-col">
           {!step1Complete && <LockedOverlay message="Pick a service first" />}
           
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
             <p className="text-xs font-bold uppercase tracking-widest text-text-secondary flex items-center">
               <StepBadge n={2} done={step2Complete} />
               Select Date
             </p>
-            <div className="grid grid-cols-[1fr_2fr_1fr] bg-bg-notes rounded-lg overflow-hidden border border-border-card w-[200px]">
+            <div className="grid grid-cols-[1fr_2fr_1fr] bg-bg-notes rounded-lg overflow-hidden border border-border-card w-full sm:w-[190px]">
               <button 
                 type="button"
                 onClick={handlePrevMonth} 
@@ -405,26 +510,35 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const dd = String(date.getDate()).padStart(2, '0');
               const dateString = `${yyyy}-${mm}-${dd}`;
               
-              const isPast = date < new Date(new Date().setHours(0,0,0,0));
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const isToday = date.getTime() === today.getTime();
+              const isPast = date < today;
+              const isTodayOrPast = date <= today;
               const isClinicClosed = !isDateAvailable(date);
               const isBlockedDate = blockedDates.has(dateString);
               const isFullyBookedDate = isFullyBooked(dateString);
               const isSelected = selectedDate === dateString;
               
-              const isDisabled = isPast || isClinicClosed || isBlockedDate || isFullyBookedDate || !step1Complete;
+              const isDisabled = isTodayOrPast || isClinicClosed || isBlockedDate || isFullyBookedDate || !step1Complete;
 
               let cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-bg-notes text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 cursor-pointer';
-              let dateNumStyle = 'text-sm font-semibold text-text-primary';
+              let dateNumStyle = 'text-xs sm:text-sm font-semibold text-text-primary';
 
               if (isSelected) {
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-brand-primary text-white shadow-md border-2 border-brand-primary font-bold cursor-pointer';
+              } else if (isToday) {
+                // Today is disabled - no same day booking permitted
+                cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-amber-50/70 text-amber-800/60 cursor-not-allowed border border-amber-300/60';
+                dateNumStyle = 'text-sm font-semibold text-amber-800/60 line-through';
               } else if (isBlockedDate || isClinicClosed || isFullyBookedDate) {
                 // Blocked dates, clinic closed, or fully booked - gray out
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
-                dateNumStyle = 'text-sm font-semibold text-gray-500 line-through';
+                dateNumStyle = 'text-xs sm:text-sm font-semibold text-gray-500 line-through';
               } else if (isPast) {
                 cellStyle = 'relative aspect-square flex items-center justify-center rounded-xl transition-all duration-200 bg-gray-100 text-gray-400 cursor-not-allowed';
-                dateNumStyle = 'text-sm font-semibold text-gray-400';
+                dateNumStyle = 'text-xs sm:text-sm font-semibold text-gray-400';
               }
 
               return (
@@ -435,7 +549,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   disabled={isDisabled}
                   className={cellStyle}
                   title={
-                    isBlockedDate
+                    isToday
+                      ? 'Same-day booking is not permitted — please book at least 1 day in advance'
+                      : isBlockedDate
                       ? 'Blocked date - no appointments available'
                       : isFullyBookedDate
                       ? 'Fully booked - 3 appointments already scheduled'
@@ -451,16 +567,24 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               );
             })}
           </div>
+
+          {/* Same-day booking notice */}
+          <div className="mt-3 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-900 text-xs">
+            <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span className="leading-snug">
+              <strong>Advance Booking Only:</strong> Same-day booking is disabled. Appointments must be scheduled at least 1 day in advance.
+            </span>
+          </div>
         </div>
 
          {/* ━━━━ CELL D: Time picker (col 6–12, row 2) ━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+        <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           {!step2Complete && <LockedOverlay message="Pick a date first" />}
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={3} done={step3Complete} />
             Select a Time
           </p>
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5 sm:gap-2">
             {timeSlots.length > 0 ? (
               timeSlots.map((time) => {
                 const disabled = isSlotDisabled(selectedDate, time);
@@ -493,7 +617,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         </div>
 
         {/* ━━━━ CELL E: Notes (col 1–8, row 3) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-8 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-6">
+        <div className="md:col-span-8 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           {!step3Complete && <LockedOverlay message="Complete steps 1–3 first" />}
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={4} done={step3Complete && notes.length > 0} />
@@ -506,7 +630,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             disabled={!step3Complete}
             placeholder="Any special requests, medical concerns, or conditions we should know about…"
             rows={4}
-            className="w-full p-4 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
+            className="w-full p-3 sm:p-4 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
           />
         </div>
 

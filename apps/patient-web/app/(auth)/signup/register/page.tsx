@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
@@ -10,13 +10,16 @@ export default function SignupRegisterPage() {
   const router = useRouter();
   const {
     formData,
+    setFormData,
     updateFormField,
     isOAuthFlow,
+    setIsOAuthFlow,
     setCurrentAuthUser,
     showPassword,
     setShowPassword,
     showConfirmPassword,
     setShowConfirmPassword,
+    purgeIncompleteRegistration,
   } = useSignup();
 
   const [localError, setLocalError] = useState<string | null>(null);
@@ -28,23 +31,48 @@ export default function SignupRegisterPage() {
     length: false,
   });
 
-  // Check for OAuth flow on mount
+  const oauthInitializedRef = useRef(false);
+
+  // Check for OAuth flow on mount ONCE (never overwrite user's edits)
   useEffect(() => {
+    if (oauthInitializedRef.current) return;
+    oauthInitializedRef.current = true;
+
     const checkOAuthFlow = async () => {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('oauth') === 'true') {
+      const isOauthParam = params.get('oauth') === 'true';
+      const isOauthStorage = typeof window !== 'undefined' && localStorage.getItem('oauth_signup_flow') === 'true';
+
+      if (isOauthParam || isOauthStorage) {
+        setIsOAuthFlow(true);
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
           setCurrentAuthUser(user);
-          updateFormField('email', user.email || '');
-          updateFormField('name', user.user_metadata?.full_name || user.email?.split('@')[0] || '');
+          setIsOAuthFlow(true);
+
+          setFormData((prev) => {
+            const currentEmail = prev.email || user.email || '';
+            // If the user already has a name typed or stored, PRESERVE it completely!
+            if (prev.name && prev.name.trim().length > 0) {
+              return { ...prev, email: currentEmail };
+            }
+            // Only set a default if empty
+            const googleFullName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+            const fallbackName = googleFullName || (user.email ? user.email.split('@')[0] : '');
+            return {
+              ...prev,
+              email: currentEmail,
+              name: fallbackName,
+            };
+          });
         }
       }
     };
 
     checkOAuthFlow();
-  }, [setCurrentAuthUser, updateFormField]);
+    purgeIncompleteRegistration();
+  }, [setCurrentAuthUser, setIsOAuthFlow, setFormData, purgeIncompleteRegistration]);
 
   const checkPasswordStrength = (password: string) => {
     return {
@@ -58,6 +86,7 @@ export default function SignupRegisterPage() {
 
   const handlePasswordChange = (newPassword: string) => {
     updateFormField('password', newPassword);
+    if (isOAuthFlow) updateFormField('confirmPassword', newPassword);
     setPasswordCheck(checkPasswordStrength(newPassword));
   };
 
@@ -70,26 +99,14 @@ export default function SignupRegisterPage() {
       return;
     }
 
-    if (!isOAuthFlow) {
-      if (!formData.password) {
-        setLocalError('Please enter a password');
-        return;
-      }
+    if (!formData.password) {
+      setLocalError('Please enter a password');
+      return;
+    }
 
-      if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-        setLocalError('Password does not meet clinical security requirements');
-        return;
-      }
-    } else {
-      if (!formData.password) {
-        setLocalError('Please set a password for future logins');
-        return;
-      }
-
-      if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
-        setLocalError('Password does not meet clinical security requirements');
-        return;
-      }
+    if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
+      setLocalError('Password does not meet clinical security requirements');
+      return;
     }
 
     router.push('/signup/medical');
@@ -123,11 +140,14 @@ export default function SignupRegisterPage() {
           </label>
           <input
             type="text"
-            value={formData.name}
+            id="fullLegalName"
+            name="name"
+            value={formData.name || ''}
             onChange={(e) => updateFormField('name', e.target.value)}
             required
             className="skeuo-input w-full text-sm"
             placeholder="e.g. Maria Santos"
+            autoComplete="name"
           />
         </div>
 
@@ -148,10 +168,10 @@ export default function SignupRegisterPage() {
         {isOAuthFlow && (
           <div className="bg-emerald-50 border-2 border-emerald-500 rounded-sm p-3 mb-2">
             <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
-              Credential Setup Required
+              Google Account Connected
             </p>
             <p className="text-xs text-emerald-700 mt-0.5">
-              Set a portal password so you can sign in directly without Google in the future.
+              Confirm your legal name and set your clinic portal password below.
             </p>
           </div>
         )}

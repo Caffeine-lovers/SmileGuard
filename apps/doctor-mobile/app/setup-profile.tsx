@@ -26,9 +26,9 @@ export default function SetupProfilePage() {
   };
 
   const handleClinicSave = async () => {
-    console.log("[SetupProfile] Clinic setup complete, routing to dashboard");
-    // Navigate to dashboard after successful clinic setup
-    router.replace("/(doctor)/dashboard");
+    console.log("[SetupProfile] Clinic setup complete, routing to onboarding");
+    // Navigate to onboarding guide before entering dashboard
+    router.replace("/onboarding");
   };
 
   const handleCancel = () => {

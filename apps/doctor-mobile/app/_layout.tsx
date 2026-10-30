@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
-
+import { ClinicProvider } from "../contexts/ClinicContext";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -82,14 +82,12 @@ export default function RootLayout() {
     const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
     const inOAuthRedirect = segments[0] === "oauth-redirect";
+    const inOnboarding = segments[0] === "onboarding";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // Don't interfere with reset-password screen
-    if (inResetPassword) return;
-    // Only hold on oauth-redirect while session is still being established
-    // Once user is set (SIGNED_IN fired), fall through and route normally
-    if (inOAuthRedirect && !user) return;
+    // We only pause routing logic if on reset-password, oauth-redirect, or onboarding
+    if (inResetPassword || inOAuthRedirect || inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inSetupProfile) {
@@ -123,10 +121,14 @@ export default function RootLayout() {
     }
   }, [user, ready, segments]);
 
+  if (!ready) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Slot />
+        <ClinicProvider>
+          <Slot />
+        </ClinicProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

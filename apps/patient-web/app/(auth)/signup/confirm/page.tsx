@@ -4,6 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
+import { setPatientUserCookie } from '@/lib/auth-cookie';
+
+import { 
+  normalizePregnancyStatus, 
+  formatPregnancyStatus, 
+  normalizeSmokingStatus, 
+  formatSmokingStatus 
+} from '@/lib/medical-helpers';
 
 export default function SignupConfirmPage() {
   const router = useRouter();
@@ -23,8 +31,12 @@ export default function SignupConfirmPage() {
     setLoading(true);
 
     try {
-      if (isOAuthFlow && currentAuthUser) {
-        // 1. Update password for OAuth user (so they can login with email+password)
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const effectiveUser = currentAuthUser || authUser;
+      const isOAuth = isOAuthFlow || (typeof window !== 'undefined' && localStorage.getItem('oauth_signup_flow') === 'true') || Boolean(authUser?.app_metadata?.provider === 'google');
+
+      if (isOAuth && effectiveUser) {
+        // 1. Update password for OAuth user if they chose to set one
         if (formData.password) {
           const { error: passwordError } = await supabase.auth.updateUser({
             password: formData.password,
@@ -38,20 +50,19 @@ export default function SignupConfirmPage() {
         const { error: updateError } = await supabase
           .from('profiles')
           .upsert({
-            id: currentAuthUser.id,        
+            id: effectiveUser.id,        
             name: formData.name,
-            service: formData.service,
+            service: formData.service || 'General',
             role: 'patient',
-            email: formData.email ?? currentAuthUser.email ?? '',
+            email: formData.email ?? effectiveUser.email ?? '',
             updated_at: new Date().toISOString(),
-          });
+          }, { onConflict: 'id' });
 
         if (updateError) throw updateError;
 
-        // 3. Map Medical Data (Fixing the 400 error)
-        // We explicitly map keys and convert empty strings to null
+        // 3. Map Medical Data with normalized constraints
         const medicalData = {
-          patient_id: currentAuthUser.id,
+          patient_id: effectiveUser.id,
           date_of_birth: formData.medicalIntake.date_of_birth || null,
           gender: formData.medicalIntake.gender || null,
           phone: formData.medicalIntake.phone || null,
@@ -62,9 +73,10 @@ export default function SignupConfirmPage() {
           current_medications: formData.medicalIntake.current_medications || 'None',
           medical_conditions: formData.medicalIntake.medical_conditions || 'None',
           past_surgeries: formData.medicalIntake.past_surgeries || 'None',
-          smoking_status: formData.medicalIntake.smoking_status || null,
-          pregnancy_status: formData.medicalIntake.pregnancy_status || null,
+          smoking_status: normalizeSmokingStatus(formData.medicalIntake.smoking_status) || null,
+          pregnancy_status: normalizePregnancyStatus(formData.medicalIntake.pregnancy_status) || null,
           notes: formData.medicalIntake.notes || null,
+          updated_at: new Date().toISOString(),
         };
 
         const { error: intakeError } = await supabase
@@ -74,30 +86,32 @@ export default function SignupConfirmPage() {
         if (intakeError) throw intakeError;
 
         console.log('[SignupConfirm] OAuth signup complete');
+        localStorage.removeItem('oauth_signup_flow');
+        setPatientUserCookie({
+          id: effectiveUser.id,
+          name: formData.name,
+          email: formData.email ?? effectiveUser.email ?? '',
+          role: 'patient',
+          hasMedicalIntake: true,
+        });
         clearSignupData();
         router.push('/dashboard');
 
       } else {
         // Standard flow (Email/Phone OTP verification)
-        // ⚠️ USER ALREADY EXISTS from OTP verification!
-        // We only create profile and medical_intake here
-        
         if (formData.password !== formData.confirmPassword) {
           setLocalError('Passwords do not match');
           setLoading(false);
           return;
         }
 
-        // Get current authenticated user (created by OTP)
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        
         if (!authUser) {
           setLocalError('User session not found. Please verify again.');
           setLoading(false);
           return;
         }
 
-        // 1. Update password (user has empty password from OTP)
+        // 1. Update password
         const { error: passwordError } = await supabase.auth.updateUser({
           password: formData.password,
         });
@@ -105,23 +119,23 @@ export default function SignupConfirmPage() {
         if (passwordError) throw passwordError;
         console.log('[SignupConfirm] Password set for email user');
 
-        // 2. Create Profile (profile doesn't exist yet)
+        // 2. Create Profile
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
             id: authUser.id,
             name: formData.name,
-            email: formData.email,
+            email: formData.email || authUser.email,
             service: formData.service || 'General',
             role: 'patient',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          });
+          }, { onConflict: 'id' });
 
         if (profileError) throw profileError;
         console.log('[SignupConfirm] Profile created');
 
-        // 3. Create Medical Intake
+        // 3. Create or update Medical Intake using upsert with onConflict
         const medicalData = {
           patient_id: authUser.id,
           date_of_birth: formData.medicalIntake.date_of_birth || null,
@@ -134,8 +148,8 @@ export default function SignupConfirmPage() {
           current_medications: formData.medicalIntake.current_medications || 'None',
           medical_conditions: formData.medicalIntake.medical_conditions || 'None',
           past_surgeries: formData.medicalIntake.past_surgeries || 'None',
-          smoking_status: formData.medicalIntake.smoking_status || null,
-          pregnancy_status: formData.medicalIntake.pregnancy_status || null,
+          smoking_status: normalizeSmokingStatus(formData.medicalIntake.smoking_status) || null,
+          pregnancy_status: normalizePregnancyStatus(formData.medicalIntake.pregnancy_status) || null,
           notes: formData.medicalIntake.notes || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -143,11 +157,12 @@ export default function SignupConfirmPage() {
 
         const { error: intakeError } = await supabase
           .from('medical_intake')
-          .insert(medicalData);
+          .upsert(medicalData, { onConflict: 'patient_id' });
 
         if (intakeError) throw intakeError;
-        console.log('[SignupConfirm] Medical intake created');
+        console.log('[SignupConfirm] Medical intake created/updated');
         
+        localStorage.removeItem('oauth_signup_flow');
         clearSignupData();
         router.push('/dashboard');
       }
@@ -190,6 +205,8 @@ export default function SignupConfirmPage() {
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
             <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
             <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
+            <ReviewField label="Smoking Status" value={formatSmokingStatus(formData.medicalIntake.smoking_status)} />
+            <ReviewField label="Pregnancy Status" value={formatPregnancyStatus(formData.medicalIntake.pregnancy_status)} />
             <ReviewField label="Emergency Contact" value={formData.medicalIntake.emergency_contact_name ? `${formData.medicalIntake.emergency_contact_name} (${formData.medicalIntake.emergency_contact_phone})` : undefined} />
             
             <div className="pt-2 border-t border-border-card/50">

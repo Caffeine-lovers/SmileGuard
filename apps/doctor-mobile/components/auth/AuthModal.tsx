@@ -80,36 +80,58 @@ export default function AuthModal({
   /**
    * Helper to verify doctor access code via Edge Function, database, or fallback
    */
-  const verifyDoctorAccessCode = async (code: string): Promise<boolean> => {
+    const verifyDoctorAccessCode = async (code: string): Promise<boolean> => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed || trimmed.length < 4) return false;
+
+    let isValid = false;
 
     // 1. Try Supabase Edge Function
     try {
       const { data, error } = await supabase.functions.invoke("verify-doctor-code", {
         body: { code: trimmed },
       });
-      if (!error && data?.valid) return true;
+      if (!error && data?.valid) isValid = true;
     } catch (e) {
       // fallback
     }
 
     // 2. Try Supabase doctor_access_codes table directly
-    try {
-      const { data, error } = await supabase
-        .from("doctor_access_codes")
-        .select("id")
-        .eq("code", trimmed)
-        .eq("is_active", true)
-        .maybeSingle();
+    if (!isValid) {
+      try {
+        const { data, error } = await supabase
+          .from("doctor_access_codes")
+          .select("id")
+          .eq("code", trimmed)
+          .eq("is_active", true)
+          .maybeSingle();
 
-      if (!error && data) return true;
-    } catch (e) {
-      // fallback
+        if (!error && data) isValid = true;
+      } catch (e) {
+        // fallback
+      }
     }
 
-    // 3. Fallback known doctor codes
-    return VALID_DOCTOR_CODES.includes(trimmed);
+    // 3. Fallback known doctor codes (dev mode)
+    if (!isValid) {
+      isValid = VALID_DOCTOR_CODES.includes(trimmed);
+    }
+
+    // Record the attempt in doctor_code_attempts table
+    try {
+      await supabase.from("doctor_code_attempts").insert([
+        {
+          code: trimmed,
+          attempted_code: trimmed,
+          is_successful: isValid,
+          created_at: new Date().toISOString(),
+        }
+      ]);
+    } catch (attemptErr) {
+      console.warn("[AuthModal] Note: doctor_code_attempts insert skipped:", attemptErr);
+    }
+
+    return isValid;
   };
 
   /**

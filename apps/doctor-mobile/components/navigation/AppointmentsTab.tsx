@@ -270,6 +270,8 @@ export default function AppointmentsTab({
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'pending':
+        return '#D97706'; // Warm Amber
       case 'scheduled':
         return '#10B981'; // Mint / Emerald Green
       case 'completed':
@@ -1016,7 +1018,8 @@ export default function AppointmentsTab({
                       }}
                     >
                       <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>
-                        {appointment.status === 'scheduled' ? 'Scheduled' :
+                        {appointment.status === 'pending' ? 'Pending' :
+                         appointment.status === 'scheduled' ? 'Scheduled' :
                          appointment.status === 'completed' ? 'Completed' :
                          appointment.status === 'cancelled' ? 'Cancelled' :
                          appointment.status === 'declined' ? 'Declined' :
