@@ -236,6 +236,16 @@ export default function PatientDashboard() {
               <span>Guide</span>
             </Link>
 
+            {/* Mobile Book Visit CTA (Visible on mobile, hidden on desktop where header has Book Appointment) */}
+            <Link
+              href="/appointments"
+              data-tour="book-visit-btn"
+              className="!inline-flex md:!hidden skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-3.5 text-xs uppercase tracking-wider shrink-0 items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span>Book Visit</span>
+            </Link>
+
 
           </div>
         </div>
@@ -428,7 +438,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* Quick Navigation Footer - Hidden on mobile per convention, scaled on desktop */}
-      <div className="hidden sm:grid sm:grid-cols-4 gap-3 lg:gap-5">
+      <div className="hidden md:grid md:grid-cols-4 gap-3 lg:gap-5">
         <Link href="/appointments" data-tour="quick-appointments" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
           <span>Book Appointment</span>
           <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />

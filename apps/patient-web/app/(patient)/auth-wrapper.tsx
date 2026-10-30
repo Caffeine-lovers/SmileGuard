@@ -109,10 +109,11 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Desktop Book CTA */}
+            {/* Desktop Book CTA - strictly hidden on mobile */}
             <Link 
               href="/appointments" 
-              className="skeuo-btn-primary py-2 px-3.5 text-xs uppercase tracking-wider hidden md:inline-flex"
+              data-tour="book-visit-btn"
+              className="!hidden md:!inline-flex skeuo-btn-primary py-2 px-3.5 text-xs uppercase tracking-wider"
             >
               <span className="flex items-center gap-2">
                 <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
