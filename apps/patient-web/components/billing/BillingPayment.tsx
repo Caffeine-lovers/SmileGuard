@@ -40,6 +40,7 @@ export default function BillingPayment({
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [amount, setAmount] = useState<number>(baseAmount || 0);
   const [discountType, setDiscountType] = useState<Billing['discount_type']>('none');
+  const [activeDiscountTab, setActiveDiscountTab] = useState<'none' | 'pwd' | 'senior'>('none');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -179,7 +180,15 @@ export default function BillingPayment({
   const isPwdPending = effectivePwdStatus === 'pending';
   const isPwdRejected = effectivePwdStatus === 'rejected';
 
+  const currentPwdType = currentUser?.pwd_type || (localPwdStatus ? selectedVerificationType : undefined);
+  const isPwdVerified = isPwdApproved && currentPwdType === 'pwd';
+  const isSeniorVerified = isPwdApproved && currentPwdType === 'senior';
+  const isPwdPendingReview = isPwdPending && currentPwdType === 'pwd';
+  const isSeniorPendingReview = isPwdPending && currentPwdType === 'senior';
+
   const handleDiscountSelect = (type: Billing['discount_type']) => {
+    setActiveDiscountTab(type as 'none' | 'pwd' | 'senior');
+
     if (type === 'none') {
       setDiscountType('none');
       applyDiscount(amount, 'none');
@@ -188,8 +197,10 @@ export default function BillingPayment({
       return;
     }
 
-    // Statutory discounts (PWD / Senior) require clinical verification by Dr. Kyler
-    if (!isPwdApproved) {
+    // Check if the specific type selected is approved
+    const isThisTypeApproved = (type === 'pwd' && isPwdVerified) || (type === 'senior' && isSeniorVerified) || isPwdApproved;
+
+    if (!isThisTypeApproved) {
       // Set the intended type for the submission panel
       setSelectedVerificationType(type as 'pwd' | 'senior');
       setShowVerificationPanel(true);
@@ -541,15 +552,19 @@ export default function BillingPayment({
                 {
                   value: 'pwd' as const,
                   label: 'PWD (20%)',
-                  badge: isPwdApproved ? 'Verified' : isPwdPending ? 'Pending' : 'Requires Approval',
+                  badge: isPwdVerified ? 'Verified' : isPwdPendingReview ? 'Pending Review' : 'Requires Approval',
+                  isVerified: isPwdVerified,
+                  isPending: isPwdPendingReview,
                 },
                 {
                   value: 'senior' as const,
                   label: 'Senior (20%)',
-                  badge: isPwdApproved ? 'Verified' : isPwdPending ? 'Pending' : 'Requires Approval',
+                  badge: isSeniorVerified ? 'Verified' : isSeniorPendingReview ? 'Pending Review' : 'Requires Approval',
+                  isVerified: isSeniorVerified,
+                  isPending: isSeniorPendingReview,
                 },
               ].map((option) => {
-                const isActive = discountType === option.value;
+                const isActive = activeDiscountTab === option.value;
                 return (
                   <button
                     type="button"
@@ -557,8 +572,8 @@ export default function BillingPayment({
                     onClick={() => handleDiscountSelect(option.value)}
                     className={`py-2 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
                       isActive
-                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
-                        : option.value !== 'none' && !isPwdApproved
+                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
+                        : option.value !== 'none' && !option.isVerified
                         ? 'border-slate-300 bg-slate-50 text-slate-600 hover:border-emerald-400'
                         : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
                     }`}
@@ -566,7 +581,7 @@ export default function BillingPayment({
                     <div>{option.label}</div>
                     {option.badge && (
                       <span className={`block text-[8px] font-bold mt-0.5 ${
-                        isPwdApproved ? 'text-emerald-700' : isPwdPending ? 'text-amber-700' : 'text-slate-500'
+                        option.isVerified ? 'text-emerald-700' : option.isPending ? 'text-amber-700 font-black' : 'text-slate-500'
                       }`}>
                         {option.badge}
                       </span>
@@ -689,10 +704,17 @@ export default function BillingPayment({
                   )}
                 </div>
 
+                {((selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)) && (
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 font-semibold flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Your {selectedVerificationType === 'senior' ? 'Senior Citizen' : 'PWD'} ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={handleSubmitIdForDoctorVerification}
-                  disabled={isSubmittingId || !selectedIdFile}
+                  disabled={isSubmittingId || !selectedIdFile || (selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)}
                   className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white font-bold text-xs uppercase tracking-wider rounded-xs transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
                 >
                   {isSubmittingId ? (

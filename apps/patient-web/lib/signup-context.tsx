@@ -65,6 +65,7 @@ const INITIAL_MEDICAL_STATE: MedicalIntakeData = {
   phone: '',
   address: '',
   emergency_contact_name: '',
+  emergency_contact_relationship: '',
   emergency_contact_phone: '',
   allergies: '',
   current_medications: '',
@@ -94,7 +95,7 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
   const [verificationEmail, setVerificationEmail] = useState('');
   const [verificationPhone, setVerificationPhone] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
+  const [countryCode, setCountryCode] = useState('+63');
   const [otpSentAt, setOtpSentAt] = useState<number | null>(null);
   const [resendAttempts, setResendAttempts] = useState(0);
   const [resendCooldownEnd, setResendCooldownEnd] = useState<number | null>(null);
@@ -177,7 +178,7 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     setVerificationEmail('');
     setVerificationPhone('');
     setVerificationCode('');
-    setCountryCode('+1');
+    setCountryCode('+63');
     setOtpSentAt(null);
     setResendAttempts(0);
     setResendCooldownEnd(null);

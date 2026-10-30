@@ -14,6 +14,7 @@ export interface CurrentUser {
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
   gender?: string;
+  avatar_url?: string;
   pwd_status?: "none" | "pending" | "approved" | "rejected";
   pwd_type?: "pwd" | "senior";
   pwd_id_url?: string;
@@ -71,6 +72,7 @@ export interface MedicalIntakeData {
   phone?: string;
   address?: string;
   emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   allergies?: string;
   current_medications?: string;

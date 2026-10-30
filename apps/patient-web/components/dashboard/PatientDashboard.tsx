@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
@@ -24,7 +25,9 @@ import {
   ChevronRight,
   ShieldCheck,
   Building2,
-  Sparkles
+  Sparkles,
+  CalendarX,
+  X
 } from 'lucide-react';
 
 export default function PatientDashboard() {
@@ -37,7 +40,31 @@ export default function PatientDashboard() {
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
   const [doctorPictures, setDoctorPictures] = useState<Record<string, string>>({});
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [isCancellingAppt, setIsCancellingAppt] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
+
+  const handleCancelAppointment = async (apptId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this appointment request?')) return;
+    setIsCancellingAppt(true);
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', apptId);
+
+      if (error) throw error;
+      setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status: 'cancelled' } : a));
+      setSelectedAppointment(null);
+      alert('Your appointment has been cancelled.');
+    } catch (err: any) {
+      console.error('Error cancelling appointment:', err);
+      alert(`Could not cancel appointment: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsCancellingAppt(false);
+    }
+  };
+
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -215,8 +242,7 @@ export default function PatientDashboard() {
               className="skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-4 text-xs uppercase tracking-wider shrink-0 inline-flex items-center gap-1.5 sm:gap-2"
             >
               <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden xs:inline sm:inline">Book Visit</span>
-              <span className="xs:hidden">Book</span>
+              <span>Book Visit</span>
             </Link>
           </div>
         </div>
@@ -320,6 +346,7 @@ export default function PatientDashboard() {
                   time={apt.appointment_time}
                   status={apt.status}
                   clinicName={apt.clinic_name}
+                  onClick={() => setSelectedAppointment(apt)}
                   onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
@@ -344,6 +371,7 @@ export default function PatientDashboard() {
                   time={apt.appointment_time}
                   status="pending"
                   clinicName={apt.clinic_name}
+                  onClick={() => setSelectedAppointment(apt)}
                   onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
@@ -434,6 +462,94 @@ export default function PatientDashboard() {
         doctorId={selectedDoctorId}
         onClose={() => setSelectedDoctorId(null)}
       />
+
+
+      {/* Appointment Details & Management Modal */}
+      {selectedAppointment && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="skeuo-panel max-w-md w-full p-5 sm:p-6 border-2 border-slate-300 relative bg-white">
+            <button
+              onClick={() => setSelectedAppointment(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`skeuo-badge text-[10px] uppercase font-bold ${
+                selectedAppointment.status === 'completed'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : isPendingAppointment(selectedAppointment)
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+              }`}>
+                {isPendingAppointment(selectedAppointment) ? 'Pending Clinic Review' : selectedAppointment.status}
+              </span>
+              <span className="text-xs text-slate-500 font-semibold uppercase">Visit Details</span>
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">
+              {selectedAppointment.service}
+            </h3>
+            <p className="text-xs font-bold text-emerald-800 mb-4 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" />
+              {selectedAppointment.clinic_name || "Kyler's Clinic"}
+            </p>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-sm p-3.5 space-y-2 text-xs mb-5 font-medium">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Date:</span>
+                <span className="font-bold text-slate-900">{selectedAppointment.appointment_date}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Scheduled Time:</span>
+                <span className="font-bold text-slate-900">{selectedAppointment.appointment_time}</span>
+              </div>
+              {selectedAppointment.dentist_id && doctorNames[selectedAppointment.dentist_id] && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Attending Specialist:</span>
+                  <span className="font-bold text-slate-900">{doctorNames[selectedAppointment.dentist_id]}</span>
+                </div>
+              )}
+              {selectedAppointment.notes && (
+                <div className="pt-2 border-t border-slate-200 text-slate-600 italic">
+                  &quot;{selectedAppointment.notes}&quot;
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              {selectedAppointment.status !== 'cancelled' && selectedAppointment.status !== 'completed' && (
+                <>
+                  <button
+                    onClick={() => handleCancelAppointment(selectedAppointment.id!)}
+                    disabled={isCancellingAppt}
+                    className="flex-1 py-2 px-3 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold uppercase tracking-wider rounded-sm transition flex items-center justify-center gap-1.5"
+                  >
+                    <CalendarX className="w-3.5 h-3.5" />
+                    <span>{isCancellingAppt ? 'Cancelling...' : 'Cancel Visit'}</span>
+                  </button>
+                  <Link
+                    href={`/appointments?service=${encodeURIComponent(selectedAppointment.service)}`}
+                    className="flex-1 py-2 px-3 skeuo-btn-secondary text-xs uppercase tracking-wider text-center"
+                    onClick={() => setSelectedAppointment(null)}
+                  >
+                    Reschedule
+                  </Link>
+                </>
+              )}
+              <button
+                onClick={() => setSelectedAppointment(null)}
+                className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold uppercase tracking-wider rounded-sm transition text-center"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Interactive In-App Tour Overlay */}
       <InteractiveTour
