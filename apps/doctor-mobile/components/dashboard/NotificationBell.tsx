@@ -74,21 +74,21 @@ export default function NotificationBell({
 const styles = StyleSheet.create({
   bellContainer: {
     position: 'relative',
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   bellIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 6,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#10B981',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
   },
 
   bellIcon: {

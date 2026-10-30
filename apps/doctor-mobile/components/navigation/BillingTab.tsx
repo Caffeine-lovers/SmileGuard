@@ -212,6 +212,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
     let pending = 0;
 
     records.forEach((record) => {
+      if (record.payment_status === 'cancelled') return;
       const finalAmount = record.final_amount ?? record.amount ?? 0;
       total += finalAmount;
 
@@ -292,6 +293,9 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
         return '#10b981';
       case 'overdue':
         return '#ef4444';
+      case 'cancelled':
+        return '#6b7280';
+      case 'not_paid':
       case 'pending':
       default:
         return '#f59e0b';
@@ -426,8 +430,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
               backgroundColor: '#fff',
               borderRadius: 12,
               padding: 14,
-              borderLeftWidth: 4,
-              borderLeftColor: '#10B981',
+
+
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.1,
@@ -484,8 +488,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   backgroundColor: '#fff',
                   borderRadius: 12,
                   padding: 12,
-                  borderTopWidth: 3,
-                  borderTopColor: '#3b82f6',
+
+
                 }}
               >
                 <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
@@ -507,8 +511,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   backgroundColor: '#fff',
                   borderRadius: 12,
                   padding: 12,
-                  borderTopWidth: 3,
-                  borderTopColor: '#10b981',
+
+
                 }}
               >
                 <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
@@ -530,8 +534,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                   backgroundColor: '#fff',
                   borderRadius: 12,
                   padding: 12,
-                  borderTopWidth: 3,
-                  borderTopColor: '#ef4444',
+
+
                 }}
               >
                 <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
@@ -621,8 +625,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                         borderRadius: 12,
                         marginBottom: 12,
                         padding: 14,
-                        borderLeftWidth: 4,
-                        borderLeftColor: getPaymentStatusColor(item.payment_status),
+          
+
                         shadowColor: '#000',
                         shadowOffset: { width: 0, height: 1 },
                         shadowOpacity: 0.1,
@@ -653,7 +657,7 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                           }}
                         >
                           <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600', textTransform: 'capitalize' }}>
-                            {item.payment_status}
+                            {item.payment_status ? item.payment_status.replace(/_/g, ' ') : 'Not Paid'}
                           </Text>
                         </View>
                       </View>
@@ -863,8 +867,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                     borderRadius: 12,
                     padding: 14,
                     marginBottom: 12,
-                    borderLeftWidth: 4,
-                    borderLeftColor: !selectedPatientId ? '#047857' : '#10B981',
+      
+
                     borderWidth: !selectedPatientId ? 1.5 : 0,
                     borderColor: !selectedPatientId ? '#10B981' : 'transparent',
                     flexDirection: 'row',
@@ -894,8 +898,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                     borderRadius: 12,
                     padding: 14,
                     marginBottom: 12,
-                    borderLeftWidth: 4,
-                    borderLeftColor: isSelected ? '#047857' : '#10B981',
+      
+
                     borderWidth: isSelected ? 1 : 0,
                     borderColor: isSelected ? '#10B981' : 'transparent',
                     flexDirection: 'row',
@@ -971,8 +975,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       borderRadius: 12,
                       padding: 14,
                       marginBottom: 24,
-                      borderLeftWidth: 4,
-                      borderLeftColor: '#10B981',
+        
+        
                     }}
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1084,8 +1088,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                           backgroundColor: '#f9f9f9',
                           borderRadius: 10,
                           padding: 12,
-                          borderLeftWidth: 3,
-                          borderLeftColor: '#10B981',
+
+            
                         }}
                       >
                         <Text style={{ fontSize: 12, color: '#333', lineHeight: 18 }}>
@@ -1101,8 +1105,8 @@ export default function BillingTab({ doctorId, styles }: BillingTabProps) {
                       backgroundColor: '#f0f9ff',
                       borderRadius: 10,
                       padding: 12,
-                      borderLeftWidth: 3,
-                      borderLeftColor: '#3b82f6',
+
+
                     }}
                   >
                     <Text style={{ fontSize: 11, color: '#0369a1', fontWeight: '600' }}>

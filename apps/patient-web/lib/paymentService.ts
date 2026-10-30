@@ -58,7 +58,7 @@ export async function getBalance(patientId: string): Promise<number> {
       .from('billings')
       .select('final_amount')
       .eq('patient_id', patientId)
-      .eq('payment_status', 'pending');
+      .in('payment_status', ['not_paid', 'pending']);
 
     if (error) {
       console.error('Error calculating balance:', error);
@@ -89,7 +89,7 @@ export async function createBilling(
         discount_type: 'none',
         discount_amount: 0,
         final_amount: finalAmount,
-        payment_status: 'pending',
+        payment_status: 'not_paid',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

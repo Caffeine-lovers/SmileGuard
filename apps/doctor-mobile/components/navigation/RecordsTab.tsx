@@ -16,7 +16,20 @@ import * as dashboardService from "../../lib/dashboardService";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { supabase } from "@smileguard/supabase-client";
 import { getAllPatients } from "../../lib/profilesPatients";
-import { RefreshCw, ChevronRight, ChevronLeft } from "lucide-react-native";
+import {
+  RefreshCw,
+  ChevronRight,
+  ChevronLeft,
+  Search,
+  ArrowUpDown,
+  FileText,
+  Users,
+  Sparkles,
+  ShieldCheck,
+  Layers,
+} from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -33,6 +46,7 @@ interface RecordsTabProps {
   setViewingPatient: (patient: AppointmentType) => void;
   setShowPatientDetails: (show: boolean) => void;
   styles: any;
+  startTourTrigger?: number;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -49,6 +63,7 @@ export default function RecordsTab({
   setViewingPatient,
   setShowPatientDetails,
   styles,
+  startTourTrigger,
 }: RecordsTabProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -197,223 +212,465 @@ export default function RecordsTab({
       setIsRefreshing(false);
     }
   };
+
+  // ─────────────────────────────────────────
+  // INTERACTIVE RECORDS WALKTHROUGH SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+
+  const tourSteps: TourStep[] = [
+    {
+      id: "records-welcome",
+      title: "Welcome to Patient Records!",
+      description: "Manage your clinical directory, search patient records, organize appointments, and access full digital dental charts.",
+      icon: Users,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "records-search",
+      target: "records-search",
+      title: "Quick Search",
+      description: "Instantly filter patients by full name, requested dental procedure, email address, or contact number.",
+      icon: Search,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "records-sort",
+      target: "records-sort",
+      title: "Sort & Reorder",
+      description: "Sort your patient roster alphabetically by Name or chronologically by Date Created, in Ascending or Descending order.",
+      icon: ArrowUpDown,
+      padding: 6,
+      radius: 14,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "records-card",
+      target: paginatedPatients.length > 0 ? "records-card" : "records-count",
+      title: "Digital Dental Chart",
+      description: "Tap any patient card to open their complete clinical chart—including medical intake, allergies, notes, and past appointments.",
+      icon: FileText,
+      padding: 6,
+      radius: 14,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "records-pagination",
+      target: totalPages > 1 ? "records-pagination" : "records-count",
+      title: totalPages > 1 ? "Page Navigation" : "Patient Directory Stats",
+      description: totalPages > 1
+        ? "Flip through pages of your patient directory to manage large clinic rosters cleanly and efficiently."
+        : "Displays the active patient count currently matching your search and filter criteria.",
+      icon: Layers,
+      padding: 6,
+      radius: 14,
+      placement: "auto",
+      onEnter: () => {
+        try {
+          if (totalPages > 1) {
+            scrollViewRef.current?.scrollToEnd?.({ animated: false });
+          }
+        } catch (e) {}
+      },
+    },
+    {
+      id: "records-actions",
+      target: "records-actions",
+      title: "Sync & Walkthrough",
+      description: "Tap the refresh icon to sync the latest cloud patient records, or tap Sparkles anytime to restart this walkthrough.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 12,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+    {
+      id: "records-finish",
+      title: "You're All Set, Doctor!",
+      description: "Patient records and digital charts are now organized and ready at your fingertips.",
+      icon: ShieldCheck,
+      placement: "center",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
+    },
+  ];
+
+  const handleFinishTour = async () => {
+    setTourVisible(false);
+    if (currentUser?.id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`,
+          "true"
+        );
+      } catch (err) {
+        console.error("Failed to save records walkthrough status:", err);
+      }
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setTourVisible(false);
+    if (currentUser?.id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`,
+          "true"
+        );
+      } catch (err) {
+        console.error("Failed to save records walkthrough status:", err);
+      }
+    }
+  };
+
+  const handleStartTour = () => {
+    setTourIndex(0);
+    setTourVisible(true);
+  };
+
+  // Auto-prompt walkthrough on first visit to RecordsTab
+  useEffect(() => {
+    if (!currentUser?.id || loadingSupabase) return;
+
+    let isMounted = true;
+    const checkFirstTimeTour = async () => {
+      try {
+        const key = `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`;
+        const hasCompleted = await AsyncStorage.getItem(key);
+        if (!hasCompleted && isMounted) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setTourIndex(0);
+              setTourVisible(true);
+            }
+          }, 600);
+          return () => clearTimeout(timer);
+        }
+      } catch (err) {
+        console.error("Error checking records walkthrough status:", err);
+      }
+    };
+
+    checkFirstTimeTour();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id, loadingSupabase]);
+
+  // Support triggering walkthrough from parent (e.g. Settings tab)
+  useEffect(() => {
+    if (startTourTrigger && startTourTrigger > 0) {
+      setTourIndex(0);
+      setTourVisible(true);
+    }
+  }, [startTourTrigger]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      {/* Header with Current User Name */}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 25, fontWeight: 'bold', color: "#047857", marginBottom: 4 }}>
-          Patient Records
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={handleRefresh}
-            disabled={isRefreshing}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 8,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-            }}
+      <View
+        ref={tour.setContainer}
+        collapsable={false}
+        style={{ flex: 1 }}
+      >
+        {/* Header with Current User Name */}
+        <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontSize: 25, fontWeight: 'bold', color: "#047857", marginBottom: 4 }}>
+            Patient Records
+          </Text>
+          <View
+            ref={tour.register("records-actions")}
+            collapsable={false}
+            style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
           >
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <RefreshCw size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
-        <TextInput
-          style={{
-            backgroundColor: '#fff',
-            borderColor: '#10B981',
-            borderWidth: 1,
-            borderRadius: 8,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            fontSize: 14,
-            color: '#333',
-            marginBottom: 12,
-          }}
-          placeholder="Search by name, service, email, contact..."
-          placeholderTextColor="#999"
-          value={quickSearchQuery}
-          onChangeText={setQuickSearchQuery}
-        />
+            <TouchableOpacity
+              onPress={handleRefresh}
+              disabled={isRefreshing}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                backgroundColor: '#ECFDF5',
+                borderWidth: 1,
+                borderColor: '#A7F3D0',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#047857" />
+              ) : (
+                <RefreshCw size={18} color="#047857" />
+              )}
+            </TouchableOpacity>
 
-        <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap', marginBottom: 7 }}>
-          <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666', alignSelf: 'center' }}>Sort by:</Text>
-          <TouchableOpacity
-            onPress={() => setPatientSortBy('name')}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 16,
-              backgroundColor: patientSortBy === 'name' ? '#10B981' : '#e0e0e0',
-              borderWidth: 1,
-              borderColor: patientSortBy === 'name' ? '#10B981' : '#ccc',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: patientSortBy === 'name' ? '#fff' : '#333', fontWeight: '500' }}>Name</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setPatientSortBy('date')}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 16,
-              backgroundColor: patientSortBy === 'date' ? '#10B981' : '#e0e0e0',
-              borderWidth: 1,
-              borderColor: patientSortBy === 'date' ? '#10B981' : '#ccc',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date Created</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setPatientSortOrder(patientSortOrder === 'asc' ? 'desc' : 'asc')}
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 16,
-              backgroundColor: '#f0f0f0',
-              borderWidth: 1,
-              borderColor: '#ccc',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: '#333', fontWeight: '500' }}>
-              {patientSortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
-        {loadingSupabase ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-            <ActivityIndicator size="large" color="#10B981" />
-            <Text style={{ marginTop: 12, color: "#047857", fontSize: 14 }}>Loading patients...</Text>
+            <TouchableOpacity
+              onPress={handleStartTour}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                backgroundColor: '#ECFDF5',
+                borderWidth: 1,
+                borderColor: '#A7F3D0',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Sparkles size={18} color="#047857" />
+            </TouchableOpacity>
           </View>
-        ) : basePatients.length === 0 ? (
-          <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-            No patients found
-          </Text>
-        ) : sortedPatients.length === 0 ? (
-          <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-            No patients found matching "{quickSearchQuery}"
-          </Text>
-        ) : (
-          <>
-            {/* Header info showing patient count and page */}
-            <View style={localStyles.countHeader}>
-              <Text style={localStyles.countHeaderText}>
-                Showing <Text style={localStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, sortedPatients.length)}</Text> of <Text style={localStyles.countHeaderBold}>{sortedPatients.length}</Text> patients
+        </View>
+
+        <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
+          <View
+            ref={tour.register("records-search")}
+            collapsable={false}
+            style={{ marginBottom: 12 }}
+          >
+            <TextInput
+              style={{
+                backgroundColor: '#fff',
+                borderColor: '#10B981',
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: '#333',
+              }}
+              placeholder="Search by name, service, email, contact..."
+              placeholderTextColor="#999"
+              value={quickSearchQuery}
+              onChangeText={setQuickSearchQuery}
+            />
+          </View>
+
+          <View
+            ref={tour.register("records-sort")}
+            collapsable={false}
+            style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap', marginBottom: 7 }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666', alignSelf: 'center' }}>Sort by:</Text>
+            <TouchableOpacity
+              onPress={() => setPatientSortBy('name')}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 16,
+                backgroundColor: patientSortBy === 'name' ? '#10B981' : '#e0e0e0',
+                borderWidth: 1,
+                borderColor: patientSortBy === 'name' ? '#10B981' : '#ccc',
+              }}
+            >
+              <Text style={{ fontSize: 12, color: patientSortBy === 'name' ? '#fff' : '#333', fontWeight: '500' }}>Name</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setPatientSortBy('date')}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 16,
+                backgroundColor: patientSortBy === 'date' ? '#10B981' : '#e0e0e0',
+                borderWidth: 1,
+                borderColor: patientSortBy === 'date' ? '#10B981' : '#ccc',
+              }}
+            >
+              <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date Created</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setPatientSortOrder(patientSortOrder === 'asc' ? 'desc' : 'asc')}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 16,
+                backgroundColor: '#f0f0f0',
+                borderWidth: 1,
+                borderColor: '#ccc',
+              }}
+            >
+              <Text style={{ fontSize: 12, color: '#333', fontWeight: '500' }}>
+                {patientSortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
               </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
+          {loadingSupabase ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+              <ActivityIndicator size="large" color="#10B981" />
+              <Text style={{ marginTop: 12, color: "#047857", fontSize: 14 }}>Loading patients...</Text>
+            </View>
+          ) : basePatients.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+              No patients found
+            </Text>
+          ) : sortedPatients.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
+              No patients found matching "{quickSearchQuery}"
+            </Text>
+          ) : (
+            <>
+              {/* Header info showing patient count and page */}
+              <View
+                ref={tour.register("records-count")}
+                collapsable={false}
+                style={localStyles.countHeader}
+              >
+                <Text style={localStyles.countHeaderText}>
+                  Showing <Text style={localStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, sortedPatients.length)}</Text> of <Text style={localStyles.countHeaderBold}>{sortedPatients.length}</Text> patients
+                </Text>
+                {totalPages > 1 && (
+                  <View style={localStyles.pageBadge}>
+                    <Text style={localStyles.pageBadgeText}>
+                      Page {currentPage} of {totalPages}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Paginated Patients List */}
+              {paginatedPatients.map((patient, index) => (
+                <TouchableOpacity
+                  key={patient.id}
+                  ref={index === 0 ? tour.register("records-card") : undefined}
+                  style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                  onPress={() => {
+                    setViewingPatient(patient);
+                    setShowPatientDetails(true);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Image
+                      source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                      style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
+                      <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
+                      <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
+                    </View>
+                    <ChevronRight size={18} color="#94A3B8" />
+                  </View>
+                </TouchableOpacity>
+              ))}
+
+              {/* Pagination Controls */}
               {totalPages > 1 && (
-                <View style={localStyles.pageBadge}>
-                  <Text style={localStyles.pageBadgeText}>
-                    Page {currentPage} of {totalPages}
-                  </Text>
+                <View
+                  ref={tour.register("records-pagination")}
+                  collapsable={false}
+                  style={localStyles.paginationContainer}
+                >
+                  {/* Previous Button */}
+                  <TouchableOpacity
+                    style={[
+                      localStyles.navButton,
+                      currentPage === 1 && localStyles.navButtonDisabled,
+                    ]}
+                    onPress={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Previous Page"
+                  >
+                    <ChevronLeft size={18} color={currentPage === 1 ? '#94A3B8' : '#047857'} />
+                  </TouchableOpacity>
+
+                  {/* Page Numbers */}
+                  <View style={localStyles.pageNumbersRow}>
+                    {getPageNumbers().map((pageNum, index) => {
+                      if (pageNum === '...') {
+                        return (
+                          <View key={`ellipsis-${index}`} style={localStyles.ellipsisBox}>
+                            <Text style={localStyles.ellipsisText}>•••</Text>
+                          </View>
+                        );
+                      }
+                      const isSelected = pageNum === currentPage;
+                      return (
+                        <TouchableOpacity
+                          key={`page-${pageNum}`}
+                          style={[
+                            localStyles.pageButton,
+                            isSelected && localStyles.pageButtonActive,
+                          ]}
+                          onPress={() => handlePageChange(pageNum as number)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              localStyles.pageButtonText,
+                              isSelected && localStyles.pageButtonTextActive,
+                            ]}
+                          >
+                            {pageNum}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Next Button */}
+                  <TouchableOpacity
+                    style={[
+                      localStyles.navButton,
+                      currentPage === totalPages && localStyles.navButtonDisabled,
+                    ]}
+                    onPress={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Next Page"
+                  >
+                    <ChevronRight size={18} color={currentPage === totalPages ? '#94A3B8' : '#047857'} />
+                  </TouchableOpacity>
                 </View>
               )}
-            </View>
+            </>
+          )}
+        </ScrollView>
 
-            {/* Paginated Patients List */}
-            {paginatedPatients.map((patient) => (
-              <TouchableOpacity
-                key={patient.id}
-                style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-                onPress={() => {
-                  setViewingPatient(patient);
-                  setShowPatientDetails(true);
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Image
-                    source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                    style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                    <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                    <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
-                  </View>
-                  <ChevronRight size={18} color="#94A3B8" />
-                </View>
-              </TouchableOpacity>
-            ))}
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <View style={localStyles.paginationContainer}>
-                {/* Previous Button */}
-                <TouchableOpacity
-                  style={[
-                    localStyles.navButton,
-                    currentPage === 1 && localStyles.navButtonDisabled,
-                  ]}
-                  onPress={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Previous Page"
-                >
-                  <ChevronLeft size={18} color={currentPage === 1 ? '#94A3B8' : '#047857'} />
-                </TouchableOpacity>
-
-                {/* Page Numbers */}
-                <View style={localStyles.pageNumbersRow}>
-                  {getPageNumbers().map((pageNum, index) => {
-                    if (pageNum === '...') {
-                      return (
-                        <View key={`ellipsis-${index}`} style={localStyles.ellipsisBox}>
-                          <Text style={localStyles.ellipsisText}>•••</Text>
-                        </View>
-                      );
-                    }
-                    const isSelected = pageNum === currentPage;
-                    return (
-                      <TouchableOpacity
-                        key={`page-${pageNum}`}
-                        style={[
-                          localStyles.pageButton,
-                          isSelected && localStyles.pageButtonActive,
-                        ]}
-                        onPress={() => handlePageChange(pageNum as number)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pageButtonText,
-                            isSelected && localStyles.pageButtonTextActive,
-                          ]}
-                        >
-                          {pageNum}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                {/* Next Button */}
-                <TouchableOpacity
-                  style={[
-                    localStyles.navButton,
-                    currentPage === totalPages && localStyles.navButtonDisabled,
-                  ]}
-                  onPress={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Next Page"
-                >
-                  <ChevronRight size={18} color={currentPage === totalPages ? '#94A3B8' : '#047857'} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
-
+        {/* Interactive Walkthrough Tour */}
+        <AppTour
+          visible={tourVisible}
+          steps={tourSteps}
+          index={tourIndex}
+          onIndexChange={setTourIndex}
+          measureTarget={tour.measure}
+          onFinish={handleFinishTour}
+          onSkip={handleSkipTour}
+        />
+      </View>
     </SafeAreaView>
   );
 }

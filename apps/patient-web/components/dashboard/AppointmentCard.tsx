@@ -32,7 +32,7 @@ export default function AppointmentCard({ name, service, time, date, status, cli
             <span className={`text-[8px] sm:text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-xs border shrink-0 ${
               status === 'completed'
                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                : status === 'pending'
+                : status.toLowerCase() === 'pending'
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
                 : status === 'declined'
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
@@ -40,7 +40,7 @@ export default function AppointmentCard({ name, service, time, date, status, cli
                 ? 'bg-red-100 text-red-800 border-red-300'
                 : 'bg-emerald-50 text-emerald-800 border-emerald-300'
             }`}>
-              {status === 'pending' ? 'Pending Approval' : status}
+              {status.toLowerCase() === 'pending' ? 'Pending Approval' : status}
             </span>
           )}
         </div>

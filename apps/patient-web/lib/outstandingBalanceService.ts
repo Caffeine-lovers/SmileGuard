@@ -208,7 +208,7 @@ export async function fetchBillingDataForDashboard(
 
     // Pending billing rows that aren't tied to any appointment (manual clinic charges)
     const orphanPendingSum = billings
-      .filter((b) => !b.appointment_id && b.payment_status !== 'paid')
+      .filter((b) => !b.appointment_id && b.payment_status !== 'paid' && b.payment_status !== 'cancelled')
       .reduce((sum, b) => sum + Number(b.final_amount ?? 0), 0);
 
     const outstandingBalance = payable.reduce((sum, r) => sum + r.amount_due, 0) + orphanPendingSum;

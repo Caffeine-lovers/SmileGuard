@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
           await supabaseAdmin
             .from('billings')
             .update({
-              payment_status: 'pending',
+              payment_status: 'not_paid',
               updated_at: new Date().toISOString(),
             })
             .eq('id', billing_id);

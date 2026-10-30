@@ -32,7 +32,7 @@ const STATUS_OPTIONS: Array<'pending' | 'scheduled' | 'completed' | 'cancelled' 
 ];
 
 const STATUS_COLORS: { [key: string]: string } = {
-  pending: '#D97706', // Warm Amber
+  pending: '#65A30D', // Lime / Chartreuse Green
   scheduled: '#10B981', // Mint / Emerald Green
   completed: '#047857', // Deep Forest Green
   cancelled: '#6B9080', // Muted Sage Green
@@ -218,7 +218,7 @@ export default function AppointmentEdit({
           {/* Status Selection */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Update Status</Text>
-            <Text style={styles.label}>Current Status: <Text style={{ fontWeight: '700', color: STATUS_COLORS[appointment.status] }}>{appointment.status?.toUpperCase()}</Text></Text>
+            <Text style={styles.label}>Current Status: <Text style={{ fontWeight: '700', color: STATUS_COLORS[appointment.status] || STATUS_COLORS[appointment.status?.toLowerCase()] || '#D97706' }}>{appointment.status?.toUpperCase()}</Text></Text>
 
             <View style={styles.statusContainer}>
               {STATUS_OPTIONS.map((status) => (

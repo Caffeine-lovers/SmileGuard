@@ -23,7 +23,7 @@
 ALTER TABLE public.appointments DROP CONSTRAINT IF EXISTS appointments_status_check;
 ALTER TABLE public.appointments DROP CONSTRAINT IF EXISTS appointments_status_check1;
 ALTER TABLE public.appointments ADD CONSTRAINT appointments_status_check
-  CHECK (status = ANY(ARRAY['pending', 'scheduled', 'completed', 'cancelled', 'no-show', 'declined']));
+  CHECK (LOWER(status) = ANY(ARRAY['pending', 'scheduled', 'completed', 'cancelled', 'no-show', 'declined']));
 
 ALTER TABLE public.appointments ALTER COLUMN status SET DEFAULT 'pending';
 
@@ -31,7 +31,7 @@ ALTER TABLE public.appointments ALTER COLUMN status SET DEFAULT 'pending';
 UPDATE public.appointments
 SET status = 'pending', updated_at = NOW()
 WHERE dentist_id IS NULL
-  AND status = 'scheduled';
+  AND LOWER(status) = 'scheduled';
 
 -- 3. Requests RPC ---------------------------------------------------------------
 DROP FUNCTION IF EXISTS get_appointment_requests();
@@ -57,8 +57,8 @@ BEGIN
     a.appointment_date, a.appointment_time, a.status, a.notes,
     a.created_at, a.updated_at
   FROM appointments a
-  WHERE a.status = 'pending'
-     OR (a.dentist_id IS NULL AND a.status NOT IN ('cancelled', 'declined', 'completed', 'no-show'))
+  WHERE LOWER(a.status) = 'pending'
+     OR (a.dentist_id IS NULL AND LOWER(a.status) NOT IN ('cancelled', 'declined', 'completed', 'no-show'))
   ORDER BY a.appointment_date ASC, a.appointment_time ASC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -95,7 +95,7 @@ BEGIN
   FROM appointments a
   WHERE a.appointment_date = p_date
     AND a.dentist_id IS NOT NULL
-    AND a.status <> 'pending'
+    AND LOWER(a.status) <> 'pending'
   ORDER BY a.appointment_time ASC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -130,11 +130,10 @@ BEGIN
   WHERE (p_start_date IS NULL OR a.appointment_date >= p_start_date)
     AND (p_end_date IS NULL OR a.appointment_date <= p_end_date)
     AND a.dentist_id IS NOT NULL
-    AND a.status <> 'pending'
+    AND LOWER(a.status) <> 'pending'
   ORDER BY a.appointment_date DESC, a.appointment_time DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_appointments_by_date(DATE, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_appointments_range(DATE, DATE, UUID) TO authenticated;
-

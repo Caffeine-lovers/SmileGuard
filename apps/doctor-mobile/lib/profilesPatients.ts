@@ -618,12 +618,13 @@ export async function getPatientBillingInfo(patientId: string): Promise<PatientB
     let overdueAmount = 0;
 
     data.forEach((billing: any) => {
+      if (billing.payment_status === 'cancelled') return;
       const amount = billing.final_amount || billing.amount || 0;
       totalAmount += amount;
 
       if (billing.payment_status === 'paid') {
         paidAmount += amount;
-      } else if (billing.payment_status === 'pending') {
+      } else if (billing.payment_status === 'not_paid' || billing.payment_status === 'pending') {
         pendingAmount += amount;
       } else if (billing.payment_status === 'overdue') {
         overdueAmount += amount;

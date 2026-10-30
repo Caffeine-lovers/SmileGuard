@@ -292,23 +292,41 @@ export async function bookSlot(
   insertedData = insertRes.data;
   insertError = insertRes.error;
 
-  // Resilient fallback if DB check constraint does not yet allow 'pending' (migration 032 not yet applied)
+  // Resilient fallback if DB check constraint does not yet allow lowercase 'pending'
   if (insertError && (insertError.message?.toLowerCase().includes('check') || insertError.code === '23514')) {
-    console.warn('⚠️ appointments_status_check in DB does not yet allow "pending". Retrying with legacy unapproved format (dentist_id=null)...');
-    const fallbackRes = await supabase
+    console.warn('⚠️ Retrying insert with uppercase "PENDING"...');
+    const retryUpper = await supabase
       .from('appointments')
       .insert({
         patient_id: patientId,
-        dentist_id: null, // Marks as unassigned request
+        dentist_id: dentistId || null,
         service,
         appointment_date: appointmentDate,
         appointment_time: appointmentTime,
-        status: 'scheduled',
+        status: 'PENDING',
       })
       .select('id');
 
-    insertedData = fallbackRes.data;
-    insertError = fallbackRes.error;
+    if (!retryUpper.error && retryUpper.data) {
+      insertedData = retryUpper.data;
+      insertError = null;
+    } else {
+      console.warn('⚠️ appointments_status_check in DB does not yet allow "pending". Retrying with legacy unapproved format (dentist_id=null)...');
+      const fallbackRes = await supabase
+        .from('appointments')
+        .insert({
+          patient_id: patientId,
+          dentist_id: null, // Marks as unassigned request
+          service,
+          appointment_date: appointmentDate,
+          appointment_time: appointmentTime,
+          status: 'scheduled',
+        })
+        .select('id');
+
+      insertedData = fallbackRes.data;
+      insertError = fallbackRes.error;
+    }
   }
 
   if (insertError) {

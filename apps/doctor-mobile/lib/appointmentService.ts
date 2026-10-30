@@ -38,7 +38,7 @@ export interface DoctorAppointment {
   service: string;
   appointment_date: string; // YYYY-MM-DD
   appointment_time: string;
-  status: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  status: 'pending' | 'PENDING' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -124,7 +124,7 @@ export async function getDoctorAppointments(
 
     // Step 5: Don't filter by current user's dentist_id - the RPC already filters to show
     // all appointments with dentist_id IS NOT NULL
-    const filteredAppointments = appointmentsData;
+    const filteredAppointments = (appointmentsData as any[]).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
@@ -170,7 +170,7 @@ async function fallbackGetDoctorAppointments(
       .select('*');
 
     // Show only assigned, approved appointments (pending requests live in the Requests tab)
-    query = query.not('dentist_id', 'is', null).neq('status', 'pending');
+    query = query.not('dentist_id', 'is', null).neq('status', 'pending').neq('status', 'PENDING');
 
     if (startDate) {
       query = query.gte('appointment_date', startDate);
@@ -285,7 +285,7 @@ export async function getDoctorAppointmentsByDate(
     });
 
     // Step 5: Show all appointments for this date (don't filter by dentist_id)
-    const filteredAppointments = appointmentsData;
+    const filteredAppointments = (appointmentsData as any[]).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
@@ -325,7 +325,7 @@ async function fallbackGetAppointmentsByDate(
       .eq('appointment_date', date);
 
     // Show only assigned, approved appointments (pending requests live in the Requests tab)
-    query = query.not('dentist_id', 'is', null).neq('status', 'pending');
+    query = query.not('dentist_id', 'is', null).neq('status', 'pending').neq('status', 'PENDING');
 
     const { data: appointmentsData, error } = await query
       .order('appointment_time', { ascending: true });
@@ -447,22 +447,57 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
     let appointmentsData: any[] | null = null;
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_appointment_requests');
 
-    if (!rpcError && rpcData) {
+    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
       appointmentsData = rpcData as any[];
-    } else {
+    }
+
+    // Direct query fallback or supplement if RPC returned nothing (or legacy RPC in DB)
+    if (!appointmentsData || appointmentsData.length === 0) {
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
-        .or('status.eq.pending,dentist_id.is.null')
-        .not('status', 'in', '(cancelled,declined,completed,no-show)')
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING,dentist_id.is.null')
         .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true });
 
       if (error) {
-        console.error('❌ Error fetching appointment requests:', error);
-        return [];
+        console.error('❌ Error fetching appointment requests via fallback:', error);
+        appointmentsData = rpcData ? (rpcData as any[]) : [];
+      } else if (data) {
+        appointmentsData = data.filter((apt: any) => {
+          const s = (apt.status || '').toLowerCase();
+          return s === 'pending' || (!apt.dentist_id && !['cancelled', 'declined', 'completed', 'no-show'].includes(s));
+        });
       }
-      appointmentsData = data;
+    } else {
+      // Also supplement any assigned 'pending' appointments that legacy RPC might have missed
+      try {
+        const { data: directPending } = await supabase
+          .from('appointments')
+          .select('*')
+          .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+
+        if (directPending && directPending.length > 0) {
+          const existingIds = new Set((appointmentsData || []).map((a: any) => a.id));
+          for (const row of directPending) {
+            const s = (row.status || '').toLowerCase();
+            if (s === 'pending' && !existingIds.has(row.id)) {
+              appointmentsData.push(row);
+              existingIds.add(row.id);
+            }
+          }
+        }
+      } catch (err) {
+        // Safe fallback
+      }
+    }
+
+    // Clean out any cancelled, declined, or completed appointments
+    if (appointmentsData && appointmentsData.length > 0) {
+      appointmentsData = appointmentsData.filter((apt: any) => {
+        const s = (apt.status || '').toLowerCase();
+        return !['cancelled', 'declined', 'completed', 'no-show'].includes(s);
+      });
     }
 
     if (!appointmentsData || appointmentsData.length === 0) {
