@@ -15,6 +15,7 @@
     },
     "android": {
       "package": "com.smileguard.doctor",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#00B4A0"
@@ -29,6 +30,13 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/SmileGuard-Doc-Logo.png",
+          "color": "#00B4A0"
         }
       ]
     ],
