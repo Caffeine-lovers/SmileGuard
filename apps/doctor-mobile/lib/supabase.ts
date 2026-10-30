@@ -7,5 +7,7 @@
  * 0 rows (appointments, patients, billings, notifications...).
  */
 import "react-native-url-polyfill/auto.js";
+import { supabase } from "@smileguard/supabase-client";
 
-export { supabase } from "@smileguard/supabase-client";
+export { supabase };
+export default supabase;

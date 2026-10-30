@@ -12,21 +12,73 @@ export async function getPatientProfile(
   email: string;
   role: string;
   service: string;
+  pwd_status?: 'none' | 'pending' | 'approved' | 'rejected';
+  pwd_type?: 'pwd' | 'senior';
+  pwd_id_url?: string;
+  pwd_submitted_at?: string;
+  pwd_reviewed_at?: string;
   created_at: string;
   updated_at: string;
 } | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, name, email, role, service, created_at, updated_at')
-    .eq('id', patientId)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, email, role, service, pwd_status, pwd_type, pwd_id_url, pwd_submitted_at, pwd_reviewed_at, created_at, updated_at')
+      .eq('id', patientId)
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching patient profile:', error);
+    if (error && error.message?.includes('pwd_status')) {
+      const { data: fallbackData } = await supabase
+        .from('profiles')
+        .select('id, name, email, role, service, created_at, updated_at')
+        .eq('id', patientId)
+        .maybeSingle();
+      return fallbackData;
+    }
+
+    return data;
+  } catch (err) {
+    console.error('Error fetching patient profile:', err);
     return null;
   }
+}
 
-  return data;
+export async function updatePatientPwdStatus(
+  patientId: string,
+  status: 'approved' | 'rejected' | 'none',
+  doctorId?: string,
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Try RPC review_patient_pwd
+    const { data: rpcData, error: rpcError } = await supabase.rpc('review_patient_pwd', {
+      p_patient_id: patientId,
+      p_status: status,
+      p_doctor_id: doctorId || null,
+      p_rejection_reason: reason || null,
+    });
+
+    if (!rpcError && rpcData?.success) {
+      return { success: true };
+    }
+
+    // 2. Direct table update fallback
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        pwd_status: status,
+        pwd_reviewed_at: new Date().toISOString(),
+        pwd_reviewed_by: doctorId || null,
+        pwd_rejection_reason: reason || null,
+      })
+      .eq('id', patientId);
+
+    if (updateError) throw updateError;
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating patient PWD status:', err);
+    return { success: false, error: err.message };
+  }
 }
 
 // ─────────────────────────────────────────

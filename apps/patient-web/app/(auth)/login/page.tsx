@@ -44,7 +44,7 @@ export default function LoginPage() {
     setOauthLoading(true);
     setLocalError(null);
     try {
-      localStorage.removeItem('oauth_signup_flow');
+      localStorage.setItem('oauth_signup_flow', 'true');
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -64,13 +64,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="skeuo-panel p-8 border-2 border-slate-300">
+    <div className="skeuo-panel p-5 sm:p-8 border-2 border-slate-300">
       <div className="text-center mb-6">
         <span className="skeuo-badge skeuo-badge-mint mb-3">SmileGuard Clinic Portal</span>
-        <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">
           Patient Authentication
         </h2>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
+        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
           Access your digital health chart & appointments
         </p>
       </div>

@@ -54,6 +54,7 @@ export default function AnalysisPage() {
   // Camera & Capture state
   const [inputMode, setInputMode] = useState<'camera' | 'upload'>('camera');
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
@@ -65,6 +66,19 @@ export default function AnalysisPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Callback ref to guarantee stream is attached immediately when video element mounts
+  const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+    if (element && mediaStreamRef.current) {
+      if (element.srcObject !== mediaStreamRef.current) {
+        element.srcObject = mediaStreamRef.current;
+      }
+      element.play().catch((err) => {
+        console.warn('[Camera] Autoplay waiting for user gesture:', err);
+      });
+    }
+  }, []);
+
   // Stop camera media stream
   const stopCamera = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -75,49 +89,80 @@ export default function AnalysisPage() {
       videoRef.current.srcObject = null;
     }
     setIsCameraActive(false);
+    setIsCameraLoading(false);
   }, []);
 
-  // Start camera stream
+  // Start camera stream with multi-level graceful fallbacks
   const startCamera = useCallback(async (facing: 'user' | 'environment' = facingMode) => {
     stopCamera();
     setCameraError(null);
+    setIsCameraLoading(true);
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setCameraError('Camera access is not supported by your browser. Please use the upload option.');
+      setCameraError('Live camera is not supported by your browser environment. Please use "Open Phone Camera" or the "Upload" tab.');
+      setIsCameraLoading(false);
       return;
     }
 
     try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: facing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      };
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (e1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: facing } },
+            audio: false,
+          });
+        } catch (e2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       mediaStreamRef.current = stream;
+      setIsCameraActive(true);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        await videoRef.current.play().catch((playErr) => {
+          console.warn('[Camera] play() error:', playErr);
+        });
       }
-      setIsCameraActive(true);
     } catch (err: unknown) {
       console.warn('[Camera] Failed to initialize live camera:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Permission') || msg.includes('NotAllowedError')) {
-        setCameraError('Camera permission was denied. Please allow camera permissions in your browser or select a photo from your gallery.');
+      if (msg.includes('Permission') || msg.includes('NotAllowedError') || msg.includes('PermissionDeniedError')) {
+        setCameraError('Camera permission was blocked. Please tap the camera icon in your address bar to allow camera access, or use "Open Phone Camera" below.');
       } else if (msg.includes('NotFound') || msg.includes('DevicesNotFoundError')) {
-        setCameraError('No camera found on this device. Please upload a saved image instead.');
+        setCameraError('No camera found on this device. Please select a photo from your gallery or files.');
       } else {
-        setCameraError('Could not start camera. You can still upload a photo or use your phone camera below.');
+        setCameraError(`Could not access camera (${msg}). You can still use the "Open Phone Camera" button below.`);
       }
       setIsCameraActive(false);
+    } finally {
+      setIsCameraLoading(false);
     }
   }, [facingMode, stopCamera]);
+
+  // Sync stream to video element when isCameraActive changes
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && mediaStreamRef.current) {
+      if (videoRef.current.srcObject !== mediaStreamRef.current) {
+        videoRef.current.srcObject = mediaStreamRef.current;
+      }
+      videoRef.current.play().catch((err) => console.warn('[Camera] Sync play error:', err));
+    }
+  }, [isCameraActive]);
 
   // Clean up camera on unmount
   useEffect(() => {
@@ -140,8 +185,8 @@ export default function AnalysisPage() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
+    const width = video.videoWidth || video.clientWidth || 1280;
+    const height = video.videoHeight || video.clientHeight || 720;
 
     canvas.width = width;
     canvas.height = height;
@@ -365,42 +410,42 @@ export default function AnalysisPage() {
 
   return (
     <div className="min-h-screen bg-bg-screen">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-xs font-semibold uppercase tracking-wider mb-2">
             <Sparkles className="w-3.5 h-3.5" />
             AI Intraoral Screening
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-text-primary tracking-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-text-primary tracking-tight">
             AI Oral Analysis
           </h1>
-          <p className="text-text-secondary text-sm sm:text-base mt-2 max-w-lg mx-auto">
+          <p className="text-text-secondary text-xs sm:text-sm mt-1.5 max-w-lg mx-auto">
             Take a photo or upload an intraoral scan of your teeth for automated quality verification and deep anomaly detection.
           </p>
         </div>
 
         {/* Main Card */}
-        <div className="bg-bg-surface rounded-card shadow-sm border border-border-card p-6 sm:p-8">
+        <div className="bg-bg-surface rounded-card shadow-sm border border-border-card p-4 sm:p-6 md:p-8">
           {/* Step Selector / Photo Capture Hub (Hidden if photo is already taken) */}
           {!imagePreview && (
             <div className="mb-6 space-y-4">
               {/* Mode Tabs */}
-              <div className="grid grid-cols-2 gap-2 p-1 bg-bg-card rounded-lg border border-border-card">
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 p-1 bg-bg-card rounded-lg border border-border-card">
                 <button
                   type="button"
                   onClick={() => {
                     setInputMode('camera');
                     if (!isCameraActive) startCamera();
                   }}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 sm:px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
                     inputMode === 'camera'
                       ? 'bg-brand-primary text-text-on-avatar shadow-xs'
                       : 'text-text-secondary hover:text-text-primary hover:bg-bg-surface'
                   }`}
                 >
-                  <Camera className="w-4 h-4" />
-                  Take Photo (Camera)
+                  <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Camera</span>
                 </button>
                 <button
                   type="button"
@@ -408,14 +453,14 @@ export default function AnalysisPage() {
                     setInputMode('upload');
                     stopCamera();
                   }}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 sm:px-4 rounded-md text-xs sm:text-sm font-semibold transition cursor-pointer ${
                     inputMode === 'upload'
                       ? 'bg-brand-primary text-text-on-avatar shadow-xs'
                       : 'text-text-secondary hover:text-text-primary hover:bg-bg-surface'
                   }`}
                 >
-                  <UploadCloud className="w-4 h-4" />
-                  Upload Photo
+                  <UploadCloud className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Upload</span>
                 </button>
               </div>
 
@@ -426,11 +471,17 @@ export default function AnalysisPage() {
                   {isFlashing && (
                     <div className="absolute inset-0 bg-white z-30 animate-out fade-out duration-200" />
                   )}
+                  {isCameraLoading && (
+                    <div className="absolute inset-0 bg-slate-950/80 z-25 flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
+                      <span className="text-xs font-semibold text-emerald-200">Starting camera...</span>
+                    </div>
+                  )}
 
                   {isCameraActive ? (
                     <div className="relative w-full aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
                       <video
-                        ref={videoRef}
+                        ref={setVideoRef}
                         autoPlay
                         playsInline
                         muted
@@ -887,38 +938,38 @@ export default function AnalysisPage() {
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-text-primary capitalize">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-semibold text-text-primary capitalize text-xs sm:text-sm">
                               {det.class_name.replace('_', ' ')}
                             </h4>
-                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium">
+                            <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-medium">
                               {(det.confidence * 100).toFixed(1)}% confidence
                             </span>
                           </div>
                           
                           {/* Bounding Box Information */}
-                          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Pixel Coordinates (X1, Y1, X2, Y2)</p>
-                              <p className="font-mono text-text-primary">
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Pixel Coordinates (X1, Y1, X2, Y2)</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 ({det.bbox_xyxy[0].toFixed(0)}, {det.bbox_xyxy[1].toFixed(0)}, {det.bbox_xyxy[2].toFixed(0)}, {det.bbox_xyxy[3].toFixed(0)})
                               </p>
                             </div>
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Box Width × Height</p>
-                              <p className="font-mono text-text-primary">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Box Width × Height</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 {(det.bbox_xyxy[2] - det.bbox_xyxy[0]).toFixed(0)} × {(det.bbox_xyxy[3] - det.bbox_xyxy[1]).toFixed(0)} px
                               </p>
                             </div>
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Normalized Coords (Xc, Yc, W, H)</p>
-                              <p className="font-mono text-text-primary text-xs">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Normalized Coords (Xc, Yc, W, H)</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 ({det.bbox_xywhn[0].toFixed(3)}, {det.bbox_xywhn[1].toFixed(3)}, {det.bbox_xywhn[2].toFixed(3)}, {det.bbox_xywhn[3].toFixed(3)})
                               </p>
                             </div>
-                            <div className="bg-bg-surface p-2 rounded">
-                              <p className="text-text-secondary text-xs">Class ID</p>
-                              <p className="font-mono text-text-primary">
+                            <div className="bg-bg-surface p-2 rounded border border-border-card">
+                              <p className="text-text-secondary text-[10px] sm:text-xs">Class ID</p>
+                              <p className="font-mono text-text-primary text-[11px] sm:text-xs">
                                 {det.class_id}
                               </p>
                             </div>

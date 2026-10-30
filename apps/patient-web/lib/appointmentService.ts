@@ -394,6 +394,27 @@ export interface BlockoutDate {
   blockout_end_time?: string;
 }
 
+export async function getBlockoutDates(): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('clinic_blockout_dates')
+      .select('blockout_date, is_blocked')
+      .eq('is_blocked', true);
+
+    if (error) {
+      console.error('❌ Error fetching blockout dates:', error);
+      return [];
+    }
+
+    const dates = (data || []).map((d: any) => d.blockout_date);
+    console.log(`✅ [getBlockoutDates] Loaded ${dates.length} blockout dates:`, dates);
+    return dates;
+  } catch (err) {
+    console.error('❌ Exception in getBlockoutDates:', err);
+    return [];
+  }
+}
+
 export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null): Promise<BlockedSlot[]> {
   console.log('🔍 [getAllBlockedSlots] Starting to fetch blocked slots...');
 
@@ -424,6 +445,14 @@ export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null)
       blockedDateSet.add(blockout.blockout_date);
       console.log(`🚫 [BLOCKOUT] Blocking ALL TIME SLOTS for: ${blockout.blockout_date}`);
       
+      // Always register an ALL_DAY entry so BookAppointment immediately marks the entire date as blocked
+      blockoutSlots.push({
+        date: blockout.blockout_date,
+        time: 'ALL_DAY',
+        patientId: 'system-blockout',
+        service: 'blocked',
+      });
+
       const year = parseInt(blockout.blockout_date.split('-')[0]);
       const month = parseInt(blockout.blockout_date.split('-')[1]);
       const day = parseInt(blockout.blockout_date.split('-')[2]);
