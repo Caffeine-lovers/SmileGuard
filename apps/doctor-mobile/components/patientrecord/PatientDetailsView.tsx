@@ -16,7 +16,7 @@ import { Alert } from "react-native";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
-import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
+import { getStatusColor, getStatusLabel } from "../../lib/statusHelpers";
 import { formatDateOfBirth } from "../../lib/dateFormatters";
 
 export type AppointmentType = {
@@ -700,23 +700,7 @@ function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (a
     }
   })();
   
-  const statusColors: { [key: string]: string } = {
-    scheduled: '#FFC107',
-    completed: '#4CAF50',
-    cancelled: '#F44336',
-    'no-show': '#9C27B0',
-    declined: '#FF6F00',
-  };
-
-  // Ensure status has a default value and handle null/undefined cases
-  const appointmentStatus = appointment.status || 'scheduled';
-  const statusColor = statusColors[appointmentStatus] || '#666';
-  
-  // Format status text: capitalize first letter, handle no-show properly
-  const getStatusText = (status: string): string => {
-    if (status === 'no-show') return 'No Show';
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
+  const statusColor = getStatusColor(appointment.status || 'scheduled');
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -726,7 +710,7 @@ function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (a
           <Text style={styles.appointmentDate}>{formattedDate}</Text>
         </View>
         <Text style={[styles.appointmentStatus, { color: statusColor }]}>
-          {getStatusText(appointmentStatus)}
+          {getStatusLabel(appointment.status)}
         </Text>
       </View>
       {onEdit && (
@@ -735,7 +719,7 @@ function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (a
           style={{
             paddingVertical: 8,
             paddingHorizontal: 12,
-            backgroundColor: '#4CAF50',
+            backgroundColor: '#10B981',
             borderRadius: 6,
           }}
         >

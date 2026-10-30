@@ -88,7 +88,7 @@ describe("Billing Service - Type Safety & Calculations", () => {
         patient_id: "patient-001",
         amount: 1000,
         final_amount: 1000,
-        payment_status: "pending",
+        payment_status: "not_paid",
       };
 
       expect(billing.id).toBeUndefined();
@@ -97,9 +97,10 @@ describe("Billing Service - Type Safety & Calculations", () => {
 
     it("should enforce valid payment_status enum", () => {
       const validStatuses: Billing["payment_status"][] = [
-        "pending",
+        "not_paid",
         "paid",
         "overdue",
+        "cancelled",
       ];
 
       validStatuses.forEach((status) => {
@@ -126,7 +127,7 @@ describe("Billing Service - Type Safety & Calculations", () => {
           patient_id: "p-001",
           amount: 100,
           final_amount: 100,
-          payment_status: "pending",
+          payment_status: "not_paid",
           payment_method: method,
         };
         expect(billing.payment_method).toBe(method);

@@ -9,7 +9,7 @@ export interface Appointment {
   service: string;
   appointment_date: string;
   appointment_time: string;
-  status: "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
+  status: "pending" | "PENDING" | "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -49,7 +49,7 @@ export interface Billing {
   discount_type?: "none" | "pwd" | "senior" | "insurance";
   discount_amount?: number;
   final_amount: number;
-  payment_status: "pending" | "paid" | "overdue";
+  payment_status: "not_paid" | "paid" | "overdue" | "cancelled";
   payment_method?: "cash" | "card" | "gcash" | "bank-transfer";
   payment_date?: string;
   created_at?: string;

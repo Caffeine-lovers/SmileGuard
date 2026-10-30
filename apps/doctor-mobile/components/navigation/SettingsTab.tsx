@@ -10,8 +10,9 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
-import { Settings as SettingsIcon, ChevronRight, CreditCard } from 'lucide-react-native';
+import { Settings as SettingsIcon, ChevronRight, CreditCard, Compass, Sparkles, Users, Calendar } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
@@ -23,6 +24,9 @@ interface SettingsTabProps {
   onUpdateProfile?: (updatedUser: Partial<CurrentUser>) => void;
   styles: any;
   onProfileUpdated?: (doctorName: string, doctorId: string) => void;
+  onStartTutorial?: () => void;
+  onStartRecordsTutorial?: () => void;
+  onStartAppointmentsTutorial?: () => void;
 }
 
 type Theme = 'light' | 'dark';
@@ -35,7 +39,16 @@ interface AppSettings {
   fontSize: FontSize;
 }
 
-export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUpdated }: SettingsTabProps) {
+export default function SettingsTab({
+  user,
+  onUpdateProfile,
+  styles,
+  onProfileUpdated,
+  onStartTutorial,
+  onStartRecordsTutorial,
+  onStartAppointmentsTutorial,
+}: SettingsTabProps) {
+  const router = useRouter();
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
@@ -324,6 +337,170 @@ export default function SettingsTab({ user, onUpdateProfile, styles, onProfileUp
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* Guide & Tutorials Section */}
+          <View style={{ marginBottom: 28 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Guide & Tutorials</Text>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: CARD_BG,
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 10,
+                borderLeftWidth: 3,
+                borderLeftColor: ACCENT_COLOR,
+                borderWidth: 1,
+                borderTopColor: BORDER_COLOR,
+                borderRightColor: BORDER_COLOR,
+                borderBottomColor: BORDER_COLOR,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={onStartTutorial}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <View style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  backgroundColor: '#ECFDF5',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                }}>
+                  <Compass size={20} color="#047857" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>App Walkthrough</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how navigation, appointments, and charting work</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={ACCENT_COLOR} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: CARD_BG,
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 10,
+                borderLeftWidth: 3,
+                borderLeftColor: '#059669',
+                borderWidth: 1,
+                borderTopColor: BORDER_COLOR,
+                borderRightColor: BORDER_COLOR,
+                borderBottomColor: BORDER_COLOR,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={onStartRecordsTutorial}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <View style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  backgroundColor: '#ECFDF5',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                }}>
+                  <Users size={20} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Patient Records Walkthrough</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to search, sort, and inspect patient charts</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color="#059669" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: CARD_BG,
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 10,
+                borderLeftWidth: 3,
+                borderLeftColor: '#047857',
+                borderWidth: 1,
+                borderTopColor: BORDER_COLOR,
+                borderRightColor: BORDER_COLOR,
+                borderBottomColor: BORDER_COLOR,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={onStartAppointmentsTutorial}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <View style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  backgroundColor: '#ECFDF5',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#A7F3D0',
+                }}>
+                  <Calendar size={20} color="#047857" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Appointments Walkthrough</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to browse calendar dates, filter statuses, and edit visits</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color="#047857" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: CARD_BG,
+                borderRadius: 12,
+                padding: 16,
+                borderLeftWidth: 3,
+                borderLeftColor: '#0284C7',
+                borderWidth: 1,
+                borderTopColor: BORDER_COLOR,
+                borderRightColor: BORDER_COLOR,
+                borderBottomColor: BORDER_COLOR,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={() => router.push('/onboarding')}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <View style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  backgroundColor: '#E0F2FE',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#BAE6FD',
+                }}>
+                  <Sparkles size={20} color="#0284C7" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Clinic Onboarding Wizard</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Review clinic hours, catalog, and PayMongo setup</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color="#0284C7" />
+            </TouchableOpacity>
           </View>
 
           {/* About & Help Section */}

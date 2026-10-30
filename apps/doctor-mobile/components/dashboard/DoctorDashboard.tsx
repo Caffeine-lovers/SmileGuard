@@ -37,13 +37,16 @@ import {
   notifyDoctorProfileUpdated,
   createManualNotification,
 } from "../../lib/notificationService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
-import { formatDateOfBirth, formatAppointmentDate } from "../../lib/dateFormatters";
+import { formatDateOfBirth, formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
   Stethoscope,
   X,
+  Check,
   Activity,
   ShieldCheck,
   Menu,
@@ -59,7 +62,10 @@ import {
   Clock,
   LayoutDashboard,
   Bell,
-  Sparkles
+  Sparkles,
+  FileText,
+  Phone,
+  Compass
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
 import {
@@ -179,6 +185,207 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
 
+  // ─────────────────────────────────────────
+  // INTERACTIVE APP TOUR SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+  const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
+  const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
+  const dashboardScrollRef = useRef<any>(null);
+
+  const tourSteps: TourStep[] = [
+    {
+      id: "welcome",
+      title: "Welcome to SmileGuard Doctor!",
+      description: "Your digital dental clinic command center. Let's take a quick 1-minute walkthrough to show you how navigation and daily workflows work.",
+      icon: Stethoscope,
+      placement: "center",
+      onEnter: () => setSidebarOpen(false),
+    },
+    {
+      id: "menu-btn",
+      target: "menu-btn",
+      title: "Clinic Navigation Drawer",
+      description: "Tap this menu icon anytime to slide out your navigation drawer and jump between clinic modules.",
+      icon: Menu,
+      padding: 6,
+      radius: 12,
+      onEnter: () => setSidebarOpen(false),
+    },
+    {
+      id: "sidebar-nav",
+      target: "sidebar-nav",
+      title: "Clinic Modules & Tools",
+      description: "Easily navigate through Patient Records, Chair Appointments, Booking Requests, PayMongo Billings, and Clinic Settings.",
+      icon: LayoutDashboard,
+      padding: 6,
+      radius: 14,
+      placement: "bottom",
+      onEnter: () => setSidebarOpen(true),
+      delay: 450,
+    },
+    {
+      id: "notifications-btn",
+      target: "notifications-btn",
+      title: "Live Patient Notifications",
+      description: "Instant alerts ring whenever patients book online, request schedule changes, or submit their digital medical intake.",
+      icon: Bell,
+      padding: 4,
+      radius: 10,
+      onEnter: () => setSidebarOpen(false),
+      delay: 350,
+    },
+    {
+      id: "stats-panel",
+      target: "stats-panel",
+      title: "Daily Practice Metrics",
+      description: "See your live patient volume, confirmed appointments, and verified PayMongo paid billings in real-time.",
+      icon: Activity,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+      },
+    },
+    {
+      id: "today-appointments",
+      target: "today-appointments",
+      title: "Today's Patient Schedule",
+      description: "Chronological queue of patients arriving today. Tap any patient card to immediately inspect their chart and notes.",
+      icon: Calendar,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+      },
+    },
+    {
+      id: "patient-details",
+      target: "patient-details",
+      title: "Medical Charting & Actions",
+      description: "View the patient's requested service, contact details, medical history, allergies, and update their appointment status (Completed, Cancelled, etc.).",
+      icon: Users,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+      },
+    },
+    {
+      id: "guide-btn",
+      target: "guide-btn",
+      title: "Replay Guide Anytime",
+      description: "You can tap this Sparkles button anytime to replay this interactive walkthrough or view the PayMongo setup checklist.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 12,
+      onEnter: () => setSidebarOpen(false),
+    },
+    {
+      id: "finish",
+      title: "You're All Set, Doctor!",
+      description: "SmileGuard keeps your schedule organized and synced across web and mobile. Let's make every smile shine!",
+      icon: ShieldCheck,
+      placement: "center",
+      onEnter: () => setSidebarOpen(false),
+    },
+  ];
+
+  // Auto-prompt tour on first login
+  useEffect(() => {
+    if (!user?.id || loadingAppointments || loadingPatients) return;
+
+    let isMounted = true;
+    const checkFirstTimeTour = async () => {
+      try {
+        const key = `@smileguard_doctor_interactive_tour_completed_${user.id}`;
+        const hasCompleted = await AsyncStorage.getItem(key);
+        if (!hasCompleted && isMounted) {
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              setTourIndex(0);
+              setTourVisible(true);
+            }
+          }, 1200);
+          return () => clearTimeout(timer);
+        }
+      } catch (e) {
+        console.warn("[DoctorDashboard] Failed checking tour status", e);
+      }
+    };
+
+    checkFirstTimeTour();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, loadingAppointments, loadingPatients]);
+
+  const handleFinishTour = async () => {
+    setTourVisible(false);
+    setSidebarOpen(false);
+    if (user?.id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
+          "true"
+        );
+      } catch (e) {
+        console.warn("[DoctorDashboard] Failed persisting tour completion", e);
+      }
+    }
+  };
+
+  const handleSkipTour = async () => {
+    setTourVisible(false);
+    setSidebarOpen(false);
+    if (user?.id) {
+      try {
+        await AsyncStorage.setItem(
+          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
+          "true"
+        );
+      } catch (e) {
+        console.warn("[DoctorDashboard] Failed persisting tour skip", e);
+      }
+    }
+  };
+
+  const handleRestartTour = () => {
+    setSidebarOpen(false);
+    setActiveTab("dashboard");
+    setTourIndex(0);
+    setTourVisible(true);
+  };
+
+  const handleOpenGuideOptions = () => {
+    Alert.alert(
+      "SmileGuard Doctor Guide",
+      "Choose what you would like to explore:",
+      [
+        {
+          text: "Start App Walkthrough",
+          onPress: handleRestartTour,
+        },
+        {
+          text: "Clinic & PayMongo Guide",
+          onPress: () => router.push("/onboarding"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
   const today = getToday();
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [requests, setRequests] = useState<DashboardAppointment[]>([]);
@@ -283,10 +490,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       setLoadingPatients(true);
       setErrorMessage(null);
 
-      // Fetch appointment requests (dentist_id IS NULL)
+      // Fetch appointment requests (pending approval)
       const appointmentRequestsData = await getAppointmentRequests();
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
-        const transformedRequests = appointmentRequestsData.map((apt: any) => {
+        const filteredRequests = appointmentRequestsData.filter((apt: any) => !['cancelled', 'declined', 'completed', 'no-show'].includes((apt.status || '').toLowerCase()));
+        const transformedRequests = filteredRequests.map((apt: any) => {
           const medicalData = apt.patient_profile;
 
           const medicalIntake = medicalData ? {
@@ -317,7 +525,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             email: apt.profiles?.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
-            status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
+            status: (apt.status?.toLowerCase() === 'pending' ? 'pending' : (apt.status || 'pending')) as any,
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
             medicalIntake: medicalIntake,
@@ -328,8 +536,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
         setAppointmentRequests([]);
       }
 
-      // Use RPC function to get ALL appointments including cancelled (bypasses RLS)
-      const rpcAppointments = await getDoctorAppointments(user.id);
+      // Use RPC function to get ALL appointments including cancelled (bypasses RLS, excludes pending)
+      const rawRpcAppointments = await getDoctorAppointments(user.id);
+      const rpcAppointments = (rawRpcAppointments || []).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
       console.log('[DoctorDashboard] Got appointments from getDoctorAppointments:', rpcAppointments.length);
       if (rpcAppointments && rpcAppointments.length > 0) {
         console.log('📝 First appointment data:', rpcAppointments[0]);
@@ -683,17 +892,19 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <View style={styles.mainContainer}>
+      <View ref={tour.setContainer} collapsable={false} style={styles.mainContainer}>
         {/* Modern HeroUI Top App Bar */}
         <View style={styles.topAppBar}>
-          <TouchableOpacity
-            style={styles.menuIconButton}
-            onPress={() => setSidebarOpen(true)}
-            accessibilityLabel="Open sidebar menu"
-            activeOpacity={0.7}
-          >
-            <Menu size={22} color="#047857" />
-          </TouchableOpacity>
+          <View ref={tour.register("menu-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
+            <TouchableOpacity
+              style={styles.menuIconButton}
+              onPress={() => setSidebarOpen(true)}
+              accessibilityLabel="Open sidebar menu"
+              activeOpacity={0.7}
+            >
+              <Menu size={22} color="#047857" />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.topBarCenter}>
             <Text style={styles.topBarDoctorName} numberOfLines={1}>
@@ -705,19 +916,23 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           </View>
 
           <View style={styles.topBarRightActions}>
-            <TouchableOpacity
-              onPress={() => router.push('/onboarding')}
-              style={styles.topBarRefreshBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Clinic Onboarding Guide"
-            >
-              <Sparkles size={16} color="#047857" />
-            </TouchableOpacity>
-            <NotificationBell
-              unreadCount={notificationState.unreadCount}
-              onPress={() => setShowNotificationCenter(true)}
-              animateOnNewNotification={true}
-            />
+            <View ref={tour.register("guide-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
+              <TouchableOpacity
+                onPress={handleOpenGuideOptions}
+                style={styles.topBarRefreshBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Clinic Guide & Interactive Tour"
+              >
+                <Sparkles size={16} color="#047857" />
+              </TouchableOpacity>
+            </View>
+            <View ref={tour.register("notifications-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
+              <NotificationBell
+                unreadCount={notificationState.unreadCount}
+                onPress={() => setShowNotificationCenter(true)}
+                animateOnNewNotification={true}
+              />
+            </View>
             <TouchableOpacity
               onPress={() => {
                 setIsRefreshing(true);
@@ -808,18 +1023,36 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
         <View style={styles.contentArea}>
           {activeTab === 'dashboard' ? (
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
               <View style={styles.container}>
-                {/* Greeting Banner */}
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.welcomeGreeting}>Welcome back,</Text>
-                  <Text style={styles.welcomeName}>
-                    {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
-                  </Text>
+                {/* Signature Clinical Header Banner - Aligned with Patient Web */}
+                <View style={styles.clinicBanner}>
+                  {/* Subtle top bevel highlight */}
+                  <View style={styles.clinicBannerBevel} />
+
+                  <View style={styles.clinicBannerContent}>
+                    <View style={styles.clinicBannerIconBox}>
+                      <Stethoscope size={24} color="#A7F3D0" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.clinicBannerBadgeRow}>
+                        <View style={styles.clinicBannerBadge}>
+                          <ShieldCheck size={11} color="#022C22" style={{ marginRight: 4 }} />
+                          <Text style={styles.clinicBannerBadgeText}>SMILEGUARD DOCTOR PORTAL</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.clinicBannerDoctorName} numberOfLines={1}>
+                        {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
+                      </Text>
+                      <Text style={styles.clinicBannerSubtitle} numberOfLines={1}>
+                        {clinic?.clinic_name || 'SmileGuard Dental Clinic'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
                 {/* Stats Panel - from Supabase with Iconic Lucide Icons */}
-                <View style={styles.firstPanel}>
+                <View ref={tour.register("stats-panel")} collapsable={false} style={styles.firstPanel}>
                   <StatCard
                     number={patients.length}
                     label="Patients"
@@ -844,12 +1077,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 </View>
 
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.header}>Quick Actions</Text>
+                  <Text style={styles.header}>DAILY CLINICAL SCHEDULE</Text>
                 </View>
 
                 <View style={styles.dashboardColumns}>
                   {/* Left Column: Today's Appointments */}
-                  <View style={styles.column}>
+                  <View ref={tour.register("today-appointments")} collapsable={false} style={styles.column}>
                     <View style={styles.sectionHeaderRow}>
                       <View style={styles.sectionTitleGroup}>
                         <Text style={styles.sectionHeaderTitle}>Today's Appointments</Text>
@@ -887,51 +1120,74 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
 
                   {/* Right Column: Patient Details */}
-                  <View style={styles.column}>
+                  <View ref={tour.register("patient-details")} collapsable={false} style={styles.column}>
                     <View style={styles.sectionHeaderRow}>
                       <Text style={styles.sectionHeaderTitle}>Patient Details</Text>
                       {selectedPatient && (
                         <TouchableOpacity
                           style={styles.seeAllBtn}
                           activeOpacity={0.7}
+                          onPress={() => {
+                            setViewingPatient(selectedPatient);
+                            setShowPatientDetails(true);
+                          }}
                         >
-                          <Text style={styles.seeAllBtnText}>Edit</Text>
+                          <Text style={styles.seeAllBtnText}>Full Chart</Text>
                           <ChevronRight size={14} color="#047857" />
                         </TouchableOpacity>
                       )}
                     </View>
                     {!selectedPatient ? (
-                      <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 120 }]}>
-                        <Users size={28} color="#94A3B8" style={{ marginBottom: 8 }} />
-                        <Text style={{ color: '#64748B', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>No appointment selected</Text>
+                      <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 140, paddingVertical: 24, backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}>
+                        <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: '#EDF2F7', borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                          <Users size={22} color="#047857" />
+                        </View>
+                        <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>No Patient Selected</Text>
+                        <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', textAlign: 'center', marginTop: 4, maxWidth: 220 }}>
+                          Select an appointment from Today's Schedule or Requests to inspect clinical records.
+                        </Text>
                       </View>
                     ) : (
-                      <View style={[styles.detailsCard, styles.shadow, { position: 'relative' }]}>
+                      <View style={[styles.detailsCard, styles.shadow, {
+                        position: 'relative',
+                      }]}>
                         {/* Status Badge - Top Right Corner */}
                         <View style={{
                           position: 'absolute',
                           top: 12,
                           right: 12,
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 20,
-                          backgroundColor: getStatusBgColor(selectedPatient.status || 'scheduled'),
+                          paddingHorizontal: 8,
+                          paddingVertical: 3.5,
+                          borderRadius: 4,
+                          borderWidth: 1,
+                          borderColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#F59E0B' : '#6EE7B7',
+                          backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FEF3C7' : '#D1FAE5',
                           zIndex: 10,
                         }}>
-                          <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 12 }}>
+                          <Text style={{
+                            fontWeight: '800',
+                            color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#B45309' : '#065F46',
+                            fontSize: 9.5,
+                            letterSpacing: 0.6,
+                          }}>
                             {(selectedPatient.status || 'scheduled').toUpperCase()}
                           </Text>
                         </View>
 
                         {/* Patient Header */}
-                        <View style={{ alignItems: 'center', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
+                        <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
                           <Image
                             source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                            style={{ width: 60, height: 60, borderRadius: 30, marginBottom: 10 }}
+                            style={{ width: 62, height: 62, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 8 }}
                           />
-                          <Text style={{ fontWeight: "bold", fontSize: 18 }}>
+                          <Text style={{ fontWeight: "900", fontSize: 17, color: '#0F172A', letterSpacing: -0.3 }}>
                             {selectedPatient.name}
                           </Text>
+                          {(selectedPatient.email || selectedPatient.contact) && (
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', letterSpacing: 0.5, marginTop: 2 }}>
+                              {selectedPatient.email || selectedPatient.contact}
+                            </Text>
+                          )}
                           {((selectedPatient as any).pwd_status === 'approved' || (selectedPatient as any).medicalIntake?.pwd_status === 'approved') && (
                             <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 4, borderWidth: 1, borderColor: '#10B981' }}>
                               <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>
@@ -948,50 +1204,102 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           )}
                         </View>
 
-                        {/* Appointment Details */}
-                        <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>APPOINTMENT DETAILS</Text>
-                          <DetailRow label="Service" value={selectedPatient.service || "Not specified"} />
-                          <DetailRow label="Time" value={selectedPatient.time || "Not specified"} />
+                        {/* Appointment Details Box */}
+                        <View style={{
+                          marginBottom: 14,
+                          backgroundColor: '#F8FAFC',
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: '#E2E8F0',
+                          padding: 10,
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                            <Calendar size={13} color="#047857" />
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>APPOINTMENT DETAILS</Text>
+                          </View>
+                          <DetailRow label="Service" value={selectedPatient.service || "General Dental"} />
+                          <DetailRow label="Time" value={selectedPatient.time ? formatAppointmentTime(selectedPatient.time) : "Not specified"} isHighlight={true} />
                           <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
                         </View>
 
-                        {/* See More Button */}
+                        {/* Action: Open Full Medical Record */}
                         <TouchableOpacity
                           style={{
-                            paddingVertical: 14,
-                            paddingHorizontal: 16,
-                            marginBottom: 24,
-                            backgroundColor: expandPatientDetails ? '#ECFDF5' : '#F1F5F9',
+                            paddingVertical: 10,
+                            paddingHorizontal: 12,
+                            marginBottom: 12,
+                            backgroundColor: '#047857',
                             borderRadius: 6,
-                            borderWidth: 1.5,
-                            borderColor: expandPatientDetails ? '#10B981' : '#CBD5E1',
+                            borderWidth: 1,
+                            borderColor: '#064E3B',
+                            borderBottomWidth: 2.5,
+                            borderBottomColor: '#022C22',
                             flexDirection: 'row',
                             justifyContent: 'center',
                             alignItems: 'center',
-                            gap: 8,
+                            gap: 6,
+                          }}
+                          onPress={() => {
+                            setViewingPatient(selectedPatient);
+                            setShowPatientDetails(true);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <FileText size={13} color="#FFFFFF" />
+                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>VIEW FULL MEDICAL RECORD</Text>
+                          <ChevronRight size={13} color="#6EE7B7" />
+                        </TouchableOpacity>
+
+                        {/* See More Toggle Button */}
+                        <TouchableOpacity
+                          style={{
+                            paddingVertical: 11,
+                            paddingHorizontal: 14,
+                            marginBottom: expandPatientDetails ? 16 : 4,
+                            backgroundColor: expandPatientDetails ? '#ECFDF5' : '#F1F5F9',
+                            borderRadius: 6,
+                            borderWidth: 1.5,
+                            borderBottomWidth: 2.5,
+                            borderColor: expandPatientDetails ? '#10B981' : '#CBD5E1',
+                            borderBottomColor: expandPatientDetails ? '#047857' : '#94A3B8',
+                            flexDirection: 'row',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 6,
                           }}
                           onPress={() => setExpandPatientDetails(!expandPatientDetails)}
+                          activeOpacity={0.7}
                         >
                           <Text style={{
-                            fontSize: 13,
-                            fontWeight: '700',
+                            fontSize: 12,
+                            fontWeight: '800',
                             color: expandPatientDetails ? '#047857' : '#475569',
+                            letterSpacing: 0.4,
                           }}>
-                            {expandPatientDetails ? 'Show Less' : 'See More'}
+                            {expandPatientDetails ? 'HIDE CLINICAL INTAKE' : 'EXPAND CLINICAL INTAKE'}
                           </Text>
                           <ChevronDown
-                            size={16}
+                            size={15}
                             color={expandPatientDetails ? '#047857' : '#475569'}
                             style={{ transform: [{ rotate: expandPatientDetails ? '180deg' : '0deg' }] }}
                           />
                         </TouchableOpacity>
 
-                        {/* Contact Information - Expanded */}
+                        {/* Contact Information & Intake - Expanded */}
                         {expandPatientDetails && (
-                          <>
-                            <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>CONTACT INFORMATION</Text>
+                          <View style={{ gap: 12 }}>
+                            {/* Contact Box */}
+                            <View style={{
+                              backgroundColor: '#F8FAFC',
+                              borderRadius: 6,
+                              borderWidth: 1,
+                              borderColor: '#E2E8F0',
+                              padding: 10,
+                            }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                <Phone size={13} color="#047857" />
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>CONTACT INFORMATION</Text>
+                              </View>
                               <DetailRow label="Email" value={selectedPatient.email || "Not provided"} />
                               <DetailRow label="Phone" value={selectedPatient.contact || "Not provided"} />
                             </View>
@@ -999,24 +1307,55 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             {/* Personal Details */}
                             {selectedPatient.medicalIntake && (
                               <>
-                                <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>PERSONAL DETAILS</Text>
+                                <View style={{
+                                  backgroundColor: '#F8FAFC',
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: '#E2E8F0',
+                                  padding: 10,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                    <Users size={13} color="#047857" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>PERSONAL DETAILS</Text>
+                                  </View>
                                   <DetailRow label="Gender" value={selectedPatient.medicalIntake.gender || "Not specified"} />
                                   <DetailRow label="Date of Birth" value={formatDateOfBirth(selectedPatient.medicalIntake.dateOfBirth)} />
                                   <DetailRow label="Address" value={selectedPatient.medicalIntake.address || "Not provided"} />
                                 </View>
 
                                 {/* Emergency Contact */}
-                                <View style={{ marginBottom: 24, marginHorizontal: 0 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>EMERGENCY CONTACT</Text>
+                                <View style={{
+                                  backgroundColor: '#F8FAFC',
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: '#E2E8F0',
+                                  padding: 10,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                    <Phone size={13} color="#047857" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>EMERGENCY CONTACT</Text>
+                                  </View>
                                   <DetailRow label="Contact Name" value={selectedPatient.medicalIntake.emergencyContactName || "Not provided"} />
                                   <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake.emergencyContactPhone || "Not provided"} />
                                 </View>
 
                                 {/* Medical History */}
-                                <View style={{ marginHorizontal: 0 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginBottom: 12, letterSpacing: 0.5 }}>MEDICAL HISTORY</Text>
-                                  <DetailRow label="Allergies" value={selectedPatient.medicalIntake.allergies || "None"} />
+                                <View style={{
+                                  backgroundColor: '#F8FAFC',
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: '#E2E8F0',
+                                  padding: 10,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                                    <Activity size={13} color="#047857" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>MEDICAL HISTORY</Text>
+                                  </View>
+                                  <DetailRow
+                                    label="Allergies"
+                                    value={selectedPatient.medicalIntake.allergies || "None"}
+                                    isAlert={Boolean(selectedPatient.medicalIntake.allergies && selectedPatient.medicalIntake.allergies.toLowerCase() !== 'none')}
+                                  />
                                   <DetailRow label="Current Medications" value={selectedPatient.medicalIntake.currentMedications || "None"} />
                                   <DetailRow label="Medical Conditions" value={selectedPatient.medicalIntake.medicalConditions || "None"} />
                                   <DetailRow label="Past Surgeries" value={selectedPatient.medicalIntake.pastSurgeries || "None"} />
@@ -1024,7 +1363,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                                 </View>
                               </>
                             )}
-                          </>
+                          </View>
                         )}
                       </View>
                     )}
@@ -1045,7 +1384,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
                               <Image
                                 source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                                style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                                style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
                               />
                               <View style={{ flex: 1 }}>
                                 <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
@@ -1082,92 +1421,90 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
                 </View>
 
-                {/* Appointment Requests Section - Show only 3 recent */}
+                {/* Appointment Requests Section - Aligned with Patient Web skeuo design */}
                 {appointmentRequests.length > 0 && (
-                  <View style={{ marginBottom: 12 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                      <Text style={[styles.subHeader, { color: '#d32f2f' }]}>
-                        Appointment Requests ({appointmentRequests.length})
-                      </Text>
-                    </View>
-                    {appointmentRequests.slice(0, 3).map((request) => (
-                      <View
-                        key={request.id}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          backgroundColor: '#fff3e0',
-                          borderLeftWidth: 4,
-                          borderLeftColor: '#ff9800',
-                          borderRadius: 8,
-                          padding: 12,
-                          marginBottom: 10,
-                        }}
-                      >
-                        <Image
-                          source={typeof request.imageUrl === 'string' ? { uri: request.imageUrl } : request.imageUrl}
-                          style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>
-                            {request.name}
-                          </Text>
-                          <Text style={{ fontWeight: 'bold', fontSize: 12, color: '#047857', marginTop: 4 }}>
-                            {request.service}
-                          </Text>
-                          <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                            {formatAppointmentDate(request.date)} - {request.time}
-                          </Text>
+                  <View style={styles.requestsSection}>
+                    <View style={styles.requestsHeaderRow}>
+                      <View style={styles.requestsHeaderTitleGroup}>
+                        <Text style={styles.requestsHeaderTitle}>APPOINTMENT REQUESTS</Text>
+                        <View style={styles.requestsCountBadge}>
+                          <Text style={styles.requestsCountBadgeText}>{appointmentRequests.length}</Text>
                         </View>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setActiveTab('appointment-requests')}
+                        style={styles.seeAllBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.seeAllBtnText}>View all</Text>
+                        <ChevronRight size={14} color="#047857" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {appointmentRequests.slice(0, 3).map((request) => (
+                      <View key={request.id} style={styles.requestCard}>
+                        {/* Top row: Avatar, Info, and Status Badge */}
+                        <View style={styles.requestCardTop}>
+                          <Image
+                            source={typeof request.imageUrl === 'string' ? { uri: request.imageUrl } : request.imageUrl}
+                            style={styles.requestAvatar}
+                          />
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <Text style={styles.requestPatientName}>{request.name}</Text>
+                            <Text style={styles.requestService}>{request.service}</Text>
+                            <View style={styles.requestTimeRow}>
+                              <Clock size={12} color="#047857" style={{ marginRight: 4 }} />
+                              <Text style={styles.requestTimeText}>
+                                {formatAppointmentDate(request.date)} • {formatAppointmentTime(request.time)}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.requestPendingBadge}>
+                            <Text style={styles.requestPendingBadgeText}>PENDING</Text>
+                          </View>
+                        </View>
+
+                        {/* Notes preview if available */}
+                        {request.notes ? (
+                          <View style={styles.requestNotesBox}>
+                            <Text style={styles.requestNotesText} numberOfLines={2}>
+                              "{request.notes}"
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Action buttons with tactile 3D skeuo style */}
+                        <View style={styles.requestActionRow}>
                           <TouchableOpacity
                             onPress={() => handleAcceptAppointmentRequest(request)}
-                            style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 8,
-                              borderRadius: 6,
-                              backgroundColor: '#4CAF50',
-                            }}
+                            style={styles.requestAcceptBtn}
+                            activeOpacity={0.8}
                           >
-                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>Accept</Text>
+                            <Check size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.requestAcceptBtnText}>Accept</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => handleDeclineAppointmentRequest(request)}
-                            style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 8,
-                              borderRadius: 6,
-                              backgroundColor: '#f5f5f5',
-                              borderWidth: 1,
-                              borderColor: '#ddd',
-                            }}
+                            style={styles.requestDeclineBtn}
+                            activeOpacity={0.8}
                           >
-                            <Text style={{ color: '#666', fontSize: 12, fontWeight: 'bold' }}>Decline</Text>
+                            <X size={14} color="#475569" style={{ marginRight: 6 }} />
+                            <Text style={styles.requestDeclineBtnText}>Decline</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
                     ))}
+
                     {appointmentRequests.length > 3 && (
                       <TouchableOpacity
                         onPress={() => setActiveTab('appointment-requests')}
-                        style={{
-                          paddingVertical: 12,
-                          paddingHorizontal: 16,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexDirection: 'row',
-                          gap: 8,
-                          marginTop: 8,
-                          backgroundColor: '#fff3e0',
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          borderColor: '#ff9800',
-                        }}
+                        style={styles.seeMoreRequestsBtn}
+                        activeOpacity={0.8}
                       >
-                        <Text style={{ color: '#ff9800', fontWeight: 'bold', fontSize: 14 }}>
+                        <Text style={styles.seeMoreRequestsBtnText}>
                           See more requests ({appointmentRequests.length - 3} more)
                         </Text>
-                        <ChevronRight size={16} color="#ff9800" />
+                        <ChevronRight size={16} color="#B45309" />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1187,9 +1524,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               setViewingPatient={setViewingPatient}
               setShowPatientDetails={setShowPatientDetails}
               styles={styles}
+              startTourTrigger={recordsTourTrigger}
             />
           ) : activeTab === 'appointments' ? (
             <AppointmentsTab
+              startTourTrigger={appointmentsTourTrigger}
               appointments={appointments}
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               styles={styles}
@@ -1247,6 +1586,21 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 // Trigger notification when doctor profile is updated
                 const notification = notifyDoctorProfileUpdated(doctorName, doctorId);
                 notificationState.actions.addNotification(notification);
+              }}
+              onStartTutorial={() => {
+                setActiveTab('dashboard');
+                setTimeout(() => {
+                  setTourIndex(0);
+                  setTourVisible(true);
+                }, 250);
+              }}
+              onStartRecordsTutorial={() => {
+                setActiveTab('records');
+                setRecordsTourTrigger((prev) => prev + 1);
+              }}
+              onStartAppointmentsTutorial={() => {
+                setActiveTab('appointments');
+                setAppointmentsTourTrigger((prev) => prev + 1);
               }}
             />
           )}
@@ -1346,7 +1700,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </View>
 
-          <View style={styles.navItems}>
+          <View ref={tour.register("sidebar-nav")} collapsable={false} style={styles.navItems}>
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
               onPress={() => {
@@ -1414,18 +1768,32 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.sidebarLogoutBtn}
-            onPress={() => {
-              Alert.alert("Confirm Logout", "Are you sure?", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: onLogout },
-              ]);
-            }}
-          >
-            <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.sidebarLogoutText}>Logout</Text>
-          </TouchableOpacity>
+          <View style={{ gap: 8, marginTop: 12 }}>
+            <TouchableOpacity
+              style={styles.sidebarTourBtn}
+              onPress={() => {
+                setSidebarOpen(false);
+                setTimeout(() => handleRestartTour(), 300);
+              }}
+              activeOpacity={0.8}
+            >
+              <Compass size={18} color="#A7F3D0" style={{ marginRight: 8 }} />
+              <Text style={styles.sidebarTourText}>App Walkthrough</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sidebarLogoutBtn}
+              onPress={() => {
+                Alert.alert("Confirm Logout", "Are you sure?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Logout", style: "destructive", onPress: onLogout },
+                ]);
+              }}
+            >
+              <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.sidebarLogoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         {/* Loading Overlay for Tab Navigation */}
@@ -1500,6 +1868,17 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </SafeAreaView>
         </Modal>
+
+        {/* Interactive Walkthrough Tour */}
+        <AppTour
+          visible={tourVisible}
+          steps={tourSteps}
+          index={tourIndex}
+          onIndexChange={setTourIndex}
+          measureTarget={tour.measure}
+          onFinish={handleFinishTour}
+          onSkip={handleSkipTour}
+        />
       </View>
     </SafeAreaView>
   );
@@ -1686,6 +2065,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  sidebarTourBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    backgroundColor: 'rgba(16, 185, 129, 0.22)',
+    borderWidth: 1,
+    borderColor: '#34D399',
+    borderRadius: 10,
+  },
+
+  sidebarTourText: {
+    color: '#E6FFFA',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   sidebarLogoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1777,11 +2173,265 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  // Signature Clinic Header Banner
+  clinicBanner: {
+    backgroundColor: '#064E3B',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#022C22',
+    padding: 16,
+    marginBottom: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  clinicBannerBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  clinicBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clinicBannerIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clinicBannerBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  clinicBannerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6EE7B7',
+    borderWidth: 1,
+    borderColor: '#34D399',
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  clinicBannerBadgeText: {
+    color: '#022C22',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  clinicBannerDoctorName: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: -0.3,
+  },
+  clinicBannerSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#D1FAE5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+
+  // Appointment Requests Section
+  requestsSection: {
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  requestsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  requestsHeaderTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requestsHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  requestsCountBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
+  },
+  requestsCountBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  requestCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  requestCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    marginRight: 10,
+  },
+  requestPatientName: {
+    fontWeight: '800',
+    fontSize: 14,
+    color: '#0F172A',
+  },
+  requestService: {
+    fontWeight: '700',
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 1,
+  },
+  requestTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  requestTimeText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  requestPendingBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+  },
+  requestPendingBadgeText: {
+    color: '#B45309',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  requestNotesBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 4,
+    padding: 8,
+    marginTop: 10,
+  },
+  requestNotesText: {
+    fontSize: 11.5,
+    color: '#475569',
+    fontStyle: 'italic',
+  },
+  requestActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  requestAcceptBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    backgroundColor: '#047857',
+    borderBottomWidth: 2,
+    borderBottomColor: '#022C22',
+  },
+  requestAcceptBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  requestDeclineBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+  },
+  requestDeclineBtnText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  seeMoreRequestsBtn: {
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+  },
+  seeMoreRequestsBtnText: {
+    color: '#B45309',
+    fontWeight: '800',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
   header: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "800",
     color: "#047857",
-    letterSpacing: -0.3,
+    letterSpacing: 0.5,
   },
 
   subHeader: {
@@ -1820,9 +2470,12 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: "#FFFFFF",
+    borderLeftColor: "#E2E8F0",
+    borderRightColor: "#CBD5E1",
+    borderBottomColor: "#CBD5E1",
     padding: 14,
     marginBottom: 10,
     flexDirection: "row",
@@ -1836,9 +2489,12 @@ const styles = StyleSheet.create({
 
   detailsCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: "#FFFFFF",
+    borderLeftColor: "#E2E8F0",
+    borderRightColor: "#CBD5E1",
+    borderBottomColor: "#CBD5E1",
     padding: 16,
     marginBottom: 16,
     shadowColor: "#0F172A",
@@ -1931,35 +2587,85 @@ const styles = StyleSheet.create({
 // HELPER COMPONENT
 // ─────────────────────────────────────────
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  isHighlight,
+  isAlert,
+}: {
+  label: string;
+  value: string;
+  isHighlight?: boolean;
+  isAlert?: boolean;
+}) {
   return (
     <View style={{
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      paddingVertical: 18,
-      paddingHorizontal: 8,
-      borderBottomColor: '#f0f0f0',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+      borderBottomColor: '#F1F5F9',
       borderBottomWidth: 1,
-      gap: 20,
+      gap: 10,
     }}>
       <Text style={{
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#666',
-        flexShrink: 1,
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#64748B',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+        flexShrink: 0,
       }}>
         {label}
       </Text>
-      <Text style={{
-        fontSize: 13,
-        color: '#333',
-        textAlign: 'right',
-        fontWeight: '500',
-        flexShrink: 1,
-      }}>
-        {value}
-      </Text>
+      {isAlert ? (
+        <View style={{
+          backgroundColor: '#FEF2F2',
+          borderWidth: 1,
+          borderColor: '#FCA5A5',
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+          borderRadius: 4,
+        }}>
+          <Text style={{
+            fontSize: 11.5,
+            fontWeight: '800',
+            color: '#B91C1C',
+            textAlign: 'right',
+          }}>
+            {value}
+          </Text>
+        </View>
+      ) : isHighlight ? (
+        <View style={{
+          backgroundColor: '#ECFDF5',
+          borderWidth: 1,
+          borderColor: '#A7F3D0',
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+          borderRadius: 4,
+        }}>
+          <Text style={{
+            fontSize: 11.5,
+            fontWeight: '800',
+            color: '#047857',
+            textAlign: 'right',
+          }}>
+            {value}
+          </Text>
+        </View>
+      ) : (
+        <Text style={{
+          fontSize: 12.5,
+          color: '#0F172A',
+          textAlign: 'right',
+          fontWeight: '700',
+          flexShrink: 1,
+        }}>
+          {value}
+        </Text>
+      )}
     </View>
   );
 }

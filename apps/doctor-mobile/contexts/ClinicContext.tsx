@@ -58,8 +58,11 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
     loadClinicData();
 
     // Subscribe to real-time changes
-    const subscription = supabase
-      .channel('clinic_setup_changes')
+    // Use a unique channel name per mount: supabase-js reuses channels with the same
+    // name, and adding .on() to an already-subscribed channel throws
+    // "cannot add postgres_changes callbacks ... after subscribe()".
+    const channel = supabase
+      .channel(`clinic_setup_changes_${Date.now()}_${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
@@ -76,7 +79,7 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, []);
 
