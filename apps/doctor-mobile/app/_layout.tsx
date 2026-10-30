@@ -7,7 +7,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClinicProvider } from "../contexts/ClinicContext";
 
 export default function RootLayout() {

@@ -1,22 +1,25 @@
-import React, { useEffect } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { View, Text, ActivityIndicator } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
 
 /**
  * Deep Link Handler for OAuth Callback
- * 
+ *
  * This route handles the OAuth redirect from Google/other providers.
- * Expo and Supabase redirect back here after the user authenticates.
- * 
+ * It ONLY exchanges the authorization code for a session — all navigation
+ * is handled by _layout.tsx's onAuthStateChange listener, which fires
+ * automatically once the session is established.
+ *
+ * Keeping navigation out of this component avoids the cold-start race
+ * condition where router.replace() fires before Expo Router's navigator
+ * is internally ready on a fresh APK launch via deep link.
+ *
  * URL format: smileguard://redirect?code=...&state=...
- * 
- * The deep link handler receives the authorization code, 
- * Supabase's session handler extracts it, and we check for the session.
  */
 export default function OAuthRedirect() {
-  const router = useRouter();
   const searchParams = useLocalSearchParams<{ code?: string; error?: string }>();
+  const [status, setStatus] = useState("Completing sign-in...");
 
   useEffect(() => {
     const handleOAuthCallback = async () => {
@@ -26,70 +29,41 @@ export default function OAuthRedirect() {
 
         if (searchParams.error) {
           console.error("❌ OAuth error:", searchParams.error);
-          router.replace("/");
+          setStatus("Sign-in failed. Please try again.");
+          // _layout.tsx will redirect to / once it sees no session
           return;
         }
 
-        // If code param is present (PKCE flow), exchange it for a session
+        // Exchange authorization code for a session (PKCE flow)
         if (searchParams.code) {
           console.log("[OAuthRedirect] Exchanging code for session...");
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(searchParams.code);
           if (exchangeError) {
             console.error("❌ Error exchanging code for session:", exchangeError);
+            setStatus("Sign-in failed. Please try again.");
+            return;
           }
         }
 
-        // Give Supabase a moment to process/store session
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Check if user is now authenticated (retry up to 3 times to allow session storage to settle)
-        let session = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          const { data } = await supabase.auth.getSession();
-          if (data?.session?.user) {
-            session = data.session;
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-
-        console.log("[OAuthRedirect] Session after auth:", session ? "Found" : "Null");
-
-        if (session?.user) {
-          console.log("✅ OAuth successful, user:", session.user.email);
-          // Check if doctor profile exists to direct to correct screen
-          const { data: doc } = await supabase
-            .from("doctors")
-            .select("id")
-            .eq("user_id", session.user.id)
-            .maybeSingle();
-
-          if (doc) {
-            console.log("[OAuthRedirect] Doctor profile found, routing to /(doctor)/dashboard");
-            router.replace("/(doctor)/dashboard");
-          } else {
-            console.log("[OAuthRedirect] No doctor profile found, routing to /setup-profile");
-            router.replace("/setup-profile");
-          }
-        } else {
-          // No session yet, redirect back to login
-          console.log("⚠️ No session after redirect");
-          router.replace("/");
-        }
+        // ✅ Session is now set — onAuthStateChange in _layout.tsx fires,
+        // sets the user, and the routing useEffect handles navigation.
+        // No router.replace() needed here.
+        console.log("[OAuthRedirect] Code exchanged. Waiting for _layout.tsx to navigate...");
+        setStatus("Signing you in...");
       } catch (error) {
         console.error("❌ Error handling OAuth callback:", error);
-        router.replace("/");
+        setStatus("Sign-in failed. Please try again.");
       }
     };
 
     handleOAuthCallback();
-  }, [router, searchParams]);
+  }, [searchParams]);
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
       <ActivityIndicator size="large" />
       <Text style={{ marginTop: 16, color: "#999" }}>
-        Completing sign-in...
+        {status}
       </Text>
     </View>
   );

@@ -1,16 +1,33 @@
+'use client';
+
+import { useState } from 'react';
 
 interface AppointmentCardProps {
   name: string;
+  avatarUrl?: string | null;
   service: string;
   time: string;
   date?: string;
   status?: string;
   clinicName?: string;
   onClick?: () => void;
+  onDoctorClick?: () => void;
   isSelected?: boolean;
 }
 
-export default function AppointmentCard({ name, service, time, date, status, clinicName, onClick, isSelected }: AppointmentCardProps) {
+export default function AppointmentCard({ 
+  name, 
+  avatarUrl, 
+  service, 
+  time, 
+  date, 
+  status, 
+  clinicName,
+  onClick, 
+  onDoctorClick,
+  isSelected 
+}: AppointmentCardProps) {
+  const [imgError, setImgError] = useState(false);
   const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SG';
 
   return (
@@ -22,12 +39,46 @@ export default function AppointmentCard({ name, service, time, date, status, cli
       }`}
       onClick={onClick}
     >
-      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-sm bg-gradient-to-b from-emerald-600 to-emerald-800 text-white font-bold text-xs flex items-center justify-center shrink-0 border border-emerald-900 shadow-inner">
-        {initials}
+      <div 
+        className={`w-10 h-10 sm:w-11 sm:h-11 rounded-sm bg-gradient-to-b from-emerald-600 to-emerald-800 text-white font-bold text-xs flex items-center justify-center shrink-0 border border-emerald-900 shadow-inner overflow-hidden ${
+          onDoctorClick ? 'cursor-pointer hover:opacity-90' : ''
+        }`}
+        onClick={(e) => {
+          if (onDoctorClick) {
+            e.stopPropagation();
+            onDoctorClick();
+          }
+        }}
+        title={onDoctorClick ? `View ${name}'s credentials` : undefined}
+      >
+        {avatarUrl && !imgError ? (
+          <img
+            src={avatarUrl}
+            alt={name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          initials
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <p className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[130px] sm:max-w-none">{name}</p>
+          {onDoctorClick ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDoctorClick();
+              }}
+              className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[130px] sm:max-w-none hover:text-emerald-700 hover:underline transition-colors text-left"
+              title={`View ${name}'s credentials`}
+            >
+              {name}
+            </button>
+          ) : (
+            <p className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[130px] sm:max-w-none">{name}</p>
+          )}
           {status && (
             <span className={`text-[8px] sm:text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-xs border shrink-0 ${
               status === 'completed'

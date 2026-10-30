@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
-import { getPatientAppointments, getDoctorName, withTimeout } from '@/lib/appointmentService';
+import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
+import { getPatientAppointments, getDoctorDetails, withTimeout } from '@/lib/appointmentService';
 import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
@@ -34,6 +35,8 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
+  const [doctorPictures, setDoctorPictures] = useState<Record<string, string>>({});
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
   const [isTourOpen, setIsTourOpen] = useState(false);
 
   useEffect(() => {
@@ -98,7 +101,7 @@ export default function PatientDashboard() {
           }
         }
 
-        // Fetch doctor names with fast timeout
+        // Fetch doctor names and pictures with fast timeout
         const doctorIds = Array.from(new Set(
           (appts || [])
             .map(a => a.dentist_id)
@@ -106,13 +109,20 @@ export default function PatientDashboard() {
         ));
 
         const names: Record<string, string> = {};
+        const pictures: Record<string, string> = {};
         await Promise.all(
           doctorIds.map(async (docId) => {
-            const name = await withTimeout(getDoctorName(docId), 1500, null);
-            if (name) names[docId] = name;
+            const details = await withTimeout(
+              getDoctorDetails(docId),
+              1500,
+              { name: null, profilePictureUrl: null }
+            );
+            if (details.name) names[docId] = details.name;
+            if (details.profilePictureUrl) pictures[docId] = details.profilePictureUrl;
           })
         );
         setDoctorNames(names);
+        setDoctorPictures(pictures);
       } catch (err) {
         console.error('[PatientDashboard] Error fetching data:', err);
       } finally {
@@ -135,9 +145,10 @@ export default function PatientDashboard() {
   const pendingAppointments = appointments.filter(isPendingAppointment);
   const cancelledAppointments = appointments.filter(isCancelledAppointment);
   const scheduledAppointments = appointments.filter(
-    apt => !isPendingAppointment(apt) && !isCancelledAppointment(apt)
+    (apt) => !isPendingAppointment(apt) && !isCancelledAppointment(apt)
   );
-  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const todayStr = new Date().toISOString().split('T')[0];
   const nextVisit = scheduledAppointments
     .filter(apt => apt.status === 'scheduled' && apt.appointment_date >= todayStr)
     .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
@@ -249,78 +260,52 @@ export default function PatientDashboard() {
               className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'scheduled'
                   ? 'bg-emerald-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  : 'text-slate-700 hover:text-slate-900 bg-white/60'
               }`}
             >
               Scheduled ({scheduledAppointments.length})
             </button>
             <button
               onClick={() => setActiveTab('pending')}
-              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap flex items-center justify-center gap-1.5 ${
+              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'pending'
-                  ? 'bg-emerald-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-700 hover:text-slate-900 bg-white/60'
               }`}
             >
-              <span>Pending</span>
-              {pendingAppointments.length > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded-xs text-[10px] font-black">
-                  {pendingAppointments.length}
-                </span>
-              )}
+              Pending ({pendingAppointments.length})
             </button>
             <button
               onClick={() => setActiveTab('cancelled')}
-              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap flex items-center justify-center gap-1.5 ${
+              className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'cancelled'
-                  ? 'bg-emerald-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'text-slate-700 hover:text-slate-900 bg-white/60'
               }`}
             >
-              <span>Past & Cancelled</span>
-              {cancelledAppointments.length > 0 && (
-                <span className="px-1.5 py-0.2 bg-slate-500 text-white rounded-xs text-[10px] font-black">
-                  {cancelledAppointments.length}
-                </span>
-              )}
+              Cancelled ({cancelledAppointments.length})
             </button>
           </div>
         </div>
 
-        {/* Pending Banner Alert */}
-        {pendingAppointments.length > 0 && activeTab !== 'pending' && (
-          <div className="flex items-center justify-between p-3.5 bg-amber-50 border-2 border-amber-300 rounded-sm text-amber-900 shadow-xs mb-4">
-            <div className="flex items-center gap-2.5">
-              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-              <p className="text-xs font-bold">
-                You have {pendingAppointments.length} appointment request{pendingAppointments.length > 1 ? 's' : ''} awaiting clinic approval.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('pending')}
-              className="text-xs font-black uppercase tracking-wider text-amber-800 hover:text-amber-950 underline cursor-pointer shrink-0 ml-3"
-            >
-              View Pending &rarr;
-            </button>
-          </div>
-        )}
-
+        {/* Tab Content */}
         {loading ? (
-          <div className="py-12 text-center text-xs font-bold uppercase tracking-wider text-slate-500">
-            Fetching appointment ledger...
+          <div className="py-12 text-center text-slate-400">
+            <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Loading appointments...</p>
           </div>
         ) : activeTab === 'scheduled' ? (
           scheduledAppointments.length === 0 ? (
-            <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-300 rounded-sm">
-              <CheckCircle2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-700 uppercase">No scheduled appointments</p>
-              <p className="text-xs text-slate-500 mt-1">Book your next regular dental check-up</p>
-              <Link href="/appointments" className="skeuo-btn-primary mt-4 py-2 px-4 text-xs uppercase">
-                <span className="flex items-center gap-2">
-                  <Plus className="w-3.5 h-3.5 shrink-0" />
-                  <span>Book Visit</span>
-                </span>
+            <div className="text-center py-12 bg-white/40 border-2 border-dashed border-slate-300 rounded-sm p-4">
+              <Calendar className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm font-black uppercase text-slate-700 tracking-tight">No Scheduled Visits</p>
+              <p className="text-xs font-semibold text-slate-500 mt-1">Book an appointment with a clinic to keep your teeth healthy.</p>
+              <Link 
+                href="/appointments" 
+                className="skeuo-btn-primary text-xs px-3 py-1.5 mt-3 inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Book Now</span>
               </Link>
             </div>
           ) : (
@@ -328,22 +313,24 @@ export default function PatientDashboard() {
               {scheduledAppointments.map((apt) => (
                 <AppointmentCard
                   key={apt.id}
-                  name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : 'General Service'}
+                  name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : (apt.clinic_name || "Kyler's Clinic")}
+                  avatarUrl={apt.dentist_id ? doctorPictures[apt.dentist_id] : undefined}
                   service={apt.service}
                   date={apt.appointment_date}
                   time={apt.appointment_time}
                   status={apt.status}
                   clinicName={apt.clinic_name}
+                  onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
             </div>
           )
         ) : activeTab === 'pending' ? (
           pendingAppointments.length === 0 ? (
-            <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-300 rounded-sm">
-              <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-700 uppercase">No pending requests</p>
-              <p className="text-xs text-slate-500 mt-1">All your bookings have been reviewed by the clinic</p>
+            <div className="text-center py-12 bg-white/40 border-2 border-dashed border-slate-300 rounded-sm p-4">
+              <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+              <p className="text-sm font-black uppercase text-slate-700 tracking-tight">No Pending Requests</p>
+              <p className="text-xs font-semibold text-slate-500 mt-1">All your booking requests have been processed by the clinic.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -351,21 +338,23 @@ export default function PatientDashboard() {
                 <AppointmentCard
                   key={apt.id}
                   name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : (apt.clinic_name || "Kyler's Clinic")}
+                  avatarUrl={apt.dentist_id ? doctorPictures[apt.dentist_id] : undefined}
                   service={apt.service}
                   date={apt.appointment_date}
                   time={apt.appointment_time}
                   status="pending"
                   clinicName={apt.clinic_name}
+                  onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
             </div>
           )
         ) : (
           cancelledAppointments.length === 0 ? (
-            <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-300 rounded-sm">
-              <CheckCircle2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-700 uppercase">No cancelled or declined appointments</p>
-              <p className="text-xs text-slate-500 mt-1">All your appointments are active</p>
+            <div className="text-center py-12 bg-white/40 border-2 border-dashed border-slate-300 rounded-sm p-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+              <p className="text-sm font-black uppercase text-slate-700 tracking-tight">No Cancelled Appointments</p>
+              <p className="text-xs font-semibold text-slate-500 mt-1">You have no cancelled or declined bookings on record.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -387,7 +376,26 @@ export default function PatientDashboard() {
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
                       <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
                       {apt.dentist_id && (
-                        <p className="text-[11px] text-slate-500 mt-1 font-semibold">Doctor: {doctorNames[apt.dentist_id] || 'Attending Dentist'}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {doctorPictures[apt.dentist_id] && (
+                            <img
+                              src={doctorPictures[apt.dentist_id]}
+                              alt="Doctor"
+                              className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
+                            />
+                          )}
+                          <p className="text-[11px] text-slate-500 font-semibold">
+                            Doctor:{' '}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDoctorId(apt.dentist_id)}
+                              className="text-slate-800 font-bold hover:text-emerald-700 hover:underline transition-colors"
+                              title="View doctor details"
+                            >
+                              {doctorNames[apt.dentist_id] || 'Attending Dentist'}
+                            </button>
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -420,6 +428,12 @@ export default function PatientDashboard() {
           <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
         </Link>
       </div>
+
+      {/* Doctor Profile Viewing Modal */}
+      <DoctorProfileModal
+        doctorId={selectedDoctorId}
+        onClose={() => setSelectedDoctorId(null)}
+      />
 
       {/* Interactive In-App Tour Overlay */}
       <InteractiveTour
