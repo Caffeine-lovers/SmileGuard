@@ -86,8 +86,9 @@ export default function RootLayout() {
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // We only pause routing logic if on reset-password, oauth-redirect, or onboarding
-    if (inResetPassword || inOAuthRedirect || inOnboarding) return;
+    // Routing is paused during password reset or initial onboarding tour
+    // We only pause routing logic if on reset-password or onboarding
+    if (inResetPassword || inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inSetupProfile) {
