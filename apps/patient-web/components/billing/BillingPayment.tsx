@@ -59,70 +59,73 @@ export default function BillingPayment({
   // PayMongo-specific state
   const [paymongoError, setPaymongoError] = useState<string | null>(null);
   const [paymentStatusBanner, setPaymentStatusBanner] = useState<'success' | 'cancelled' | null>(null);
+  const [confirmedPaymentInfo, setConfirmedPaymentInfo] = useState<{
+    amount: number;
+    aptId?: string;
+    date: string;
+  } | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const status = params.get('status');
-      const aptId = params.get('apt');
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+    const aptId = params.get('apt');
 
-      if (status === 'success') {
-        setPaymentStatusBanner('success');
-        if (currentUser?.id && aptId) {
-          // Confirm billing record is persisted in Supabase
-          const recordPaid = async () => {
-            try {
-              const { data: existingRows } = await supabase
-                .from('billings')
-                .select('id, payment_status')
-                .eq('appointment_id', aptId);
+    if (status === 'success') {
+      setPaymentStatusBanner('success');
 
-              const rows = existingRows || [];
-              const alreadyPaid = rows.some((r) => r.payment_status === 'paid');
-              const pendingRow = rows.find((r) => r.payment_status !== 'paid');
+      const processConfirmation = async () => {
+        try {
+          if (aptId) {
+            // Call server endpoint with service role to update billings and record notifications
+            const res = await fetch('/api/paymongo/confirm-checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                appointmentId: aptId,
+                patientId: currentUser?.id,
+              }),
+            });
 
-              if (alreadyPaid) {
-                // Webhook already recorded it
-              } else if (pendingRow) {
-                await supabase
-                  .from('billings')
-                  .update({
-                    payment_status: 'paid',
-                    payment_method: 'card',
-                    payment_date: new Date().toISOString(),
-                  })
-                  .eq('id', pendingRow.id);
-                await refreshBillingData();
-              } else {
-                const { data: apt } = await supabase
-                  .from('appointments')
-                  .select('service')
-                  .eq('id', aptId)
-                  .maybeSingle();
+            const data = await res.json();
+            if (data?.success && data?.billing) {
+              const paidAmount = Number(data.billing.final_amount ?? data.billing.amount ?? 5000);
+              setConfirmedPaymentInfo({
+                amount: paidAmount,
+                aptId,
+                date: new Date().toLocaleDateString(),
+              });
 
-                const servicePrice = getServicePrice(apt?.service);
-                await supabase.from('billings').insert({
-                  patient_id: currentUser.id,
-                  appointment_id: aptId,
-                  amount: servicePrice,
-                  discount_type: 'none',
-                  discount_amount: 0,
-                  final_amount: servicePrice,
-                  payment_status: 'paid',
-                  payment_method: 'card',
-                  payment_date: new Date().toISOString(),
-                });
-                await refreshBillingData();
-              }
-            } catch (e) {
-              console.error('Failed to auto-record paid checkout:', e);
+              // Optimistically update local ledger, unpaid list, and balance immediately
+              setLedger((prev) =>
+                prev.map((row) =>
+                  row.id === aptId || (row as any).appointment_id === aptId
+                    ? { ...row, billing_status: 'PAID' as AppointmentBillingStatus, amount_due: 0 }
+                    : row
+                )
+              );
+              setUnpaidAppointments((prev) => prev.filter((row) => row.id !== aptId));
+              setOutstandingBalance((prev) => Math.max(0, prev - paidAmount));
+              setSelectedAppointment((prev) => (prev?.id === aptId ? null : prev));
             }
-          };
-          recordPaid();
+          }
+
+          // Full sync with database
+          if (currentUser?.id) {
+            await refreshBillingData();
+          }
+        } catch (e) {
+          console.error('[BillingPayment] Error confirming checkout:', e);
+        } finally {
+          // Clean URL so back/refresh doesn't re-trigger
+          window.history.replaceState({}, '', window.location.pathname);
         }
-      } else if (status === 'cancelled') {
-        setPaymentStatusBanner('cancelled');
-      }
+      };
+
+      processConfirmation();
+    } else if (status === 'cancelled') {
+      setPaymentStatusBanner('cancelled');
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [currentUser?.id]);
 
@@ -376,18 +379,26 @@ export default function BillingPayment({
 
       {/* PayMongo Checkout Redirect Banners */}
       {paymentStatusBanner === 'success' && (
-        <div className="flex items-center justify-between p-3.5 sm:p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm text-emerald-900 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-50 border-2 border-emerald-600 rounded-sm text-emerald-950 shadow-md animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
             <div>
-              <p className="text-xs font-black uppercase tracking-wider">Payment Confirmed!</p>
-              <p className="text-xs text-emerald-700">Your transaction via PayMongo has been completed. Your records are updated.</p>
+              <p className="text-sm font-black uppercase tracking-wider text-emerald-950">Payment Confirmed & Invoice Settled!</p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Your payment via PayMongo has been successfully processed and verified.
+                {confirmedPaymentInfo && (
+                  <span className="font-bold ml-1 text-emerald-950">
+                    Amount Paid: ₱{confirmedPaymentInfo.amount.toFixed(2)}.
+                  </span>
+                )}{' '}
+                Your procedure is marked PAID and your outstanding balance is updated.
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setPaymentStatusBanner(null)}
-            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 uppercase cursor-pointer shrink-0 ml-2"
+            className="text-xs font-bold text-emerald-900 hover:text-emerald-950 uppercase cursor-pointer shrink-0 py-1.5 px-3.5 border border-emerald-400 bg-white hover:bg-emerald-100 rounded-xs transition shadow-2xs self-end sm:self-center"
           >
             Dismiss
           </button>

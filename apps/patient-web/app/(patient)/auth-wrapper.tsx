@@ -14,20 +14,38 @@ import {
   FileText, 
   Stethoscope,
   ChevronRight,
-  ShieldCheck
+  Bell
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import NotificationSettingsModal from '@/components/notifications/NotificationSettingsModal';
 
 export default function AuthWrapper({ children }: { children: ReactNode }) {
   const { currentUser, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`/api/notifications?userId=${currentUser.id}`);
+        const data = await res.json();
+        const unread = (data.notifications || []).filter((n: any) => !n.read).length;
+        setUnreadNotifCount(unread);
+      } catch (e) {
+        // quiet ignore
+      }
+    };
+    fetchUnread();
+  }, [currentUser?.id, pathname]);
 
   useEffect(() => {
     if (!loading && (!currentUser || currentUser.role !== 'patient')) {
@@ -130,6 +148,20 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               {currentUser?.name || ''}
             </span>
 
+            {/* Notification & Preferences Settings Button beside Logout */}
+            <button
+              type="button"
+              onClick={() => setSettingsModalOpen(true)}
+              className="relative p-1.5 sm:py-1.5 sm:px-2.5 text-[13.5px] sm:text-sm font-semibold rounded border border-slate-300 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 hover:border-emerald-300 shadow-2xs transition-all shrink-0 cursor-pointer flex items-center justify-center"
+              title="Notifications & Settings"
+              aria-label="Notifications & Settings"
+            >
+              <Bell className="w-4 h-4 text-slate-600" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-600 border border-white animate-pulse" />
+              )}
+            </button>
+
             {/* Unified Single Logout Button (Clinical Palette with Subtle Logout Intent - Scaled +15%) */}
             <button
               type="button"
@@ -186,14 +218,17 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-              <Link
-                href="/onboarding"
-                onClick={() => setMobileMenuOpen(false)}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setSettingsModalOpen(true);
+                }}
                 className="text-xs font-semibold text-emerald-700 hover:underline flex items-center gap-1.5"
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Onboarding Guide</span>
-              </Link>
+                <Bell className="w-3.5 h-3.5" />
+                <span>Alerts & Settings {unreadNotifCount > 0 ? `(${unreadNotifCount})` : ''}</span>
+              </button>
 
               <button
                 type="button"
@@ -206,6 +241,14 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </div>
           </div>
         )}
+
+        {/* Global Notifications & Settings Modal */}
+        <NotificationSettingsModal
+          isOpen={settingsModalOpen}
+          onClose={() => setSettingsModalOpen(false)}
+          currentUser={currentUser}
+          onUnreadChange={setUnreadNotifCount}
+        />
       </header>
 
       {/* Main Content */}
