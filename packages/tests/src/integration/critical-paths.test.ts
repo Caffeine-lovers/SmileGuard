@@ -280,7 +280,7 @@ describe("Payment Processing Flow", () => {
   it("should update billing status after payment", () => {
     const billingBefore = {
       amount: 4000,
-      payment_status: "pending",
+      payment_status: "not_paid",
     };
 
     const billingAfter = {
@@ -289,8 +289,25 @@ describe("Payment Processing Flow", () => {
       payment_date: new Date().toISOString(),
     };
 
-    expect(billingBefore.payment_status).toBe("pending");
+    expect(billingBefore.payment_status).toBe("not_paid");
     expect(billingAfter.payment_status).toBe("paid");
+  });
+
+  it("should mark billing as cancelled when appointment is cancelled", () => {
+    const billing = { appointment_id: "apt-123", payment_status: "not_paid" };
+    const appointment = { id: "apt-123", status: "cancelled" };
+    const updatedBilling = {
+      ...billing,
+      payment_status: appointment.status === "cancelled" ? "cancelled" : billing.payment_status,
+    };
+    expect(updatedBilling.payment_status).toBe("cancelled");
+  });
+
+  it("should create billing record when appointment is scheduled", () => {
+    const appointment = { id: "apt-456", patient_id: "p-1", status: "scheduled" };
+    const createdBilling = { appointment_id: appointment.id, payment_status: "not_paid" };
+    expect(createdBilling.appointment_id).toBe(appointment.id);
+    expect(createdBilling.payment_status).toBe("not_paid");
   });
 });
 

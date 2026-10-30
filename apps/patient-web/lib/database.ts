@@ -73,7 +73,7 @@ export interface Billing {
   discount_type?: 'none' | 'pwd' | 'senior';
   discount_amount?: number;
   final_amount: number;
-  payment_status: 'pending' | 'paid' | 'overdue';
+  payment_status: 'not_paid' | 'paid' | 'overdue' | 'cancelled';
   payment_method?: 'cash' | 'card' | 'gcash' | 'bank-transfer' | 'grab_pay' | 'paymaya';
   payment_date?: string;
   gateway_transaction_id?: string;
