@@ -98,3 +98,5 @@ CHANGES-GUIDE.md
 # ============ Large Files ============
 *.pt
 *.onnx
+apps/doctor-mobile/app.json
+app.json
