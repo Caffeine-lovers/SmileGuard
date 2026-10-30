@@ -1029,7 +1029,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 <View style={styles.clinicBanner}>
                   {/* Subtle top bevel highlight */}
                   <View style={styles.clinicBannerBevel} />
-                  
+
                   <View style={styles.clinicBannerContent}>
                     <View style={styles.clinicBannerIconBox}>
                       <Stethoscope size={24} color="#A7F3D0" />
@@ -1045,7 +1045,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
                       </Text>
                       <Text style={styles.clinicBannerSubtitle} numberOfLines={1}>
-                        {clinic?.clinic_name || 'SmileGuard Dental Clinic'} • Clinical Practice & Chart Registry
+                        {clinic?.clinic_name || 'SmileGuard Dental Clinic'}
                       </Text>
                     </View>
                   </View>
