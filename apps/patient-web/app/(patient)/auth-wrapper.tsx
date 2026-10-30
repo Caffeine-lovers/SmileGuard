@@ -77,10 +77,15 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
         {loading && (
           <div className="h-0.5 bg-emerald-500 animate-pulse w-full" />
         )}
-        <div className="flex justify-between items-center px-4 py-3 sm:px-6 sm:py-4 max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-6 lg:gap-8">
-            <Link href="/dashboard" className="flex items-center gap-1.5 sm:gap-2 group shrink-0">
-              <span className="text-xl sm:text-2xl font-black text-brand-primary tracking-tight">
+        <div className="flex justify-between items-center px-3 py-2.5 sm:px-6 sm:py-3.5 max-w-7xl mx-auto w-full gap-2 sm:gap-4">
+          <div className="flex items-center gap-4 lg:gap-8">
+            <Link href="/dashboard" className="flex items-center gap-2 group shrink-0">
+              <img
+                src="/icon.svg"
+                alt="SmileGuard Logo"
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-md shrink-0 shadow-xs"
+              />
+              <span className="text-[23px] sm:text-[28px] font-black text-brand-primary tracking-tight leading-none">
                 SmileGuard
               </span>
               <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] inline-flex">
@@ -108,7 +113,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Desktop Book CTA - strictly hidden on mobile */}
             <Link 
               href="/appointments" 
@@ -121,15 +126,15 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
-            <span className="text-xs font-semibold text-slate-600 hidden lg:block truncate max-w-[150px]">
+            <span className="text-[13.5px] sm:text-sm font-semibold text-slate-700 hidden lg:block truncate max-w-[170px]">
               {currentUser?.name || ''}
             </span>
 
-            {/* Unified Single Logout Button (Clinical Palette with Subtle Logout Intent) */}
+            {/* Unified Single Logout Button (Clinical Palette with Subtle Logout Intent - Scaled +15%) */}
             <button
               type="button"
               onClick={handleLogout}
-              className="py-1 px-2.5 sm:py-1.5 sm:px-3 text-xs font-semibold rounded border border-slate-300 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-300 shadow-2xs transition-all shrink-0 cursor-pointer"
+              className="py-1.5 px-3 sm:py-1.5 sm:px-3.5 text-[13.5px] sm:text-sm font-semibold rounded border border-slate-300 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-300 shadow-2xs transition-all shrink-0 cursor-pointer"
               title="Log out"
             >
               Log out

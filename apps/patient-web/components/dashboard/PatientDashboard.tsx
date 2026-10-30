@@ -23,7 +23,6 @@ import {
   AlertCircle, 
   Stethoscope, 
   ChevronRight,
-  ShieldCheck,
   Building2,
   Sparkles,
   CalendarX,
@@ -192,10 +191,6 @@ export default function PatientDashboard() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
-                  <ShieldCheck className="w-3 h-3 text-emerald-950" />
-                  SmileGuard Patient Portal
-                </span>
                 {currentUser?.pwd_status === 'approved' && (
                   <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-900 bg-emerald-100 border-emerald-300 font-bold">
                     ✓ Verified {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'}

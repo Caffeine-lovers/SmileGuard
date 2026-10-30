@@ -227,7 +227,7 @@ export default function BillingPayment({
 
   const handleSubmitIdForDoctorVerification = async () => {
     if (!selectedIdFile || !currentUser?.id) {
-      alert('Please select a photo or scan of your Gov ID.');
+      alert('Please select a photo or scan of your ID.');
       return;
     }
 
@@ -266,7 +266,7 @@ export default function BillingPayment({
 
       setLocalPwdStatus('pending');
       setShowVerificationPanel(false);
-      alert('Gov ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' Gov ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
+      alert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
     } catch (err) {
       console.error('[BillingPayment] Failed to submit ID:', err);
       alert('Failed to upload ID. Please try again.');
@@ -610,7 +610,7 @@ export default function BillingPayment({
                   ID Verification Submitted to Doctor
                 </div>
                 <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Your Gov ID was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
+                  Your ID was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
                 </p>
               </div>
             )}
@@ -623,14 +623,14 @@ export default function BillingPayment({
                   Verification Declined by Doctor
                 </div>
                 <p className="text-[11px] text-red-800 leading-relaxed">
-                  Your previous Gov ID could not be validated. Please click below to submit a clear, valid Gov ID.
+                  Your previous ID could not be validated. Please click below to submit a clear, valid ID.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowVerificationPanel(true)}
                   className="px-3 py-1 bg-red-700 text-white text-[11px] font-bold uppercase rounded-xs cursor-pointer hover:bg-red-800 transition"
                 >
-                  Re-submit Gov ID
+                  Re-submit ID
                 </button>
               </div>
             )}
@@ -642,7 +642,7 @@ export default function BillingPayment({
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-emerald-700" />
                     <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                      Submit Gov ID for Doctor Verification
+                      Submit ID for Doctor Verification
                     </span>
                   </div>
                   <button
@@ -655,7 +655,7 @@ export default function BillingPayment({
                 </div>
 
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your Gov ID below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
+                  To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
                 </p>
 
                 {/* ID Type Choice */}
@@ -669,7 +669,7 @@ export default function BillingPayment({
                       onChange={() => setSelectedVerificationType('pwd')}
                       className="accent-emerald-700"
                     />
-                    PWD Gov ID
+                    PWD ID
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -680,7 +680,7 @@ export default function BillingPayment({
                       onChange={() => setSelectedVerificationType('senior')}
                       className="accent-emerald-700"
                     />
-                    Snr. Cit. Gov ID (60+)
+                    Snr. Cit. ID (60+)
                   </label>
                 </div>
 
@@ -707,7 +707,7 @@ export default function BillingPayment({
                 {((selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)) && (
                   <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 font-semibold flex items-center gap-2">
                     <Clock className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>Your {selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD'} Gov ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
+                    <span>Your {selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD'} ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
                   </div>
                 )}
 
@@ -723,7 +723,7 @@ export default function BillingPayment({
                       Uploading & Sending to Doctor...
                     </>
                   ) : (
-                    'Send Gov ID to Dr. Kyler for Verification'
+                    'Send ID to Dr. Kyler for Verification'
                   )}
                 </button>
               </div>

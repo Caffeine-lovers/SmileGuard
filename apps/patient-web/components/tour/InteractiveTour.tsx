@@ -28,7 +28,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="profile-card"]',
     badge: 'Step 1 of 7 • Patient Profile',
     title: 'Dental Chart & Statutory Status',
-    description: 'Your patient identity and verification hub. Once Dr. Kyler approves your PWD or Snr. Cit. Gov ID, a verified badge will appear here to activate your statutory 20% discount on clinic billings.',
+    description: 'Your patient identity and verification hub. Once Dr. Kyler approves your PWD or Snr. Cit. ID, a verified badge will appear here to activate your statutory 20% discount on clinic billings.',
     features: [
       'Real-time synchronization with Kyler\'s Clinic',
       'Verified PWD / Senior Citizen badge indicator',
@@ -94,7 +94,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     description: 'Review itemized dental invoices and settle balances securely via GCash, Maya, or Cards. You can also upload your official PWD or Senior Citizen ID here to request your 20% discount.',
     features: [
       'BSP-licensed PayMongo online payment processing',
-      'Secure Gov ID photo upload for doctor review',
+      'Secure ID photo upload for doctor review',
       'Enforced statutory 20% deduction upon doctor approval'
     ],
     actionLink: {
