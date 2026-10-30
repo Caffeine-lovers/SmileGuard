@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.hash.includes('error='))) {
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setSubmitting(true);
 
     try {
       await login(email, password, 'patient');
@@ -37,6 +39,7 @@ export default function LoginPage() {
       setLocalError(
         err instanceof Error ? err.message : 'Login failed. Please try again.'
       );
+      setSubmitting(false);
     }
   };
 
@@ -85,7 +88,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={handleGoogleSignIn}
-        disabled={loading || oauthLoading}
+        disabled={submitting || oauthLoading}
         className="skeuo-btn-secondary w-full py-2.5 px-4 mb-5 text-sm"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -137,11 +140,11 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={submitting || oauthLoading}
           className="skeuo-btn-primary w-full py-3 text-sm tracking-wide mt-2"
         >
           <LogIn className="w-4 h-4" />
-          <span>{loading ? 'Verifying Credentials...' : 'Secure Sign In'}</span>
+          <span>{submitting ? 'Verifying Credentials...' : 'Secure Sign In'}</span>
         </button>
       </form>
 
