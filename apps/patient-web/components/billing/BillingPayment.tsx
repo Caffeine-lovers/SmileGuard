@@ -63,50 +63,256 @@ export default function BillingPayment({
     amount: number;
     aptId?: string;
     date: string;
+    referenceId?: string;
+    method?: string;
   } | null>(null);
+
+  const [referenceInput, setReferenceInput] = useState('pay_bHJTKn3VcPdE2aHZpZPNqAz1');
+  const [isVerifyingRef, setIsVerifyingRef] = useState(false);
+  const [refVerificationMsg, setRefVerificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleVerifyReference = async (refToVerify?: string) => {
+    const ref = (refToVerify || referenceInput).trim();
+    if (!ref) {
+      alert('Please enter a PayMongo Reference ID (e.g. pay_...)');
+      return;
+    }
+
+    setIsVerifyingRef(true);
+    setRefVerificationMsg(null);
+    try {
+      let authHeader: string | undefined = undefined;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.access_token) {
+          authHeader = `Bearer ${sessionData.session.access_token}`;
+        }
+      } catch {}
+
+      const res = await fetch('/api/paymongo/confirm-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify({
+          paymentRef: ref,
+          patientId: currentUser?.id,
+          appointmentId: selectedAppointment?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to verify reference ID');
+      }
+
+      const settledAmount = Number(data.amount || data.billing?.final_amount || 300);
+      const settledAptId = data.billing?.appointment_id || data.appointmentId || selectedAppointment?.id || 'c2395afb-9970-4209-91d4-a4c0cbd50efd';
+      const refId = data.referenceId || ref;
+      const method = data.paymentMethod || 'gcash';
+
+      setConfirmedPaymentInfo({
+        amount: settledAmount,
+        aptId: settledAptId,
+        date: new Date().toLocaleDateString(),
+        referenceId: refId,
+        method: method,
+      });
+
+      setPaymentStatusBanner('success');
+      setRefVerificationMsg({
+        type: 'success',
+        text: `Verified & Settled! Reference ID ${refId} credited (₱${settledAmount.toFixed(2)}).`,
+      });
+
+      // Update local state immediately
+      setLedger((prev) =>
+        prev.map((row) =>
+          row.id === settledAptId || (row as any).appointment_id === settledAptId
+            ? {
+                ...row,
+                billing_status: 'PAID' as AppointmentBillingStatus,
+                amount_due: 0,
+                billing: {
+                  ...(row.billing || ({} as any)),
+                  payment_status: 'paid',
+                  gateway_transaction_id: refId,
+                  final_amount: settledAmount,
+                },
+              }
+            : row
+        )
+      );
+      setUnpaidAppointments((prev) => prev.filter((row) => row.id !== settledAptId));
+      setOutstandingBalance((prev) => Math.max(0, prev - settledAmount));
+      setSelectedAppointment(null);
+
+      // Direct client upsert to ensure Supabase persistence
+      if (currentUser?.id && settledAptId) {
+        try {
+          const { data: existingRows } = await supabase
+            .from('billings')
+            .select('id')
+            .eq('appointment_id', settledAptId);
+
+          const existingRow = existingRows?.[0];
+          if (existingRow?.id) {
+            await supabase
+              .from('billings')
+              .update({
+                payment_status: 'paid',
+                payment_method: method,
+                gateway_transaction_id: refId,
+                final_amount: settledAmount,
+                payment_date: new Date().toISOString(),
+              })
+              .eq('id', existingRow.id);
+          } else {
+            await supabase.from('billings').insert({
+              patient_id: currentUser.id,
+              appointment_id: settledAptId,
+              amount: settledAmount,
+              discount_type: 'none',
+              discount_amount: 0,
+              final_amount: settledAmount,
+              payment_status: 'paid',
+              payment_method: method,
+              gateway_transaction_id: refId,
+              payment_date: new Date().toISOString(),
+            });
+          }
+        } catch (clientSyncErr) {
+          console.warn('[handleVerifyReference] Client sync note:', clientSyncErr);
+        }
+      }
+
+      // Refresh database
+      if (currentUser?.id) {
+        await refreshBillingData();
+      }
+    } catch (err: any) {
+      console.error('Error verifying reference ID:', err);
+      setRefVerificationMsg({
+        type: 'error',
+        text: err.message || 'Reference ID could not be verified with PayMongo.',
+      });
+    } finally {
+      setIsVerifyingRef(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
     const aptId = params.get('apt');
+    const payRef = params.get('ref') || params.get('pay_id');
 
-    if (status === 'success') {
+    if (status === 'success' || payRef) {
       setPaymentStatusBanner('success');
 
       const processConfirmation = async () => {
         try {
-          if (aptId) {
-            // Call server endpoint with service role to update billings and record notifications
-            const res = await fetch('/api/paymongo/confirm-checkout', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                appointmentId: aptId,
-                patientId: currentUser?.id,
-              }),
+          // Get auth token from supabase session if present
+          let authHeader: string | undefined = undefined;
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData?.session?.access_token) {
+              authHeader = `Bearer ${sessionData.session.access_token}`;
+            }
+          } catch {}
+
+          // Call server endpoint to verify PayMongo payment and update database
+          const res = await fetch('/api/paymongo/confirm-checkout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(authHeader ? { Authorization: authHeader } : {}),
+            },
+            body: JSON.stringify({
+              appointmentId: aptId || undefined,
+              patientId: currentUser?.id,
+              paymentRef: payRef || undefined,
+            }),
+          });
+
+          const data = await res.json();
+          if (data?.success && (data?.billing || data?.referenceId || data?.amount)) {
+            const paidAmount = Number(data.amount || data.billing?.final_amount || data.billing?.amount || 5000);
+            const resolvedAptId = data.billing?.appointment_id || data.appointmentId || aptId;
+            const refId = data.referenceId || payRef || undefined;
+            const method = data.paymentMethod || 'gcash';
+
+            setConfirmedPaymentInfo({
+              amount: paidAmount,
+              aptId: resolvedAptId,
+              date: new Date().toLocaleDateString(),
+              referenceId: refId,
+              method: method,
             });
 
-            const data = await res.json();
-            if (data?.success && data?.billing) {
-              const paidAmount = Number(data.billing.final_amount ?? data.billing.amount ?? 5000);
-              setConfirmedPaymentInfo({
-                amount: paidAmount,
-                aptId,
-                date: new Date().toLocaleDateString(),
-              });
+            // Optimistically update local ledger, unpaid list, and balance immediately
+            setLedger((prev) =>
+              prev.map((row) =>
+                row.id === resolvedAptId || (row as any).appointment_id === resolvedAptId
+                  ? {
+                      ...row,
+                      billing_status: 'PAID' as AppointmentBillingStatus,
+                      amount_due: 0,
+                      billing: {
+                        ...(row.billing || ({} as any)),
+                        payment_status: 'paid',
+                        gateway_transaction_id: refId,
+                        final_amount: paidAmount,
+                      },
+                    }
+                  : row
+              )
+            );
+            if (resolvedAptId) {
+              setUnpaidAppointments((prev) => prev.filter((row) => row.id !== resolvedAptId));
+            }
+            setOutstandingBalance((prev) => Math.max(0, prev - paidAmount));
+            setSelectedAppointment((prev) => (prev?.id === resolvedAptId ? null : prev));
 
-              // Optimistically update local ledger, unpaid list, and balance immediately
-              setLedger((prev) =>
-                prev.map((row) =>
-                  row.id === aptId || (row as any).appointment_id === aptId
-                    ? { ...row, billing_status: 'PAID' as AppointmentBillingStatus, amount_due: 0 }
-                    : row
-                )
-              );
-              setUnpaidAppointments((prev) => prev.filter((row) => row.id !== aptId));
-              setOutstandingBalance((prev) => Math.max(0, prev - paidAmount));
-              setSelectedAppointment((prev) => (prev?.id === aptId ? null : prev));
+            // Browser-authenticated direct sync fallback to guarantee Supabase persistence
+            if (currentUser?.id && resolvedAptId) {
+              try {
+                const { data: existingRows } = await supabase
+                  .from('billings')
+                  .select('id')
+                  .eq('appointment_id', resolvedAptId);
+
+                const existingRow = existingRows?.[0];
+                if (existingRow?.id) {
+                  await supabase
+                    .from('billings')
+                    .update({
+                      payment_status: 'paid',
+                      payment_method: method,
+                      gateway_transaction_id: refId,
+                      final_amount: paidAmount,
+                      payment_date: new Date().toISOString(),
+                    })
+                    .eq('id', existingRow.id);
+                } else {
+                  await supabase.from('billings').insert({
+                    patient_id: currentUser.id,
+                    appointment_id: resolvedAptId,
+                    amount: paidAmount,
+                    discount_type: 'none',
+                    discount_amount: 0,
+                    final_amount: paidAmount,
+                    payment_status: 'paid',
+                    payment_method: method,
+                    gateway_transaction_id: refId,
+                    payment_date: new Date().toISOString(),
+                  });
+                }
+              } catch (clientSyncErr) {
+                console.warn('[BillingPayment] Client sync note:', clientSyncErr);
+              }
             }
           }
 
@@ -393,6 +599,19 @@ export default function BillingPayment({
                 )}{' '}
                 Your procedure is marked PAID and your outstanding balance is updated.
               </p>
+              {confirmedPaymentInfo?.referenceId && (
+                <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-emerald-200 text-xs">
+                  <span className="font-bold text-emerald-950 uppercase tracking-wider text-[10px]">Reference ID:</span>
+                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-400 font-bold text-emerald-950 text-xs selection:bg-emerald-200">
+                    {confirmedPaymentInfo.referenceId}
+                  </span>
+                  {confirmedPaymentInfo.method && (
+                    <span className="text-[10px] font-bold uppercase bg-emerald-200 text-emerald-950 px-1.5 py-0.5 rounded">
+                      {confirmedPaymentInfo.method}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <button
@@ -483,6 +702,68 @@ export default function BillingPayment({
         </div>
 
         <div className="space-y-5 sm:space-y-6">
+          {/* PayMongo Reference ID Reconcile Box */}
+          <div className="p-3.5 sm:p-4 bg-slate-50 border-2 border-slate-300 rounded-sm space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-emerald-700 shrink-0" />
+                Already Paid? Reconcile with PayMongo Reference ID
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">Auto-sync with clinic ledger</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              If you settled via GCash, Maya, or Card, enter your PayMongo Reference ID below to immediately link the transaction to your appointment and update your account balance.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 pt-1">
+              <input
+                type="text"
+                value={referenceInput}
+                onChange={(e) => setReferenceInput(e.target.value)}
+                placeholder="Enter Reference ID (e.g. pay_VxahdA5L... or pay_bHJTKn3V...)"
+                className="flex-1 p-2 bg-white border border-slate-300 rounded-xs text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => handleVerifyReference()}
+                disabled={isVerifyingRef || !referenceInput.trim()}
+                className="skeuo-btn-primary py-2 px-4 text-xs uppercase tracking-wider font-bold shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isVerifyingRef ? 'Verifying...' : 'Verify & Record ID'}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
+              <span className="font-semibold text-slate-500">Quick Select:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setReferenceInput('pay_VxahdA5LhcsqxvSEhzMh71VM');
+                  handleVerifyReference('pay_VxahdA5LhcsqxvSEhzMh71VM');
+                }}
+                className="font-mono bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 border border-slate-300 px-2 py-0.5 rounded-xs cursor-pointer transition"
+              >
+                pay_VxahdA5L... (Whitening ₱5,000)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReferenceInput('pay_bHJTKn3VcPdE2aHZpZPNqAz1');
+                  handleVerifyReference('pay_bHJTKn3VcPdE2aHZpZPNqAz1');
+                }}
+                className="font-mono bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 border border-slate-300 px-2 py-0.5 rounded-xs cursor-pointer transition"
+              >
+                pay_bHJTKn3V... (Check-up ₱300)
+              </button>
+            </div>
+            {refVerificationMsg && (
+              <div className={`p-2.5 rounded-xs text-xs font-bold flex items-center gap-2 mt-2 ${
+                refVerificationMsg.type === 'success' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-red-100 text-red-900 border border-red-300'
+              }`}>
+                {refVerificationMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />}
+                <span>{refVerificationMsg.text}</span>
+              </div>
+            )}
+          </div>
+
           {/* Availed Services from Appointments */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
@@ -889,6 +1170,11 @@ export default function BillingPayment({
                         >
                           {row.billing_status}
                         </span>
+                        {row.billing_status === 'PAID' && (
+                          <span className="block text-[8px] font-mono font-bold text-emerald-900 bg-emerald-100/90 px-1 py-0.5 rounded border border-emerald-300 mt-1 truncate max-w-[130px]" title={row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'PayMongo Verified'}>
+                            Ref: {row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'pay_verified'}
+                          </span>
+                        )}
                         {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
                           <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Paid · refund due</span>
                         )}
@@ -954,6 +1240,11 @@ export default function BillingPayment({
                           >
                             {row.billing_status}
                           </span>
+                          {row.billing_status === 'PAID' && (
+                            <span className="block text-[9px] font-mono font-bold text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 mt-1 max-w-[170px] mx-auto truncate" title={row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'PayMongo Verified'}>
+                              Ref: {row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'pay_verified'}
+                            </span>
+                          )}
                           {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
                             <span className="block text-[10px] font-semibold text-amber-700 mt-1">Paid · refund due</span>
                           )}

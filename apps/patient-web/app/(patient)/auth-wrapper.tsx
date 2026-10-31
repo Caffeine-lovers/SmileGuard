@@ -14,7 +14,6 @@ import {
   FileText, 
   Stethoscope,
   ChevronRight,
-  ShieldCheck,
   Bell
 } from 'lucide-react';
 import type { ReactNode } from 'react';
