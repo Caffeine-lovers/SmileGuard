@@ -857,7 +857,7 @@ export default function AppointmentsTab({
             collapsable={false}
             style={localStyles.headerTitleGroup}
           >
-            <Text style={localStyles.headerTitle}>CHAIR APPOINTMENTS</Text>
+            <Text style={localStyles.headerTitle}>APPOINTMENTS</Text>
             <View style={localStyles.pillCountBadge}>
               <Text style={localStyles.pillCountText}>{filteredAppointments.length}</Text>
             </View>
