@@ -45,6 +45,42 @@ export default function DoctorProfileSetup({
     ...EMPTY_DOCTOR,
     user_id: "",
   });
+  const [yearsOfExperienceStr, setYearsOfExperienceStr] = useState<string>("");
+  const [phoneDigits, setPhoneDigits] = useState<string>("");
+  const [phoneDisplay, setPhoneDisplay] = useState<string>("");
+
+  const formatPhoneChunks = (digits: string) => {
+    if (digits.length === 10) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+    }
+    return digits;
+  };
+
+  const handlePhoneChange = (text: string) => {
+    let cleaned = text.replace(/\D/g, "");
+    if (cleaned.startsWith("63") && cleaned.length > 10) {
+      cleaned = cleaned.slice(2);
+    } else if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
+    cleaned = cleaned.slice(0, 10);
+    setPhoneDigits(cleaned);
+
+    if (cleaned.length === 10) {
+      setPhoneDisplay(formatPhoneChunks(cleaned));
+    } else {
+      setPhoneDisplay(cleaned);
+    }
+
+    const fullPhone = cleaned.length === 10 ? `+63${formatPhoneChunks(cleaned)}` : "";
+    updateDoctorData("doctor_phone", fullPhone);
+  };
+
+  const handlePhoneBlur = () => {
+    if (phoneDigits.length === 10) {
+      setPhoneDisplay(formatPhoneChunks(phoneDigits));
+    }
+  };
 
   // Pre-fill access code if stored during welcome screen
   React.useEffect(() => {
@@ -107,8 +143,13 @@ export default function DoctorProfileSetup({
       accessCode.trim().length >= 4 &&
       isValidLicenseNumber(doctorData.license_number) &&
       doctorData.specialization.trim() !== "" &&
-      (doctorData.first_name?.trim() || "") !== "" &&
-      (doctorData.last_name?.trim() || "") !== ""
+      yearsOfExperienceStr.trim() !== "" &&
+      !isNaN(Number(yearsOfExperienceStr)) &&
+      (doctorData.bio || "").trim() !== "" &&
+      (doctorData.first_name || "").trim() !== "" &&
+      (doctorData.last_name || "").trim() !== "" &&
+      (doctorData.gender || "").trim() !== "" &&
+      phoneDigits.trim().length === 10
     );
   };
   // ────────────────────────────────────────────────────────────────
@@ -155,19 +196,27 @@ export default function DoctorProfileSetup({
   const handleSubmit = async () => {
     if (!isFormValid()) {
       let errorMsg = "Please complete all required fields.";
-      
+
       if (!accessCode.trim() || accessCode.trim().length < 4) {
         errorMsg = "Please enter a valid Clinic Access Code (e.g., SMILE-TEST-2026).";
       } else if (!isValidLicenseNumber(doctorData.license_number)) {
         errorMsg = "Medical License Number must be 5-7 characters with both letters and numbers (e.g., ABC123)";
       } else if (doctorData.specialization.trim() === "") {
-        errorMsg = "Please enter a specialization.";
+        errorMsg = "Please select a specialization.";
+      } else if (yearsOfExperienceStr.trim() === "" || isNaN(Number(yearsOfExperienceStr))) {
+        errorMsg = "Please enter your years of experience.";
+      } else if ((doctorData.bio || "").trim() === "") {
+        errorMsg = "Please enter your professional bio.";
       } else if ((doctorData.first_name || "").trim() === "") {
         errorMsg = "Please enter your first name.";
       } else if ((doctorData.last_name || "").trim() === "") {
         errorMsg = "Please enter your last name.";
+      } else if ((doctorData.gender || "").trim() === "") {
+        errorMsg = "Please select your gender.";
+      } else if (phoneDigits.trim().length !== 10) {
+        errorMsg = "Please enter a valid 10-digit phone number after +63 (e.g., 912-345-6789).";
       }
-      
+
       Alert.alert("Invalid Information", errorMsg);
       return;
     }
@@ -206,13 +255,14 @@ export default function DoctorProfileSetup({
 
       // Update doctor data with user_id and image URL
       const { is_available, doctor_name, ...doctorDataClean } = doctorData as any;
+      const fullPhoneNumber = `+63${formatPhoneChunks(phoneDigits.trim())}`;
       const finalDoctorData: Doctor = {
         ...doctorDataClean,
         user_id: data.user.id,
         gender: (doctorData.gender || "").trim() || undefined,
         profile_picture_url: profileImageUrl,
-        doctor_phone: (doctorData.doctor_phone || "").trim(),
-        years_of_experience: Number(doctorData.years_of_experience) || 0,
+        doctor_phone: fullPhoneNumber,
+        years_of_experience: Number(yearsOfExperienceStr) || 0,
         office_hours: doctorData.office_hours || EMPTY_DOCTOR.office_hours,
       };
 
@@ -237,7 +287,7 @@ export default function DoctorProfileSetup({
       }
 
       console.log("[DoctorProfileSetup] Doctor profile saved successfully!");
-      
+
       // Move to clinic setup step
       onContinue();
     } catch (err) {
@@ -262,366 +312,388 @@ export default function DoctorProfileSetup({
           keyboardShouldPersistTaps="handled"
           scrollEnabled={true}
         >
-        <View style={styles.stepContent}>
-          {/* Back Button Header */}
-          {onCancel && (
-            <View style={styles.headerWithBack}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={onCancel}
-                disabled={loading}
-              >
-                <ChevronLeft size={22} color="#10B981" />
-                <Text style={styles.backButtonText}>Back</Text>
-              </TouchableOpacity>
-              <Text style={styles.h2}>Doctor Professional Details</Text>
-            </View>
-          )}
-          {!onCancel && <Text style={styles.h2}>Doctor Professional Details</Text>}
-          
-          <Text style={styles.p}>Complete your profile to access the dashboard</Text>
+          <View style={styles.stepContent}>
+            {/* Back Button Header */}
+            {onCancel && (
+              <View style={styles.headerWithBack}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={onCancel}
+                  disabled={loading}
+                >
+                  <ChevronLeft size={22} color="#10B981" />
+                  <Text style={styles.backButtonText}>Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.h2}>Doctor Professional Details</Text>
+              </View>
+            )}
+            {!onCancel && <Text style={styles.h2}>Doctor Professional Details</Text>}
 
-          {/* Section: Clinic Verification */}
-          <Text style={styles.sectionHeader}>Clinic Verification</Text>
+            <Text style={styles.p}>Complete your profile to access the dashboard</Text>
 
-          <Text style={styles.label}>
-            Clinic Access Code <Text style={styles.requiredStar}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., SMILE-TEST-2026"
-            placeholderTextColor="#94A3B8"
-            value={accessCode}
-            onChangeText={setAccessCode}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
-          <Text style={{ fontSize: 12, color: "#64748B", marginTop: -6, marginBottom: 16 }}>
-            Provided by your clinic administrator to verify your credentials.
-          </Text>
+            {/* Section: Clinic Verification */}
+            <Text style={styles.sectionHeader}>Clinic Verification</Text>
 
-          {/* Section: License & Credentials */}
-          <Text style={styles.sectionHeader}>License & Credentials</Text>
+            <Text style={styles.label}>
+              Clinic Access Code <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., SMILE-TEST-2026"
+              placeholderTextColor="#94A3B8"
+              value={accessCode}
+              onChangeText={setAccessCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <Text style={{ fontSize: 12, color: "#64748B", marginTop: -6, marginBottom: 16 }}>
+              Provided by your clinic administrator to verify your credentials.
+            </Text>
 
-          <Text style={styles.label}>
-            Medical License Number <Text style={styles.requiredStar}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., ABC123"
-            placeholderTextColor="#94A3B8"
-            value={doctorData.license_number}
-            onChangeText={(text) => updateDoctorData("license_number", text)}
-            keyboardType="default"
-            autoCapitalize="characters"
-          />
+            {/* Section: License & Credentials */}
+            <Text style={styles.sectionHeader}>License & Credentials</Text>
 
-          {/* License Number Validation Feedback */}
-          {doctorData.license_number.length > 0 && (
-            <View
-              style={{
-                marginBottom: 10,
-                marginTop: -2,
-              }}
-            >
-              {isValidLicenseNumber(doctorData.license_number) ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <HeroIcon name="circle" size="xs" color="#10B981" />
+            <Text style={styles.label}>
+              Medical License Number <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., ABC123"
+              placeholderTextColor="#94A3B8"
+              value={doctorData.license_number}
+              onChangeText={(text) => updateDoctorData("license_number", text)}
+              keyboardType="default"
+              autoCapitalize="characters"
+            />
+
+            {/* License Number Validation Feedback */}
+            {doctorData.license_number.length > 0 && (
+              isValidLicenseNumber(doctorData.license_number) ? (
+                <View
+                  style={{
+                    marginBottom: 10,
+                    marginTop: -2,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
                   <Text style={{ color: "#047857", fontSize: 12, fontWeight: "600" }}>
                     Valid license number
                   </Text>
                 </View>
-              ) : (
-                <View>
-                  {doctorData.license_number.length < 5 ||
-                  doctorData.license_number.length > 7 ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
-                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                        Must be 5-7 characters (current: {doctorData.license_number.length})
-                      </Text>
-                    </View>
-                  ) : null}
-                  {!/^[a-zA-Z0-9]+$/.test(doctorData.license_number) ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
-                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                        Only letters and numbers allowed
-                      </Text>
-                    </View>
-                  ) : null}
-                  {!/[a-zA-Z]/.test(doctorData.license_number) ||
-                  !/[0-9]/.test(doctorData.license_number) ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <HeroIcon name="xmark" size="xs" color="#ef4444" />
-                      <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
-                        Must contain both letters and numbers
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Specialization Dropdown */}
-          <Text style={styles.label}>
-            Specialization <Text style={styles.requiredStar}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.input,
-              {
-                justifyContent: "center",
-                paddingVertical: 12,
-                borderColor: doctorData.specialization
-                  ? "#10B981"
-                  : "#CBD5E1",
-              },
-            ]}
-            onPress={() => setShowSpecializationDropdown(true)}
-          >
-            <Text
-              style={{
-                fontSize: 13,
-                color: doctorData.specialization ? "#0F172A" : "#94A3B8",
-                paddingHorizontal: 4,
-              }}
-            >
-              {doctorData.specialization || "Select Specialization"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Specialization Dropdown Modal */}
-          <Modal
-            visible={showSpecializationDropdown}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowSpecializationDropdown(false)}
-          >
-            <TouchableOpacity
-              style={styles.modalOverlay}
-              activeOpacity={1}
-              onPress={() => setShowSpecializationDropdown(false)}
-            >
-              <View style={styles.dropdownContainer}>
-                <Text style={styles.dropdownHeader}>Select Specialization</Text>
-                <ScrollView style={styles.dropdownList}>
-                  {specializations.map((spec, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.dropdownOption,
-                        doctorData.specialization === spec &&
-                          styles.dropdownOptionSelected,
-                      ]}
-                      onPress={() => {
-                        updateDoctorData("specialization", spec);
-                        setShowSpecializationDropdown(false);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.dropdownOptionText,
-                          doctorData.specialization === spec && {
-                            color: "#047857",
-                            fontWeight: "700",
-                          },
-                        ]}
-                      >
-                        {spec}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </TouchableOpacity>
-          </Modal>
-
-          <Text style={styles.label}>Years of Experience</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., 5, 10"
-            placeholderTextColor="#94A3B8"
-            keyboardType="number-pad"
-            value={
-              doctorData.years_of_experience && doctorData.years_of_experience > 0
-                ? doctorData.years_of_experience.toString()
-                : ""
-            }
-            onChangeText={(text) =>
-              updateDoctorData("years_of_experience", parseInt(text) || 0)
-            }
-          />
-
-          <Text style={styles.label}>Professional Bio</Text>
-          <TextInput
-            style={[styles.input, styles.textAreaInput]}
-            placeholder="Brief overview of your practice, background and interests"
-            placeholderTextColor="#94A3B8"
-            multiline
-            numberOfLines={3}
-            value={doctorData.bio}
-            onChangeText={(text) => updateDoctorData("bio", text)}
-          />
-
-          {/* Section: Doctor Information */}
-          <Text style={styles.sectionHeader}>Doctor Information</Text>
-
-          <Text style={styles.label}>
-            First Name <Text style={styles.requiredStar}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Jane"
-            placeholderTextColor="#94A3B8"
-            value={doctorData.first_name || ""}
-            onChangeText={(text) => updateDoctorData("first_name", text)}
-          />
-
-          <Text style={styles.label}>Middle Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Marie (optional)"
-            placeholderTextColor="#94A3B8"
-            value={doctorData.middle_name || ""}
-            onChangeText={(text) => updateDoctorData("middle_name", text)}
-          />
-
-          <Text style={styles.label}>
-            Last Name <Text style={styles.requiredStar}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Doe"
-            placeholderTextColor="#94A3B8"
-            value={doctorData.last_name || ""}
-            onChangeText={(text) => updateDoctorData("last_name", text)}
-          />
-
-          <Text style={styles.label}>Gender (determines Dr. or Dra. title)</Text>
-          <View style={styles.genderChipRow}>
-            {[
-              { label: "Male (Dr.)", value: "Male" },
-              { label: "Female (Dra.)", value: "Female" },
-            ].map((item) => {
-              const isSelected = (doctorData.gender || "").toLowerCase() === item.value.toLowerCase();
-              return (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.genderChip,
-                    isSelected && styles.genderChipActive,
-                  ]}
-                  onPress={() => updateDoctorData("gender", item.value)}
-                  activeOpacity={0.7}
+              ) : !/^[a-zA-Z0-9]+$/.test(doctorData.license_number) ? (
+                <View
+                  style={{
+                    marginBottom: 10,
+                    marginTop: -2,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
                 >
-                  <Text
-                    style={[
-                      styles.genderChipText,
-                      isSelected && styles.genderChipTextActive,
-                    ]}
-                  >
-                    {item.label}
+                  <HeroIcon name="xmark" size="xs" color="#ef4444" />
+                  <Text style={{ color: "#ef4444", fontSize: 12, fontWeight: "500" }}>
+                    Only letters and numbers allowed
                   </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={styles.label}>Doctor Phone</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., +1 (555) 123-4567"
-            placeholderTextColor="#94A3B8"
-            keyboardType="phone-pad"
-            value={doctorData.doctor_phone || ""}
-            onChangeText={(text) => updateDoctorData("doctor_phone", text)}
-          />
-
-          {/* Section: Profile Picture */}
-          <Text style={styles.sectionHeader}>Profile Picture</Text>
-
-          {/* Profile Picture Container - Circular with Camera Overlay */}
-          <TouchableOpacity
-            onPress={handleImagePick}
-            disabled={uploadingImage || loading}
-            style={styles.profileImageContainer}
-          >
-            {selectedImageUri ? (
-              <Image
-                source={{ uri: selectedImageUri }}
-                style={styles.profileImage}
-              />
-            ) : (
-              <View style={styles.profileImagePlaceholder}>
-                <Image
-                  source={require("../../assets/images/user.png")}
-                  style={styles.profileImagePlaceholderIcon}
-                />
-              </View>
+                </View>
+              ) : null
             )}
-            {uploadingImage && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator size="large" color="#fff" />
-              </View>
-            )}
-            {!uploadingImage && (
-              <View style={styles.cameraIconContainer}>
-                <Camera size={14} color="#FFFFFF" />
-              </View>
-            )}
-          </TouchableOpacity>
 
-          {selectedImage && (
+            {/* Specialization Dropdown */}
+            <Text style={styles.label}>
+              Specialization <Text style={styles.requiredStar}>*</Text>
+            </Text>
             <TouchableOpacity
-              style={[styles.btn, { marginTop: 12, backgroundColor: "#fee2e2" }]}
-              onPress={() => {
-                setSelectedImage(null);
-                setSelectedImageUri(null);
-              }}
-              disabled={loading}
+              style={[
+                styles.input,
+                {
+                  justifyContent: "center",
+                  paddingVertical: 12,
+                  borderColor: doctorData.specialization
+                    ? "#10B981"
+                    : "#CBD5E1",
+                },
+              ]}
+              onPress={() => setShowSpecializationDropdown(true)}
             >
-              <Text style={{ color: "#dc2626", fontSize: 13, fontWeight: "600", flexDirection: "row", alignItems: "center" }}>
-                <X size={16} color="#dc2626" />
-                <Text> Remove Photo</Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: doctorData.specialization ? "#0F172A" : "#94A3B8",
+                  paddingHorizontal: 4,
+                }}
+              >
+                {doctorData.specialization || "Select Specialization"}
               </Text>
             </TouchableOpacity>
-          )}
 
-          {/* Mandatory Fields Note */}
-          <Text style={styles.requiredNote}>
-            * License: 5-7 alphanumeric characters with both letters and numbers (e.g., ABC123)
-          </Text>
-          <Text style={styles.requiredNote}>
-            * Specialization and Doctor Name are also required
-          </Text>
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.btn, styles.primaryBtn, { marginTop: 16 }]}
-            onPress={handleSubmit}
-            disabled={loading || !isFormValid()}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>Continue to Clinic Setup</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Cancel Button */}
-          {onCancel && (
-            <TouchableOpacity
-              style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
-              onPress={onCancel}
-              disabled={loading}
+            {/* Specialization Dropdown Modal */}
+            <Modal
+              visible={showSpecializationDropdown}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowSpecializationDropdown(false)}
             >
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setShowSpecializationDropdown(false)}
+              >
+                <View style={styles.dropdownContainer}>
+                  <Text style={styles.dropdownHeader}>Select Specialization</Text>
+                  <ScrollView style={styles.dropdownList}>
+                    {specializations.map((spec, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.dropdownOption,
+                          doctorData.specialization === spec &&
+                          styles.dropdownOptionSelected,
+                        ]}
+                        onPress={() => {
+                          updateDoctorData("specialization", spec);
+                          setShowSpecializationDropdown(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownOptionText,
+                            doctorData.specialization === spec && {
+                              color: "#047857",
+                              fontWeight: "700",
+                            },
+                          ]}
+                        >
+                          {spec}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+
+            <Text style={styles.label}>
+              Years of Experience <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., 5, 10"
+              placeholderTextColor="#94A3B8"
+              keyboardType="number-pad"
+              value={yearsOfExperienceStr}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/[^0-9]/g, "");
+                setYearsOfExperienceStr(cleaned);
+                updateDoctorData("years_of_experience", cleaned ? parseInt(cleaned, 10) : 0);
+              }}
+            />
+
+            <Text style={styles.label}>
+              Professional Bio <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={[styles.input, styles.textAreaInput]}
+              placeholder="Brief overview of your practice, background and interests"
+              placeholderTextColor="#94A3B8"
+              multiline
+              numberOfLines={3}
+              value={doctorData.bio}
+              onChangeText={(text) => updateDoctorData("bio", text)}
+            />
+
+            {/* Section: Doctor Information */}
+            <Text style={styles.sectionHeader}>Doctor Information</Text>
+
+            <Text style={styles.label}>
+              First Name <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Mart"
+              placeholderTextColor="#94A3B8"
+              value={doctorData.first_name || ""}
+              onChangeText={(text) => updateDoctorData("first_name", text)}
+            />
+
+            <Text style={styles.label}>Middle Name (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Lee (optional)"
+              placeholderTextColor="#94A3B8"
+              value={doctorData.middle_name || ""}
+              onChangeText={(text) => updateDoctorData("middle_name", text)}
+            />
+
+            <Text style={styles.label}>
+              Last Name <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Yanga"
+              placeholderTextColor="#94A3B8"
+              value={doctorData.last_name || ""}
+              onChangeText={(text) => updateDoctorData("last_name", text)}
+            />
+
+            <Text style={styles.label}>
+              Gender <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <View style={styles.genderChipRow}>
+              {[
+                { label: "Male (Dr.)", value: "Male" },
+                { label: "Female (Dra.)", value: "Female" },
+              ].map((item) => {
+                const isSelected = (doctorData.gender || "").toLowerCase() === item.value.toLowerCase();
+                return (
+                  <TouchableOpacity
+                    key={item.value}
+                    style={[
+                      styles.genderChip,
+                      isSelected && styles.genderChipActive,
+                    ]}
+                    onPress={() => updateDoctorData("gender", item.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.genderChipText,
+                        isSelected && styles.genderChipTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>
+              Doctor Phone <Text style={styles.requiredStar}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.phoneContainer,
+                phoneDigits.length === 10
+                  ? styles.phoneContainerValid
+                  : phoneDigits.length > 0
+                    ? styles.phoneContainerInvalid
+                    : null,
+              ]}
+            >
+              <View
+                style={[
+                  styles.phonePrefixContainer,
+                  phoneDigits.length === 10
+                    ? styles.phonePrefixValid
+                    : phoneDigits.length > 0
+                      ? styles.phonePrefixInvalid
+                      : null,
+                ]}
+              >
+                <Text style={styles.phonePrefixText}>+63</Text>
+              </View>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="912-345-6789"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={12}
+                value={phoneDisplay}
+                onChangeText={handlePhoneChange}
+                onBlur={handlePhoneBlur}
+              />
+            </View>
+
+            {/* Section: Profile Picture */}
+            <Text style={styles.sectionHeader}>Profile Picture</Text>
+
+            {/* Profile Picture Container - Circular with Camera Overlay */}
+            <TouchableOpacity
+              onPress={handleImagePick}
+              disabled={uploadingImage || loading}
+              style={styles.profileImageContainer}
+            >
+              {selectedImageUri ? (
+                <Image
+                  source={{ uri: selectedImageUri }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={styles.profileImagePlaceholder}>
+                  <Image
+                    source={require("../../assets/images/user.png")}
+                    style={styles.profileImagePlaceholderIcon}
+                  />
+                </View>
+              )}
+              {uploadingImage && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="large" color="#fff" />
+                </View>
+              )}
+              {!uploadingImage && (
+                <View style={styles.cameraIconContainer}>
+                  <Camera size={14} color="#FFFFFF" />
+                </View>
+              )}
             </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
+
+            {selectedImage && (
+              <TouchableOpacity
+                style={[styles.btn, { marginTop: 12, backgroundColor: "#fee2e2" }]}
+                onPress={() => {
+                  setSelectedImage(null);
+                  setSelectedImageUri(null);
+                }}
+                disabled={loading}
+              >
+                <Text style={{ color: "#dc2626", fontSize: 13, fontWeight: "600", flexDirection: "row", alignItems: "center" }}>
+                  <X size={16} color="#dc2626" />
+                  <Text> Remove Photo</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Mandatory Fields Note */}
+            <Text style={styles.requiredNote}>
+              * All fields are required except Middle Name and Profile Picture (optional)
+            </Text>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[
+                styles.btn,
+                styles.primaryBtn,
+                (!isFormValid() || loading) && styles.btnDisabled,
+                { marginTop: 16 },
+              ]}
+              onPress={handleSubmit}
+              disabled={loading || !isFormValid()}
+              activeOpacity={isFormValid() && !loading ? 0.8 : 1}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={[styles.btnText, (!isFormValid() || loading) && styles.btnTextDisabled]}>
+                  Continue to Clinic Setup
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Cancel Button */}
+            {onCancel && (
+              <TouchableOpacity
+                style={[styles.btn, styles.secondaryBtn, { marginTop: 10 }]}
+                onPress={onCancel}
+                disabled={loading}
+              >
+                <Text style={styles.secondaryBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -733,6 +805,11 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     paddingTop: 8,
   },
+  fieldHint: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
   requiredNote: {
     fontSize: 12,
     color: "#64748B",
@@ -753,6 +830,63 @@ const styles = StyleSheet.create({
     borderLeftColor: "#34D399",
     borderBottomColor: "#047857",
     borderRightColor: "#047857",
+  },
+  btnDisabled: {
+    backgroundColor: "#CBD5E1",
+    borderTopColor: "#E2E8F0",
+    borderLeftColor: "#E2E8F0",
+    borderBottomColor: "#94A3B8",
+    borderRightColor: "#94A3B8",
+    opacity: 0.7,
+  },
+  btnTextDisabled: {
+    color: "#64748B",
+  },
+  phoneContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 6,
+    backgroundColor: "#F8FAFC",
+    marginBottom: 4,
+    overflow: "hidden",
+  },
+  phoneContainerValid: {
+    borderColor: "#10B981",
+  },
+  phoneContainerInvalid: {
+    borderColor: "#FCA5A5",
+  },
+  phonePrefixContainer: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRightWidth: 1.5,
+    borderRightColor: "#CBD5E1",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  phonePrefixValid: {
+    backgroundColor: "#D1FAE5",
+    borderRightColor: "#10B981",
+  },
+  phonePrefixInvalid: {
+    backgroundColor: "#FEE2E2",
+    borderRightColor: "#FCA5A5",
+  },
+  phonePrefixText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: "#0F172A",
+    backgroundColor: "#F8FAFC",
   },
   secondaryBtn: {
     backgroundColor: "#F1F5F9",
