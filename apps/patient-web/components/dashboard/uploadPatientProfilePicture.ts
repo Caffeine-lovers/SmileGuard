@@ -28,7 +28,7 @@ export const uploadPatientProfilePicture = async (userId: string, file: File) =>
     // Update the 'profiles' table with the url directly
     const { error: dbError } = await supabase
       .from('profiles')
-      .update({ Avatar_url: publicUrl })
+      .update({ avatar_url: publicUrl })
       .eq('id', userId);
 
     if (dbError) throw dbError;

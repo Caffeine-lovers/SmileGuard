@@ -40,6 +40,7 @@ export default function BillingPayment({
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [amount, setAmount] = useState<number>(baseAmount || 0);
   const [discountType, setDiscountType] = useState<Billing['discount_type']>('none');
+  const [activeDiscountTab, setActiveDiscountTab] = useState<'none' | 'pwd' | 'senior'>('none');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -58,70 +59,73 @@ export default function BillingPayment({
   // PayMongo-specific state
   const [paymongoError, setPaymongoError] = useState<string | null>(null);
   const [paymentStatusBanner, setPaymentStatusBanner] = useState<'success' | 'cancelled' | null>(null);
+  const [confirmedPaymentInfo, setConfirmedPaymentInfo] = useState<{
+    amount: number;
+    aptId?: string;
+    date: string;
+  } | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const status = params.get('status');
-      const aptId = params.get('apt');
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+    const aptId = params.get('apt');
 
-      if (status === 'success') {
-        setPaymentStatusBanner('success');
-        if (currentUser?.id && aptId) {
-          // Confirm billing record is persisted in Supabase
-          const recordPaid = async () => {
-            try {
-              const { data: existingRows } = await supabase
-                .from('billings')
-                .select('id, payment_status')
-                .eq('appointment_id', aptId);
+    if (status === 'success') {
+      setPaymentStatusBanner('success');
 
-              const rows = existingRows || [];
-              const alreadyPaid = rows.some((r) => r.payment_status === 'paid');
-              const pendingRow = rows.find((r) => r.payment_status !== 'paid');
+      const processConfirmation = async () => {
+        try {
+          if (aptId) {
+            // Call server endpoint with service role to update billings and record notifications
+            const res = await fetch('/api/paymongo/confirm-checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                appointmentId: aptId,
+                patientId: currentUser?.id,
+              }),
+            });
 
-              if (alreadyPaid) {
-                // Webhook already recorded it
-              } else if (pendingRow) {
-                await supabase
-                  .from('billings')
-                  .update({
-                    payment_status: 'paid',
-                    payment_method: 'card',
-                    payment_date: new Date().toISOString(),
-                  })
-                  .eq('id', pendingRow.id);
-                await refreshBillingData();
-              } else {
-                const { data: apt } = await supabase
-                  .from('appointments')
-                  .select('service')
-                  .eq('id', aptId)
-                  .maybeSingle();
+            const data = await res.json();
+            if (data?.success && data?.billing) {
+              const paidAmount = Number(data.billing.final_amount ?? data.billing.amount ?? 5000);
+              setConfirmedPaymentInfo({
+                amount: paidAmount,
+                aptId,
+                date: new Date().toLocaleDateString(),
+              });
 
-                const servicePrice = getServicePrice(apt?.service);
-                await supabase.from('billings').insert({
-                  patient_id: currentUser.id,
-                  appointment_id: aptId,
-                  amount: servicePrice,
-                  discount_type: 'none',
-                  discount_amount: 0,
-                  final_amount: servicePrice,
-                  payment_status: 'paid',
-                  payment_method: 'card',
-                  payment_date: new Date().toISOString(),
-                });
-                await refreshBillingData();
-              }
-            } catch (e) {
-              console.error('Failed to auto-record paid checkout:', e);
+              // Optimistically update local ledger, unpaid list, and balance immediately
+              setLedger((prev) =>
+                prev.map((row) =>
+                  row.id === aptId || (row as any).appointment_id === aptId
+                    ? { ...row, billing_status: 'PAID' as AppointmentBillingStatus, amount_due: 0 }
+                    : row
+                )
+              );
+              setUnpaidAppointments((prev) => prev.filter((row) => row.id !== aptId));
+              setOutstandingBalance((prev) => Math.max(0, prev - paidAmount));
+              setSelectedAppointment((prev) => (prev?.id === aptId ? null : prev));
             }
-          };
-          recordPaid();
+          }
+
+          // Full sync with database
+          if (currentUser?.id) {
+            await refreshBillingData();
+          }
+        } catch (e) {
+          console.error('[BillingPayment] Error confirming checkout:', e);
+        } finally {
+          // Clean URL so back/refresh doesn't re-trigger
+          window.history.replaceState({}, '', window.location.pathname);
         }
-      } else if (status === 'cancelled') {
-        setPaymentStatusBanner('cancelled');
-      }
+      };
+
+      processConfirmation();
+    } else if (status === 'cancelled') {
+      setPaymentStatusBanner('cancelled');
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [currentUser?.id]);
 
@@ -179,7 +183,15 @@ export default function BillingPayment({
   const isPwdPending = effectivePwdStatus === 'pending';
   const isPwdRejected = effectivePwdStatus === 'rejected';
 
+  const currentPwdType = currentUser?.pwd_type || (localPwdStatus ? selectedVerificationType : undefined);
+  const isPwdVerified = isPwdApproved && currentPwdType === 'pwd';
+  const isSeniorVerified = isPwdApproved && currentPwdType === 'senior';
+  const isPwdPendingReview = isPwdPending && currentPwdType === 'pwd';
+  const isSeniorPendingReview = isPwdPending && currentPwdType === 'senior';
+
   const handleDiscountSelect = (type: Billing['discount_type']) => {
+    setActiveDiscountTab(type as 'none' | 'pwd' | 'senior');
+
     if (type === 'none') {
       setDiscountType('none');
       applyDiscount(amount, 'none');
@@ -188,8 +200,10 @@ export default function BillingPayment({
       return;
     }
 
-    // Statutory discounts (PWD / Senior) require clinical verification by Dr. Kyler
-    if (!isPwdApproved) {
+    // Check if the specific type selected is approved
+    const isThisTypeApproved = (type === 'pwd' && isPwdVerified) || (type === 'senior' && isSeniorVerified) || isPwdApproved;
+
+    if (!isThisTypeApproved) {
       // Set the intended type for the submission panel
       setSelectedVerificationType(type as 'pwd' | 'senior');
       setShowVerificationPanel(true);
@@ -216,7 +230,7 @@ export default function BillingPayment({
 
   const handleSubmitIdForDoctorVerification = async () => {
     if (!selectedIdFile || !currentUser?.id) {
-      alert('Please select a photo or scan of your government-issued ID card.');
+      alert('Please select a photo or scan of your ID.');
       return;
     }
 
@@ -255,7 +269,7 @@ export default function BillingPayment({
 
       setLocalPwdStatus('pending');
       setShowVerificationPanel(false);
-      alert('ID Document Sent! Your ' + (selectedVerificationType === 'senior' ? 'Senior Citizen' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
+      alert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
     } catch (err) {
       console.error('[BillingPayment] Failed to submit ID:', err);
       alert('Failed to upload ID. Please try again.');
@@ -348,35 +362,43 @@ export default function BillingPayment({
   const filteredLedger = ledgerFilter === 'ALL' ? ledger : ledger.filter((r) => r.billing_status === ledgerFilter);
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6">
+    <div className="w-full max-w-5xl mx-auto p-2.5 sm:p-4 md:p-6 min-h-screen space-y-3.5 sm:space-y-6">
       {/* Clinic Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
+      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-3.5 sm:p-6 text-white border-2 border-emerald-950 shadow-md w-full">
         <div className="flex items-center gap-2 mb-1">
           <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
             <ShieldCheck className="w-3 h-3 text-emerald-950" />
             Clinic Billing Portal
           </span>
         </div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
-        <p className="text-emerald-100 text-[11px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
+        <h1 className="text-lg sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
+        <p className="text-emerald-100 text-[10px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
           Settle procedure balances and review financial ledgers
         </p>
       </div>
 
       {/* PayMongo Checkout Redirect Banners */}
       {paymentStatusBanner === 'success' && (
-        <div className="flex items-center justify-between p-3.5 sm:p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm text-emerald-900 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-50 border-2 border-emerald-600 rounded-sm text-emerald-950 shadow-md animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
             <div>
-              <p className="text-xs font-black uppercase tracking-wider">Payment Confirmed!</p>
-              <p className="text-xs text-emerald-700">Your transaction via PayMongo has been completed. Your records are updated.</p>
+              <p className="text-sm font-black uppercase tracking-wider text-emerald-950">Payment Confirmed & Invoice Settled!</p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Your payment via PayMongo has been successfully processed and verified.
+                {confirmedPaymentInfo && (
+                  <span className="font-bold ml-1 text-emerald-950">
+                    Amount Paid: ₱{confirmedPaymentInfo.amount.toFixed(2)}.
+                  </span>
+                )}{' '}
+                Your procedure is marked PAID and your outstanding balance is updated.
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setPaymentStatusBanner(null)}
-            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 uppercase cursor-pointer shrink-0 ml-2"
+            className="text-xs font-bold text-emerald-900 hover:text-emerald-950 uppercase cursor-pointer shrink-0 py-1.5 px-3.5 border border-emerald-400 bg-white hover:bg-emerald-100 rounded-xs transition shadow-2xs self-end sm:self-center"
           >
             Dismiss
           </button>
@@ -412,37 +434,37 @@ export default function BillingPayment({
 
       {/* Financial Summary Stats */}
       {!loadingData && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 w-full">
           <Link href="/billing" className="block no-underline">
-            <div className="skeuo-card p-4 sm:p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
+            <div className="skeuo-card p-3.5 sm:p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
               <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
               <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
               <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
             </div>
           </Link>
-          <div className="skeuo-card p-5 border-2 border-slate-300 rounded-sm">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
-            <div className="flex items-baseline gap-3 mt-1">
-              <span className="text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
-              <span className="text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
-              <span className="text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
+          <div className="skeuo-card p-3.5 sm:p-5 border-2 border-slate-300 rounded-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
+            <div className="flex items-baseline gap-2.5 sm:gap-3 mt-1">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
             </div>
-            <p className="text-[11px] font-semibold text-slate-500 mt-1">
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">
               Paid · Not Paid · Cancelled ({billingHistory.length} receipts)
             </p>
           </div>
-          <div className="skeuo-card p-4 sm:p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
+          <div className="skeuo-card p-3.5 sm:p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
             <div className="flex items-center gap-2 mt-1">
               {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
                 <>
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <p className="text-lg sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
+                  <p className="text-base sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
                 </>
               ) : (
                 <>
                   <Clock className="w-5 h-5 text-amber-600" />
-                  <p className="text-lg sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
+                  <p className="text-base sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
                 </>
               )}
             </div>
@@ -452,7 +474,7 @@ export default function BillingPayment({
       )}
 
       {/* Payment Form */}
-      <div className="skeuo-panel p-4 sm:p-6 border-2 border-slate-300">
+      <div className="skeuo-panel p-3.5 sm:p-6 border-2 border-slate-300 w-full">
         <div className="flex items-center gap-2 pb-3 sm:pb-4 mb-4 sm:mb-6 border-b-2 border-slate-200">
           <Receipt className="w-5 h-5 text-emerald-700" />
           <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
@@ -535,38 +557,42 @@ export default function BillingPayment({
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-3 w-full">
               {[
                 { value: 'none' as const, label: 'Standard Rate', badge: null },
                 {
                   value: 'pwd' as const,
                   label: 'PWD (20%)',
-                  badge: isPwdApproved ? 'Verified' : isPwdPending ? 'Pending' : 'Requires Approval',
+                  badge: isPwdVerified ? 'Verified' : isPwdPendingReview ? 'Pending' : 'Needs ID',
+                  isVerified: isPwdVerified,
+                  isPending: isPwdPendingReview,
                 },
                 {
                   value: 'senior' as const,
                   label: 'Senior (20%)',
-                  badge: isPwdApproved ? 'Verified' : isPwdPending ? 'Pending' : 'Requires Approval',
+                  badge: isSeniorVerified ? 'Verified' : isSeniorPendingReview ? 'Pending' : 'Needs ID',
+                  isVerified: isSeniorVerified,
+                  isPending: isSeniorPendingReview,
                 },
               ].map((option) => {
-                const isActive = discountType === option.value;
+                const isActive = activeDiscountTab === option.value;
                 return (
                   <button
                     type="button"
                     key={option.value}
                     onClick={() => handleDiscountSelect(option.value)}
-                    className={`py-2 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
+                    className={`py-1.5 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[9px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
                       isActive
-                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs'
-                        : option.value !== 'none' && !isPwdApproved
+                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
+                        : option.value !== 'none' && !option.isVerified
                         ? 'border-slate-300 bg-slate-50 text-slate-600 hover:border-emerald-400'
                         : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
                     }`}
                   >
-                    <div>{option.label}</div>
+                    <div className="truncate sm:overflow-visible">{option.label}</div>
                     {option.badge && (
-                      <span className={`block text-[8px] font-bold mt-0.5 ${
-                        isPwdApproved ? 'text-emerald-700' : isPwdPending ? 'text-amber-700' : 'text-slate-500'
+                      <span className={`block text-[7.5px] sm:text-[8px] font-bold mt-0.5 truncate sm:overflow-visible ${
+                        option.isVerified ? 'text-emerald-700' : option.isPending ? 'text-amber-700 font-black' : 'text-slate-500'
                       }`}>
                         {option.badge}
                       </span>
@@ -595,7 +621,7 @@ export default function BillingPayment({
                   ID Verification Submitted to Doctor
                 </div>
                 <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Your government ID card was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
+                  Your ID was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
                 </p>
               </div>
             )}
@@ -608,14 +634,14 @@ export default function BillingPayment({
                   Verification Declined by Doctor
                 </div>
                 <p className="text-[11px] text-red-800 leading-relaxed">
-                  Your previous ID could not be validated. Please click below to submit a clear, valid government-issued ID card.
+                  Your previous ID could not be validated. Please click below to submit a clear, valid ID.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowVerificationPanel(true)}
                   className="px-3 py-1 bg-red-700 text-white text-[11px] font-bold uppercase rounded-xs cursor-pointer hover:bg-red-800 transition"
                 >
-                  Re-submit ID Card
+                  Re-submit ID
                 </button>
               </div>
             )}
@@ -640,7 +666,7 @@ export default function BillingPayment({
                 </div>
 
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your government-issued ID card below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
+                  To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
                 </p>
 
                 {/* ID Type Choice */}
@@ -654,7 +680,7 @@ export default function BillingPayment({
                       onChange={() => setSelectedVerificationType('pwd')}
                       className="accent-emerald-700"
                     />
-                    PWD ID Card
+                    PWD ID
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -665,7 +691,7 @@ export default function BillingPayment({
                       onChange={() => setSelectedVerificationType('senior')}
                       className="accent-emerald-700"
                     />
-                    Senior Citizen ID Card (60+)
+                    Snr. Cit. ID (60+)
                   </label>
                 </div>
 
@@ -689,10 +715,17 @@ export default function BillingPayment({
                   )}
                 </div>
 
+                {((selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)) && (
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 font-semibold flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Your {selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD'} ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={handleSubmitIdForDoctorVerification}
-                  disabled={isSubmittingId || !selectedIdFile}
+                  disabled={isSubmittingId || !selectedIdFile || (selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)}
                   className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white font-bold text-xs uppercase tracking-wider rounded-xs transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
                 >
                   {isSubmittingId ? (
@@ -792,18 +825,18 @@ export default function BillingPayment({
 
       {/* Appointment Billing Ledger — mirrors the appointments table */}
       {ledger.length > 0 && (
-        <div className="skeuo-panel p-6 border-2 border-slate-300">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
+        <div className="skeuo-panel p-3 sm:p-5 md:p-6 border-2 border-slate-300 w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 mb-4">
+            <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900">
               Appointment Billing Status
             </h2>
-            <div className="flex gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 sm:gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm w-full sm:w-auto">
               {(['ALL', 'PAID', 'NOT PAID', 'CANCELLED'] as const).map((f) => (
                 <button
                   type="button"
                   key={f}
                   onClick={() => setLedgerFilter(f)}
-                  className={`px-3 py-1 rounded-sm text-[11px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                  className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-sm text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition cursor-pointer text-center ${
                     ledgerFilter === f ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -812,7 +845,66 @@ export default function BillingPayment({
               ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile Dynamic Card View (< md) */}
+          <div className="md:hidden space-y-2.5 w-full">
+            {filteredLedger.length === 0 ? (
+              <div className="p-4 text-center text-slate-500 font-bold uppercase tracking-wider text-xs bg-slate-50 border border-slate-200 rounded-sm">
+                No {ledgerFilter.toLowerCase()} appointments
+              </div>
+            ) : (
+              filteredLedger.map((row) => {
+                const awaitingApproval = isPendingAppointment(row);
+                return (
+                  <div key={row.id} className="p-3 bg-white border border-slate-300 rounded-sm shadow-2xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-xs text-slate-900 leading-snug truncate">{row.service}</p>
+                        {row.clinic_name && (
+                          <p className="text-[10px] text-slate-500 font-medium truncate">{row.clinic_name}</p>
+                        )}
+                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                          {new Date(row.appointment_date).toLocaleDateString()} @ {row.appointment_time}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-black text-sm text-slate-900">
+                          ₱{row.amount_due.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
+                      <span className="text-slate-500 capitalize">
+                        {awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status}
+                      </span>
+                      <div className="text-right">
+                        <span
+                          className={`skeuo-badge text-[9px] ${
+                            row.billing_status === 'PAID'
+                              ? 'skeuo-badge-mint'
+                              : row.billing_status === 'CANCELLED'
+                              ? 'bg-slate-100 text-slate-700 border-slate-300'
+                              : 'bg-red-100 text-red-800 border-red-300'
+                          }`}
+                        >
+                          {row.billing_status}
+                        </span>
+                        {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
+                          <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Paid · refund due</span>
+                        )}
+                        {row.billing_status === 'NOT PAID' && awaitingApproval && (
+                          <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Payable once approved</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table View (>= md) */}
+          <div className="hidden md:block overflow-x-auto w-full">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-300 text-slate-500 uppercase tracking-wider">

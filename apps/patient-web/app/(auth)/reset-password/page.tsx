@@ -15,6 +15,32 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     console.log(' Reset password component mounted');
     
+    // Check for PKCE query parameter ?code= (standard Supabase email link)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      if (code) {
+        console.log(' Found PKCE auth code in query parameters, exchanging for session...');
+        supabase.auth.exchangeCodeForSession(code)
+          .then(({ data, error }) => {
+            if (error) {
+              console.error(' Error exchanging recovery code:', error);
+              setMessage(`Recovery error: ${error.message}`);
+              setReady(true);
+            } else if (data.session) {
+              console.log(' Successfully exchanged code for session');
+              verifySession();
+            }
+          })
+          .catch((err) => {
+            console.error(' Unexpected error exchanging code:', err);
+            setMessage(`Recovery error: ${err.message}`);
+            setReady(true);
+          });
+        return;
+      }
+    }
+
     // Try to get hash parameters from URL (for email recovery link)
     const hash = typeof globalThis !== 'undefined' && 'location' in globalThis 
       ? (globalThis as unknown as { location: { hash: string } }).location.hash 
@@ -106,9 +132,18 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card">
-      <h2 className="text-3xl font-bold text-center mb-8 text-text-primary">
+      <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 text-text-primary">
          Set New Password
       </h2>
+      <div className="mb-6 p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 leading-relaxed space-y-1">
+        <p className="font-bold flex items-center gap-1.5">
+          <span>⚠️</span> Email Security & Delivery Advisory:
+        </p>
+        <p className="text-[11px] text-amber-800">
+          Password recovery links are occasionally flagged by email filters (&quot;This message might be dangerous&quot;) or routed to Spam/Junk. If a warning appears in your inbox, click &quot;Report not spam&quot; or &quot;Looks safe&quot; to authorize the reset request.
+        </p>
+      </div>
+
 
       {message && (
         <div className={`px-4 py-3 rounded mb-6 text-center font-medium ${

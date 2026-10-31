@@ -49,7 +49,7 @@ type AuthUser = CurrentUser & {
 const activeFetches = new Set<string>();
 
 export function useAuth(options: UseAuthOptions = {}) {
-  const { autoCreateProfile = true } = options;
+  const { autoCreateProfile = false } = options;
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,6 +138,7 @@ export function useAuth(options: UseAuthOptions = {}) {
           pwd_status,
           pwd_type,
           pwd_id_url,
+          avatar_url,
           medical_intake!left (patient_id)
         `)
         .eq("id", userId)
@@ -151,6 +152,7 @@ export function useAuth(options: UseAuthOptions = {}) {
                 name, 
                 email, 
                 role,
+                avatar_url,
                 medical_intake!left (patient_id)
               `)
               .eq("id", userId)
@@ -194,6 +196,7 @@ export function useAuth(options: UseAuthOptions = {}) {
           pwd_status: (data as any).pwd_status || 'none',
           pwd_type: (data as any).pwd_type || undefined,
           pwd_id_url: (data as any).pwd_id_url || undefined,
+          avatar_url: (data as any).avatar_url || (data as any).profile_picture_url || undefined,
         };
         setCurrentUser(authUserObj);
         setCachedUserCookie(authUserObj);

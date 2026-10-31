@@ -20,6 +20,8 @@ export default function SignupRegisterPage() {
     showConfirmPassword,
     setShowConfirmPassword,
     purgeIncompleteRegistration,
+    verificationMethod,
+    verificationEmail,
   } = useSignup();
 
   const [localError, setLocalError] = useState<string | null>(null);
@@ -70,6 +72,9 @@ export default function SignupRegisterPage() {
       }
     };
 
+    if (verificationEmail && !formData.email) {
+      updateFormField('email', verificationEmail);
+    }
     checkOAuthFlow();
     purgeIncompleteRegistration();
   }, [setCurrentAuthUser, setIsOAuthFlow, setFormData, purgeIncompleteRegistration]);
@@ -94,10 +99,13 @@ export default function SignupRegisterPage() {
     e.preventDefault();
     setLocalError(null);
 
-    if (!formData.name) {
+    const trimmedName = (formData.name || '').trim();
+    if (!trimmedName) {
       setLocalError('Please enter your full legal name');
       return;
     }
+    // Auto-trim leading and trailing whitespaces
+    updateFormField('name', trimmedName);
 
     if (!formData.password) {
       setLocalError('Please enter a password');
@@ -107,6 +115,18 @@ export default function SignupRegisterPage() {
     if (!passwordCheck.length || !passwordCheck.hasUpperCase || !passwordCheck.hasLowerCase || !passwordCheck.hasNumber || !passwordCheck.hasSpecialChar) {
       setLocalError('Password does not meet clinical security requirements');
       return;
+    }
+
+    // Strict password match verification
+    if (!isOAuthFlow) {
+      if (!formData.confirmPassword) {
+        setLocalError('Please confirm your password');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setLocalError('Passwords do not match. Please verify your confirm password.');
+        return;
+      }
     }
 
     router.push('/signup/medical');
@@ -160,8 +180,8 @@ export default function SignupRegisterPage() {
             value={formData.email}
             onChange={(e) => updateFormField('email', e.target.value)}
             required
-            readOnly={Boolean(isOAuthFlow)}
-            className="skeuo-input w-full text-sm bg-slate-50 text-slate-700 cursor-not-allowed"
+            readOnly={Boolean(isOAuthFlow || verificationMethod === 'email' || verificationEmail)}
+            className={`skeuo-input w-full text-sm ${Boolean(isOAuthFlow || verificationMethod === 'email' || verificationEmail) ? 'bg-slate-50 text-slate-700 cursor-not-allowed' : ''}`}
           />
         </div>
 

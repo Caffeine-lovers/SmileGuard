@@ -65,7 +65,22 @@ function LockedOverlay({ message }: { message: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BookAppointment({ onSuccess, onCancel }: BookAppointmentProps) {
   const { currentUser } = useAuth();
-  const [selectedService, setSelectedService]         = useState<(typeof SERVICES)[0] | null>(null);
+  const [selectedServices, setSelectedServices]       = useState<((typeof SERVICES)[0])[]>([]);
+  const selectedService = selectedServices[0] || null;
+  const combinedServiceName = selectedServices.map(s => s.name).join(', ');
+  const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
+  const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
+
+  const toggleService = (service: (typeof SERVICES)[0], price: number) => {
+    setSelectedServices(prev => {
+      const exists = prev.some(s => s.id === service.id);
+      if (exists) {
+        return prev.filter(s => s.id !== service.id);
+      } else {
+        return [...prev, { ...service, price }];
+      }
+    });
+  };
   const [selectedDate, setSelectedDate]               = useState<string>('');
   const [selectedTime, setSelectedTime]               = useState<string>('');
   const [notes, setNotes]                             = useState<string>('');
@@ -84,7 +99,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   console.log('🔴 [DIAGNOSTIC] BookAppointment component RENDERED');
   console.log('🔴 [DIAGNOSTIC] currentUser:', currentUser);
 
-  const step1Complete = selectedService !== null;
+  const step1Complete = selectedServices.length > 0;
 
   const generateCalendarDays = () => {
     const year = currentMonthView.getFullYear();
@@ -268,7 +283,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   };
 
   const handleBooking = async () => {
-    if (!selectedService || !selectedDate || !selectedTime || !currentUser?.id) {
+    if (selectedServices.length === 0 || !selectedDate || !selectedTime || !currentUser?.id) {
       alert('Please select service, date, and time');
       return;
     }
@@ -277,7 +292,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     try {
       // Book the appointment with the clinic's doctor user_id
       const dentistIdToBook = clinicDetails?.user_id || '';
-      const result = await bookSlot(userId, dentistIdToBook, selectedService.name, selectedDate, selectedTime);
+      const result = await bookSlot(userId, dentistIdToBook, combinedServiceName, selectedDate, selectedTime);
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
@@ -289,8 +304,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             patient_id: userId,
             dentist_id: dentistIdToBook || null,
             clinic_name: clinicDetails?.clinic_name || DEFAULT_CLINIC_NAME,
-            price: selectedService.price,
-            service: selectedService.name,
+            price: totalPrice,
+            service: combinedServiceName,
             appointment_date: selectedDate,
             appointment_time: selectedTime,
             notes: notes || '',
@@ -298,7 +313,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             created_at: new Date().toISOString(),
           });
         }
-        setSelectedService(null);
+        setSelectedServices([]);
         setSelectedDate('');
         setSelectedTime('');
         setNotes('');
@@ -371,7 +386,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
           <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
             <StepBadge n={1} done={step1Complete} />
-            Choose a Service
+            Choose Services (Multi-Select Allowed)
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
@@ -385,12 +400,12 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   ? clinicCustom.price
                   : service.price;
 
-              const active = selectedService?.id === service.id;
+              const active = selectedServices.some(s => s.id === service.id);
               return (
                 <button
                   type="button"
                   key={service.id}
-                  onClick={() => setSelectedService({ ...service, price: effectivePrice })}
+                  onClick={() => toggleService(service, effectivePrice)}
                   className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
@@ -426,9 +441,9 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-3 sm:mb-4">Your Booking</p>
             <div className="space-y-3">
               {[
-                { icon: selectedService?.icon ?? '—', label: 'Service', value: selectedService?.name ?? null },
-                { icon: '', label: 'Date',    value: formattedDate },
-                { icon: '', label: 'Time',    value: selectedTime || null },
+                { icon: selectedService?.icon ?? '🦷', label: 'Service(s)', value: selectedServices.length > 0 ? combinedServiceName : null },
+                { icon: '📅', label: 'Date',    value: formattedDate },
+                { icon: '⏰', label: 'Time',    value: selectedTime || null },
               ].map(({ icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <span className="text-lg mt-0.5">{icon}</span>
@@ -440,10 +455,16 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   </div>
                 </div>
               ))}
-              {selectedService && (
-                <div className="border-t border-white/20 pt-3 flex justify-between items-center">
-                  <p className="text-xs text-white/60">Estimated fee</p>
-                  <p className="text-lg font-bold">₱{selectedService.price.toLocaleString()}</p>
+              {selectedServices.length > 0 && (
+                <div className="border-t border-white/20 pt-3 space-y-1">
+                  <div className="flex justify-between items-center text-xs text-white/70">
+                    <span>Total Duration:</span>
+                    <span className="font-semibold">{totalDuration} mins</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-white/70">Estimated fee</p>
+                    <p className="text-lg font-bold">₱{totalPrice.toLocaleString()}</p>
+                  </div>
                 </div>
               )}
             </div>

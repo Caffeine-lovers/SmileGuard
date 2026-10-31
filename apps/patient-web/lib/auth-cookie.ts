@@ -9,6 +9,7 @@ export interface CachedPatientUser {
   name: string;
   role: 'patient';
   hasMedicalIntake: boolean;
+  avatar_url?: string;
   cachedAt: number;
 }
 
@@ -21,6 +22,7 @@ export function setPatientUserCookie(user: {
   name?: string | null;
   role?: string | null;
   hasMedicalIntake?: boolean;
+  avatar_url?: string | null;
 }): void {
   if (typeof document === 'undefined') return;
 
@@ -30,6 +32,7 @@ export function setPatientUserCookie(user: {
     name: user.name || 'Patient',
     role: 'patient',
     hasMedicalIntake: Boolean(user.hasMedicalIntake),
+    avatar_url: user.avatar_url || undefined,
     cachedAt: Date.now(),
   };
 

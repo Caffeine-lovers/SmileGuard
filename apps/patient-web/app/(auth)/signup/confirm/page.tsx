@@ -207,17 +207,32 @@ export default function SignupConfirmPage() {
             <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
             <ReviewField label="Smoking Status" value={formatSmokingStatus(formData.medicalIntake.smoking_status)} />
             <ReviewField label="Pregnancy Status" value={formatPregnancyStatus(formData.medicalIntake.pregnancy_status)} />
-            <ReviewField label="Emergency Contact" value={formData.medicalIntake.emergency_contact_name ? `${formData.medicalIntake.emergency_contact_name} (${formData.medicalIntake.emergency_contact_phone})` : undefined} />
+            <ReviewField 
+              label="Emergency Contact" 
+              value={formData.medicalIntake.emergency_contact_name 
+                ? `${formData.medicalIntake.emergency_contact_name}${formData.medicalIntake.emergency_contact_relationship ? ` (${formData.medicalIntake.emergency_contact_relationship})` : ''} — ${formData.medicalIntake.emergency_contact_phone || 'No phone'}` 
+                : 'None provided'} 
+            />
             
             <div className="pt-2 border-t border-border-card/50">
-              <p className="text-text-secondary text-xs mb-1 text-[11px] uppercase font-semibold">Health Details</p>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <Badge label="Allergies" value={formData.medicalIntake.allergies} />
-                <Badge label="Conditions" value={formData.medicalIntake.medical_conditions} />
-                <Badge label="Meds" value={formData.medicalIntake.current_medications} />
-                {!formData.medicalIntake.allergies && !formData.medicalIntake.medical_conditions && (
-                  <span className="italic text-text-secondary text-xs">No special conditions noted</span>
-                )}
+              <p className="text-text-secondary text-xs mb-2 text-[11px] uppercase font-bold tracking-wider">Health Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="bg-white/60 border border-border-card/60 p-2 rounded">
+                  <span className="font-bold text-text-primary block text-[10px] uppercase">Allergies</span>
+                  <span className="text-text-secondary">{formData.medicalIntake.allergies && formData.medicalIntake.allergies !== 'None' ? formData.medicalIntake.allergies : 'None reported'}</span>
+                </div>
+                <div className="bg-white/60 border border-border-card/60 p-2 rounded">
+                  <span className="font-bold text-text-primary block text-[10px] uppercase">Medical Conditions</span>
+                  <span className="text-text-secondary">{formData.medicalIntake.medical_conditions && formData.medicalIntake.medical_conditions !== 'None' ? formData.medicalIntake.medical_conditions : 'None reported'}</span>
+                </div>
+                <div className="bg-white/60 border border-border-card/60 p-2 rounded">
+                  <span className="font-bold text-text-primary block text-[10px] uppercase">Current Medications</span>
+                  <span className="text-text-secondary">{formData.medicalIntake.current_medications && formData.medicalIntake.current_medications !== 'None' ? formData.medicalIntake.current_medications : 'None reported'}</span>
+                </div>
+                <div className="bg-white/60 border border-border-card/60 p-2 rounded">
+                  <span className="font-bold text-text-primary block text-[10px] uppercase">Past Surgeries</span>
+                  <span className="text-text-secondary">{formData.medicalIntake.past_surgeries && formData.medicalIntake.past_surgeries !== 'None' ? formData.medicalIntake.past_surgeries : 'None reported'}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -254,11 +269,3 @@ function ReviewField({ label, value }: { label: string; value?: string }) {
   );
 }
 
-function Badge({ label, value }: { label: string; value?: string }) {
-  if (!value || value === 'None') return null;
-  return (
-    <span className="bg-brand-primary/10 text-brand-primary px-2 py-1 rounded border border-brand-primary/20 text-[10px]">
-      <strong>{label}:</strong> {value}
-    </span>
-  );
-}

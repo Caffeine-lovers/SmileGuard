@@ -208,11 +208,18 @@ export default function SignupVerifyPage() {
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
         {otpSent ? 'Verify Code' : 'Enter ' + (verificationMethod === 'email' ? 'Email' : 'Phone')}
       </h2>
-      <p className="text-center text-text-secondary mb-8">
+      <p className="text-center text-text-secondary mb-4">
         {otpSent
-          ? `Enter the 6-digit code sent to your ${verificationMethod}`
+          ? `Enter the 6 to 8-digit code sent to your ${verificationMethod}`
           : `We'll send a verification code to your ${verificationMethod}`}
       </p>
+
+      {otpSent && verificationMethod === 'email' && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 px-3.5 py-2.5 rounded-md mb-6 text-xs flex items-start gap-2">
+          <span className="font-bold shrink-0">Delivery Note:</span>
+          <span>Verification emails are frequently flagged by email providers. If you do not see the email in your inbox, please check your <strong>Spam or Junk folder</strong> and mark it as &quot;Not Spam&quot; or &quot;Looks Safe&quot;.</span>
+        </div>
+      )}
 
       {localError && (
         <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
@@ -260,6 +267,7 @@ export default function SignupVerifyPage() {
                   onChange={(e) => setCountryCode(e.target.value)}
                   className="px-2 py-2 border border-border-card rounded-md bg-white text-xs w-20"
                 >
+                  <option value="+63">+63 (PH)</option>
                   <option value="+1">+1 (US)</option>
                   <option value="+44">+44 (UK)</option>
                   <option value="+91">+91 (IN)</option>
@@ -303,7 +311,8 @@ export default function SignupVerifyPage() {
               onChange={(e) => {
                 const val = e.target.value.replace(/\D/g, '').slice(0, 8);
                 setVerificationCode(val);
-                if (val.length >= 6 && !verificationLoading) {
+                // Only auto-submit when fully filled to 8 digits
+                if (val.length === 8 && !verificationLoading) {
                   setTimeout(() => {
                     const form = e.currentTarget?.closest('form');
                     if (form) form.requestSubmit();
@@ -316,16 +325,18 @@ export default function SignupVerifyPage() {
                   ? 'border-green-500 bg-green-50 text-green-700'
                   : 'border-border-card'
               }`}
-              placeholder="000000"
+              placeholder="••••••••"
               maxLength={8}
               inputMode="numeric"
             />
             <p className="text-xs text-text-secondary mt-2">
               {verificationCode.length === 0
-                ? 'Enter the 6-digit code'
+                ? 'Enter the 6 to 8-digit verification code'
                 : verificationCode.length < 6
-                  ? `${6 - verificationCode.length} more digit${6 - verificationCode.length !== 1 ? 's' : ''} needed`
-                  : 'Code ready - verifying...'}
+                  ? `${6 - verificationCode.length} more digit${6 - verificationCode.length !== 1 ? 's' : ''} needed (min 6 digits)`
+                  : verificationCode.length === 8
+                  ? '8 digits entered - verifying...'
+                  : `${verificationCode.length} digits entered (click Verify or enter 8 digits)`}
             </p>
 
             <div className="mt-4 pt-4 border-t border-border-card">

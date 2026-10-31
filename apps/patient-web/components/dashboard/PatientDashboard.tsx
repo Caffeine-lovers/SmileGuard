@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
+import { supabase } from '@smileguard/supabase-client';
 import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
@@ -22,9 +23,12 @@ import {
   AlertCircle, 
   Stethoscope, 
   ChevronRight,
-  ShieldCheck,
   Building2,
-  Sparkles
+  Sparkles,
+  CalendarX,
+  X,
+  Bell,
+  CalendarClock
 } from 'lucide-react';
 
 export default function PatientDashboard() {
@@ -37,7 +41,128 @@ export default function PatientDashboard() {
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
   const [doctorPictures, setDoctorPictures] = useState<Record<string, string>>({});
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [isCancellingAppt, setIsCancellingAppt] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
+
+  // Reschedule interactive state
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('10:00 AM');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [isSubmittingReschedule, setIsSubmittingReschedule] = useState(false);
+  const [rescheduleFeedback, setRescheduleFeedback] = useState<string | null>(null);
+
+  // Notification Prompt state
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const dismissed = localStorage.getItem('sg_notif_prompt_dismissed');
+      if (!dismissed && 'Notification' in window && Notification.permission === 'default') {
+        setShowNotificationPrompt(true);
+      }
+    }
+  }, []);
+
+  const handleEnableNotifications = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        localStorage.setItem('sg_notif_prompt_dismissed', 'true');
+        setShowNotificationPrompt(false);
+        if (perm === 'granted') {
+          alert('Notifications enabled! You will now receive instant alerts for appointment updates.');
+        }
+      } catch (e) {
+        setShowNotificationPrompt(false);
+      }
+    }
+  };
+
+  const handleDismissNotificationPrompt = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sg_notif_prompt_dismissed', 'true');
+    }
+    setShowNotificationPrompt(false);
+  };
+
+  const handleRescheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appointmentToReschedule?.id || !rescheduleDate || !rescheduleTime) {
+      alert('Please select both a date and a time slot.');
+      return;
+    }
+
+    setIsSubmittingReschedule(true);
+    try {
+      const res = await fetch('/api/appointments/reschedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId: appointmentToReschedule.id,
+          newDate: rescheduleDate,
+          newTime: rescheduleTime,
+          reason: rescheduleReason,
+          requestedBy: 'patient',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to reschedule visit');
+      }
+
+      // Revert status to 'pending' on patient dashboard (approval required)
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === appointmentToReschedule.id
+            ? {
+                ...a,
+                status: 'pending',
+                appointment_date: rescheduleDate,
+                appointment_time: rescheduleTime,
+                rescheduled_by: 'patient',
+              }
+            : a
+        )
+      );
+
+      setIsRescheduleModalOpen(false);
+      setActiveTab('pending');
+      setRescheduleFeedback(
+        `Your visit for ${appointmentToReschedule.service} was updated to ${rescheduleDate} at ${rescheduleTime}. Status is now Pending clinic approval from Dr. Kyler.`
+      );
+    } catch (err: any) {
+      console.error('Error submitting reschedule:', err);
+      alert(err.message || 'Could not submit reschedule request');
+    } finally {
+      setIsSubmittingReschedule(false);
+    }
+  };
+
+  const handleCancelAppointment = async (apptId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this appointment request?')) return;
+    setIsCancellingAppt(true);
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', apptId);
+
+      if (error) throw error;
+      setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status: 'cancelled' } : a));
+      setSelectedAppointment(null);
+      alert('Your appointment has been cancelled.');
+    } catch (err: any) {
+      console.error('Error cancelling appointment:', err);
+      alert(`Could not cancel appointment: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsCancellingAppt(false);
+    }
+  };
+
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -154,7 +279,66 @@ export default function PatientDashboard() {
     .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6">
+    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6 w-full">
+      {/* Real-time Notification Prompt Banner */}
+      {showNotificationPrompt && (
+        <div className="p-3.5 sm:p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-full shrink-0">
+              <Bell className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-emerald-950">
+                Enable Appointment Notifications
+              </p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Stay informed instantly whenever Dr. Kyler confirms, reschedules, or updates your clinic visits.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <button
+              type="button"
+              onClick={handleEnableNotifications}
+              className="skeuo-btn-primary py-1.5 px-3 text-xs uppercase tracking-wider font-bold cursor-pointer"
+            >
+              Enable Notifications
+            </button>
+            <button
+              type="button"
+              onClick={handleDismissNotificationPrompt}
+              className="py-1.5 px-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 uppercase cursor-pointer"
+            >
+              Later
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Feedback Banner */}
+      {rescheduleFeedback && (
+        <div className="p-4 bg-emerald-50 border-2 border-emerald-600 rounded-sm shadow-md flex items-start justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-emerald-950">
+                Reschedule Request Submitted (Pending Approval)
+              </p>
+              <p className="text-xs text-emerald-800 mt-0.5 font-medium">
+                {rescheduleFeedback}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRescheduleFeedback(null)}
+            className="text-xs font-bold text-emerald-800 hover:text-emerald-950 uppercase py-1 px-2.5 border border-emerald-400 bg-white rounded-xs cursor-pointer shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Clinic Header Banner - Skeumorphic Mint Green */}
       <div data-tour="profile-header" className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 md:p-7 text-white border-2 border-emerald-950 shadow-md relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-white/30"></div>
@@ -165,10 +349,6 @@ export default function PatientDashboard() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
-                  <ShieldCheck className="w-3 h-3 text-emerald-950" />
-                  SmileGuard Patient Portal
-                </span>
                 {currentUser?.pwd_status === 'approved' && (
                   <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-900 bg-emerald-100 border-emerald-300 font-bold">
                     ✓ Verified {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'}
@@ -189,7 +369,7 @@ export default function PatientDashboard() {
             </div>
           </div>
 
-          <div data-tour="guide-controls" className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 pt-2 sm:pt-0 border-t border-white/10 sm:border-0">
+          <div data-tour="guide-controls" className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 pt-2 sm:pt-0 border-t border-white/10 sm:border-0 flex-wrap">
             <button
               type="button"
               onClick={() => setIsTourOpen(true)}
@@ -209,15 +389,17 @@ export default function PatientDashboard() {
               <span>Guide</span>
             </Link>
 
+            {/* Mobile Book Visit CTA (Visible on mobile, hidden on desktop where header has Book Appointment) */}
             <Link
               href="/appointments"
               data-tour="book-visit-btn"
-              className="skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-4 text-xs uppercase tracking-wider shrink-0 inline-flex items-center gap-1.5 sm:gap-2"
+              className="!inline-flex md:!hidden skeuo-btn-primary py-2 px-3 sm:py-2.5 sm:px-3.5 text-xs uppercase tracking-wider shrink-0 items-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden xs:inline sm:inline">Book Visit</span>
-              <span className="xs:hidden">Book</span>
+              <span>Book Visit</span>
             </Link>
+
+
           </div>
         </div>
       </div>
@@ -320,6 +502,7 @@ export default function PatientDashboard() {
                   time={apt.appointment_time}
                   status={apt.status}
                   clinicName={apt.clinic_name}
+                  onClick={() => setSelectedAppointment(apt)}
                   onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
@@ -344,6 +527,7 @@ export default function PatientDashboard() {
                   time={apt.appointment_time}
                   status="pending"
                   clinicName={apt.clinic_name}
+                  onClick={() => setSelectedAppointment(apt)}
                   onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
                 />
               ))}
@@ -406,8 +590,8 @@ export default function PatientDashboard() {
         )}
       </div>
 
-      {/* Quick Navigation Footer */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      {/* Quick Navigation Footer - Hidden on mobile per convention, scaled on desktop */}
+      <div className="hidden md:grid md:grid-cols-4 gap-3 lg:gap-5">
         <Link href="/appointments" data-tour="quick-appointments" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
           <span>Book Appointment</span>
           <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -434,6 +618,208 @@ export default function PatientDashboard() {
         doctorId={selectedDoctorId}
         onClose={() => setSelectedDoctorId(null)}
       />
+
+
+      {/* Appointment Details & Management Modal */}
+      {selectedAppointment && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="skeuo-panel max-w-md w-full p-5 sm:p-6 border-2 border-slate-300 relative bg-white">
+            <button
+              onClick={() => setSelectedAppointment(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`skeuo-badge text-[10px] uppercase font-bold ${
+                selectedAppointment.status === 'completed'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : isPendingAppointment(selectedAppointment)
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+              }`}>
+                {isPendingAppointment(selectedAppointment) ? 'Pending Clinic Review' : selectedAppointment.status}
+              </span>
+              <span className="text-xs text-slate-500 font-semibold uppercase">Visit Details</span>
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">
+              {selectedAppointment.service}
+            </h3>
+            <p className="text-xs font-bold text-emerald-800 mb-4 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" />
+              {selectedAppointment.clinic_name || "Kyler's Clinic"}
+            </p>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-sm p-3.5 space-y-2 text-xs mb-5 font-medium">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Date:</span>
+                <span className="font-bold text-slate-900">{selectedAppointment.appointment_date}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Scheduled Time:</span>
+                <span className="font-bold text-slate-900">{selectedAppointment.appointment_time}</span>
+              </div>
+              {selectedAppointment.dentist_id && doctorNames[selectedAppointment.dentist_id] && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Attending Specialist:</span>
+                  <span className="font-bold text-slate-900">{doctorNames[selectedAppointment.dentist_id]}</span>
+                </div>
+              )}
+              {selectedAppointment.notes && (
+                <div className="pt-2 border-t border-slate-200 text-slate-600 italic">
+                  &quot;{selectedAppointment.notes}&quot;
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              {selectedAppointment.status !== 'cancelled' && selectedAppointment.status !== 'completed' && (
+                <>
+                  <button
+                    onClick={() => handleCancelAppointment(selectedAppointment.id!)}
+                    disabled={isCancellingAppt}
+                    className="flex-1 py-2 px-3 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold uppercase tracking-wider rounded-sm transition flex items-center justify-center gap-1.5"
+                  >
+                    <CalendarX className="w-3.5 h-3.5" />
+                    <span>{isCancellingAppt ? 'Cancelling...' : 'Cancel Visit'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const apt = selectedAppointment;
+                      setSelectedAppointment(null);
+                      setAppointmentToReschedule(apt);
+                      setRescheduleDate(apt.appointment_date || '');
+                      setRescheduleTime(apt.appointment_time || '10:00 AM');
+                      setRescheduleReason('');
+                      setIsRescheduleModalOpen(true);
+                    }}
+                    className="flex-1 py-2 px-3 skeuo-btn-secondary text-xs uppercase tracking-wider text-center font-bold"
+                  >
+                    Reschedule
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setSelectedAppointment(null)}
+                className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold uppercase tracking-wider rounded-sm transition text-center"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Reschedule Modal */}
+      {isRescheduleModalOpen && appointmentToReschedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="skeuo-modal max-w-md w-full bg-white rounded-md border-2 border-slate-300 shadow-2xl p-5 sm:p-6 relative">
+            <button
+              onClick={() => setIsRescheduleModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-3">
+              <span className="skeuo-badge skeuo-badge-mint text-[10px] uppercase font-bold">
+                Clinical Reschedule
+              </span>
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">
+              Reschedule Visit
+            </h3>
+            <p className="text-xs font-bold text-emerald-800 mb-3 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" />
+              {appointmentToReschedule.service} · {appointmentToReschedule.clinic_name || "Kyler's Clinic"}
+            </p>
+
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-amber-900 text-xs mb-4">
+              <p className="font-bold uppercase tracking-wider text-[10px] text-amber-800 mb-0.5">Approval Policy</p>
+              Rescheduling reverts your visit to <strong>Pending Clinic Review</strong>. Dr. Kyler will be notified to review and approve your requested slot.
+            </div>
+
+            <form onSubmit={handleRescheduleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Select New Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-sm text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Select New Time Slot
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM'].map((slot) => {
+                    const isSelected = rescheduleTime === slot;
+                    return (
+                      <button
+                        type="button"
+                        key={slot}
+                        onClick={() => setRescheduleTime(slot)}
+                        className={`py-2 px-2 text-xs font-bold rounded-xs border transition ${
+                          isSelected
+                            ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Reason for Reschedule (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                  placeholder="e.g. Work schedule conflict, doctor consultation follow-up"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-sm text-xs text-slate-900 focus:outline-none focus:border-emerald-600 resize-none"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmittingReschedule || !rescheduleDate || !rescheduleTime}
+                  className="flex-1 skeuo-btn-primary py-2 px-4 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <CalendarClock className="w-3.5 h-3.5" />
+                  <span>{isSubmittingReschedule ? 'Requesting...' : 'Submit Request'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsRescheduleModalOpen(false)}
+                  className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold uppercase tracking-wider rounded-sm transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Interactive In-App Tour Overlay */}
       <InteractiveTour

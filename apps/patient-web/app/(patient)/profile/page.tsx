@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatientProfilePicture';
+import { setPatientUserCookie } from '@/lib/auth-cookie';
 import { withTimeout } from '@/lib/appointmentService';
 
 interface MedicalIntake {
@@ -42,12 +43,25 @@ export default function ProfilePage() {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  // Sync state correctly based on useAuth hook's currentUser value
+  // Sync state correctly based on useAuth hook's currentUser value and persistent DB record
   useEffect(() => {
-    // @ts-ignore
-    if (currentUser?.profile_picture_url) {
-      // @ts-ignore
-      setProfileImageUrl(currentUser.profile_picture_url);
+    if (currentUser?.avatar_url) {
+      setProfileImageUrl(currentUser.avatar_url);
+    } else if ((currentUser as any)?.profile_picture_url) {
+      setProfileImageUrl((currentUser as any).profile_picture_url);
+    }
+
+    if (currentUser?.id) {
+      supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', currentUser.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.avatar_url) {
+            setProfileImageUrl(data.avatar_url);
+          }
+        });
     }
   }, [currentUser]);
 
@@ -171,29 +185,38 @@ export default function ProfilePage() {
               )}
             </div>
             
-            <label className="mt-1.5 cursor-pointer text-xs text-brand-primary hover:underline font-semibold">
-              {isUploadingImage ? 'Uploading...' : 'Change Picture'}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={isUploadingImage}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file || !currentUser?.id) return;
-                  try {
-                    setIsUploadingImage(true);
-                    const newUrl = await uploadPatientProfilePicture(currentUser.id, file);
-                    setProfileImageUrl(newUrl);
-                  } catch (err: any) {
-                    console.error('Upload failed', err);
-                    alert(`Failed to upload image: ${err.message || 'Unknown error. Check console.'}`);
-                  } finally {
-                    setIsUploadingImage(false);
-                  }
-                }}
-              />
-            </label>
+            {isEditing && (
+              <label className="mt-1.5 cursor-pointer text-xs text-brand-primary hover:underline font-semibold">
+                {isUploadingImage ? 'Uploading...' : 'Change Picture'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={isUploadingImage}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !currentUser?.id) return;
+                    try {
+                      setIsUploadingImage(true);
+                      const newUrl = await uploadPatientProfilePicture(currentUser.id, file);
+                      setProfileImageUrl(newUrl);
+                      setPatientUserCookie({
+                        id: currentUser.id,
+                        name: currentUser.name,
+                        email: currentUser.email,
+                        role: 'patient',
+                        avatar_url: newUrl,
+                      });
+                    } catch (err: any) {
+                      console.error('Upload failed', err);
+                      alert(`Failed to upload image: ${err.message || 'Unknown error. Check console.'}`);
+                    } finally {
+                      setIsUploadingImage(false);
+                    }
+                  }}
+                />
+              </label>
+            )}
           </div>
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary truncate">

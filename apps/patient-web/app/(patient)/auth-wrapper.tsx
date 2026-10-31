@@ -7,8 +7,6 @@ import { useAuth } from '@smileguard/shared-hooks';
 import { 
   CalendarPlus, 
   LogOut, 
-  Menu, 
-  X, 
   LayoutDashboard, 
   Sparkles, 
   CreditCard, 
@@ -16,20 +14,39 @@ import {
   FileText, 
   Stethoscope,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Bell
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import NotificationSettingsModal from '@/components/notifications/NotificationSettingsModal';
 
 export default function AuthWrapper({ children }: { children: ReactNode }) {
   const { currentUser, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`/api/notifications?userId=${currentUser.id}`);
+        const data = await res.json();
+        const unread = (data.notifications || []).filter((n: any) => !n.read).length;
+        setUnreadNotifCount(unread);
+      } catch (e) {
+        // quiet ignore
+      }
+    };
+    fetchUnread();
+  }, [currentUser?.id, pathname]);
 
   useEffect(() => {
     if (!loading && (!currentUser || currentUser.role !== 'patient')) {
@@ -79,13 +96,18 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
         {loading && (
           <div className="h-0.5 bg-emerald-500 animate-pulse w-full" />
         )}
-        <div className="flex justify-between items-center px-4 py-3 sm:px-6 sm:py-4 max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-6 lg:gap-8">
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <span className="text-xl sm:text-2xl font-black text-brand-primary tracking-tight">
+        <div className="flex justify-between items-center px-3 py-2.5 sm:px-6 sm:py-3.5 max-w-7xl mx-auto w-full gap-2 sm:gap-4">
+          <div className="flex items-center gap-4 lg:gap-8">
+            <Link href="/dashboard" className="flex items-center gap-2 group shrink-0">
+              <img
+                src="/icon.svg"
+                alt="SmileGuard Logo"
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-md shrink-0 shadow-xs"
+              />
+              <span className="text-[23px] sm:text-[28px] font-black text-brand-primary tracking-tight leading-none">
                 SmileGuard
               </span>
-              <span className="skeuo-badge skeuo-badge-mint text-[9px] hidden sm:inline-flex">
+              <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] inline-flex">
                 Patient
               </span>
             </Link>
@@ -110,11 +132,12 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Desktop Book CTA */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Desktop Book CTA - strictly hidden on mobile */}
             <Link 
               href="/appointments" 
-              className="skeuo-btn-primary py-2 px-3.5 text-xs uppercase tracking-wider hidden md:inline-flex"
+              data-tour="book-visit-btn"
+              className="!hidden md:!inline-flex skeuo-btn-primary py-2 px-3.5 text-xs uppercase tracking-wider"
             >
               <span className="flex items-center gap-2">
                 <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
@@ -122,40 +145,32 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
-            <span className="text-xs font-semibold text-slate-600 hidden lg:block truncate max-w-[150px]">
+            <span className="text-[13.5px] sm:text-sm font-semibold text-slate-700 hidden lg:block truncate max-w-[170px]">
               {currentUser?.name || ''}
             </span>
 
-            {/* Desktop Logout Button */}
+            {/* Notification & Preferences Settings Button beside Logout */}
+            <button
+              type="button"
+              onClick={() => setSettingsModalOpen(true)}
+              className="relative p-1.5 sm:py-1.5 sm:px-2.5 text-[13.5px] sm:text-sm font-semibold rounded border border-slate-300 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 hover:border-emerald-300 shadow-2xs transition-all shrink-0 cursor-pointer flex items-center justify-center"
+              title="Notifications & Settings"
+              aria-label="Notifications & Settings"
+            >
+              <Bell className="w-4 h-4 text-slate-600" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-600 border border-white animate-pulse" />
+              )}
+            </button>
+
+            {/* Unified Single Logout Button (Clinical Palette with Subtle Logout Intent - Scaled +15%) */}
             <button
               type="button"
               onClick={handleLogout}
-              className="skeuo-btn-secondary py-1.5 px-2.5 sm:py-2 sm:px-3 text-xs uppercase tracking-wider text-red-600 hover:text-red-700 hidden sm:inline-flex"
-              title="Logout"
+              className="py-1.5 px-3 sm:py-1.5 sm:px-3.5 text-[13.5px] sm:text-sm font-semibold rounded border border-slate-300 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-300 shadow-2xs transition-all shrink-0 cursor-pointer"
+              title="Log out"
             >
-              <span className="flex items-center gap-1.5">
-                <LogOut className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden md:inline">Logout</span>
-              </span>
-            </button>
-
-            {/* Mobile Quick Book Button */}
-            <Link
-              href="/appointments"
-              className="skeuo-btn-primary p-2 text-xs md:hidden"
-              title="Book Appointment"
-            >
-              <CalendarPlus className="w-4 h-4 shrink-0" />
-            </Link>
-
-            {/* Mobile Hamburger Toggle */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-sm border border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-900 md:hidden transition"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              Log out
             </button>
           </div>
         </div>
@@ -204,14 +219,17 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-              <Link
-                href="/onboarding"
-                onClick={() => setMobileMenuOpen(false)}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setSettingsModalOpen(true);
+                }}
                 className="text-xs font-semibold text-emerald-700 hover:underline flex items-center gap-1.5"
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Onboarding Guide</span>
-              </Link>
+                <Bell className="w-3.5 h-3.5" />
+                <span>Alerts & Settings {unreadNotifCount > 0 ? `(${unreadNotifCount})` : ''}</span>
+              </button>
 
               <button
                 type="button"
@@ -224,16 +242,24 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
             </div>
           </div>
         )}
+
+        {/* Global Notifications & Settings Modal */}
+        <NotificationSettingsModal
+          isOpen={settingsModalOpen}
+          onClose={() => setSettingsModalOpen(false)}
+          currentUser={currentUser}
+          onUnreadChange={setUnreadNotifCount}
+        />
       </header>
 
-      {/* Main Content with bottom padding to avoid bottom nav clipping on mobile */}
-      <main className="flex-1 overflow-auto pb-24 md:pb-8">
-        <div className="max-w-7xl mx-auto w-full">{children}</div>
+      {/* Main Content */}
+      <main className="flex-1 w-full overflow-x-hidden pb-28 md:pb-8">
+        <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6">{children}</div>
       </main>
 
-      {/* Mobile Fixed Bottom Navigation Bar */}
+      {/* Mobile Sticky Bottom Navigation Bar - Always visible */}
       <nav 
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] safe-area-bottom"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/98 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] safe-area-bottom"
         aria-label="Mobile Navigation"
       >
         <div className="flex items-center justify-around max-w-md mx-auto">
