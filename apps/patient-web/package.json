@@ -16,6 +16,7 @@
     "@smileguard/shared-hooks": "workspace:*",
     "@smileguard/shared-types": "workspace:*",
     "@smileguard/supabase-client": "workspace:*",
+    "@vercel/analytics": "^2.0.1",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.475.0",
     "next": "^16.2.1",
