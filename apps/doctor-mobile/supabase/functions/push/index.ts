@@ -16,7 +16,8 @@ const supabase = createClient(
 Deno.serve(async (req) => {
   try {
     const payload: WebhookPayload = await req.json()
-    console.log(`[PushFunction] Incoming webhook for table ${payload.table} (${payload.type})`)
+    console.log(`[PushFunction] Incoming webhook for table: ${payload.table} (${payload.type})`)
+    console.log(`[PushFunction] Record data:`, JSON.stringify(payload.record || payload.old_record))
 
     let targetUserIds: string[] = []
     let title = 'SmileGuard Notification'
@@ -112,6 +113,7 @@ Deno.serve(async (req) => {
 
     // Deduplicate target user IDs
     targetUserIds = Array.from(new Set(targetUserIds.filter(Boolean)))
+    console.log(`[PushFunction] Initial target user IDs:`, targetUserIds)
 
     if (!targetUserIds.length) {
       console.log('[PushFunction] No target user IDs found for notification.')
@@ -122,7 +124,7 @@ Deno.serve(async (req) => {
     }
 
     // Query profiles for registered expo_push_tokens
-    const { data: profiles, error: profileError } = await supabase
+    let { data: profiles, error: profileError } = await supabase
       .from('profiles')
       .select('id, expo_push_token')
       .in('id', targetUserIds)
@@ -136,12 +138,30 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Fallback: If assigned doctor has no push token (or unassigned), notify any active doctor
+    if ((!profiles || profiles.length === 0) && payload.type === 'INSERT') {
+      console.log('[PushFunction] Target doctor has no active token. Checking all active doctor profiles...')
+      const { data: fallbackProfiles } = await supabase
+        .from('profiles')
+        .select('id, expo_push_token')
+        .eq('role', 'doctor')
+        .not('expo_push_token', 'is', null)
+
+      if (fallbackProfiles && fallbackProfiles.length > 0) {
+        profiles = fallbackProfiles
+        console.log(`[PushFunction] Found ${profiles.length} active doctor fallback profile(s).`)
+      }
+    }
+
+    console.log(`[PushFunction] Active profiles with tokens:`, profiles?.map(p => ({ id: p.id, token: p.expo_push_token })))
+
     const rawPushTokens = (profiles || [])
       .map((p) => p.expo_push_token)
       .filter((t): t is string => typeof t === 'string' && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken[')))
 
     // Deduplicate push tokens so a single device never receives duplicate notifications
     const pushTokens = Array.from(new Set(rawPushTokens))
+    console.log(`[PushFunction] Unique push tokens to notify:`, pushTokens)
 
     if (!pushTokens.length) {
       console.log('[PushFunction] Target users have no active Expo push tokens.')

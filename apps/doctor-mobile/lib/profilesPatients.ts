@@ -146,7 +146,6 @@ export async function getPatientAppointments(
   Array<{
     id: string;
     patient_id: string;
-    dummy_account_id?: string;
     dentist_id?: string | null;
     service: string;
     appointment_date: string;
@@ -168,9 +167,9 @@ export async function getPatientAppointments(
     });
 
     if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient (matching either patient_id or dummy_account_id)
+      // Filter for this specific patient
       const patientAppointments = appointmentsData.filter((apt: any) => 
-        apt.patient_id === patientId || apt.dummy_account_id === patientId
+        apt.patient_id === patientId
       );
       
       if (patientAppointments.length > 0) {
@@ -185,27 +184,17 @@ export async function getPatientAppointments(
       }
     }
 
-    // Direct query: select all needed fields including dentist_id, appointment_time, dummy_account_id
+    // Direct query: select all needed fields for this patient
     console.log('⚠️ RPC returned no data or failed, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, dummy_account_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
-      .or(`patient_id.eq.${patientId},dummy_account_id.eq.${patientId}`)
+      .select('id, patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
+      .eq('patient_id', patientId)
       .order('appointment_date', { ascending: false });
 
     if (error) {
-      console.warn(`⚠️ Direct query with dummy_account_id failed (${error.message}), trying patient_id only...`);
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('appointments')
-        .select('id, patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at', { count: 'exact' })
-        .eq('patient_id', patientId)
-        .order('appointment_date', { ascending: false });
-
-      if (fallbackError) {
-        console.error(`❌ Direct query error for patient ${patientId}:`, fallbackError);
-        return [];
-      }
-      return fallbackData || [];
+      console.error(`❌ Direct query error for patient ${patientId}:`, error);
+      return [];
     }
 
     if (!data) {
