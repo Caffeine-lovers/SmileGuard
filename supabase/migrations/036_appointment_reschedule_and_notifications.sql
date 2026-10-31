@@ -128,62 +128,68 @@ BEGIN
     v_doctor_name := 'Dr. Kyler';
   END IF;
 
-  -- Condition A: Appointment date or time was rescheduled
-  IF (OLD.appointment_date <> NEW.appointment_date OR OLD.appointment_time <> NEW.appointment_time) THEN
-    -- If Patient initiated reschedule -> Reverts to pending, notify doctor
-    IF (NEW.rescheduled_by = 'patient' OR LOWER(NEW.status) = 'pending') THEN
-      -- Notification to doctor
-      IF v_dentist_id IS NOT NULL THEN
-        INSERT INTO public.notifications (user_id, title, message, type, metadata)
-        VALUES (
-          v_dentist_id,
-          'Appointment Reschedule Request',
-          v_patient_name || ' requested to reschedule ' || v_service || ' to ' || NEW.appointment_date || ' at ' || NEW.appointment_time || '. Approval required.',
-          'appointment_rescheduled',
-          jsonb_build_object('appointment_id', NEW.id, 'old_date', OLD.appointment_date, 'new_date', NEW.appointment_date, 'old_time', OLD.appointment_time, 'new_time', NEW.appointment_time, 'by', 'patient')
-        );
-      END IF;
+  -- Safely create notifications (wrapped in exception handler so failures never block appointment updates)
+  BEGIN
+    -- Condition A: Appointment date or time was rescheduled
+    IF (OLD.appointment_date <> NEW.appointment_date OR OLD.appointment_time <> NEW.appointment_time) THEN
+      -- If Patient initiated reschedule -> Reverts to pending, notify doctor
+      IF (NEW.rescheduled_by = 'patient' OR LOWER(NEW.status) = 'pending') THEN
+        -- Notification to doctor
+        IF v_dentist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.profiles WHERE id = v_dentist_id) THEN
+          INSERT INTO public.notifications (user_id, title, message, type, metadata)
+          VALUES (
+            v_dentist_id,
+            'Appointment Reschedule Request',
+            v_patient_name || ' requested to reschedule ' || v_service || ' to ' || NEW.appointment_date || ' at ' || NEW.appointment_time || '. Approval required.',
+            'appointment_rescheduled',
+            jsonb_build_object('appointment_id', NEW.id, 'old_date', OLD.appointment_date, 'new_date', NEW.appointment_date, 'old_time', OLD.appointment_time, 'new_time', NEW.appointment_time, 'by', 'patient')
+          );
+        END IF;
 
-      -- Notification / confirmation to patient
-      IF v_patient_id IS NOT NULL THEN
+        -- Notification / confirmation to patient
+        IF v_patient_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.profiles WHERE id = v_patient_id) THEN
+          INSERT INTO public.notifications (user_id, title, message, type, metadata)
+          VALUES (
+            v_patient_id,
+            'Reschedule Submitted (Pending Approval)',
+            'Your reschedule request for ' || v_service || ' to ' || NEW.appointment_date || ' at ' || NEW.appointment_time || ' is pending approval from ' || v_doctor_name || '.',
+            'appointment_rescheduled',
+            jsonb_build_object('appointment_id', NEW.id, 'new_date', NEW.appointment_date, 'new_time', NEW.appointment_time, 'by', 'patient')
+          );
+        END IF;
+
+      -- If Doctor initiated reschedule -> Notify patient immediately
+      ELSE
+        IF v_patient_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.profiles WHERE id = v_patient_id) THEN
+          INSERT INTO public.notifications (user_id, title, message, type, metadata)
+          VALUES (
+            v_patient_id,
+            'Appointment Rescheduled by Doctor',
+            v_doctor_name || ' rescheduled your ' || v_service || ' visit to ' || NEW.appointment_date || ' at ' || NEW.appointment_time || '.',
+            'appointment_rescheduled',
+            jsonb_build_object('appointment_id', NEW.id, 'old_date', OLD.appointment_date, 'new_date', NEW.appointment_date, 'old_time', OLD.appointment_time, 'new_time', NEW.appointment_time, 'by', 'doctor')
+          );
+        END IF;
+      END IF;
+    END IF;
+
+    -- Condition B: Doctor cancelled appointment -> Notify patient
+    IF (LOWER(OLD.status) <> 'cancelled' AND LOWER(NEW.status) = 'cancelled' AND (NEW.rescheduled_by IS NULL OR NEW.rescheduled_by <> 'patient')) THEN
+      IF v_patient_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.profiles WHERE id = v_patient_id) THEN
         INSERT INTO public.notifications (user_id, title, message, type, metadata)
         VALUES (
           v_patient_id,
-          'Reschedule Submitted (Pending Approval)',
-          'Your reschedule request for ' || v_service || ' to ' || NEW.appointment_date || ' at ' || NEW.appointment_time || ' is pending approval from ' || v_doctor_name || '.',
-          'appointment_rescheduled',
-          jsonb_build_object('appointment_id', NEW.id, 'new_date', NEW.appointment_date, 'new_time', NEW.appointment_time, 'by', 'patient')
-        );
-      END IF;
-
-    -- If Doctor initiated reschedule -> Notify patient immediately
-    ELSE
-      IF v_patient_id IS NOT NULL THEN
-        INSERT INTO public.notifications (user_id, title, message, type, metadata)
-        VALUES (
-          v_patient_id,
-          'Appointment Rescheduled by Doctor',
-          v_doctor_name || ' rescheduled your ' || v_service || ' visit to ' || NEW.appointment_date || ' at ' || NEW.appointment_time || '.',
-          'appointment_rescheduled',
-          jsonb_build_object('appointment_id', NEW.id, 'old_date', OLD.appointment_date, 'new_date', NEW.appointment_date, 'old_time', OLD.appointment_time, 'new_time', NEW.appointment_time, 'by', 'doctor')
+          'Appointment Cancelled',
+          v_doctor_name || ' has cancelled your ' || v_service || ' visit scheduled on ' || NEW.appointment_date || '.',
+          'appointment_cancelled',
+          jsonb_build_object('appointment_id', NEW.id, 'date', NEW.appointment_date, 'by', 'doctor')
         );
       END IF;
     END IF;
-  END IF;
-
-  -- Condition B: Doctor cancelled appointment -> Notify patient
-  IF (LOWER(OLD.status) <> 'cancelled' AND LOWER(NEW.status) = 'cancelled' AND (NEW.rescheduled_by IS NULL OR NEW.rescheduled_by <> 'patient')) THEN
-    IF v_patient_id IS NOT NULL THEN
-      INSERT INTO public.notifications (user_id, title, message, type, metadata)
-      VALUES (
-        v_patient_id,
-        'Appointment Cancelled',
-        v_doctor_name || ' has cancelled your ' || v_service || ' visit scheduled on ' || NEW.appointment_date || '.',
-        'appointment_cancelled',
-        jsonb_build_object('appointment_id', NEW.id, 'date', NEW.appointment_date, 'by', 'doctor')
-      );
-    END IF;
-  END IF;
+  EXCEPTION WHEN OTHERS THEN
+    -- Never allow notification logging issues to disrupt appointment writes
+    NULL;
+  END;
 
   RETURN NEW;
 END;
