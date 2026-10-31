@@ -396,6 +396,7 @@ export async function getAllPatients(): Promise<
     allergies?: string;
     medical_conditions?: string;
     role?: string;
+    avatar_url?: string;
   }>
 > {
   // Fetch medical intake data
@@ -419,7 +420,7 @@ export async function getAllPatients(): Promise<
   // Fetch corresponding profiles (only patients with role='patient')
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
-    .select('id, name, email, service, role')
+    .select('*')
     .in('id', patientIds)
     .eq('role', 'patient');
 
@@ -448,6 +449,7 @@ export async function getAllPatients(): Promise<
       allergies: item.allergies || '',
       medical_conditions: item.medical_conditions || '',
       role: profile.role || '',
+      avatar_url: profile.avatar_url || profile.avatar || profile.profile_picture || profile.image_url || undefined,
     };
   });
 
@@ -468,11 +470,12 @@ async function getAllPatientsFromProfiles(): Promise<
     allergies?: string;
     medical_conditions?: string;
     role?: string;
+    avatar_url?: string;
   }>
 > {
   const { data: profilesData, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, name, email, service, created_at, role')
+    .select('*')
     .eq('role', 'patient');
 
   if (profilesError || !profilesData) {
@@ -492,6 +495,7 @@ async function getAllPatientsFromProfiles(): Promise<
     allergies: '',
     medical_conditions: '',
     role: profile.role || '',
+    avatar_url: profile.avatar_url || profile.avatar || profile.profile_picture || profile.image_url || undefined,
   }));
 }
 

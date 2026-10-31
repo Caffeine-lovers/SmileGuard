@@ -88,6 +88,7 @@ export default function RecordsTab({
         
         const mapped: AppointmentType[] = (result.data || []).map((patient: any) => ({
           id: patient.id,
+          patient_id: patient.id,
           name: patient.name || 'Unknown Patient',
           email: patient.email || '',
           service: patient.service || 'General',
@@ -97,7 +98,7 @@ export default function RecordsTab({
           age: 0,
           gender: patient.gender || '',
           notes: '',
-          imageUrl: require('../../assets/images/user.png'),
+          imageUrl: patient.avatar_url || patient.avatar || patient.profile_picture || patient.image_url || require('../../assets/images/user.png'),
           status: 'scheduled' as const,
         }));
         
@@ -193,6 +194,7 @@ export default function RecordsTab({
       const filteredSupabaseData = supabaseData.filter((patient: any) => patient.role === 'patient');
       const mappedSupabase: AppointmentType[] = filteredSupabaseData.map((patient: any) => ({
         id: patient.patient_id,
+        patient_id: patient.patient_id,
         name: patient.name || 'Unknown Patient',
         email: patient.email || '',
         service: patient.service || 'General',
@@ -202,7 +204,7 @@ export default function RecordsTab({
         age: 0,
         gender: patient.gender || '',
         notes: '',
-        imageUrl: require('../../assets/images/user.png'),
+        imageUrl: (patient as any).avatar_url || (patient as any).avatar || (patient as any).profile_picture || (patient as any).image_url || require('../../assets/images/user.png'),
         status: 'scheduled' as const,
       }));
       setSupabasePatients(mappedSupabase);
@@ -563,8 +565,8 @@ export default function RecordsTab({
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Image
-                      source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                      style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+                      source={typeof patient.imageUrl === "string" && patient.imageUrl.length > 0 ? { uri: patient.imageUrl } : (typeof patient.imageUrl === "number" ? patient.imageUrl : require('../../assets/images/user.png'))}
+                      style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>

@@ -694,7 +694,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           age: 0,
           gender: '',
           notes: '',
-          imageUrl: require('../../assets/images/user.png'),
+          imageUrl: patient.avatar_url || patient.avatar || patient.profile_picture || patient.image_url || require('../../assets/images/user.png'),
           status: 'scheduled' as const,
           patient_id: patient.id,
         }));
@@ -1395,7 +1395,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         >
                           <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
                             <Image
-                              source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                              source={typeof patient.imageUrl === "string" && patient.imageUrl.length > 0 ? { uri: patient.imageUrl } : (typeof patient.imageUrl === "number" ? patient.imageUrl : require('../../assets/images/user.png'))}
                               style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
                             />
                             <View style={{ flex: 1 }}>

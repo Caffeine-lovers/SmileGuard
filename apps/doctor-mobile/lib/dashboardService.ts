@@ -218,7 +218,7 @@ export async function fetchDoctorPatients(doctorId: string): Promise<{
     // Fetch all patients from profiles table
     const { data: patients, error: patError } = await supabase
       .from('profiles')
-      .select('id, name, email, role, service')
+      .select('*')
       .eq('role', 'patient')
       .order('name', { ascending: true });
 
