@@ -196,6 +196,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
   const dashboardScrollRef = useRef<any>(null);
+  const dashboardColumnsLayoutY = useRef<number>(0);
+  const patientDetailsLayoutY = useRef<number>(0);
 
   const tourSteps: TourStep[] = [
     {
@@ -278,8 +280,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
-        dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+        const yOffset = (dashboardColumnsLayoutY.current || 280) + (patientDetailsLayoutY.current || 180) - 12;
+        try {
+          dashboardScrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset), animated: false });
+        } catch (e) {}
       },
+      delay: 350,
     },
     {
       id: "guide-btn",
@@ -289,7 +295,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       icon: Sparkles,
       padding: 6,
       radius: 12,
-      onEnter: () => setSidebarOpen(false),
+      onEnter: () => {
+        setSidebarOpen(false);
+        try {
+          dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
     },
     {
       id: "finish",
@@ -297,7 +308,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       description: "SmileGuard keeps your schedule organized and synced across web and mobile. Let's make every smile shine!",
       icon: ShieldCheck,
       placement: "center",
-      onEnter: () => setSidebarOpen(false),
+      onEnter: () => {
+        setSidebarOpen(false);
+        try {
+          dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
+      },
     },
   ];
 
@@ -336,6 +352,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const handleFinishTour = async () => {
     setTourVisible(false);
     setSidebarOpen(false);
+    try {
+      dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    } catch (e) {}
     if (user?.id) {
       await markDoctorGuideCompleted(user.id, "dashboard");
     }
@@ -344,6 +363,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const handleSkipTour = async () => {
     setTourVisible(false);
     setSidebarOpen(false);
+    try {
+      dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    } catch (e) {}
     if (user?.id) {
       await markDoctorGuideCompleted(user.id, "dashboard");
     }
@@ -1111,7 +1133,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   <Text style={styles.header}>DAILY CLINICAL SCHEDULE</Text>
                 </View>
 
-                <View style={styles.dashboardColumns}>
+                <View style={styles.dashboardColumns} onLayout={(e) => { dashboardColumnsLayoutY.current = e.nativeEvent.layout.y; }}>
                   {/* Left Column: Today's Appointments */}
                   <View ref={tour.register("today-appointments")} collapsable={false} style={styles.column}>
                     <View style={styles.sectionHeaderRow}>
@@ -1151,7 +1173,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                   </View>
 
                   {/* Right Column: Patient Details */}
-                  <View ref={tour.register("patient-details")} collapsable={false} style={styles.column}>
+                  <View style={styles.column}>
+                    <View ref={tour.register("patient-details")} collapsable={false} onLayout={(e) => { patientDetailsLayoutY.current = e.nativeEvent.layout.y; }}>
                     <View style={styles.sectionHeaderRow}>
                       <Text style={styles.sectionHeaderTitle}>Patient Details</Text>
                       {selectedPatient && (
@@ -1339,6 +1362,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         )}
                       </View>
                     )}
+
+                    </View>
 
                     {/* Patients List */}
                     <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients ({patients.length}):</Text>
@@ -1676,7 +1701,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </View>
 
-          <View ref={tour.register("sidebar-nav")} collapsable={false} style={styles.navItems}>
+          <View style={styles.navItems}>
+            <View ref={tour.register("sidebar-nav")} collapsable={false} style={styles.navItemsList}>
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
               onPress={() => {
@@ -1742,6 +1768,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
               <Text style={styles.navLabel}>Settings</Text>
             </TouchableOpacity>
+            </View>
           </View>
 
           <View style={{ gap: 8, marginTop: 12 }}>
@@ -2018,6 +2045,11 @@ const styles = StyleSheet.create({
 
   navItems: {
     flex: 1,
+    gap: 8,
+  },
+
+  navItemsList: {
+    width: "100%",
     gap: 8,
   },
 

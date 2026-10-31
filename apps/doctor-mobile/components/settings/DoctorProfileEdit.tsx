@@ -59,6 +59,60 @@ export default function DoctorProfileEdit({
   const [loadingBucketImages, setLoadingBucketImages] = useState(true);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
+  const formatPhoneChunks = (digits: string) => {
+    if (digits.length === 10) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+    }
+    return digits;
+  };
+
+  const extractPhoneDigits = (phone?: string): string => {
+    if (!phone) return "";
+    let cleaned = phone.replace(/\D/g, "");
+    if (cleaned.startsWith("63") && cleaned.length > 10) {
+      cleaned = cleaned.slice(2);
+    } else if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
+    return cleaned.slice(0, 10);
+  };
+
+  const [phoneDigits, setPhoneDigits] = useState<string>(() => {
+    const existing = doctor?.doctor_phone || (doctor as any)?.phone_number || (doctor as any)?.clinic_phone || "";
+    return extractPhoneDigits(existing);
+  });
+  const [phoneDisplay, setPhoneDisplay] = useState<string>(() => {
+    const existing = doctor?.doctor_phone || (doctor as any)?.phone_number || (doctor as any)?.clinic_phone || "";
+    const digits = extractPhoneDigits(existing);
+    return digits.length === 10 ? formatPhoneChunks(digits) : digits;
+  });
+
+  const handlePhoneChange = (text: string) => {
+    let cleaned = text.replace(/\D/g, "");
+    if (cleaned.startsWith("63") && cleaned.length > 10) {
+      cleaned = cleaned.slice(2);
+    } else if (cleaned.startsWith("0")) {
+      cleaned = cleaned.slice(1);
+    }
+    cleaned = cleaned.slice(0, 10);
+    setPhoneDigits(cleaned);
+
+    if (cleaned.length === 10) {
+      setPhoneDisplay(formatPhoneChunks(cleaned));
+    } else {
+      setPhoneDisplay(cleaned);
+    }
+
+    const fullPhone = cleaned.length === 10 ? `+63${formatPhoneChunks(cleaned)}` : "";
+    updateDoctorData("doctor_phone", fullPhone);
+  };
+
+  const handlePhoneBlur = () => {
+    if (phoneDigits.length === 10) {
+      setPhoneDisplay(formatPhoneChunks(phoneDigits));
+    }
+  };
+
   const getEffectiveUserId = useCallback((): string => {
     return (
       doctorData.user_id ||
@@ -104,6 +158,10 @@ export default function DoctorProfileEdit({
       const parts = (doctor.doctor_name || (doctor as any).name || "").trim().split(" ");
       const fallbackFirst = parts[0] || "";
       const fallbackLast = parts.length > 1 ? parts.slice(1).join(" ") : "";
+      const existingPhone = doctor.doctor_phone || (doctor as any).phone_number || (doctor as any).clinic_phone || "";
+      const digits = extractPhoneDigits(existingPhone);
+      setPhoneDigits(digits);
+      setPhoneDisplay(digits.length === 10 ? formatPhoneChunks(digits) : digits);
 
       setDoctorData({
         ...EMPTY_DOCTOR,
@@ -112,7 +170,7 @@ export default function DoctorProfileEdit({
         middle_name: doctor.middle_name || "",
         last_name: doctor.last_name || fallbackLast,
         gender: doctor.gender || "",
-        doctor_phone: doctor.doctor_phone || (doctor as any).phone_number || (doctor as any).clinic_phone || "",
+        doctor_phone: digits.length === 10 ? `+63${formatPhoneChunks(digits)}` : existingPhone,
       });
       if (doctor.profile_picture_url) {
         setImagePreviewUri(doctor.profile_picture_url);
@@ -283,6 +341,10 @@ export default function DoctorProfileEdit({
       return "Please select a specialization.";
     }
 
+    if (phoneDigits.length > 0 && phoneDigits.length !== 10) {
+      return "Please enter a valid 10-digit phone number after +63 (e.g., 912-345-6789).";
+    }
+
     return null;
   };
 
@@ -320,6 +382,8 @@ export default function DoctorProfileEdit({
         }
       }
 
+      const fullPhoneNumber = phoneDigits.length === 10 ? `+63${formatPhoneChunks(phoneDigits.trim())}` : (doctorData.doctor_phone || "").trim();
+
       const updatedPayload: Partial<Doctor> = {
         ...doctorData,
         first_name: (doctorData.first_name || "").trim(),
@@ -328,7 +392,7 @@ export default function DoctorProfileEdit({
         gender: (doctorData.gender || "").trim(),
         license_number: (doctorData.license_number || "").trim(),
         specialization: (doctorData.specialization || "").trim(),
-        doctor_phone: (doctorData.doctor_phone || "").trim(),
+        doctor_phone: fullPhoneNumber,
         bio: (doctorData.bio || "").trim(),
         years_of_experience: Number(doctorData.years_of_experience) || 0,
         profile_picture_url: finalPictureUrl,
@@ -554,7 +618,7 @@ export default function DoctorProfileEdit({
           onChangeText={(text) => updateDoctorData("last_name", text)}
         />
 
-        <Text style={styles.inputLabel}>Gender (determines Dr. or Dra. title)</Text>
+        <Text style={styles.inputLabel}>Gender</Text>
         <View style={styles.genderChipRow}>
           {[
             { label: "Male (Dr.)", value: "Male" },
@@ -585,13 +649,39 @@ export default function DoctorProfileEdit({
         </View>
 
         <Text style={styles.inputLabel}>Contact Phone Number</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. +63 912 345 6789"
-          keyboardType="phone-pad"
-          value={doctorData.doctor_phone || ""}
-          onChangeText={(text) => updateDoctorData("doctor_phone", text)}
-        />
+        <View
+          style={[
+            styles.phoneContainer,
+            phoneDigits.length === 10
+              ? styles.phoneContainerValid
+              : phoneDigits.length > 0
+                ? styles.phoneContainerInvalid
+                : null,
+          ]}
+        >
+          <View
+            style={[
+              styles.phonePrefixContainer,
+              phoneDigits.length === 10
+                ? styles.phonePrefixValid
+                : phoneDigits.length > 0
+                  ? styles.phonePrefixInvalid
+                  : null,
+            ]}
+          >
+            <Text style={styles.phonePrefixText}>+63</Text>
+          </View>
+          <TextInput
+            style={styles.phoneInput}
+            placeholder="912-345-6789"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="number-pad"
+            maxLength={12}
+            value={phoneDisplay}
+            onChangeText={handlePhoneChange}
+            onBlur={handlePhoneBlur}
+          />
+        </View>
 
         {/* Section: License & Credentials */}
         <Text style={styles.sectionHeader}>License & Credentials</Text>
@@ -1081,6 +1171,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: "#FFFFFF",
     color: "#1F2937",
+  },
+  phoneContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 6,
+    overflow: "hidden",
+  },
+  phoneContainerValid: {
+    borderColor: "#10B981",
+  },
+  phoneContainerInvalid: {
+    borderColor: "#FCA5A5",
+  },
+  phonePrefixContainer: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRightWidth: 1,
+    borderRightColor: "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  phonePrefixValid: {
+    backgroundColor: "#D1FAE5",
+    borderRightColor: "#10B981",
+  },
+  phonePrefixInvalid: {
+    backgroundColor: "#FEE2E2",
+    borderRightColor: "#FCA5A5",
+  },
+  phonePrefixText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#1F2937",
+    backgroundColor: "#FFFFFF",
   },
   dropdownTrigger: {
     justifyContent: "center",
