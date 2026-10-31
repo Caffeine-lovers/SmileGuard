@@ -27,13 +27,14 @@ import {
   Sparkles,
   ShieldCheck,
   Layers,
+  X,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
 
 // Type alias for backwards compatibility
-type AppointmentType = Appointment;
+type AppointmentType = Appointment & { patient_id?: string };
 
 interface RecordsTabProps {
   patients: AppointmentType[];
@@ -85,7 +86,7 @@ export default function RecordsTab({
       try {
         const result = await dashboardService.fetchDoctorPatients(currentUser?.id || '');
         console.log('RecordsTab - Received profiles patients:', result.data);
-        
+
         const mapped: AppointmentType[] = (result.data || []).map((patient: any) => ({
           id: patient.id,
           patient_id: patient.id,
@@ -101,7 +102,7 @@ export default function RecordsTab({
           imageUrl: patient.avatar_url || patient.avatar || patient.profile_picture || patient.image_url || require('../../assets/images/user.png'),
           status: 'scheduled' as const,
         }));
-        
+
         console.log('RecordsTab - Mapped profiles patients:', mapped);
         setSupabasePatients(mapped);
       } catch (error) {
@@ -233,7 +234,7 @@ export default function RecordsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -248,7 +249,7 @@ export default function RecordsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -263,7 +264,7 @@ export default function RecordsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -278,7 +279,7 @@ export default function RecordsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -297,7 +298,7 @@ export default function RecordsTab({
           if (totalPages > 1) {
             scrollViewRef.current?.scrollToEnd?.({ animated: false });
           }
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -312,7 +313,7 @@ export default function RecordsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -324,7 +325,7 @@ export default function RecordsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
   ];
@@ -389,130 +390,127 @@ export default function RecordsTab({
   }, [startTourTrigger]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <View
         ref={tour.setContainer}
         collapsable={false}
         style={{ flex: 1 }}
       >
-        {/* Header with Current User Name */}
-        <View style={{ paddingHorizontal: 16, paddingVertical: 13, borderBottomColor: '#ddd', borderBottomWidth: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 25, fontWeight: 'bold', color: "#047857", marginBottom: 4 }}>
-            Patient Records
-          </Text>
+        {/* Top Header Row matching DoctorDashboard modules */}
+        <View style={localStyles.topHeader}>
           <View
             ref={tour.register("records-actions")}
             collapsable={false}
-            style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
+            style={localStyles.headerTitleGroup}
           >
+            <Text style={localStyles.headerTitle}>PATIENT RECORDS</Text>
+            <View style={localStyles.pillCountBadge}>
+              <Text style={localStyles.pillCountText}>{basePatients.length}</Text>
+            </View>
+          </View>
+
+          <View style={localStyles.headerActionsRow}>
             <TouchableOpacity
               onPress={handleRefresh}
               disabled={isRefreshing}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                backgroundColor: '#ECFDF5',
-                borderWidth: 1,
-                borderColor: '#A7F3D0',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
+              style={localStyles.skeuoActionBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Refresh Records"
             >
               {isRefreshing ? (
                 <ActivityIndicator size="small" color="#047857" />
               ) : (
-                <RefreshCw size={18} color="#047857" />
+                <RefreshCw size={17} color="#047857" />
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleStartTour}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                backgroundColor: '#ECFDF5',
-                borderWidth: 1,
-                borderColor: '#A7F3D0',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
+              style={localStyles.skeuoActionBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Start Walkthrough"
             >
-              <Sparkles size={18} color="#047857" />
+              <Sparkles size={17} color="#047857" />
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={{ paddingHorizontal: 16, borderBottomColor: '#ddd', borderBottomWidth: 1 }}>
+        {/* Search & Sort Filter Section */}
+        <View style={localStyles.filterSection}>
           <View
             ref={tour.register("records-search")}
             collapsable={false}
-            style={{ marginBottom: 12 }}
+            style={localStyles.searchContainer}
           >
+            <Search size={16} color="#047857" style={{ marginRight: 8 }} />
             <TextInput
-              style={{
-                backgroundColor: '#fff',
-                borderColor: '#10B981',
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: '#333',
-              }}
+              style={localStyles.searchInput}
               placeholder="Search by name, service, email, contact..."
-              placeholderTextColor="#999"
+              placeholderTextColor="#94A3B8"
               value={quickSearchQuery}
               onChangeText={setQuickSearchQuery}
             />
+            {quickSearchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setQuickSearchQuery("")}
+                style={localStyles.clearSearchBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={14} color="#64748B" />
+              </TouchableOpacity>
+            )}
           </View>
 
           <View
             ref={tour.register("records-sort")}
             collapsable={false}
-            style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-start', flexWrap: 'wrap', marginBottom: 7 }}
+            style={localStyles.sortRow}
           >
-            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666', alignSelf: 'center' }}>Sort by:</Text>
+            <Text style={localStyles.sortLabel}>SORT BY:</Text>
             <TouchableOpacity
               onPress={() => setPatientSortBy('name')}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 16,
-                backgroundColor: patientSortBy === 'name' ? '#10B981' : '#e0e0e0',
-                borderWidth: 1,
-                borderColor: patientSortBy === 'name' ? '#10B981' : '#ccc',
-              }}
+              style={[
+                localStyles.sortBtn,
+                patientSortBy === 'name' ? localStyles.sortBtnActive : localStyles.sortBtnInactive,
+              ]}
+              activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 12, color: patientSortBy === 'name' ? '#fff' : '#333', fontWeight: '500' }}>Name</Text>
+              <Text
+                style={[
+                  localStyles.sortBtnText,
+                  patientSortBy === 'name' ? localStyles.sortBtnTextActive : localStyles.sortBtnTextInactive,
+                ]}
+              >
+                Name
+              </Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() => setPatientSortBy('date')}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 16,
-                backgroundColor: patientSortBy === 'date' ? '#10B981' : '#e0e0e0',
-                borderWidth: 1,
-                borderColor: patientSortBy === 'date' ? '#10B981' : '#ccc',
-              }}
+              style={[
+                localStyles.sortBtn,
+                patientSortBy === 'date' ? localStyles.sortBtnActive : localStyles.sortBtnInactive,
+              ]}
+              activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 12, color: patientSortBy === 'date' ? '#fff' : '#333', fontWeight: '500' }}>Date Created</Text>
+              <Text
+                style={[
+                  localStyles.sortBtnText,
+                  patientSortBy === 'date' ? localStyles.sortBtnTextActive : localStyles.sortBtnTextInactive,
+                ]}
+              >
+                Date Created
+              </Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() => setPatientSortOrder(patientSortOrder === 'asc' ? 'desc' : 'asc')}
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 16,
-                backgroundColor: '#f0f0f0',
-                borderWidth: 1,
-                borderColor: '#ccc',
-              }}
+              style={[localStyles.sortBtn, localStyles.sortBtnInactive, { flexDirection: 'row', alignItems: 'center' }]}
+              activeOpacity={0.7}
             >
-              <Text style={{ fontSize: 12, color: '#333', fontWeight: '500' }}>
-                {patientSortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
+              <ArrowUpDown size={12} color="#047857" style={{ marginRight: 4 }} />
+              <Text style={[localStyles.sortBtnText, localStyles.sortBtnTextInactive]}>
+                {patientSortOrder === 'asc' ? 'Ascending' : 'Descending'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -520,18 +518,37 @@ export default function RecordsTab({
 
         <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
           {loadingSupabase ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-              <ActivityIndicator size="large" color="#10B981" />
-              <Text style={{ marginTop: 12, color: "#047857", fontSize: 14 }}>Loading patients...</Text>
+            <View style={{ paddingVertical: 48, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="large" color="#047857" />
+              <Text style={{ marginTop: 12, color: "#047857", fontSize: 14, fontWeight: '600' }}>Loading patient records...</Text>
             </View>
           ) : basePatients.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-              No patients found
-            </Text>
+            <View style={localStyles.emptyContainer}>
+              <View style={localStyles.emptyIconBox}>
+                <Users size={26} color="#047857" />
+              </View>
+              <Text style={localStyles.emptyTitle}>NO PATIENTS YET</Text>
+              <Text style={localStyles.emptySubtitle}>
+                No patient accounts have been registered in the clinic database yet.
+              </Text>
+            </View>
           ) : sortedPatients.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-              No patients found matching "{quickSearchQuery}"
-            </Text>
+            <View style={localStyles.emptyContainer}>
+              <View style={localStyles.emptyIconBox}>
+                <Search size={26} color="#047857" />
+              </View>
+              <Text style={localStyles.emptyTitle}>NO MATCHES FOUND</Text>
+              <Text style={localStyles.emptySubtitle}>
+                No patient records match "{quickSearchQuery}". Try a different name, email, or contact number.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setQuickSearchQuery("")}
+                style={localStyles.clearFilterBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={localStyles.clearFilterBtnText}>Clear Search Filter</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <>
               {/* Header info showing patient count and page */}
@@ -557,23 +574,46 @@ export default function RecordsTab({
                 <TouchableOpacity
                   key={patient.id}
                   ref={index === 0 ? tour.register("records-card") : undefined}
-                  style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
+                  style={[styles.card, styles.shadow, localStyles.patientCard]}
                   onPress={() => {
-                    setViewingPatient(patient);
+                    setViewingPatient({
+                      ...patient,
+                      patient_id: patient.patient_id || patient.id,
+                    });
                     setShowPatientDetails(true);
                   }}
+                  activeOpacity={0.7}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Image
-                      source={typeof patient.imageUrl === "string" && patient.imageUrl.length > 0 ? { uri: patient.imageUrl } : (typeof patient.imageUrl === "number" ? patient.imageUrl : require('../../assets/images/user.png'))}
-                      style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
+                      source={
+                        typeof patient.imageUrl === "string" && patient.imageUrl.length > 0
+                          ? { uri: patient.imageUrl }
+                          : typeof patient.imageUrl === "number"
+                            ? patient.imageUrl
+                            : require('../../assets/images/user.png')
+                      }
+                      style={localStyles.patientAvatar}
                     />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333', marginBottom: 2 }}>{patient.name}</Text>
-                      <Text style={{ fontSize: 12, color: '#666' }}>{patient.email}</Text>
-                      <Text style={{ fontSize: 12, color: "#047857", fontWeight: '500' }}>Patient</Text>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                        <Text style={localStyles.patientName} numberOfLines={1}>{patient.name}</Text>
+                        <View style={localStyles.patientBadge}>
+                          <Text style={localStyles.patientBadgeText}>PATIENT</Text>
+                        </View>
+                      </View>
+                      <Text style={localStyles.patientService} numberOfLines={1}>
+                        {patient.service || "General Dental"}
+                      </Text>
+                      {(patient.email || patient.contact) ? (
+                        <Text style={localStyles.patientContact} numberOfLines={1}>
+                          {patient.email || patient.contact}
+                        </Text>
+                      ) : null}
                     </View>
-                    <ChevronRight size={18} color="#94A3B8" />
+                    <View style={localStyles.cardActionBtn}>
+                      <ChevronRight size={15} color="#047857" />
+                    </View>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -663,11 +703,338 @@ export default function RecordsTab({
           onSkip={handleSkipTour}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const localStyles = StyleSheet.create({
+  topHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomColor: '#E2E8F0',
+    borderBottomWidth: 1.5,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  pillCountBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  pillCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skeuoActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  filterSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomColor: '#E2E8F0',
+    borderBottomWidth: 1,
+    backgroundColor: '#FFFFFF',
+    gap: 10,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    height: 42,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    height: '100%',
+    padding: 0,
+  },
+  clearSearchBtn: {
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  sortRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  sortLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginRight: 2,
+  },
+  sortBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  sortBtnActive: {
+    backgroundColor: '#047857',
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#022C22',
+  },
+  sortBtnInactive: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+  },
+  sortBtnText: {
+    fontSize: 11.5,
+    letterSpacing: 0.3,
+  },
+  sortBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  sortBtnTextInactive: {
+    color: '#475569',
+    fontWeight: '700',
+  },
+  clinicBanner: {
+    backgroundColor: '#064E3B',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#022C22',
+    padding: 16,
+    marginBottom: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  clinicBannerBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  clinicBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clinicBannerIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clinicBannerBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 3,
+  },
+  clinicBannerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6EE7B7',
+    borderWidth: 1,
+    borderColor: '#34D399',
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  clinicBannerBadgeText: {
+    color: '#022C22',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  clinicBannerDoctorName: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: -0.3,
+  },
+  clinicBannerSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#D1FAE5',
+    letterSpacing: 0.3,
+    marginTop: 1,
+  },
+  patientCard: {
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  patientAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    marginRight: 12,
+  },
+  patientName: {
+    fontWeight: '800',
+    fontSize: 14.5,
+    color: '#0F172A',
+    flexShrink: 1,
+    marginRight: 6,
+  },
+  patientBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+  },
+  patientBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.5,
+  },
+  patientService: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+    marginTop: 1,
+  },
+  patientContact: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  cardActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    marginVertical: 16,
+  },
+  emptyIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 260,
+    lineHeight: 17,
+  },
+  clearFilterBtn: {
+    marginTop: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  clearFilterBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.3,
+  },
   countHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -676,26 +1043,27 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   countHeaderText: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#64748B',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   countHeaderBold: {
-    fontWeight: '700',
-    color: '#1E293B',
+    fontWeight: '800',
+    color: '#0F172A',
   },
   pageBadge: {
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingVertical: 2.5,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
   pageBadgeText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#047857',
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   paginationContainer: {
     flexDirection: 'row',
@@ -706,20 +1074,23 @@ const localStyles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
     elevation: 1,
     gap: 8,
   },
   navButton: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
@@ -738,26 +1109,32 @@ const localStyles = StyleSheet.create({
   pageButton: {
     minWidth: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
   },
   pageButtonActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+    backgroundColor: '#047857',
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 2,
+    borderBottomColor: '#022C22',
   },
   pageButtonText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
+    fontWeight: '700',
+    color: '#475569',
   },
   pageButtonTextActive: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   ellipsisBox: {
     width: 20,
