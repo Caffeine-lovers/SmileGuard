@@ -43,6 +43,10 @@ export interface DoctorAppointment {
   created_at?: string;
   updated_at?: string;
   patient_name?: string; // Patient name from profiles table
+  patient_avatar?: string | null;
+  imageUrl?: string | number;
+  profiles?: any;
+  patient_profile?: any;
 }
 
 // ─────────────────────────────────────────
@@ -53,22 +57,49 @@ export async function getDoctorAppointments(
 ): Promise<DoctorAppointment[]> {
   try {
     // IMPORTANT: Use RPC function to bypass RLS policy that filters out cancelled appointments
-    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
+    const { data: rpcAppointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
       p_start_date: startDate || null,
       p_end_date: endDate || null,
       p_dentist_id: dentistId || null
     });
 
-    if (rpcError) {
+    let appointmentsData: any[] = rpcAppointmentsData ? [...rpcAppointmentsData] : [];
+
+    // Supplement pending appointments (since RPC get_appointments_range excludes pending)
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      if (dentistId) {
+        pendingQuery = pendingQuery.or(`dentist_id.eq.${dentistId},dentist_id.is.null`);
+      }
+      if (startDate) {
+        pendingQuery = pendingQuery.gte('appointment_date', startDate);
+      }
+      if (endDate) {
+        pendingQuery = pendingQuery.lte('appointment_date', endDate);
+      }
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(appointmentsData.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            appointmentsData.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
+    }
+
+    if (rpcError && appointmentsData.length === 0) {
       // Fallback: Try direct query anyway
       return fallbackGetDoctorAppointments(dentistId, startDate, endDate);
     }
 
-    if (!appointmentsData) {
-      return [];
-    }
-
-    if (appointmentsData.length === 0) {
+    if (!appointmentsData || appointmentsData.length === 0) {
       return [];
     }
 
@@ -124,7 +155,7 @@ export async function getDoctorAppointments(
 
     // Step 5: Don't filter by current user's dentist_id - the RPC already filters to show
     // all appointments with dentist_id IS NOT NULL
-    const filteredAppointments = (appointmentsData as any[]).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
+    const filteredAppointments = appointmentsData as any[];
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
@@ -170,7 +201,7 @@ async function fallbackGetDoctorAppointments(
       .select('*');
 
     // Show only assigned, approved appointments (pending requests live in the Requests tab)
-    query = query.not('dentist_id', 'is', null).neq('status', 'pending').neq('status', 'PENDING');
+    query = query.not('dentist_id', 'is', null);
 
     if (startDate) {
       query = query.gte('appointment_date', startDate);
@@ -248,21 +279,43 @@ export async function getDoctorAppointmentsByDate(
 ): Promise<DoctorAppointment[]> {
   try {
     // IMPORTANT: Use RPC function to bypass RLS policy that filters out cancelled appointments
-    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_by_date', {
+    const { data: rpcAppointmentsData, error: rpcError } = await supabase.rpc('get_appointments_by_date', {
       p_date: date,
       p_dentist_id: dentistId || null
     });
 
-    if (rpcError) {
+    let appointmentsData: any[] = rpcAppointmentsData ? [...rpcAppointmentsData] : [];
+
+    // Supplement pending appointments for this date (since RPC get_appointments_by_date excludes pending)
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .eq('appointment_date', date)
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      if (dentistId) {
+        pendingQuery = pendingQuery.or(`dentist_id.eq.${dentistId},dentist_id.is.null`);
+      }
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(appointmentsData.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            appointmentsData.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
+    }
+
+    if (rpcError && appointmentsData.length === 0) {
       // Fallback: Try direct query anyway
       return fallbackGetAppointmentsByDate(dentistId, date);
     }
 
-    if (!appointmentsData) {
-      return [];
-    }
-
-    if (appointmentsData.length === 0) {
+    if (!appointmentsData || appointmentsData.length === 0) {
       return [];
     }
 
@@ -285,7 +338,7 @@ export async function getDoctorAppointmentsByDate(
     });
 
     // Step 5: Show all appointments for this date (don't filter by dentist_id)
-    const filteredAppointments = (appointmentsData as any[]).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
+    const filteredAppointments = appointmentsData as any[];
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
@@ -325,7 +378,7 @@ async function fallbackGetAppointmentsByDate(
       .eq('appointment_date', date);
 
     // Show only assigned, approved appointments (pending requests live in the Requests tab)
-    query = query.not('dentist_id', 'is', null).neq('status', 'pending').neq('status', 'PENDING');
+    query = query.not('dentist_id', 'is', null);
 
     const { data: appointmentsData, error } = await query
       .order('appointment_time', { ascending: true });

@@ -853,20 +853,17 @@ const tabStyles = StyleSheet.create({
   },
 
   pendingBadge: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 4,
+    backgroundColor: '#65A30D',
+    borderRadius: 10,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     alignSelf: 'center',
   },
 
   pendingBadgeText: {
-    color: '#B45309',
+    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: 'bold',
   },
 
   detailsSection: {

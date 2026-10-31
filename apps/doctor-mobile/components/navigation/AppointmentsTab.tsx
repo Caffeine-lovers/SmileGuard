@@ -20,6 +20,7 @@ import { getStatusColor, getStatusLabel } from "../../lib/statusHelpers";
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import { HeroIcon } from "../ui/HeroIcon";
+import { formatAppointmentTime } from "../../lib/dateFormatters";
 import {
   RefreshCw,
   Calendar,
@@ -39,7 +40,8 @@ type AppointmentType = Appointment;
 
 // Extended appointment type with additional fields from DoctorAppointment
 type AppointmentWithAccountType = AppointmentType & { 
-  patient_avatar?: string,
+  patient_avatar?: string;
+  patient_id?: string;
 };
 
 interface AppointmentsTabProps {
@@ -181,19 +183,25 @@ export default function AppointmentsTab({
   const transformBackendAppointment = (apt: DoctorAppointment): AppointmentWithAccountType => {
     // Ensure clean YYYY-MM-DD date format without timestamp
     const cleanDate = apt.appointment_date ? apt.appointment_date.split('T')[0].split(' ')[0] : '';
+    const propMatch = appointments?.find(a => a.id === apt.id || (apt.patient_id && (a as any).patient_id === apt.patient_id));
+    const avatar = apt.patient_avatar || 
+      (typeof propMatch?.imageUrl === 'string' && propMatch.imageUrl.startsWith('http') ? propMatch.imageUrl : null) ||
+      (typeof (apt as any).imageUrl === 'string' && (apt as any).imageUrl.startsWith('http') ? (apt as any).imageUrl : null);
     return {
       id: apt.id,
-      name: apt.patient_name || 'Unknown Patient',
-      service: apt.service || 'General Visit',
-      time: apt.appointment_time || '00:00',
-      date: cleanDate,
+      patient_id: apt.patient_id,
+      name: apt.patient_name || propMatch?.name || 'Unknown Patient',
+      service: apt.service || propMatch?.service || 'General Visit',
+      time: apt.appointment_time || propMatch?.time || '00:00',
+      date: cleanDate || propMatch?.date || '',
       age: 0,
-      gender: 'N/A',
-      contact: '',
-      email: '',
-      notes: apt.notes || '',
-      imageUrl: 'https://via.placeholder.com/50', // Placeholder
-      status: apt.status as any,
+      gender: (apt as any).profiles?.gender || propMatch?.gender || 'N/A',
+      contact: (apt as any).profiles?.phone || propMatch?.contact || '',
+      email: (apt as any).profiles?.email || propMatch?.email || '',
+      notes: apt.notes || propMatch?.notes || '',
+      imageUrl: avatar || require('../../assets/images/user.png'),
+      patient_avatar: avatar || undefined,
+      status: ((apt.status || propMatch?.status || 'scheduled') as string).toLowerCase() as any,
     };
   };
 
@@ -314,7 +322,7 @@ export default function AppointmentsTab({
     if (appointmentFilterBy === 'all') {
       return appointmentsForDate.length;
     } else if (appointmentFilterBy === 'pending') {
-      return appointmentsForDate.filter(apt => apt.status === 'pending').length;
+      return appointmentsForDate.filter(apt => (apt.status || '').toLowerCase() === 'pending').length;
     } else if (appointmentFilterBy === 'scheduled') {
       return appointmentsForDate.filter(apt => apt.status === 'scheduled').length;
     } else if (appointmentFilterBy === 'completed') {
@@ -632,7 +640,7 @@ export default function AppointmentsTab({
     if (appointmentFilterBy === 'all') {
       return matchesSearch && matchesDate;
     } else if (appointmentFilterBy === 'pending') {
-      return matchesSearch && matchesDate && apt.status === 'pending';
+      return matchesSearch && matchesDate && (apt.status || '').toLowerCase() === 'pending';
     } else if (appointmentFilterBy === 'scheduled') {
       return matchesSearch && matchesDate && apt.status === 'scheduled';
     } else if (appointmentFilterBy === 'completed') {
@@ -1236,6 +1244,10 @@ export default function AppointmentsTab({
                   source={
                     appointment.patient_avatar
                       ? { uri: appointment.patient_avatar }
+                      : typeof appointment.imageUrl === 'string' && appointment.imageUrl.length > 0
+                      ? { uri: appointment.imageUrl }
+                      : typeof appointment.imageUrl === 'number'
+                      ? appointment.imageUrl
                       : require('../../assets/images/user.png')
                   }
                   style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
@@ -1259,7 +1271,7 @@ export default function AppointmentsTab({
                   </View>
                   <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
                   <Text style={{ fontSize: 11, color: '#999' }}>
-                    {formatDateDisplay(selectedDate)} at {appointment.time}
+                    {formatDateDisplay(selectedDate)} at {formatAppointmentTime(appointment.time)}
                   </Text>
                 </View>
                 <TouchableOpacity
