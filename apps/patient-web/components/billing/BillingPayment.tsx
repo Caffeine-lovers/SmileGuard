@@ -67,7 +67,7 @@ export default function BillingPayment({
     method?: string;
   } | null>(null);
 
-  const [referenceInput, setReferenceInput] = useState('pay_bHJTKn3VcPdE2aHZpZPNqAz1');
+  const [referenceInput, setReferenceInput] = useState('');
   const [isVerifyingRef, setIsVerifyingRef] = useState(false);
   const [refVerificationMsg, setRefVerificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -719,7 +719,7 @@ export default function BillingPayment({
                 type="text"
                 value={referenceInput}
                 onChange={(e) => setReferenceInput(e.target.value)}
-                placeholder="Enter Reference ID (e.g. pay_VxahdA5L... or pay_bHJTKn3V...)"
+                placeholder="Enter PayMongo Reference ID (e.g. pay_...)"
                 className="flex-1 p-2 bg-white border border-slate-300 rounded-xs text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
               />
               <button
@@ -729,29 +729,6 @@ export default function BillingPayment({
                 className="skeuo-btn-primary py-2 px-4 text-xs uppercase tracking-wider font-bold shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 {isVerifyingRef ? 'Verifying...' : 'Verify & Record ID'}
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
-              <span className="font-semibold text-slate-500">Quick Select:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setReferenceInput('pay_VxahdA5LhcsqxvSEhzMh71VM');
-                  handleVerifyReference('pay_VxahdA5LhcsqxvSEhzMh71VM');
-                }}
-                className="font-mono bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 border border-slate-300 px-2 py-0.5 rounded-xs cursor-pointer transition"
-              >
-                pay_VxahdA5L... (Whitening ₱5,000)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setReferenceInput('pay_bHJTKn3VcPdE2aHZpZPNqAz1');
-                  handleVerifyReference('pay_bHJTKn3VcPdE2aHZpZPNqAz1');
-                }}
-                className="font-mono bg-slate-100 hover:bg-emerald-100 text-slate-800 hover:text-emerald-900 border border-slate-300 px-2 py-0.5 rounded-xs cursor-pointer transition"
-              >
-                pay_bHJTKn3V... (Check-up ₱300)
               </button>
             </div>
             {refVerificationMsg && (

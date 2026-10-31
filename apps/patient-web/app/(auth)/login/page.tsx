@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
+import { clearPatientUserCookie } from '@/lib/auth-cookie';
 import { Lock, Mail, LogIn, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
@@ -21,8 +22,21 @@ export default function LoginPage() {
       return;
     }
 
+    // Always purge any abandoned signup cache when arriving on the login page
+    try {
+      localStorage.removeItem('smileguard_signup_data');
+      localStorage.removeItem('oauth_signup_flow');
+    } catch {}
+
+    // Only redirect to dashboard if verified patient to prevent dashboard-login loop
     if (!loading && currentUser) {
-      router.replace('/dashboard');
+      if (currentUser.role === 'patient') {
+        router.replace('/dashboard');
+      } else {
+        // Incomplete or non-patient session: purge session and cookie
+        supabase.auth.signOut().catch(() => {});
+        clearPatientUserCookie();
+      }
     }
   }, [currentUser, loading, router]);
 

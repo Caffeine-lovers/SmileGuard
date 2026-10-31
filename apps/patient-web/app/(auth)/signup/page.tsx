@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@smileguard/supabase-client';
@@ -9,7 +9,11 @@ import { Mail, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default function SignupMethodPage() {
   const router = useRouter();
-  const { setVerificationMethod, setOtpSentAt, setResendAttempts, setResendCooldownEnd, setIsOAuthFlow } = useSignup();
+  const { setVerificationMethod, setOtpSentAt, setResendAttempts, setResendCooldownEnd, setIsOAuthFlow, purgeIncompleteRegistration } = useSignup();
+
+  useEffect(() => {
+    purgeIncompleteRegistration();
+  }, [purgeIncompleteRegistration]);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 

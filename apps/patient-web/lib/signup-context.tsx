@@ -1,6 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { supabase } from '@smileguard/supabase-client';
+import { clearPatientUserCookie } from '@/lib/auth-cookie';
 
 import type { MedicalIntakeData } from '@smileguard/shared-types';
 export type { MedicalIntakeData };
@@ -49,9 +51,9 @@ interface SignupContextType {
   showConfirmPassword: boolean;
   setShowConfirmPassword: (value: boolean) => void;
 
-  purgeIncompleteRegistration: () => void;
+  purgeIncompleteRegistration: () => Promise<void>;
 
-  clearSignupData: () => void;
+  clearSignupData: () => Promise<void>;
 }
 
 const SignupContext = createContext<SignupContextType | undefined>(undefined);
@@ -155,24 +157,8 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const purgeIncompleteRegistration = useCallback(() => {
-    setFormData(prev => ({
-      ...prev,
-      medicalIntake: INITIAL_MEDICAL_STATE,
-    }));
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.formData) {
-          parsed.formData.medicalIntake = INITIAL_MEDICAL_STATE;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-        }
-      }
-    } catch (e) {}
-  }, []);
-
-  const clearSignupData = useCallback(() => {
+  const purgeIncompleteRegistration = useCallback(async () => {
+    // 1. Reset all in-memory signup state
     setFormData(INITIAL_FORM_STATE);
     setVerificationMethod(null);
     setVerificationEmail('');
@@ -186,8 +172,28 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
     setCurrentAuthUser(null);
     setShowPassword(false);
     setShowConfirmPassword(false);
-    localStorage.removeItem(STORAGE_KEY);
+
+    // 2. Clear all local/session caches
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('oauth_signup_flow');
+      sessionStorage.clear();
+      clearPatientUserCookie();
+    } catch (e) {
+      console.warn('Error clearing signup cache:', e);
+    }
+
+    // 3. Purge Supabase auth session if incomplete
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Error signing out incomplete auth session:', e);
+    }
   }, []);
+
+  const clearSignupData = useCallback(async () => {
+    await purgeIncompleteRegistration();
+  }, [purgeIncompleteRegistration]);
 
   const value: SignupContextType = useMemo(() => ({
     formData,

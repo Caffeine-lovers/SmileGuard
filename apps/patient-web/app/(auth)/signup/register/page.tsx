@@ -76,8 +76,7 @@ export default function SignupRegisterPage() {
       updateFormField('email', verificationEmail);
     }
     checkOAuthFlow();
-    purgeIncompleteRegistration();
-  }, [setCurrentAuthUser, setIsOAuthFlow, setFormData, purgeIncompleteRegistration]);
+  }, [setCurrentAuthUser, setIsOAuthFlow, setFormData, verificationEmail, formData.email, updateFormField]);
 
   const checkPasswordStrength = (password: string) => {
     return {
@@ -130,6 +129,14 @@ export default function SignupRegisterPage() {
     }
 
     router.push('/signup/medical');
+  };
+
+  const handleCancelToLogin = async () => {
+    try {
+      await purgeIncompleteRegistration();
+    } finally {
+      router.push('/login');
+    }
   };
 
   return (
@@ -273,7 +280,7 @@ export default function SignupRegisterPage() {
         <div className="flex gap-3 pt-4">
           <button
             type="button"
-            onClick={() => router.push('/login')}
+            onClick={handleCancelToLogin}
             className="skeuo-btn-secondary flex-1 py-2.5 text-xs uppercase tracking-wider"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
