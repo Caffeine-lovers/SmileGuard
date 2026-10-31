@@ -80,10 +80,23 @@ export async function registerForPushNotificationsAsync(userId?: string): Promis
 }
 
 /**
- * Persist the device's push token into public.profiles for the logged-in doctor
+ * Persist the device's push token into public.profiles for the logged-in doctor.
+ * Disassociates this physical device token from any other accounts to prevent double push notifications.
  */
 export async function savePushTokenToProfile(userId: string, token: string): Promise<void> {
   try {
+    // 1. Disassociate this physical device token from any previous user accounts
+    const { error: clearOldError } = await supabase
+      .from('profiles')
+      .update({ expo_push_token: null })
+      .eq('expo_push_token', token)
+      .neq('id', userId);
+
+    if (clearOldError) {
+      console.warn('[PushNotification] Warning disassociating token from previous profiles:', clearOldOldMessage(clearOldError));
+    }
+
+    // 2. Save token to current user's profile
     const { error } = await supabase
       .from('profiles')
       .update({ expo_push_token: token })
@@ -97,6 +110,10 @@ export async function savePushTokenToProfile(userId: string, token: string): Pro
   } catch (err) {
     console.error('[PushNotification] Unexpected error updating profile push token:', err);
   }
+}
+
+function clearOldOldMessage(err: any): string {
+  return err?.message || JSON.stringify(err);
 }
 
 /**

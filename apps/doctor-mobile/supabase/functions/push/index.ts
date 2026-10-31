@@ -110,6 +110,9 @@ Deno.serve(async (req) => {
       body = record.body || record.message || 'You have a new notification.'
     }
 
+    // Deduplicate target user IDs
+    targetUserIds = Array.from(new Set(targetUserIds.filter(Boolean)))
+
     if (!targetUserIds.length) {
       console.log('[PushFunction] No target user IDs found for notification.')
       return new Response(JSON.stringify({ message: 'No target recipients' }), {
@@ -133,9 +136,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    const pushTokens = (profiles || [])
+    const rawPushTokens = (profiles || [])
       .map((p) => p.expo_push_token)
       .filter((t): t is string => typeof t === 'string' && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken[')))
+
+    // Deduplicate push tokens so a single device never receives duplicate notifications
+    const pushTokens = Array.from(new Set(rawPushTokens))
 
     if (!pushTokens.length) {
       console.log('[PushFunction] Target users have no active Expo push tokens.')
