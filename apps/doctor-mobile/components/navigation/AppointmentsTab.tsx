@@ -16,7 +16,7 @@ import { useFocusEffect } from "expo-router";
 import { useClinic } from "../../contexts/ClinicContext";
 import { Appointment } from "../../data/dashboardData";
 import { getDoctorAppointmentsByDate, getDoctorAppointments, cancelAppointment, DoctorAppointment } from "../../lib/appointmentService";
-import { getStatusColor, getStatusLabel } from "../../lib/statusHelpers";
+import { getStatusColor, getStatusBgColor, getStatusLabel } from "../../lib/statusHelpers";
 import { supabase } from "@smileguard/supabase-client";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import { HeroIcon } from "../ui/HeroIcon";
@@ -30,6 +30,9 @@ import {
   Clock,
   Sparkles,
   ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
@@ -39,7 +42,7 @@ import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doct
 type AppointmentType = Appointment;
 
 // Extended appointment type with additional fields from DoctorAppointment
-type AppointmentWithAccountType = AppointmentType & { 
+type AppointmentWithAccountType = AppointmentType & {
   patient_avatar?: string;
   patient_id?: string;
 };
@@ -63,7 +66,7 @@ export default function AppointmentsTab({
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
-  
+
   const scrollViewRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [appointmentFilterBy, setAppointmentFilterBy] = useState<'all' | 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'>('all');
@@ -102,7 +105,7 @@ export default function AppointmentsTab({
       console.log('📌 ========== BLOCKOUT DATES UPDATED ==========');
       console.log(`🔴 Total Blocked Dates: ${blockoutDates.length}`);
       blockoutDates.forEach((b, i) => {
-        console.log(`   [${i+1}] ${b.blockout_date} - is_blocked: ${b.is_blocked} - reason: ${b.reason}`);
+        console.log(`   [${i + 1}] ${b.blockout_date} - is_blocked: ${b.is_blocked} - reason: ${b.reason}`);
       });
       console.log('🔴 ==========================================');
     } else {
@@ -143,7 +146,7 @@ export default function AppointmentsTab({
   // Load clinic schedule and blockout dates
   useEffect(() => {
     console.log('⏸️  Clinic schedule useEffect triggered. clinic:', !!clinic);
-    
+
     const loadScheduleAndBlockouts = async () => {
       try {
         // Clinic schedule is now loaded from ClinicContext
@@ -153,13 +156,13 @@ export default function AppointmentsTab({
         } else {
           console.warn('⚠️ Schedule not available from clinic context');
         }
-        
+
         // Load blockout dates - query all (shared across all doctors)
         console.log('🔴 [BLOCKOUT] Loading shared blockout dates...');
         const { data: blockoutData, error: blockoutError } = await supabase
           .from('clinic_blockout_dates')
           .select('*');
-        
+
         if (blockoutError) {
           console.error('❌ [BLOCKOUT] Error loading blockout dates:', blockoutError.message);
         } else if (blockoutData) {
@@ -175,7 +178,7 @@ export default function AppointmentsTab({
         console.error('❌ Error loading clinic schedule:', error);
       }
     };
-    
+
     loadScheduleAndBlockouts();
   }, [clinic]);
 
@@ -184,7 +187,7 @@ export default function AppointmentsTab({
     // Ensure clean YYYY-MM-DD date format without timestamp
     const cleanDate = apt.appointment_date ? apt.appointment_date.split('T')[0].split(' ')[0] : '';
     const propMatch = appointments?.find(a => a.id === apt.id || (apt.patient_id && (a as any).patient_id === apt.patient_id));
-    const avatar = apt.patient_avatar || 
+    const avatar = apt.patient_avatar ||
       (typeof propMatch?.imageUrl === 'string' && propMatch.imageUrl.startsWith('http') ? propMatch.imageUrl : null) ||
       (typeof (apt as any).imageUrl === 'string' && (apt as any).imageUrl.startsWith('http') ? (apt as any).imageUrl : null);
     return {
@@ -214,17 +217,17 @@ export default function AppointmentsTab({
         const month = currentMonth.getMonth();
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
-        
+
         const startDate = formatDate(firstDay);
         const endDate = formatDate(lastDay);
-        
+
         // Reload blockout dates for the current month (no user_id filter - shared data)
         try {
           console.log('🔴 [BLOCKOUT] Reloading blockout dates for month view...');
           const { data: blockoutData, error: blockoutError } = await supabase
             .from('clinic_blockout_dates')
             .select('*');
-          
+
           if (blockoutError) {
             console.error('❌ [BLOCKOUT] Error fetching blockout dates:', blockoutError.message);
           } else {
@@ -239,10 +242,10 @@ export default function AppointmentsTab({
         } catch (queryError) {
           console.error('❌ [BLOCKOUT] Exception fetching blockout dates:', queryError);
         }
-        
+
         // Fetch appointments for the current doctor (dentist_id must match)
         const doctorAppointments = await getDoctorAppointments(doctorId || null, startDate, endDate);
-        
+
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setAllMonthAppointments(transformed);
@@ -266,7 +269,7 @@ export default function AppointmentsTab({
       try {
         setLoading(true);
         const doctorAppointments = await getDoctorAppointmentsByDate(doctorId || null, selectedDate);
-        
+
         if (doctorAppointments.length > 0) {
           const transformed = doctorAppointments.map(transformBackendAppointment);
           setFetchedAppointments(transformed);
@@ -317,7 +320,7 @@ export default function AppointmentsTab({
     // Use all month appointments for calendar counts
     const appointmentsToUse = allMonthAppointments;
     let appointmentsForDate = appointmentsToUse.filter(apt => apt.date === dateStr);
-    
+
     // Apply the active filter to calendar counts
     if (appointmentFilterBy === 'all') {
       return appointmentsForDate.length;
@@ -334,17 +337,17 @@ export default function AppointmentsTab({
     } else if (appointmentFilterBy === 'declined') {
       return appointmentsForDate.filter(apt => apt.status === 'declined').length;
     }
-    
+
     return appointmentsForDate.length;
   };
 
   const isUnavailableDay = (date: Date) => {
     const dateStr = formatDate(date);
-    
+
     // 1. Check specific blockout dates first (highest priority)
     console.log(`🔍 [isUnavailableDay] Checking ${dateStr}... blockoutDates.length = ${blockoutDates.length}`);
     const blockout = blockoutDates.find(b => b.blockout_date === dateStr);
-    
+
     if (blockout) {
       if (blockout.is_blocked) {
         console.log(`🔴 BLOCKED: ${dateStr} (reason: ${blockout.reason})`);
@@ -354,19 +357,19 @@ export default function AppointmentsTab({
         return false;
       }
     }
-    
+
     // 2. Check weekly schedule - if day is closed, block all instances of that day
     if (clinicSchedule) {
       const dayName = getDayName(date);
       const daySchedule = clinicSchedule[dayName];
-      
+
       // If the day is marked as closed, it's unavailable
       if (daySchedule && daySchedule.isOpen === false) {
         console.log(`🚫 ${dayName} (${dateStr}) is CLOSED`);
         return true;
       }
     }
-    
+
     return false;
   };
 
@@ -388,10 +391,10 @@ export default function AppointmentsTab({
   useFocusEffect(
     useCallback(() => {
       if (!doctorId) return;
-      
+
       console.log('🔄 AppointmentsTab focused - refreshing all data...');
       setLoading(true);
-      
+
       // Load blockout dates on focus (clinic schedule comes from context)
       const loadBlockouts = async () => {
         try {
@@ -399,7 +402,7 @@ export default function AppointmentsTab({
           const { data: blockoutData, error: blockoutError } = await supabase
             .from('clinic_blockout_dates')
             .select('*');
-          
+
           if (blockoutError) {
             console.error('❌ [BLOCKOUT] Error loading blockout dates:', blockoutError.message);
           } else if (blockoutData) {
@@ -413,33 +416,33 @@ export default function AppointmentsTab({
           console.error('❌ Error in loadBlockouts:', error);
         }
       };
-      
+
       // Sync clinic schedule from context
       if (clinic?.schedule) {
         console.log('✅ Syncing clinic schedule from context on focus');
         setClinicSchedule(clinic.schedule);
       }
-      
+
       loadBlockouts();
-      
+
       // Refresh both month and daily appointments
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
       const firstDay = new Date(year, month, 1);
       const lastDay = new Date(year, month + 1, 0);
-      
+
       const startDate = formatDate(firstDay);
       const endDate = formatDate(lastDay);
-      
+
       let monthFetched = false;
       let dayFetched = false;
-      
+
       const checkBothComplete = () => {
         if (monthFetched && dayFetched) {
           setLoading(false);
         }
       };
-      
+
       // Fetch month appointments
       getDoctorAppointments(doctorId, startDate, endDate).then(doctorAppointments => {
         if (doctorAppointments.length > 0) {
@@ -452,7 +455,7 @@ export default function AppointmentsTab({
         monthFetched = true;
         checkBothComplete();
       });
-      
+
       // Fetch daily appointments
       getDoctorAppointmentsByDate(doctorId, selectedDate).then(doctorAppointments => {
         if (doctorAppointments.length > 0) {
@@ -474,7 +477,7 @@ export default function AppointmentsTab({
       "Cancel Appointment",
       `Are you sure you want to cancel the appointment with ${appointmentName}?`,
       [
-        { text: "Keep", onPress: () => {}, style: "cancel" },
+        { text: "Keep", onPress: () => { }, style: "cancel" },
         {
           text: "Cancel Appointment",
           onPress: async () => {
@@ -482,15 +485,15 @@ export default function AppointmentsTab({
               const result = await cancelAppointment(appointmentId);
               if (result.success) {
                 Alert.alert("Success", result.message);
-                
+
                 // Auto-switch to 'all' filter to show the cancelled appointment
                 console.log('🔄 Switching filter to "All" to show cancelled appointment...');
                 setAppointmentFilterBy('all');
-                
+
                 // Refresh appointments after cancellation
                 console.log('🔄 Refreshing appointments after cancellation...');
                 if (!doctorId) return;
-                
+
                 // Refresh current day appointments
                 const doctorAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
                 if (doctorAppointments.length > 0) {
@@ -500,7 +503,7 @@ export default function AppointmentsTab({
                   setFetchedAppointments([]);
                 }
                 console.log(`✅ Day appointments refreshed - now showing ${doctorAppointments.length} appointments with filter 'all'`);
-                
+
                 // Also refresh entire month appointments for calendar
                 const year = currentMonth.getFullYear();
                 const month = currentMonth.getMonth();
@@ -508,7 +511,7 @@ export default function AppointmentsTab({
                 const lastDay = new Date(year, month + 1, 0);
                 const startDate = formatDate(firstDay);
                 const endDate = formatDate(lastDay);
-                
+
                 const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
                 if (monthAppointments.length > 0) {
                   const transformed = monthAppointments.map(transformBackendAppointment);
@@ -552,7 +555,7 @@ export default function AppointmentsTab({
   const handleSaveAppointment = async () => {
     console.log('✅ Appointment saved, refreshing appointments...');
     if (!doctorId) return;
-    
+
     // Reload appointments for the selected date
     const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
     if (dayAppointments.length > 0) {
@@ -561,7 +564,7 @@ export default function AppointmentsTab({
     } else {
       setFetchedAppointments([]);
     }
-    
+
     // Also reload month appointments for calendar
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -569,7 +572,7 @@ export default function AppointmentsTab({
     const lastDay = new Date(year, month + 1, 0);
     const startDate = formatDate(firstDay);
     const endDate = formatDate(lastDay);
-    
+
     const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
     if (monthAppointments.length > 0) {
       const transformed = monthAppointments.map(transformBackendAppointment);
@@ -584,10 +587,10 @@ export default function AppointmentsTab({
         Alert.alert('Error', 'Doctor ID not found');
         return;
       }
-      
+
       setLoading(true);
       console.log('🔄 Refreshing appointments...');
-      
+
       // Refresh month appointments for calendar
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
@@ -595,7 +598,7 @@ export default function AppointmentsTab({
       const lastDay = new Date(year, month + 1, 0);
       const startDate = formatDate(firstDay);
       const endDate = formatDate(lastDay);
-      
+
       const monthAppointments = await getDoctorAppointments(doctorId, startDate, endDate);
       if (monthAppointments.length > 0) {
         const transformed = monthAppointments.map(transformBackendAppointment);
@@ -604,7 +607,7 @@ export default function AppointmentsTab({
         setAllMonthAppointments([]);
       }
       console.log(`✅ Month appointments refreshed: ${monthAppointments.length} appointments found`);
-      
+
       // Refresh daily appointments for selected date
       const dayAppointments = await getDoctorAppointmentsByDate(doctorId, selectedDate);
       if (dayAppointments.length > 0) {
@@ -614,7 +617,7 @@ export default function AppointmentsTab({
         setFetchedAppointments([]);
       }
       console.log(`✅ Daily appointments refreshed: ${dayAppointments.length} appointments found`);
-      
+
       Alert.alert('Refreshed', 'Appointments updated successfully!');
     } catch (error) {
       console.error('Error refreshing appointments:', error);
@@ -686,7 +689,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -701,7 +704,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -716,7 +719,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -731,7 +734,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 60, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -746,7 +749,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollToEnd?.({ animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -761,7 +764,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -773,7 +776,7 @@ export default function AppointmentsTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
   ];
@@ -841,223 +844,150 @@ export default function AppointmentsTab({
   }, [startTourTrigger]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
       <View
         ref={tour.setContainer}
         collapsable={false}
         style={{ flex: 1 }}
       >
-      <ScrollView ref={scrollViewRef} style={{ flex: 1 }}>
-        {/* Title Section & Action Buttons */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={{ fontSize: 28, fontWeight: 'bold', color: "#047857" }}>Appointments</Text>
-            <Text style={{ fontSize: 13, color: '#666', marginTop: 2 }}>Manage your patient appointments</Text>
-          </View>
+        {/* Top Header Row matching DoctorDashboard modules */}
+        <View style={localStyles.topHeader}>
           <View
             ref={tour.register("appointments-actions")}
             collapsable={false}
-            style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}
+            style={localStyles.headerTitleGroup}
           >
+            <Text style={localStyles.headerTitle}>CHAIR APPOINTMENTS</Text>
+            <View style={localStyles.pillCountBadge}>
+              <Text style={localStyles.pillCountText}>{filteredAppointments.length}</Text>
+            </View>
+          </View>
+
+          <View style={localStyles.headerActionsRow}>
             <TouchableOpacity
               onPress={handleRefreshAppointments}
               disabled={loading}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                backgroundColor: '#ECFDF5',
-                borderWidth: 1,
-                borderColor: '#A7F3D0',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
+              style={localStyles.skeuoActionBtn}
               activeOpacity={0.7}
               accessibilityLabel="Refresh Appointments"
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#047857" />
               ) : (
-                <RefreshCw size={18} color="#047857" />
+                <RefreshCw size={17} color="#047857" />
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleStartTour}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                backgroundColor: '#ECFDF5',
-                borderWidth: 1,
-                borderColor: '#A7F3D0',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
+              style={localStyles.skeuoActionBtn}
               activeOpacity={0.7}
               accessibilityLabel="Appointments Walkthrough"
             >
-              <Sparkles size={18} color="#047857" />
+              <Sparkles size={17} color="#047857" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Header Section with Search, Filters and Calendar */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+        <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
+          {/* Search Input */}
           <View
             ref={tour.register("appointments-search")}
             collapsable={false}
-            style={{ marginBottom: 12 }}
+            style={localStyles.searchContainer}
           >
+            <Search size={16} color="#047857" style={{ marginRight: 8 }} />
             <TextInput
-              style={{
-                backgroundColor: '#fff',
-                borderColor: '#10B981',
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: '#333',
-              }}
+              style={localStyles.searchInput}
               placeholder="Search by name, service, email, contact..."
-              placeholderTextColor="#999"
+              placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                style={localStyles.clearSearchBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={14} color="#64748B" />
+              </TouchableOpacity>
+            )}
           </View>
+
+          {/* Status Filters */}
           <View
             ref={tour.register("appointments-filter")}
             collapsable={false}
-            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}
+            style={localStyles.filterRow}
           >
-            <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#666' }}>Filter:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('all')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'all' ? '#10B981' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'all' ? '#10B981' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'all' ? '#fff' : '#333', fontWeight: '500' }}>All</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('pending')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'pending' ? '#65A30D' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'pending' ? '#65A30D' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'pending' ? '#fff' : '#333', fontWeight: '500' }}>Pending</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('scheduled')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'scheduled' ? '#10B981' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'scheduled' ? '#10B981' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'scheduled' ? '#fff' : '#333', fontWeight: '500' }}>Scheduled</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('completed')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'completed' ? '#047857' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'completed' ? '#047857' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'completed' ? '#fff' : '#333', fontWeight: '500' }}>Completed</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('cancelled')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'cancelled' ? '#6B9080' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'cancelled' ? '#6B9080' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'cancelled' ? '#fff' : '#333', fontWeight: '500' }}>Cancelled</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('no-show')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'no-show' ? '#4D7C0F' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'no-show' ? '#4D7C0F' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'no-show' ? '#fff' : '#333', fontWeight: '500' }}>No-show</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setAppointmentFilterBy('declined')}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: appointmentFilterBy === 'declined' ? '#0F766E' : '#e0e0e0',
-                    borderWidth: 1,
-                    borderColor: appointmentFilterBy === 'declined' ? '#0F766E' : '#ccc',
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: appointmentFilterBy === 'declined' ? '#fff' : '#333', fontWeight: '500' }}>Declined</Text>
-                </TouchableOpacity>
-              </View>
+            <Text style={localStyles.filterLabel}>STATUS:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, alignItems: 'center' }}>
+              {(['all', 'pending', 'scheduled', 'completed', 'cancelled', 'no-show', 'declined'] as const).map((filterKey) => {
+                const isActive = appointmentFilterBy === filterKey;
+                return (
+                  <TouchableOpacity
+                    key={filterKey}
+                    onPress={() => setAppointmentFilterBy(filterKey)}
+                    style={[
+                      localStyles.filterBtn,
+                      isActive ? localStyles.filterBtnActive : localStyles.filterBtnInactive,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        localStyles.filterBtnText,
+                        isActive ? localStyles.filterBtnTextActive : localStyles.filterBtnTextInactive,
+                      ]}
+                    >
+                      {filterKey === 'all' ? 'All' : getStatusLabel(filterKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
-
           </View>
 
-          {/* Calendar View */}
+          {/* Calendar Card */}
           <View
             ref={tour.register("appointments-calendar")}
             collapsable={false}
-            style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, borderColor: '#ddd', borderWidth: 1 }}
+            style={localStyles.calendarCard}
           >
             {/* Month Navigation */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <TouchableOpacity onPress={goToPreviousMonth} style={{ padding: 8 }}>
-                <Text style={{ fontSize: 18, color: "#047857", fontWeight: 'bold' }}>‹</Text>
+            <View style={localStyles.calendarMonthRow}>
+              <TouchableOpacity
+                onPress={goToPreviousMonth}
+                style={localStyles.calendarNavBtn}
+                activeOpacity={0.7}
+              >
+                <ChevronLeft size={16} color="#047857" />
               </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>
+                <Text style={localStyles.calendarMonthTitle}>
                   {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </Text>
-                <TouchableOpacity onPress={goToToday} style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#e3f2fd', borderRadius: 4 }}>
-                  <Text style={{ fontSize: 11, color: "#047857", fontWeight: 'bold' }}>Today</Text>
+                <TouchableOpacity
+                  onPress={goToToday}
+                  style={localStyles.calendarTodayBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={localStyles.calendarTodayBtnText}>Today</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={goToNextMonth} style={{ padding: 8 }}>
-                <Text style={{ fontSize: 18, color: "#047857", fontWeight: 'bold' }}>›</Text>
+              <TouchableOpacity
+                onPress={goToNextMonth}
+                style={localStyles.calendarNavBtn}
+                activeOpacity={0.7}
+              >
+                <ChevronRight size={16} color="#047857" />
               </TouchableOpacity>
             </View>
 
             {/* Weekday Headers */}
-            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+            <View style={localStyles.calendarWeekdaysRow}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
-                // Check if this day is closed based on clinic schedule
                 let isClosed = false;
                 if (clinicSchedule) {
                   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -1065,9 +995,14 @@ export default function AppointmentsTab({
                   const daySchedule = clinicSchedule[dayName];
                   isClosed = daySchedule && daySchedule.isOpen === false;
                 }
-                
                 return (
-                  <Text key={day} style={{ fontSize: 11, fontWeight: 'bold', color: isClosed ? '#ff6b6b' : '#666', width: '14.28%', textAlign: 'center', opacity: isClosed ? 0.7 : 1 }}>
+                  <Text
+                    key={day}
+                    style={[
+                      localStyles.calendarWeekdayText,
+                      isClosed && { color: '#EF4444', opacity: 0.8 },
+                    ]}
+                  >
                     {day}
                   </Text>
                 );
@@ -1077,8 +1012,8 @@ export default function AppointmentsTab({
             {/* Calendar Days */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={{ width: '14.28%', height: 55, padding: 1 }}>
-                  <View style={{ flex: 1, borderRadius: 10, borderWidth: 1, borderColor: '#e0e0e0' }} />
+                <View key={`empty-${index}`} style={{ width: '14.28%', height: 52, padding: 1.5 }}>
+                  <View style={localStyles.calendarEmptySlot} />
                 </View>
               ))}
               {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
@@ -1088,222 +1023,194 @@ export default function AppointmentsTab({
                 const appointmentCount = getAppointmentCountForDate(dateStr);
                 const isSelected = selectedDate === dateStr;
                 const isToday = dateStr === formatDate(new Date());
-                
-                // Debug log for specific dates
-                if (dateStr === '2026-04-18' || dateStr === '2026-04-24') {
-                  console.log(`📍 [RENDER] Checking ${dateStr} - blockoutDates.length: ${blockoutDates?.length}`);
-                }
-                
                 const isUnavailable = isUnavailableDay(date);
-                
-                // Check if this date is specifically blocked (not just closed by schedule)
                 const blockoutEntry = blockoutDates.find(b => b.blockout_date === dateStr && b.is_blocked);
                 const isBlockedSpecific = !!blockoutEntry;
-
-                // Check if date is at capacity (full)
                 const isFull = appointmentCount >= 3;
 
                 return (
-                  <View key={day} style={{ width: '14.28%', height: 55, padding: 1 }}>
+                  <View key={day} style={{ width: '14.28%', height: 52, padding: 1.5 }}>
                     <TouchableOpacity
                       onPress={() => !isUnavailable && setSelectedDate(dateStr)}
                       disabled={isUnavailable}
-                      style={{
-                        flex: 1,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        borderRadius: 10,
-                        backgroundColor: isBlockedSpecific ? '#ffebee' : isUnavailable ? '#f0f0f0' : isSelected ? '#10B981' : isToday ? '#e3f2fd' : '#f9f9f9',
-                        borderWidth: isBlockedSpecific ? 2 : isToday ? 2 : 1,
-                        borderColor: isBlockedSpecific ? '#d32f2f' : isToday ? '#10B981' : '#e0e0e0',
-                        opacity: isUnavailable ? 0.6 : 1,
-                        position: 'relative',
-                      }}
+                      activeOpacity={0.7}
+                      style={[
+                        localStyles.calendarDayCell,
+                        isSelected && localStyles.calendarDaySelected,
+                        !isSelected && isToday && localStyles.calendarDayToday,
+                        !isSelected && !isToday && isBlockedSpecific && localStyles.calendarDayBlocked,
+                        !isSelected && !isToday && !isBlockedSpecific && isUnavailable && localStyles.calendarDayUnavailable,
+                      ]}
                     >
-                    <Text style={{ position: 'absolute', top: 4, left: 4, fontSize: 12, fontWeight: isSelected ? 'bold' : '600', color: isBlockedSpecific ? '#d32f2f' : isUnavailable ? '#ccc' : isSelected ? '#fff' : '#333', textDecorationLine: isUnavailable ? 'line-through' : 'none' }}>
-                      {day}
-                    </Text>
-
-                    {/* Appointment Count Badge - Lower Left */}
-                    {!isUnavailable && appointmentCount > 0 && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          left: 2,
-                          backgroundColor: '#22aaa8',
-                          borderRadius: 7,
-                          width: 14,
-                          height: 14,
-                          borderWidth: 1,
-                          borderColor: '#929ca0',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          elevation: 5,
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                        }}
+                      <Text
+                        style={[
+                          localStyles.calendarDayText,
+                          isSelected && localStyles.calendarDayTextSelected,
+                          !isSelected && isToday && localStyles.calendarDayTextToday,
+                          !isSelected && isBlockedSpecific && localStyles.calendarDayTextBlocked,
+                          !isSelected && isUnavailable && localStyles.calendarDayTextUnavailable,
+                        ]}
                       >
-                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#fff' }}>
-                          {appointmentCount > 9 ? '9+' : appointmentCount}
-                        </Text>
-                      </View>
-                    )}
+                        {day}
+                      </Text>
 
-                    {/* Status Badge - Lower Right (Blocked/Unavailable) */}
-                    {isBlockedSpecific && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          right: 2,
-                          backgroundColor: '#ef4444',
-                          borderRadius: 6,
-                          width: 12,
-                          height: 12,
-                          borderWidth: 1,
-                          borderColor: '#ef4444',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          elevation: 5,
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                        }}
-                      >
-                        <HeroIcon name="xmark" size="xs" color="#fff" />
-                      </View>
-                    )}
+                      {/* Appointment Count Badge - Lower Left */}
+                      {!isUnavailable && appointmentCount > 0 && (
+                        <View style={localStyles.calendarDayBadge}>
+                          <Text style={localStyles.calendarDayBadgeText}>
+                            {appointmentCount > 9 ? '9+' : appointmentCount}
+                          </Text>
+                        </View>
+                      )}
 
-                    {/* Full Badge - Lower Right (3+ Appointments) */}
-                    {!isBlockedSpecific && isFull && !isUnavailable && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          right: 2,
-                          backgroundColor: '#22c55e',
-                          borderRadius: 6,
-                          width: 12,
-                          height: 12,
-                          borderWidth: 1,
-                          borderColor: '#22c55e',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          elevation: 5,
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                        }}
-                      >
-                        <HeroIcon name="check" size="xs" color="#e60b0b" />
-                      </View>
-                    )}
+                      {/* Blocked Badge - Lower Right */}
+                      {isBlockedSpecific && (
+                        <View style={localStyles.calendarBlockedBadge}>
+                          <HeroIcon name="xmark" size="xs" color="#fff" />
+                        </View>
+                      )}
+
+                      {/* Full Badge - Lower Right */}
+                      {!isBlockedSpecific && isFull && !isUnavailable && (
+                        <View style={localStyles.calendarFullBadge}>
+                          <HeroIcon name="check" size="xs" color="#fff" />
+                        </View>
+                      )}
                     </TouchableOpacity>
                   </View>
                 );
               })}
             </View>
           </View>
-        </View>
 
-        {/* Appointments List */}
-        <View
-          ref={tour.register("appointments-roster")}
-          collapsable={false}
-          style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 }}
-        >
-          {selectedDate && (
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: 'bold', color: "#047857", paddingBottom: 8 }}>
-                {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-              </Text>
-            </View>
-          )}
-          {loading ? (
-            <Text style={{ textAlign: 'center', color: "#047857", marginTop: 20, fontSize: 14, fontWeight: 'bold' }}>
-              ⏳ Loading appointments...
-            </Text>
-          ) : filteredAppointments.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, fontSize: 14 }}>
-              {searchQuery ? `No appointments found matching "${searchQuery}"` : selectedDate ? 'No appointments on this date' : 'No appointments found'}
-            </Text>
-          ) : (
-          filteredAppointments.map((appointment) => (
-            <View
-              key={appointment.id}
-              style={[styles.card, styles.shadow, { marginBottom: 12, padding: 12 }]}
-            >
-              {/* Row 1: Image + (Name + Status) + Edit Button */}
-              <View style={{ flexDirection: 'row', alignItems: 'center'}}>
-                <Image
-                  source={
-                    appointment.patient_avatar
-                      ? { uri: appointment.patient_avatar }
-                      : typeof appointment.imageUrl === 'string' && appointment.imageUrl.length > 0
-                      ? { uri: appointment.imageUrl }
-                      : typeof appointment.imageUrl === 'number'
-                      ? appointment.imageUrl
-                      : require('../../assets/images/user.png')
-                  }
-                  style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                />
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 8 }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{appointment.name}</Text>
-                    {/* Status Badge */}
-                    <View
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 10,
-                        backgroundColor: getStatusColor(appointment.status || 'scheduled'),
-                      }}
-                    >
-                      <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>
-                        {getStatusLabel(appointment.status)}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>{appointment.service}</Text>
-                  <Text style={{ fontSize: 11, color: '#999' }}>
-                    {formatDateDisplay(selectedDate)} at {formatAppointmentTime(appointment.time)}
+          {/* Appointments List */}
+          <View
+            ref={tour.register("appointments-roster")}
+            collapsable={false}
+            style={{ paddingTop: 16 }}
+          >
+            {selectedDate && (
+              <View style={localStyles.dateSectionHeader}>
+                <Calendar size={14} color="#047857" style={{ marginRight: 6 }} />
+                <Text style={localStyles.dateSectionHeaderText}>
+                  {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </Text>
+                <View style={localStyles.dateSectionBadge}>
+                  <Text style={localStyles.dateSectionBadgeText}>
+                    {filteredAppointments.length} {filteredAppointments.length === 1 ? 'Booking' : 'Bookings'}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => handleEditAppointment(appointment)}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: '#10B981',
-                    borderRadius: 6,
-                    marginLeft: 8,
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>Edit</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          ))
-          )}
-        </View>
-      </ScrollView>
+            )}
 
-      {/* Interactive Walkthrough Tour */}
-      <AppTour
-        visible={tourVisible}
-        steps={tourSteps}
-        index={tourIndex}
-        onIndexChange={setTourIndex}
-        measureTarget={tour.measure}
-        onFinish={handleFinishTour}
-        onSkip={handleSkipTour}
-      />
-    </View>
+            {loading ? (
+              <View style={{ paddingVertical: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" color="#047857" />
+                <Text style={{ marginTop: 12, color: "#047857", fontSize: 14, fontWeight: '600' }}>Loading appointments...</Text>
+              </View>
+            ) : filteredAppointments.length === 0 ? (
+              <View style={localStyles.emptyContainer}>
+                <View style={localStyles.emptyIconBox}>
+                  <CalendarDays size={26} color="#047857" />
+                </View>
+                <Text style={localStyles.emptyTitle}>NO APPOINTMENTS FOUND</Text>
+                <Text style={localStyles.emptySubtitle}>
+                  {searchQuery
+                    ? `No bookings match "${searchQuery}". Try a different search keyword.`
+                    : selectedDate
+                      ? 'No chair appointments scheduled for this date.'
+                      : 'No appointments match the selected status filter.'}
+                </Text>
+                {(searchQuery.length > 0 || appointmentFilterBy !== 'all') && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchQuery("");
+                      setAppointmentFilterBy('all');
+                    }}
+                    style={localStyles.clearFilterBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={localStyles.clearFilterBtnText}>Reset Filters</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              filteredAppointments.map((appointment) => {
+                const status = appointment.status || 'scheduled';
+                const statusColor = getStatusColor(status);
+                const statusBgColor = getStatusBgColor(status);
+                const statusLabel = getStatusLabel(status);
+
+                const imageUri = appointment.patient_avatar || (typeof appointment.imageUrl === 'string' && appointment.imageUrl.length > 0 ? appointment.imageUrl : null);
+
+                return (
+                  <View
+                    key={appointment.id}
+                    style={[styles.card, styles.shadow, localStyles.appointmentCard]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Image
+                        source={
+                          imageUri
+                            ? { uri: imageUri }
+                            : typeof appointment.imageUrl === 'number'
+                              ? appointment.imageUrl
+                              : require('../../assets/images/user.png')
+                        }
+                        style={localStyles.patientAvatar}
+                      />
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                          <Text style={localStyles.patientName} numberOfLines={1}>{appointment.name}</Text>
+                          {/* Status Badge */}
+                          <View
+                            style={[
+                              localStyles.statusBadge,
+                              { backgroundColor: statusBgColor, borderColor: statusColor },
+                            ]}
+                          >
+                            <Text style={[localStyles.statusBadgeText, { color: statusColor }]}>
+                              {statusLabel.toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text style={localStyles.patientService} numberOfLines={1}>{appointment.service}</Text>
+
+                        <View style={localStyles.timeRow}>
+                          <Clock size={11} color="#64748B" style={{ marginRight: 4 }} />
+                          <Text style={localStyles.timeText}>
+                            {formatDateDisplay(selectedDate)} • {formatAppointmentTime(appointment.time)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => handleEditAppointment(appointment)}
+                        style={localStyles.editBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={localStyles.editBtnText}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Interactive Walkthrough Tour */}
+        <AppTour
+          visible={tourVisible}
+          steps={tourSteps}
+          index={tourIndex}
+          onIndexChange={setTourIndex}
+          measureTarget={tour.measure}
+          onFinish={handleFinishTour}
+          onSkip={handleSkipTour}
+        />
+      </View>
 
       {/* AppointmentEdit Modal */}
       {editingAppointment && (
@@ -1319,6 +1226,523 @@ export default function AppointmentsTab({
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  topHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomColor: '#E2E8F0',
+    borderBottomWidth: 1.5,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  pillCountBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  pillCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skeuoActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  clinicBanner: {
+    backgroundColor: '#064E3B',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#022C22',
+    padding: 16,
+    marginBottom: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  clinicBannerBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  clinicBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clinicBannerIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clinicBannerBadgeRow: {
+    flexDirection: 'row',
+    marginBottom: 3,
+  },
+  clinicBannerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6EE7B7',
+    borderWidth: 1,
+    borderColor: '#34D399',
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  clinicBannerBadgeText: {
+    color: '#022C22',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  clinicBannerDoctorName: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: -0.3,
+  },
+  clinicBannerSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#D1FAE5',
+    letterSpacing: 0.3,
+    marginTop: 1,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    height: 42,
+    marginBottom: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    height: '100%',
+    padding: 0,
+  },
+  clearSearchBtn: {
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  filterBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  filterBtnActive: {
+    backgroundColor: '#047857',
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#022C22',
+  },
+  filterBtnInactive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+  },
+  filterBtnText: {
+    fontSize: 11.5,
+    letterSpacing: 0.3,
+  },
+  filterBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  filterBtnTextInactive: {
+    color: '#475569',
+    fontWeight: '700',
+  },
+  calendarCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  calendarMonthRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calendarMonthTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  calendarNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarTodayBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  calendarTodayBtnText: {
+    fontSize: 11,
+    color: '#047857',
+    fontWeight: '800',
+  },
+  calendarWeekdaysRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  calendarWeekdayText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    width: '14.28%',
+    textAlign: 'center',
+  },
+  calendarEmptySlot: {
+    flex: 1,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  calendarDayCell: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+  },
+  calendarDaySelected: {
+    backgroundColor: '#047857',
+    borderColor: '#064E3B',
+    borderWidth: 1.5,
+  },
+  calendarDayToday: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#0284C7',
+    borderWidth: 1.5,
+  },
+  calendarDayBlocked: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
+    borderWidth: 1.5,
+  },
+  calendarDayUnavailable: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  calendarDayText: {
+    position: 'absolute',
+    top: 3,
+    left: 4,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  calendarDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  calendarDayTextToday: {
+    color: '#0369A1',
+    fontWeight: '800',
+  },
+  calendarDayTextBlocked: {
+    color: '#DC2626',
+    fontWeight: '800',
+  },
+  calendarDayTextUnavailable: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  calendarDayBadge: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    backgroundColor: '#047857',
+    borderRadius: 4,
+    width: 14,
+    height: 14,
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarDayBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  calendarBlockedBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#EF4444',
+    borderRadius: 4,
+    width: 12,
+    height: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarFullBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#10B981',
+    borderRadius: 4,
+    width: 12,
+    height: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dateSectionHeaderText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.2,
+    flex: 1,
+  },
+  dateSectionBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  dateSectionBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.4,
+  },
+  appointmentCard: {
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  patientAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    marginRight: 12,
+  },
+  patientName: {
+    fontWeight: '800',
+    fontSize: 14.5,
+    color: '#0F172A',
+    flexShrink: 1,
+    marginRight: 6,
+  },
+  statusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  statusBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  patientService: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+    marginTop: 1,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  timeText: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  editBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    marginLeft: 6,
+  },
+  editBtnText: {
+    color: '#047857',
+    fontWeight: '800',
+    fontSize: 11.5,
+    letterSpacing: 0.3,
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    marginVertical: 16,
+  },
+  emptyIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 260,
+    lineHeight: 17,
+  },
+  clearFilterBtn: {
+    marginTop: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  clearFilterBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.3,
+  },
+});
