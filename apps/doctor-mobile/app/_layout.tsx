@@ -19,9 +19,19 @@ export default function RootLayout() {
 
   // Listen for deep links from OAuth redirects
   useEffect(() => {
+    const isOAuthUrl = (urlString?: string | null) => {
+      if (!urlString) return false;
+      return (
+        urlString.includes("smileguard://") ||
+        urlString.includes("smileguard-doctor://") ||
+        urlString.includes("oauth-redirect") ||
+        urlString.includes("redirect")
+      );
+    };
+
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log("[RootLayout] Deep link received:", url);
-      if (url.includes('smileguard://redirect')) {
+      if (isOAuthUrl(url)) {
         console.log("[RootLayout] OAuth redirect detected");
         // The session will be automatically set by Supabase auth listener
         // Just log it so we know it arrived
@@ -30,7 +40,7 @@ export default function RootLayout() {
 
     // Also check if app was launched FROM a deep link (cold start)
     Linking.getInitialURL().then((url) => {
-      if (url && url.includes('smileguard://redirect')) {
+      if (isOAuthUrl(url)) {
         console.log("[RootLayout] App opened via deep link:", url);
       }
     });

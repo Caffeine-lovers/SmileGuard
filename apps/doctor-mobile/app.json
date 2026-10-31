@@ -2,7 +2,10 @@
   "expo": {
     "name": "SmileGuard Doctor",
     "slug": "smileguard-doctor",
-    "scheme": "smileguard",
+    "scheme": [
+      "smileguard",
+      "smileguard-doctor"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -45,9 +48,9 @@
       "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZnZudnVzaWF6am53bWR5bGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MTczMDIsImV4cCI6MjA4NjM5MzMwMn0.bZikKnvwvLt3OIpUnCCh2ATHy0Sp7NMGfgfs3ySGiKU",
       "router": {},
       "eas": {
-        "projectId": "8452d18f-d75c-4d8a-9187-bcff1f62d2fb"
+        "projectId": "7380953f-ba09-42e5-8ab0-952c205fa3d1"
       }
     },
-    "owner": "mortart"
+    "owner": "lee_duois"
   }
 }
