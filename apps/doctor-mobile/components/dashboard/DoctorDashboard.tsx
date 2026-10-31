@@ -1212,18 +1212,18 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           top: 12,
                           right: 12,
                           paddingHorizontal: 8,
-                          paddingVertical: 3.5,
-                          borderRadius: 4,
-                          borderWidth: 1,
-                          borderColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#F59E0B' : '#6EE7B7',
-                          backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FEF3C7' : '#D1FAE5',
+                          paddingVertical: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 4 : 3.5,
+                          borderRadius: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 10 : 4,
+                          borderWidth: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 1,
+                          borderColor: '#6EE7B7',
+                          backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#65A30D' : '#D1FAE5',
                           zIndex: 10,
                         }}>
                           <Text style={{
-                            fontWeight: '800',
-                            color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#B45309' : '#065F46',
-                            fontSize: 9.5,
-                            letterSpacing: 0.6,
+                            fontWeight: 'bold',
+                            color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FFFFFF' : '#065F46',
+                            fontSize: 10,
+                            letterSpacing: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 0.6,
                           }}>
                             {(selectedPatient.status || 'scheduled').toUpperCase()}
                           </Text>
@@ -1366,51 +1366,45 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     </View>
 
                     {/* Patients List */}
-                    <Text style={[styles.subHeader, { marginTop: 20 }]}>Patients ({patients.length}):</Text>
+                    <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
+                      <View style={styles.sectionTitleGroup}>
+                        <Text style={styles.sectionHeaderTitle}>Patients</Text>
+                        <View style={styles.pillCountBadge}>
+                          <Text style={styles.pillCountText}>{patients.length}</Text>
+                        </View>
+                      </View>
+                      {patients.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setActiveTab('records')}
+                          style={styles.seeAllBtn}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.seeAllBtnText}>See more patients</Text>
+                          <ChevronRight size={14} color="#047857" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                     {patients.length > 0 ? (
-                      <>
-                        {patients.slice(0, 3).map((patient) => (
-                          <TouchableOpacity
-                            key={patient.id}
-                            onPress={() => {
-                              handleOpenPatientDetails(patient);
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
-                              <Image
-                                source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-                                style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
-                              />
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
-                                <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
-                              </View>
+                      patients.slice(0, 3).map((patient) => (
+                        <TouchableOpacity
+                          key={patient.id}
+                          onPress={() => {
+                            handleOpenPatientDetails(patient);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
+                            <Image
+                              source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
+                              style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
+                              <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
                             </View>
-                          </TouchableOpacity>
-                        ))}
-                        {patients.length > 3 && (
-                          <TouchableOpacity
-                            onPress={() => setActiveTab('records')}
-                            style={{
-                              paddingVertical: 12,
-                              paddingHorizontal: 16,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexDirection: 'row',
-                              gap: 8,
-                              marginTop: 10,
-                              backgroundColor: '#f0f0f0',
-                              borderRadius: 8,
-                            }}
-                          >
-                            <Text style={{ color: '#047857', fontWeight: 'bold', fontSize: 14 }}>
-                              See more patients ({patients.length - 3} more)
-                            </Text>
-                            <ChevronRight size={16} color="#047857" />
-                          </TouchableOpacity>
-                        )}
-                      </>
+                          </View>
+                        </TouchableOpacity>
+                      ))
                     ) : (
                       <Text style={{ fontSize: 12, color: '#999', marginVertical: 10 }}>No patients yet</Text>
                     )}
@@ -1423,8 +1417,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                     <View style={styles.requestsHeaderRow}>
                       <View style={styles.requestsHeaderTitleGroup}>
                         <Text style={styles.requestsHeaderTitle}>APPOINTMENT REQUESTS</Text>
-                        <View style={styles.requestsCountBadge}>
-                          <Text style={styles.requestsCountBadgeText}>{appointmentRequests.length}</Text>
+                        <View style={styles.pillCountBadge}>
+                          <Text style={styles.pillCountText}>{appointmentRequests.length}</Text>
                         </View>
                       </View>
                       <TouchableOpacity
@@ -2341,19 +2335,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   requestPendingBadge: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 4,
+    backgroundColor: '#65A30D',
+    borderRadius: 10,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     alignSelf: 'flex-start',
   },
   requestPendingBadgeText: {
-    color: '#B45309',
-    fontSize: 9.5,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   requestNotesBox: {
     backgroundColor: '#F8FAFC',
