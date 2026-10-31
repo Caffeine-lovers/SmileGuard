@@ -4,12 +4,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
 import DoctorDashboard from "../../components/dashboard/DoctorDashboard";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { clearPushTokenFromProfile } from "../../lib/pushNotificationService";
 
 export default function DoctorDashboardPage() {
   const user = useCurrentUser();
 
   const handleLogout = async () => {
     try {
+      if (user?.id) {
+        await clearPushTokenFromProfile(user.id);
+      }
       // Sign out from Supabase (this will trigger onAuthStateChange in the layout)
       await supabase.auth.signOut();
       

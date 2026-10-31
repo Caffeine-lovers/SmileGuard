@@ -51,8 +51,8 @@ const activeFetches = new Set<string>();
 export function useAuth(options: UseAuthOptions = {}) {
   const { autoCreateProfile = false } = options;
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCachedUserCookie());
-  const [loading, setLoading] = useState(() => !getCachedUserCookie());
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const currentUserRef = useRef<AuthUser | null>(currentUser);
@@ -61,6 +61,12 @@ export function useAuth(options: UseAuthOptions = {}) {
   useEffect(() => {
     let isMounted = true;
     console.log("[useAuth] Initializing auth hook...");
+
+    const cached = getCachedUserCookie();
+    if (cached) {
+      setCurrentUser(cached);
+      setLoading(false);
+    }
 
     // Defensive timeout wrapper for initial session fetch
     const fetchSessionWithTimeout = async () => {

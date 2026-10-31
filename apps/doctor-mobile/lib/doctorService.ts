@@ -737,3 +737,188 @@ export async function deleteDoctorProfile(doctorId: string): Promise<boolean> {
     return false;
   }
 }
+
+export type DoctorGuideId = 'dashboard' | 'appointments' | 'records' | 'billing' | 'requests';
+
+export const ALL_DOCTOR_GUIDES: DoctorGuideId[] = [
+  'dashboard',
+  'appointments',
+  'records',
+  'billing',
+  'requests',
+];
+
+const GUIDE_STORAGE_KEYS: Record<DoctorGuideId, (userId: string) => string> = {
+  dashboard: (id) => `@smileguard_doctor_interactive_tour_completed_${id}`,
+  appointments: (id) => `@smileguard_doctor_appointments_walkthrough_completed_${id}`,
+  records: (id) => `@smileguard_doctor_records_walkthrough_completed_${id}`,
+  billing: (id) => `@smileguard_doctor_billing_walkthrough_completed_${id}`,
+  requests: (id) => `@smileguard_doctor_appointment_requests_walkthrough_completed_${id}`,
+};
+
+/**
+ * Check if the doctor has completed all walkthrough guides, or a specific guide step.
+ * @param userId - The auth user ID of the doctor
+ * @param guideId - Optional specific guide to check ('dashboard', 'appointments', 'records', 'billing', 'requests')
+ * @returns boolean indicating whether the guide was completed
+ */
+export async function isDoctorGuideCompleted(
+  userId: string,
+  guideId?: DoctorGuideId
+): Promise<boolean> {
+  if (!userId) return true;
+  try {
+    // 1. If overall guide is marked as fully completed in AsyncStorage, return true
+    const allCompletedLocal = await AsyncStorage.getItem(
+      `@smileguard_doctor_all_guides_completed_${userId}`
+    );
+    if (allCompletedLocal === "true") return true;
+
+    // 2. If checking a specific guide, check that guide's individual AsyncStorage key
+    if (guideId) {
+      const stepLocal = await AsyncStorage.getItem(GUIDE_STORAGE_KEYS[guideId](userId));
+      if (stepLocal === "true") return true;
+    }
+
+    // 3. Database check from doctors table
+    const { data, error } = await supabase
+      .from("doctors")
+      .select("guide_completed, completed_guides")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[DoctorService] Error checking guide_completed:", error);
+      return false;
+    }
+
+    if (data?.guide_completed) {
+      await AsyncStorage.setItem(`@smileguard_doctor_all_guides_completed_${userId}`, "true");
+      return true;
+    }
+
+    const completedList: string[] = data?.completed_guides || [];
+
+    // If checking a specific guide step, see if it is in completed_guides
+    if (guideId) {
+      if (completedList.includes(guideId)) {
+        await AsyncStorage.setItem(GUIDE_STORAGE_KEYS[guideId](userId), "true");
+        return true;
+      }
+      return false;
+    }
+
+    // If checking overall, verify if all required guides are in completedList
+    const allDone = ALL_DOCTOR_GUIDES.every((g) => completedList.includes(g));
+    if (allDone) {
+      await AsyncStorage.setItem(`@smileguard_doctor_all_guides_completed_${userId}`, "true");
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error("[DoctorService] Exception in isDoctorGuideCompleted:", err);
+    return false;
+  }
+}
+
+/**
+ * Mark a single walkthrough guide as completed.
+ * Only turns doctors.guide_completed to TRUE in the database once ALL walkthroughs are completed!
+ * @param userId - The auth user ID of the doctor
+ * @param guideId - The specific guide completed ('dashboard', 'appointments', 'records', 'billing', 'requests')
+ */
+export async function markDoctorGuideCompleted(
+  userId: string,
+  guideId: DoctorGuideId
+): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    // 1. Mark this specific walkthrough in AsyncStorage so it NEVER repeats when switching tabs
+    await AsyncStorage.setItem(GUIDE_STORAGE_KEYS[guideId](userId), "true");
+
+    // 2. Fetch current list of completed guides from local storage & Supabase
+    let localCompleted: string[] = [];
+    for (const g of ALL_DOCTOR_GUIDES) {
+      const val = await AsyncStorage.getItem(GUIDE_STORAGE_KEYS[g](userId));
+      if (val === "true") localCompleted.push(g);
+    }
+
+    const { data } = await supabase
+      .from("doctors")
+      .select("completed_guides, guide_completed")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const dbCompleted: string[] = data?.completed_guides || [];
+    const combinedSet = new Set([...dbCompleted, ...localCompleted, guideId]);
+    const updatedList = Array.from(combinedSet);
+
+    // 3. Determine if ALL required walkthroughs are now finished
+    const allCompleted = ALL_DOCTOR_GUIDES.every((g) => updatedList.includes(g));
+
+    if (allCompleted) {
+      await AsyncStorage.setItem(`@smileguard_doctor_all_guides_completed_${userId}`, "true");
+    }
+
+    // 4. Update Supabase doctors record
+    const updatePayload: Record<string, any> = {
+      completed_guides: updatedList,
+      guide_completed: allCompleted,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("doctors")
+      .update(updatePayload)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.warn("[DoctorService] Error saving completed_guides to doctors table:", error.message || error);
+      if (error.message?.includes("completed_guides")) {
+        await supabase
+          .from("doctors")
+          .update({ guide_completed: allCompleted, updated_at: new Date().toISOString() })
+          .eq("user_id", userId);
+      }
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[DoctorService] Exception in markDoctorGuideCompleted:", err);
+    return false;
+  }
+}
+
+/**
+ * Mark all guides as completed at once (e.g. bypass or reset)
+ * @param userId - The auth user ID of the doctor
+ */
+export async function setDoctorGuideCompleted(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    await AsyncStorage.setItem(`@smileguard_doctor_all_guides_completed_${userId}`, "true");
+    for (const g of ALL_DOCTOR_GUIDES) {
+      await AsyncStorage.setItem(GUIDE_STORAGE_KEYS[g](userId), "true");
+    }
+
+    const { error } = await supabase
+      .from("doctors")
+      .update({
+        completed_guides: ALL_DOCTOR_GUIDES,
+        guide_completed: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+
+    if (error) {
+      console.warn("[DoctorService] Error setting all guides completed:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[DoctorService] Exception in setDoctorGuideCompleted:", err);
+    return false;
+  }
+}

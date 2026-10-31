@@ -2,12 +2,14 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
 import { ClinicProvider } from "../contexts/ClinicContext";
+import { registerForPushNotificationsAsync } from "../lib/pushNotificationService";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -35,6 +37,28 @@ export default function RootLayout() {
 
     return () => subscription.remove();
   }, []);
+
+  // Listen for user clicking a push notification while outside the app
+  useEffect(() => {
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("[RootLayout] Push notification tapped:", response.notification.request.content);
+      const data = response.notification.request.content.data;
+      if (data?.appointmentId || data?.screen === "dashboard") {
+        router.push("/(doctor)/dashboard");
+      }
+    });
+
+    return () => {
+      responseSubscription.remove();
+    };
+  }, [router]);
+
+  // Register push notifications when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      registerForPushNotificationsAsync(user.id);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
@@ -86,8 +110,9 @@ export default function RootLayout() {
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // We only pause routing logic if on reset-password, oauth-redirect, or onboarding
-    if (inResetPassword || inOAuthRedirect || inOnboarding) return;
+    // Routing is paused during password reset or initial onboarding tour
+    // We only pause routing logic if on reset-password or onboarding
+    if (inResetPassword || inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inSetupProfile) {

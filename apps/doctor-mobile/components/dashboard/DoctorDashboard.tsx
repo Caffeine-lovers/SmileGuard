@@ -27,8 +27,9 @@ import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
+import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
-import { getDoctorProfile } from "../../lib/doctorService";
+import { getDoctorProfile, isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from "../../lib/doctorService";
 import { getDoctorFullName, getDoctorPrefix, getDoctorTitleName } from "@smileguard/shared-types";
 import { supabase } from '@smileguard/supabase-client';
 import {
@@ -193,6 +194,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
+  const [billingTourTrigger, setBillingTourTrigger] = useState(0);
   const dashboardScrollRef = useRef<any>(null);
 
   const tourSteps: TourStep[] = [
@@ -306,6 +308,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
+        const alreadyDone = await isDoctorGuideCompleted(user?.id || "", "dashboard");
+        if (alreadyDone) return;
+
         const key = `@smileguard_doctor_interactive_tour_completed_${user.id}`;
         const hasCompleted = await AsyncStorage.getItem(key);
         if (!hasCompleted && isMounted) {
@@ -332,14 +337,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setTourVisible(false);
     setSidebarOpen(false);
     if (user?.id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
-          "true"
-        );
-      } catch (e) {
-        console.warn("[DoctorDashboard] Failed persisting tour completion", e);
-      }
+      await markDoctorGuideCompleted(user.id, "dashboard");
     }
   };
 
@@ -347,14 +345,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     setTourVisible(false);
     setSidebarOpen(false);
     if (user?.id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_interactive_tour_completed_${user.id}`,
-          "true"
-        );
-      } catch (e) {
-        console.warn("[DoctorDashboard] Failed persisting tour skip", e);
-      }
+      await markDoctorGuideCompleted(user.id, "dashboard");
     }
   };
 
@@ -445,12 +436,52 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     }
   }, [todayAppointments, selectedPatient]);
 
-  // Auto-show patient details when a patient is selected
+  // Fetch and enrich selected patient's emergency contact for contact information
   useEffect(() => {
-    if (selectedPatient) {
-      setShowPatientDetails(true);
-    }
-  }, [selectedPatient]);
+    const patientId = selectedPatient?.patient_id || selectedPatient?.id;
+    if (!patientId) return;
+
+    let isMounted = true;
+    const loadEmergencyContact = async () => {
+      try {
+        const intake = await getPatientMedicalInfo(patientId);
+        if (!isMounted || !intake) return;
+
+        setSelectedPatient((prev) => {
+          if (!prev) return prev;
+          const currentId = prev.patient_id || prev.id;
+          if (currentId !== patientId) return prev;
+
+          return {
+            ...prev,
+            medicalIntake: {
+              ...(prev.medicalIntake || {}),
+              emergencyContactName: intake.emergencyContactName || prev.medicalIntake?.emergencyContactName || '',
+              emergencyContactPhone: intake.emergencyContactPhone || prev.medicalIntake?.emergencyContactPhone || '',
+            },
+          };
+        });
+      } catch (err) {
+        console.warn('[DoctorDashboard] Error loading emergency contact:', err);
+      }
+    };
+
+    loadEmergencyContact();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedPatient?.id, selectedPatient?.patient_id]);
+
+  // Helper to open full patient chart with verified patient_id
+  const handleOpenPatientDetails = (item: DashboardAppointment) => {
+    setViewingPatient({
+      ...item,
+      id: item.patient_id || item.id,
+      patient_id: item.patient_id || item.id,
+    });
+    setShowPatientDetails(true);
+  };
 
   const fetchDoctorInfo = useCallback(async () => {
     if (!user?.id) return;
@@ -520,9 +551,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             time: apt.appointment_time || '',
             date: apt.appointment_date || '',
             age: 0,
-            gender: medicalData?.gender || '',
-            contact: medicalData?.phone || '',
-            email: apt.profiles?.email || '',
+            gender: medicalData?.gender || apt.profiles?.gender || '',
+            contact: medicalData?.phone || apt.profiles?.phone || apt.contact || apt.phone || '',
+            email: apt.profiles?.email || apt.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
             status: (apt.status?.toLowerCase() === 'pending' ? 'pending' : (apt.status || 'pending')) as any,
@@ -574,9 +605,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             time: apt.appointment_time || '',
             date: apt.appointment_date || '',
             age: 0,
-            gender: medicalData?.gender || '',
-            contact: medicalData?.phone || '',
-            email: apt.profiles?.email || '',
+            gender: medicalData?.gender || apt.profiles?.gender || '',
+            contact: medicalData?.phone || apt.profiles?.phone || apt.contact || apt.phone || '',
+            email: apt.profiles?.email || apt.email || '',
             notes: apt.notes || '',
             imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
             status: (apt.status || 'scheduled') as 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
@@ -1128,8 +1159,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           style={styles.seeAllBtn}
                           activeOpacity={0.7}
                           onPress={() => {
-                            setViewingPatient(selectedPatient);
-                            setShowPatientDetails(true);
+                            if (selectedPatient) {
+                              handleOpenPatientDetails(selectedPatient);
+                            }
                           }}
                         >
                           <Text style={styles.seeAllBtnText}>Full Chart</Text>
@@ -1240,8 +1272,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             gap: 6,
                           }}
                           onPress={() => {
-                            setViewingPatient(selectedPatient);
-                            setShowPatientDetails(true);
+                            if (selectedPatient) {
+                              handleOpenPatientDetails(selectedPatient);
+                            }
                           }}
                           activeOpacity={0.8}
                         >
@@ -1285,10 +1318,9 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           />
                         </TouchableOpacity>
 
-                        {/* Contact Information & Intake - Expanded */}
+                        {/* Emergency Contact Information - Expanded */}
                         {expandPatientDetails && (
                           <View style={{ gap: 12 }}>
-                            {/* Contact Box */}
                             <View style={{
                               backgroundColor: '#F8FAFC',
                               borderRadius: 6,
@@ -1298,71 +1330,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                             }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                                 <Phone size={13} color="#047857" />
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>CONTACT INFORMATION</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>EMERGENCY CONTACT INFORMATION</Text>
                               </View>
-                              <DetailRow label="Email" value={selectedPatient.email || "Not provided"} />
-                              <DetailRow label="Phone" value={selectedPatient.contact || "Not provided"} />
+                              <DetailRow label="Contact Name" value={selectedPatient.medicalIntake?.emergencyContactName || "Not provided"} />
+                              <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake?.emergencyContactPhone || "Not provided"} />
                             </View>
-
-                            {/* Personal Details */}
-                            {selectedPatient.medicalIntake && (
-                              <>
-                                <View style={{
-                                  backgroundColor: '#F8FAFC',
-                                  borderRadius: 6,
-                                  borderWidth: 1,
-                                  borderColor: '#E2E8F0',
-                                  padding: 10,
-                                }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                                    <Users size={13} color="#047857" />
-                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>PERSONAL DETAILS</Text>
-                                  </View>
-                                  <DetailRow label="Gender" value={selectedPatient.medicalIntake.gender || "Not specified"} />
-                                  <DetailRow label="Date of Birth" value={formatDateOfBirth(selectedPatient.medicalIntake.dateOfBirth)} />
-                                  <DetailRow label="Address" value={selectedPatient.medicalIntake.address || "Not provided"} />
-                                </View>
-
-                                {/* Emergency Contact */}
-                                <View style={{
-                                  backgroundColor: '#F8FAFC',
-                                  borderRadius: 6,
-                                  borderWidth: 1,
-                                  borderColor: '#E2E8F0',
-                                  padding: 10,
-                                }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                                    <Phone size={13} color="#047857" />
-                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>EMERGENCY CONTACT</Text>
-                                  </View>
-                                  <DetailRow label="Contact Name" value={selectedPatient.medicalIntake.emergencyContactName || "Not provided"} />
-                                  <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake.emergencyContactPhone || "Not provided"} />
-                                </View>
-
-                                {/* Medical History */}
-                                <View style={{
-                                  backgroundColor: '#F8FAFC',
-                                  borderRadius: 6,
-                                  borderWidth: 1,
-                                  borderColor: '#E2E8F0',
-                                  padding: 10,
-                                }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                                    <Activity size={13} color="#047857" />
-                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>MEDICAL HISTORY</Text>
-                                  </View>
-                                  <DetailRow
-                                    label="Allergies"
-                                    value={selectedPatient.medicalIntake.allergies || "None"}
-                                    isAlert={Boolean(selectedPatient.medicalIntake.allergies && selectedPatient.medicalIntake.allergies.toLowerCase() !== 'none')}
-                                  />
-                                  <DetailRow label="Current Medications" value={selectedPatient.medicalIntake.currentMedications || "None"} />
-                                  <DetailRow label="Medical Conditions" value={selectedPatient.medicalIntake.medicalConditions || "None"} />
-                                  <DetailRow label="Past Surgeries" value={selectedPatient.medicalIntake.pastSurgeries || "None"} />
-                                  <DetailRow label="Smoking Status" value={selectedPatient.medicalIntake.smokingStatus || "Not specified"} />
-                                </View>
-                              </>
-                            )}
                           </View>
                         )}
                       </View>
@@ -1376,8 +1348,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           <TouchableOpacity
                             key={patient.id}
                             onPress={() => {
-                              setViewingPatient(patient);
-                              setShowPatientDetails(true);
+                              handleOpenPatientDetails(patient);
                             }}
                             activeOpacity={0.7}
                           >
@@ -1576,6 +1547,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <BillingTab
               doctorId={user.id || ''}
               styles={styles}
+              startTourTrigger={billingTourTrigger}
             />
           ) : (
             <SettingsTab
@@ -1601,6 +1573,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               onStartAppointmentsTutorial={() => {
                 setActiveTab('appointments');
                 setAppointmentsTourTrigger((prev) => prev + 1);
+              }}
+              onStartBillingTutorial={() => {
+                setActiveTab('billing');
+                setBillingTourTrigger((prev) => prev + 1);
               }}
             />
           )}

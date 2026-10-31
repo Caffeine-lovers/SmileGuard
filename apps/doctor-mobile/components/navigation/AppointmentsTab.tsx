@@ -32,6 +32,7 @@ import {
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
+import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
 
 // Type alias for backwards compatibility
 type AppointmentType = Appointment;
@@ -773,14 +774,7 @@ export default function AppointmentsTab({
     setTourVisible(false);
     const id = doctorId || providedDoctorId;
     if (id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_appointments_walkthrough_completed_${id}`,
-          "true"
-        );
-      } catch (err) {
-        console.error("Failed to save appointments walkthrough status:", err);
-      }
+      await markDoctorGuideCompleted(id, "appointments");
     }
   };
 
@@ -788,14 +782,7 @@ export default function AppointmentsTab({
     setTourVisible(false);
     const id = doctorId || providedDoctorId;
     if (id) {
-      try {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_appointments_walkthrough_completed_${id}`,
-          "true"
-        );
-      } catch (err) {
-        console.error("Failed to save appointments walkthrough status:", err);
-      }
+      await markDoctorGuideCompleted(id, "appointments");
     }
   };
 
@@ -812,6 +799,9 @@ export default function AppointmentsTab({
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
+        const alreadyDone = await isDoctorGuideCompleted(id, "appointments");
+        if (alreadyDone) return;
+
         const key = `@smileguard_doctor_appointments_walkthrough_completed_${id}`;
         const hasCompleted = await AsyncStorage.getItem(key);
         if (!hasCompleted && isMounted) {

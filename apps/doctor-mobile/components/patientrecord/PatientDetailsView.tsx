@@ -21,6 +21,7 @@ import { formatDateOfBirth } from "../../lib/dateFormatters";
 
 export type AppointmentType = {
   id: string;
+  patient_id?: string;
   name: string;
   service: string;
   time: string;
@@ -137,8 +138,10 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
   const [updatingPwd, setUpdatingPwd] = useState(false);
 
+  const effectivePatientId = patient?.patient_id || patient?.id;
+
   useEffect(() => {
-    if (visible && patient?.id) {
+    if (visible && effectivePatientId) {
       // Immediately clear old data and show loading
       setMedicalIntake(null);
       setAppointments([]);
@@ -146,9 +149,9 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
       setLoading(true);
       
       // Load new patient data
-      loadPatientData(patient.id);
+      loadPatientData(effectivePatientId);
     }
-  }, [visible, patient?.id]);
+  }, [visible, effectivePatientId]);
 
   const loadPatientData = async (patientId: string) => {
     try {
@@ -224,8 +227,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
 
   const handleApprovePwd = async () => {
-    if (!patient?.id) return;
-    const effectiveId = (patient as any).patient_id || patient.id;
+    if (!effectivePatientId) return;
+    const effectiveId = effectivePatientId;
     setUpdatingPwd(true);
     try {
       const res = await updatePatientPwdStatus(effectiveId, 'approved', doctorId);
@@ -246,8 +249,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   };
 
   const handleRejectPwd = async () => {
-    if (!patient?.id) return;
-    const effectiveId = (patient as any).patient_id || patient.id;
+    if (!effectivePatientId) return;
+    const effectiveId = effectivePatientId;
     setUpdatingPwd(true);
     try {
       const res = await updatePatientPwdStatus(effectiveId, 'rejected', doctorId);
@@ -272,8 +275,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   const handleSaveAppointment = async () => {
     console.log('✅ Appointment saved, refreshing appointments...');
-    if (patient?.id) {
-      await loadAppointments(patient.id);
+    if (effectivePatientId) {
+      await loadAppointments(effectivePatientId);
     }
   };
 
@@ -343,7 +346,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
             <View style={styles.infoContainer}>
               <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
               <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
-              <DetailRow label="Email" value={patient.email || "Not provided"} />
+              <DetailRow label="Email" value={patientProfile?.email || patient.email || "Not provided"} />
               <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
               {(() => {
                 const calculatedAge = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth);
@@ -353,7 +356,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                   <DetailRow label="Age" value={patient.age.toString()} />
                 ) : null;
               })()}
-              <DetailRow label="Address" value={medicalIntake?.address || "Not provided"} />
+              <DetailRow label="Address" value={medicalIntake?.address || patient.address || "Not provided"} />
             </View>
           </View>
 
@@ -595,8 +598,8 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Additional Information</Text>
             <View style={styles.infoContainer}>
-              <DetailRow label="Patient ID" value={patient.id} />
-              <DetailRow label="Account Created" value={formatDate(patient.date)} />
+              <DetailRow label="Patient ID" value={effectivePatientId || patient.id} />
+              <DetailRow label="Account Created" value={patientProfile?.created_at ? formatDate(patientProfile.created_at) : (patient.date ? formatDate(patient.date) : "Not available")} />
             </View>
           </View>
         </ScrollView>
@@ -610,7 +613,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           onRequestClose={() => setShowAppointmentHistory(false)}
         >
           <AppointmentHistory
-            patientId={patient.id}
+            patientId={effectivePatientId || patient.id}
             patientName={patient.name}
             doctorId={doctorId || ''}
             onBack={() => setShowAppointmentHistory(false)}

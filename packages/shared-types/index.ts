@@ -114,6 +114,8 @@ export interface Doctor {
   office_hours?: OfficeHours;
   years_of_experience?: number;
   profile_picture_url?: string;
+  guide_completed?: boolean;
+  completed_guides?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -129,6 +131,8 @@ export const EMPTY_DOCTOR: Doctor = {
   gender: "",
   doctor_name: "",
   doctor_phone: "",
+  guide_completed: false,
+  completed_guides: [],
   office_hours: {
     monday: { open: "09:00", close: "17:00" },
     tuesday: { open: "09:00", close: "17:00" },
