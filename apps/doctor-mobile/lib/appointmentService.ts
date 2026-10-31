@@ -63,6 +63,11 @@ export async function getDoctorAppointments(
       p_dentist_id: dentistId || null
     });
 
+    if (rpcError) {
+      // Fallback: Try direct query anyway
+      return fallbackGetDoctorAppointments(dentistId, startDate, endDate);
+    }
+
     let appointmentsData: any[] = rpcAppointmentsData ? [...rpcAppointmentsData] : [];
 
     // Supplement pending appointments (since RPC get_appointments_range excludes pending)
@@ -94,11 +99,6 @@ export async function getDoctorAppointments(
       // Safe fallback
     }
 
-    if (rpcError && appointmentsData.length === 0) {
-      // Fallback: Try direct query anyway
-      return fallbackGetDoctorAppointments(dentistId, startDate, endDate);
-    }
-
     if (!appointmentsData || appointmentsData.length === 0) {
       return [];
     }
@@ -124,8 +124,6 @@ export async function getDoctorAppointments(
         profilesData = data || [];
       }
     }
-
-
 
     // Step 3c: Fetch medical intake data for all patients
     let medicalIntakeData: any[] = [];
@@ -200,7 +198,7 @@ async function fallbackGetDoctorAppointments(
       .from('appointments')
       .select('*');
 
-    // Show only assigned, approved appointments (pending requests live in the Requests tab)
+    // Show only assigned appointments
     query = query.not('dentist_id', 'is', null);
 
     if (startDate) {
@@ -218,15 +216,43 @@ async function fallbackGetDoctorAppointments(
       return [];
     }
 
-    if (!appointmentsData || appointmentsData.length === 0) {
+    let allAppointments = appointmentsData ? [...appointmentsData] : [];
+
+    // Supplement pending appointments (including those without dentist_id)
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      if (startDate) {
+        pendingQuery = pendingQuery.gte('appointment_date', startDate);
+      }
+      if (endDate) {
+        pendingQuery = pendingQuery.lte('appointment_date', endDate);
+      }
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(allAppointments.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            allAppointments.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
+    }
+
+    if (!allAppointments || allAppointments.length === 0) {
       return [];
     }
 
     // Separate patients
-    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const patientIds = [...new Set(allAppointments.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
 
     console.log('❗ [fallbackGetDoctorAppointments] RPC failed, using fallback:');
-    console.log('  Total appointments:', appointmentsData.length);
+    console.log('  Total appointments:', allAppointments.length);
     console.log('  Patient IDs:', patientIds);
 
     // Fetch profiles for real patients
@@ -239,30 +265,48 @@ async function fallbackGetDoctorAppointments(
       profilesData = data || [];
     }
 
-
+    // Fetch medical intake data for all patients
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
 
     const profileMap = new Map();
     profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
-
+    const medicalIntakeMap = new Map();
+    medicalIntakeData.forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
+    });
 
     // Transform and return
-    return appointmentsData.map((apt: any) => {
+    return allAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
+      let profile = null;
 
       if (apt.patient_id) {
-        const profile = profileMap.get(apt.patient_id);
+        profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
+
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
 
       return {
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
   } catch (err: any) {
@@ -283,6 +327,11 @@ export async function getDoctorAppointmentsByDate(
       p_date: date,
       p_dentist_id: dentistId || null
     });
+
+    if (rpcError) {
+      // Fallback: Try direct query anyway
+      return fallbackGetAppointmentsByDate(dentistId, date);
+    }
 
     let appointmentsData: any[] = rpcAppointmentsData ? [...rpcAppointmentsData] : [];
 
@@ -310,11 +359,6 @@ export async function getDoctorAppointmentsByDate(
       // Safe fallback
     }
 
-    if (rpcError && appointmentsData.length === 0) {
-      // Fallback: Try direct query anyway
-      return fallbackGetAppointmentsByDate(dentistId, date);
-    }
-
     if (!appointmentsData || appointmentsData.length === 0) {
       return [];
     }
@@ -332,9 +376,25 @@ export async function getDoctorAppointmentsByDate(
       profilesData = data || [];
     }
 
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
+
     const profileMap = new Map();
     profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
+    });
+
+    const medicalIntakeMap = new Map();
+    medicalIntakeData.forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
     });
 
     // Step 5: Show all appointments for this date (don't filter by dentist_id)
@@ -344,17 +404,22 @@ export async function getDoctorAppointmentsByDate(
     const transformedData = filteredAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
+      let profile = null;
 
       if (apt.patient_id) {
-        const profile = profileMap.get(apt.patient_id);
+        profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
+
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
 
       return {
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
 
@@ -377,7 +442,7 @@ async function fallbackGetAppointmentsByDate(
       .select('*')
       .eq('appointment_date', date);
 
-    // Show only assigned, approved appointments (pending requests live in the Requests tab)
+    // Show only assigned appointments
     query = query.not('dentist_id', 'is', null);
 
     const { data: appointmentsData, error } = await query
@@ -387,12 +452,35 @@ async function fallbackGetAppointmentsByDate(
       return [];
     }
 
-    if (!appointmentsData || appointmentsData.length === 0) {
+    let allAppointments = appointmentsData ? [...appointmentsData] : [];
+
+    // Supplement pending appointments for this date
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .eq('appointment_date', date)
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(allAppointments.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            allAppointments.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
+    }
+
+    if (!allAppointments || allAppointments.length === 0) {
       return [];
     }
 
     // Separate patients
-    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const patientIds = [...new Set(allAppointments.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
 
     // Fetch profiles for real patients
     let profilesData: any[] = [];
@@ -404,30 +492,46 @@ async function fallbackGetAppointmentsByDate(
       profilesData = data || [];
     }
 
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
+
     const profileMap = new Map();
     profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
-    // Filter to show ONLY assigned appointments (dentist_id IS NOT NULL)
-    const filteredAppointments = appointmentsData.filter((apt: any) => {
-      return apt.dentist_id !== null && apt.dentist_id !== undefined;
+    const medicalIntakeMap = new Map();
+    medicalIntakeData.forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
     });
 
-    return filteredAppointments.map((apt: any) => {
+    return allAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
+      let profile = null;
 
       if (apt.patient_id) {
-        const profile = profileMap.get(apt.patient_id);
+        profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
+
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
 
       return {
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
   } catch (err: any) {
