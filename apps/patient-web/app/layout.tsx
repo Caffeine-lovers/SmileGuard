@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -74,6 +75,7 @@ export default function RootLayout({
     <html lang="en" className={plusJakarta.variable} data-scroll-behavior="smooth">
       <body className="font-sans antialiased bg-[#F4F7F6] text-[#0F172A] min-h-screen">
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );
