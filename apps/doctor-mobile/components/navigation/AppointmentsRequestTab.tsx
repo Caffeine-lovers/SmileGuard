@@ -18,6 +18,7 @@ import { DashboardAppointment } from '../dashboard/DoctorDashboard';
 import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck, Search } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
+import AppointmentRequestPromptModal from '../appointments/AppointmentRequestPromptModal';
 import { isDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -43,6 +44,8 @@ export default function AppointmentsRequestTab({
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedPromptRequest, setSelectedPromptRequest] = useState<DashboardAppointment | null>(null);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   const scrollViewRef = useRef<any>(null);
 
   const filteredRequests = useMemo(() => {
@@ -324,125 +327,100 @@ export default function AppointmentsRequestTab({
   );
 
   const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
-    Alert.alert(
-      'Accept Request',
-      `Accept this appointment request with ${request.name}?`,
-      [
-        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
+    try {
+      if (!userId) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
+
+      // Update the appointment with the current doctor's ID
+      const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', userId, {
+        dentist_id: userId,
+      });
+
+      if (!result?.success) {
+        Alert.alert('Error', result?.message || 'Failed to accept appointment');
+        return;
+      }
+
+      // Remove from requests list
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+      // Trigger manual notification for accepting request
+      const notification = createManualNotification(
+        'appointment-updated',
+        'Appointment Accepted',
+        `You accepted the appointment with ${request.name} for ${request.date}`,
         {
-          text: 'Accept',
-          onPress: async () => {
-            try {
-              if (!userId) {
-                Alert.alert('Error', 'Doctor ID not found');
-                return;
-              }
+          appointmentId: request.id,
+          patientId: request.patient_id,
+          action: 'UPDATE',
+        }
+      );
 
-              // Update the appointment with the current doctor's ID
-              const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', userId, {
-                dentist_id: userId,
-              });
+      // Call the callback to add notification to DoctorDashboard
+      if (onRequestAcceptedWithNotification) {
+        onRequestAcceptedWithNotification(notification);
+      }
 
-              if (!result?.success) {
-                Alert.alert('Error', result?.message || 'Failed to accept appointment');
-                return;
-              }
+      if (onRequestAccepted) {
+        onRequestAccepted();
+      }
 
-              // Remove from requests list
-              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-
-              // Trigger manual notification for accepting request
-              const notification = createManualNotification(
-                'appointment-updated',
-                'Appointment Accepted',
-                `You accepted the appointment with ${request.name} for ${request.date}`,
-                {
-                  appointmentId: request.id,
-                  patientId: request.patient_id,
-                  action: 'UPDATE',
-                }
-              );
-
-              // Call the callback to add notification to DoctorDashboard
-              if (onRequestAcceptedWithNotification) {
-                onRequestAcceptedWithNotification(notification);
-              }
-
-              if (onRequestAccepted) {
-                onRequestAccepted();
-              }
-
-              Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to accept appointment request');
-              console.error('Error accepting appointment request:', error);
-            }
-          },
-          style: 'default',
-        },
-      ]
-    );
+      Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to accept appointment request');
+      console.error('Error accepting appointment request:', error);
+    }
   };
 
-  const handleDeclineAppointmentRequest = async (request: DashboardAppointment) => {
-    Alert.alert(
-      'Decline Request',
-      `Are you sure you want to decline this appointment request with ${request.name}?`,
-      [
-        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
+  const handleDeclineAppointmentRequest = async (request: DashboardAppointment, doctorNote?: string) => {
+    try {
+      if (!userId) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
+
+      // Update appointment status to 'declined' and assign doctor ID + doctor note
+      const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId, {
+        dentist_id: userId,
+        doctor_note: doctorNote || undefined,
+      });
+
+      if (!result?.success) {
+        Alert.alert('Error', result?.message || 'Failed to decline appointment');
+        return;
+      }
+
+      // Remove from requests list
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+      // Trigger manual notification for declining request
+      const notification = createManualNotification(
+        'appointment-declined',
+        'Appointment Declined',
+        `You declined the appointment with ${request.name} for ${request.date}`,
         {
-          text: 'Decline',
-          onPress: async () => {
-            try {
-              if (!userId) {
-                Alert.alert('Error', 'Doctor ID not found');
-                return;
-              }
+          appointmentId: request.id,
+          patientId: request.patient_id,
+          action: 'UPDATE',
+        }
+      );
 
-              // Update appointment status to 'declined' and assign the doctor ID
-              const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId, {
-                dentist_id: userId,
-              });
+      // Call the callback to add notification to DoctorDashboard
+      if (onRequestAcceptedWithNotification) {
+        onRequestAcceptedWithNotification(notification);
+      }
 
-              if (!result?.success) {
-                Alert.alert('Error', result?.message || 'Failed to decline appointment');
-                return;
-              }
+      if (onRequestAccepted) {
+        onRequestAccepted();
+      }
 
-              // Remove from requests list
-              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-
-              // Trigger manual notification for declining request
-              const notification = createManualNotification(
-                'appointment-declined',
-                'Appointment Declined',
-                `You declined the appointment with ${request.name} for ${request.date}`,
-                {
-                  appointmentId: request.id,
-                  patientId: request.patient_id,
-                  action: 'UPDATE',
-                }
-              );
-
-              // Call the callback to add notification to DoctorDashboard
-              if (onRequestAcceptedWithNotification) {
-                onRequestAcceptedWithNotification(notification);
-              }
-
-              if (onRequestAccepted) {
-                onRequestAccepted();
-              }
-
-              Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to decline appointment request');
-              console.error('Error declining appointment request:', error);
-            }
-          },
-          style: 'destructive',
-        },
-      ]
-    );
+      Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to decline appointment request');
+      console.error('Error declining appointment request:', error);
+    }
   };
 
   // Reset to page 1 when searching
@@ -675,14 +653,20 @@ export default function AppointmentsRequestTab({
                 style={tabStyles.actionButtons}
               >
                 <TouchableOpacity
-                  onPress={() => handleAcceptAppointmentRequest(request)}
+                  onPress={() => {
+                    setSelectedPromptRequest(request);
+                    setShowPromptModal(true);
+                  }}
                   style={tabStyles.acceptButton}
                 >
                   <Check size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={tabStyles.acceptButtonText}>Accept</Text>
+                  <Text style={tabStyles.acceptButtonText}>Review / Accept</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleDeclineAppointmentRequest(request)}
+                  onPress={() => {
+                    setSelectedPromptRequest(request);
+                    setShowPromptModal(true);
+                  }}
                   style={tabStyles.declineButton}
                 >
                   <X size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
@@ -774,6 +758,22 @@ export default function AppointmentsRequestTab({
         measureTarget={tour.measure}
         onFinish={handleFinishTour}
         onSkip={handleSkipTour}
+      />
+
+      {/* Appointment Request Prompt Modal */}
+      <AppointmentRequestPromptModal
+        visible={showPromptModal}
+        appointment={selectedPromptRequest}
+        onClose={() => {
+          setShowPromptModal(false);
+          setSelectedPromptRequest(null);
+        }}
+        onAccept={async (req) => {
+          await handleAcceptAppointmentRequest(req);
+        }}
+        onDecline={async (req, doctorNote) => {
+          await handleDeclineAppointmentRequest(req, doctorNote);
+        }}
       />
     </View>
   );

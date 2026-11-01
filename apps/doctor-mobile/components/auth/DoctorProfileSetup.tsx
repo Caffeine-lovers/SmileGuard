@@ -324,6 +324,25 @@ export default function DoctorProfileSetup({
         throw new Error("User not authenticated. Please log in again.");
       }
 
+      // Pre-seed profile in public.profiles to guarantee existence for doctor_user_id_fkey
+      try {
+        const constructedName = `${(doctorData.first_name || "").trim()} ${(doctorData.last_name || "").trim()}`.trim() || data.user.email?.split("@")[0] || "Doctor";
+        await supabase.from("profiles").upsert(
+          [
+            {
+              id: data.user.id,
+              name: constructedName,
+              email: data.user.email || "",
+              role: "doctor",
+              updated_at: new Date().toISOString(),
+            },
+          ],
+          { onConflict: "id" }
+        );
+      } catch (profPreErr) {
+        console.warn("[DoctorProfileSetup] Pre-seed profiles warning:", profPreErr);
+      }
+
       let profileImageUrl = "";
       if (selectedImage) {
         try {

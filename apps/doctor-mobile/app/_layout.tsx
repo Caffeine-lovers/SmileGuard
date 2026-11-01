@@ -48,13 +48,34 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, []);
 
-  // Listen for user clicking a push notification while outside the app
+  // Listen for user clicking a push notification while outside the app (background or quit state)
   useEffect(() => {
+    const handleNotificationData = (data: any) => {
+      if (!data) return;
+      const appointmentId = data.appointmentId || data.id;
+      if (appointmentId) {
+        router.push({
+          pathname: "/(doctor)/dashboard",
+          params: { promptAppointmentId: appointmentId },
+        });
+      } else if (data?.screen === "dashboard") {
+        router.push("/(doctor)/dashboard");
+      }
+    };
+
+    // 1. App running or background: user tapped status bar notification
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log("[RootLayout] Push notification tapped:", response.notification.request.content);
       const data = response.notification.request.content.data;
-      if (data?.appointmentId || data?.screen === "dashboard") {
-        router.push("/(doctor)/dashboard");
+      handleNotificationData(data);
+    });
+
+    // 2. Cold start (app was fully closed when notification tapped)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        console.log("[RootLayout] Cold start notification response:", response.notification.request.content);
+        const data = response.notification.request.content.data;
+        handleNotificationData(data);
       }
     });
 

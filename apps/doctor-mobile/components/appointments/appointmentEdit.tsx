@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -120,6 +121,7 @@ export default function AppointmentEdit({
   const [selectedStatus, setSelectedStatus] = useState<
     'scheduled' | 'completed' | 'no-show' | 'cancelled' | 'declined'
   >('scheduled');
+  const [doctorNote, setDoctorNote] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -131,6 +133,7 @@ export default function AppointmentEdit({
         // If appointment was pending or another status not in the 5 options, default selection to 'scheduled'
         setSelectedStatus('scheduled');
       }
+      setDoctorNote(appointment.doctor_note || '');
     }
   }, [visible, appointment]);
 
@@ -156,15 +159,16 @@ export default function AppointmentEdit({
       ? appointment.imageUrl
       : null;
 
-  const isStatusChanged = selectedStatus !== currentStatus;
+  const isNoteChanged = (doctorNote || '').trim() !== (appointment.doctor_note || '').trim();
+  const isStatusChanged = selectedStatus !== currentStatus || (selectedStatus === 'declined' && isNoteChanged);
   const activeMeta = STATUS_META[selectedStatus] || STATUS_META.scheduled;
   const ActiveIcon = activeMeta.icon;
 
   const handleSave = async () => {
     if (!appointment) return;
 
-    if (!isStatusChanged) {
-      Alert.alert('No Changes', 'Please select a different status to update this appointment.');
+    if (!isStatusChanged && !isNoteChanged) {
+      Alert.alert('No Changes', 'Please select a different status or update notes to save.');
       return;
     }
 
@@ -175,7 +179,8 @@ export default function AppointmentEdit({
       const result = await updateDoctorAppointmentStatus(
         appointmentId,
         selectedStatus,
-        doctorId
+        doctorId,
+        { doctor_note: doctorNote.trim() || undefined }
       );
 
       if (result.success) {
@@ -518,6 +523,32 @@ export default function AppointmentEdit({
             <Text style={styles.explanationHint}>
               💡 {activeMeta.hint}
             </Text>
+          </View>
+
+          {/* Doctor Note Section (Particularly important when declining) */}
+          <View style={styles.doctorNoteCard}>
+            <View style={styles.doctorNoteHeader}>
+              <AlertCircle size={15} color="#0F766E" />
+              <Text style={styles.doctorNoteTitle}>
+                {selectedStatus === 'declined' ? "DOCTOR'S NOTE / REASON FOR DECLINING" : "CLINICAL / DOCTOR'S NOTE"}
+              </Text>
+            </View>
+            <Text style={styles.doctorNoteSubtext}>
+              {selectedStatus === 'declined'
+                ? "Provide clinical reasoning or reasons why this appointment is declined."
+                : "Internal clinical remarks or instructions regarding this appointment."}
+            </Text>
+            <TextInput
+              style={styles.doctorNoteInput}
+              placeholder={selectedStatus === 'declined' ? "e.g., Slot unavailable, patient medical clearance needed..." : "Add doctor's note..."}
+              placeholderTextColor="#94A3B8"
+              value={doctorNote}
+              onChangeText={setDoctorNote}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              editable={!loading}
+            />
           </View>
         </ScrollView>
 
@@ -1075,5 +1106,43 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#FFFFFF",
     letterSpacing: 0.5,
+  },
+
+  // Doctor note card styles
+  doctorNoteCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+  },
+  doctorNoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  doctorNoteTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#0F766E",
+    letterSpacing: 0.5,
+  },
+  doctorNoteSubtext: {
+    fontSize: 11,
+    color: "#64748B",
+    marginBottom: 8,
+    lineHeight: 15,
+  },
+  doctorNoteInput: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 13,
+    color: "#1E293B",
+    minHeight: 70,
   },
 });

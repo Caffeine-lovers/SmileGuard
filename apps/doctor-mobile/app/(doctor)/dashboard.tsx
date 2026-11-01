@@ -1,6 +1,7 @@
 import React from "react";
 import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@smileguard/supabase-client";
 import DoctorDashboard from "../../components/dashboard/DoctorDashboard";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
@@ -8,6 +9,7 @@ import { clearPushTokenFromProfile } from "../../lib/pushNotificationService";
 
 export default function DoctorDashboardPage() {
   const user = useCurrentUser();
+  const searchParams = useLocalSearchParams<{ promptAppointmentId?: string }>();
 
   const handleLogout = async () => {
     try {
@@ -37,5 +39,11 @@ export default function DoctorDashboardPage() {
     );
   }
 
-  return <DoctorDashboard user={user} onLogout={handleLogout} />;
+  return (
+    <DoctorDashboard
+      user={user}
+      onLogout={handleLogout}
+      promptAppointmentId={searchParams.promptAppointmentId}
+    />
+  );
 }

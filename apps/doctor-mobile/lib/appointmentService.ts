@@ -40,6 +40,7 @@ export interface DoctorAppointment {
   appointment_time: string;
   status: 'pending' | 'PENDING' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
+  doctor_note?: string;
   created_at?: string;
   updated_at?: string;
   patient_name?: string; // Patient name from profiles table
@@ -546,7 +547,7 @@ export async function updateDoctorAppointmentStatus(
   appointmentId: string,
   status: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
   doctorId: string,
-  additionalUpdates?: { dentist_id?: string }
+  additionalUpdates?: { dentist_id?: string; doctor_note?: string }
 ): Promise<{ success: boolean; message: string }> {
   try {
     // Resolve which doctor ID to assign to the appointment
@@ -559,14 +560,46 @@ export async function updateDoctorAppointmentStatus(
       appointmentId,
       status,
       dentist_id: currentUserId,
+      doctor_note: additionalUpdates?.doctor_note,
     });
 
     // Use SECURITY DEFINER RPC — bypasses RLS so it can update unassigned rows
-    const { data, error } = await supabase.rpc('update_appointment_status_with_dentist', {
+    let data: any = null;
+    let error: any = null;
+
+    // Try RPC with p_doctor_note parameter first (migration 039)
+    const rpcResultWithNote = await supabase.rpc('update_appointment_status_with_dentist', {
       p_appointment_id: appointmentId,
       p_new_status: status,
       p_dentist_id: currentUserId,
+      p_doctor_note: additionalUpdates?.doctor_note || null,
     });
+
+    if (rpcResultWithNote.error && rpcResultWithNote.error.message?.includes('p_doctor_note')) {
+      // Fallback to 3-parameter RPC if migration 039 is not yet run
+      const fallbackResult = await supabase.rpc('update_appointment_status_with_dentist', {
+        p_appointment_id: appointmentId,
+        p_new_status: status,
+        p_dentist_id: currentUserId,
+      });
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+
+      // Also try direct update to set doctor_note if column exists
+      if (!error && additionalUpdates?.doctor_note) {
+        try {
+          await supabase
+            .from('appointments')
+            .update({ doctor_note: additionalUpdates.doctor_note })
+            .eq('id', appointmentId);
+        } catch {
+          // ignore if column not present yet
+        }
+      }
+    } else {
+      data = rpcResultWithNote.data;
+      error = rpcResultWithNote.error;
+    }
 
     console.log('📥 [updateDoctorAppointmentStatus] RPC raw response:', { data, error });
 
@@ -728,5 +761,70 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
   } catch (err: any) {
     console.error('❌ Exception fetching appointment requests:', err);
     return [];
+  }
+}
+
+// ─────────────────────────────────────────
+// GET APPOINTMENT BY ID (WITH PATIENT & MEDICAL INTAKE)
+// ─────────────────────────────────────────
+export async function getAppointmentById(
+  appointmentId: string
+): Promise<DoctorAppointment | null> {
+  try {
+    const { data: apt, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (error || !apt) {
+      console.warn('[getAppointmentById] Could not fetch appointment:', appointmentId, error);
+      return null;
+    }
+
+    let profile: any = null;
+    if (apt.patient_id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', apt.patient_id)
+        .maybeSingle();
+      profile = prof;
+    }
+
+    let medicalIntake: any = null;
+    if (apt.patient_id) {
+      const { data: intake } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .eq('patient_id', apt.patient_id)
+        .maybeSingle();
+      medicalIntake = intake;
+    }
+
+    const patientName =
+      profile?.full_name ||
+      profile?.name ||
+      profile?.user_name ||
+      [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+      'Patient';
+
+    const patientAvatar =
+      profile?.avatar_url ||
+      profile?.avatar ||
+      profile?.profile_picture ||
+      profile?.image_url ||
+      null;
+
+    return {
+      ...apt,
+      patient_name: patientName,
+      patient_avatar: patientAvatar,
+      profiles: profile || null,
+      patient_profile: medicalIntake || null,
+    };
+  } catch (err) {
+    console.error('[getAppointmentById] Exception fetching appointment:', err);
+    return null;
   }
 }

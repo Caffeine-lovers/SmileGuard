@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import AppointmentCard from "./AppointmentCard";
 import AppointmentEdit from "../appointments/appointmentEdit";
+import AppointmentRequestPromptModal from "../appointments/AppointmentRequestPromptModal";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +31,7 @@ import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
-import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests } from "../../lib/appointmentService";
+import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests, getAppointmentById } from "../../lib/appointmentService";
 import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile, isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from "../../lib/doctorService";
@@ -94,14 +95,16 @@ export interface DashboardAppointment {
   patient_id?: string;
   dentist_id?: string | null;
   medicalIntake?: any;
+  doctor_note?: string;
 }
 
 interface DoctorDashboardProps {
   user: CurrentUser;
   onLogout: () => void;
+  promptAppointmentId?: string;
 }
 
-export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
+export default function DoctorDashboard({ user, onLogout, promptAppointmentId }: DoctorDashboardProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clinic, loading: clinicLoading } = useClinic();
@@ -150,6 +153,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
+
+  // Push notification prompt modal state
+  const [promptAppointment, setPromptAppointment] = useState<DashboardAppointment | null>(null);
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [loadingPromptAppointment, setLoadingPromptAppointment] = useState(false);
 
   // Handle profile updates
   const handleUpdateProfile = (updatedData: any) => {
@@ -829,6 +837,81 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
     refreshDashboardData();
   }, [user?.id]);
 
+  // Handle incoming push notification prompt when doctor opens the app from status bar
+  useEffect(() => {
+    if (!promptAppointmentId) return;
+
+    let isMounted = true;
+    const loadPromptAppointment = async () => {
+      try {
+        setLoadingPromptAppointment(true);
+        // First check if it is already in loaded requests
+        const inMemory = appointmentRequests.find((r) => r.id === promptAppointmentId);
+        if (inMemory) {
+          if (isMounted) {
+            setPromptAppointment(inMemory);
+            setShowPromptModal(true);
+          }
+          return;
+        }
+
+        // Fetch fresh appointment details from DB
+        const apt = await getAppointmentById(promptAppointmentId);
+        if (!isMounted || !apt) return;
+
+        const medicalData = apt.patient_profile;
+        const formatted: DashboardAppointment = {
+          id: apt.id,
+          name: apt.patient_name || 'Patient',
+          service: apt.service || 'General Dental Consultation',
+          time: apt.appointment_time || '',
+          date: apt.appointment_date || '',
+          age: 0,
+          gender: medicalData?.gender || apt.profiles?.gender || '',
+          contact: medicalData?.phone || apt.profiles?.phone || '',
+          email: apt.profiles?.email || '',
+          notes: apt.notes || '',
+          imageUrl: apt.patient_avatar || require('../../assets/images/user.png'),
+          status: (apt.status?.toLowerCase() === 'pending' ? 'pending' : (apt.status || 'pending')) as any,
+          patient_id: apt.patient_id,
+          dentist_id: apt.dentist_id,
+          doctor_note: apt.doctor_note || '',
+          medicalIntake: medicalData
+            ? {
+                gender: medicalData.gender || '',
+                phone: medicalData.phone || '',
+                address: medicalData.address || '',
+                dateOfBirth: medicalData.date_of_birth || '',
+                emergencyContactName: medicalData.emergency_contact_name || '',
+                emergencyContactPhone: medicalData.emergency_contact_phone || '',
+                allergies: medicalData.alergies || medicalData.allergies || '',
+                currentMedications: medicalData.current_medications || '',
+                medicalConditions: medicalData.medical_conditions || '',
+                pastSurgeries: medicalData.past_surgeries || '',
+                smokingStatus: medicalData.smoking_status || '',
+                pregnancyStatus: medicalData.pregnancy_status || '',
+                notes: medicalData.notes || '',
+              }
+            : null,
+        };
+
+        if (isMounted) {
+          setPromptAppointment(formatted);
+          setShowPromptModal(true);
+        }
+      } catch (err) {
+        console.error('[DoctorDashboard] Error loading push prompt appointment:', err);
+      } finally {
+        if (isMounted) setLoadingPromptAppointment(false);
+      }
+    };
+
+    loadPromptAppointment();
+    return () => {
+      isMounted = false;
+    };
+  }, [promptAppointmentId]);
+
   // ─────────────────────────────────────────
   // UPDATE DASHBOARD WHEN COMPONENT OPENS
   // ─────────────────────────────────────────
@@ -880,91 +963,70 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   };
 
   const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
-    Alert.alert(
-      'Accept Request',
-      `Accept this appointment request with ${request.name} for ${formatAppointmentDate(request.date)}?`,
-      [
-        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
-        {
-          text: 'Accept',
-          onPress: async () => {
-            try {
-              if (!user?.id) {
-                Alert.alert('Error', 'Doctor ID not found');
-                return;
-              }
+    try {
+      if (!user?.id) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
 
-              // Update the appointment with the current doctor's ID
-              const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', user.id, {
-                dentist_id: user.id
-              });
+      // Update the appointment with the current doctor's ID
+      const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', user.id, {
+        dentist_id: user.id
+      });
 
-              if (!result.success) {
-                Alert.alert('Error', result.message);
-                return;
-              }
+      if (!result.success) {
+        Alert.alert('Error', result.message);
+        return;
+      }
 
-              // Remove from requests list
-              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+      // Remove from requests list
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
 
-              // Add to appointments list with updated status and dentist_id
-              setAppointments((prev) => [...prev, { ...request, dentist_id: user.id, status: 'scheduled' }]);
+      // Add to appointments list with updated status and dentist_id
+      setAppointments((prev) => [...prev, { ...request, dentist_id: user.id, status: 'scheduled' }]);
 
-              Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to accept appointment request');
-              console.error('Error accepting appointment request:', error);
-            }
-          },
-          style: 'default',
-        },
-      ]
-    );
+      Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to accept appointment request');
+      console.error('Error accepting appointment request:', error);
+    }
   };
 
-  const handleDeclineAppointmentRequest = async (request: DashboardAppointment) => {
-    Alert.alert(
-      'Decline Request',
-      `Are you sure you want to decline this appointment request with ${request.name}?`,
-      [
-        { text: 'Keep', onPress: () => { }, style: 'cancel' },
-        {
-          text: 'Decline',
-          onPress: async () => {
-            try {
-              if (!user?.id) {
-                Alert.alert('Error', 'Doctor ID not found');
-                return;
-              }
+  const handleDeclineAppointmentRequest = async (request: DashboardAppointment, doctorNote?: string) => {
+    try {
+      if (!user?.id) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
 
-              // Update the appointment status to 'declined'
-              const result = await updateDoctorAppointmentStatus(request.id, 'declined', user.id, {
-                dentist_id: user.id,
-              });
+      // Update the appointment status to 'declined' with doctor's note
+      const result = await updateDoctorAppointmentStatus(request.id, 'declined', user.id, {
+        dentist_id: user.id,
+        doctor_note: doctorNote || undefined,
+      });
 
-              if (!result?.success) {
-                Alert.alert('Error', result?.message || 'Failed to decline appointment');
-                return;
-              }
+      if (!result?.success) {
+        Alert.alert('Error', result?.message || 'Failed to decline appointment');
+        return;
+      }
 
-              // Remove from requests list
-              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+      // Remove from requests list
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
 
-              // Update appointment in appointments list if present
-              setAppointments((prev) =>
-                prev.map((apt) => (apt.id === request.id ? { ...apt, status: 'declined', dentist_id: user.id } : apt))
-              );
+      // Update appointment in appointments list if present
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === request.id
+            ? { ...apt, status: 'declined', dentist_id: user.id, doctor_note: doctorNote || apt.doctor_note }
+            : apt
+        )
+      );
 
-              Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to decline appointment request');
-              console.error('Error declining appointment request:', error);
-            }
-          },
-          style: 'destructive',
-        },
-      ]
-    );
+      Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to decline appointment request');
+      console.error('Error declining appointment request:', error);
+    }
   };
 
 
@@ -1583,15 +1645,21 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         {/* Action buttons with tactile 3D skeuo style */}
                         <View style={styles.requestActionRow}>
                           <TouchableOpacity
-                            onPress={() => handleAcceptAppointmentRequest(request)}
+                            onPress={() => {
+                              setPromptAppointment(request);
+                              setShowPromptModal(true);
+                            }}
                             style={styles.requestAcceptBtn}
                             activeOpacity={0.8}
                           >
                             <Check size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                            <Text style={styles.requestAcceptBtnText}>Accept</Text>
+                            <Text style={styles.requestAcceptBtnText}>Review</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => handleDeclineAppointmentRequest(request)}
+                            onPress={() => {
+                              setPromptAppointment(request);
+                              setShowPromptModal(true);
+                            }}
                             style={styles.requestDeclineBtn}
                             activeOpacity={0.8}
                           >
@@ -1929,6 +1997,25 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             }}
           />
         )}
+
+        {/* Status Bar / Push Notification Triage Prompt Modal */}
+        <AppointmentRequestPromptModal
+          visible={showPromptModal}
+          appointment={promptAppointment}
+          loading={loadingPromptAppointment}
+          onClose={() => {
+            setShowPromptModal(false);
+            setPromptAppointment(null);
+          }}
+          onAccept={async (req) => {
+            await handleAcceptAppointmentRequest(req);
+            await refreshDashboardData();
+          }}
+          onDecline={async (req, doctorNote) => {
+            await handleDeclineAppointmentRequest(req, doctorNote);
+            await refreshDashboardData();
+          }}
+        />
 
         {/* Interactive Walkthrough Tour */}
         <AppTour
