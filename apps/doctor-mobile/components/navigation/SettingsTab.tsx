@@ -8,6 +8,7 @@ import {
   Switch,
   ActivityIndicator,
   StyleSheet,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
@@ -527,8 +528,11 @@ export default function SettingsTab({
       <Modal
         visible={editingProfile}
         animationType="slide"
+        presentationStyle="pageSheet"
+        statusBarTranslucent={false}
         onRequestClose={() => setEditingProfile(false)}
       >
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         {loadingDoctor ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
             <ActivityIndicator size="large" color="#047857" />
@@ -549,8 +553,11 @@ export default function SettingsTab({
       <Modal
         visible={editingClinic}
         animationType="slide"
+        presentationStyle="pageSheet"
+        statusBarTranslucent={false}
         onRequestClose={() => setEditingClinic(false)}
       >
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         <ClinicSetup
           onSave={handleSaveClinic}
           onClose={() => setEditingClinic(false)}
