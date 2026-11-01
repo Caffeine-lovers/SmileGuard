@@ -81,23 +81,5 @@ export interface Billing {
   updated_at?: string;
 }
 
-export const calculateDiscount = (
-  amount: number,
-  discountType: Billing['discount_type']
-): { discountAmount: number; finalAmount: number } => {
-  let discountAmount = 0;
-
-  switch (discountType) {
-    case 'pwd':
-    case 'senior':
-      discountAmount = amount * 0.2; // 20% discount
-      break;
-    default:
-      discountAmount = 0;
-  }
-
-  return {
-    discountAmount,
-    finalAmount: amount - discountAmount,
-  };
-};
+// Single source of truth for the 20% statutory discount (RA 9994 / RA 10754)
+export { calculateDiscount } from '@smileguard/shared-types';

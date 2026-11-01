@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
-import { supabase } from '@smileguard/supabase-client';
+import { saveScan } from '@/lib/scanHistory';
+import ScanHistory from '@/components/analysis/ScanHistory';
 import type { PreflightCheckResult } from '@smileguard/shared-types';
 import {
   AlertTriangle,
@@ -35,6 +36,8 @@ interface AnalysisResult {
   xai_annotated_image_b64?: string;
 }
 
+const SCAN_CONFIDENCE_THRESHOLD = 0.1;
+
 const COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
   '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B88B', '#ABEBC6'
@@ -50,6 +53,8 @@ export default function AnalysisPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const isAnalyzingRef = useRef(false);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Camera & Capture state
   const [inputMode, setInputMode] = useState<'camera' | 'upload'>('camera');
@@ -341,7 +346,7 @@ export default function AnalysisPage() {
         },
         body: JSON.stringify({
           image_b64: image_b64,
-          conf: 0.10, // Recall-calibrated threshold
+          conf: SCAN_CONFIDENCE_THRESHOLD, // Recall-calibrated threshold
         }),
       });
 
@@ -355,46 +360,23 @@ export default function AnalysisPage() {
       setUploading(false);
       setInspectionStep('idle');
 
-      // Background Upload of XAI annotated image to Supabase (non-blocking)
-      if (data.xai_annotated_image_b64) {
-        (async () => {
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (!sessionData?.session) {
-              console.log('[Analysis] No active Supabase session — skipping XAI cloud backup.');
-              return;
-            }
-
-            const byteCharacters = atob(data.xai_annotated_image_b64!);
-            const byteArray = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteArray[i] = byteCharacters.charCodeAt(i);
-            }
-
-            const userName = currentUser?.name
-              || sessionData.session.user.user_metadata?.name
-              || currentUser?.id
-              || sessionData.session.user.id
-              || 'unknown';
-            const userIdentifier = userName.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-            const filename = `${userIdentifier}_xai.jpg`;
-
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from('Analyzed images')
-              .upload(filename, byteArray, {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-
-            if (uploadError) {
-              console.warn('[Analysis] Supabase background upload:', uploadError.message);
-            } else {
-              console.log('[Analysis] ✅ Background XAI image saved:', uploadData?.path);
-            }
-          } catch (uploadErr) {
-            console.warn('[Analysis] Background upload non-fatal exception:', uploadErr);
-          }
-        })();
+      // Save the scan to the patient's private history (non-blocking for the UI)
+      if (currentUser?.id) {
+        saveScan({
+          patientId: currentUser.id,
+          annotatedImageB64: data.xai_annotated_image_b64,
+          detections: data.detections || [],
+          model: data.model || 'yolov8m',
+          confidenceThreshold: SCAN_CONFIDENCE_THRESHOLD,
+        })
+          .then(() => {
+            setHistoryRefreshKey((k) => k + 1);
+            setSaveError(null);
+          })
+          .catch((saveErr: unknown) => {
+            console.warn('[Analysis] Could not save scan to history:', saveErr);
+            setSaveError('Your result is shown below, but it could not be saved to your history.');
+          });
       }
     } catch (error: any) {
       console.error('Error uploading image:', error);
@@ -981,10 +963,13 @@ export default function AnalysisPage() {
                 </div>
               )}
 
+              {saveError && <p className="text-xs text-amber-700 font-semibold">{saveError}</p>}
               <p className="text-sm text-text-secondary italic mt-4">Please show these results to your dentist for a professional diagnosis.</p>
             </div>
           )}
         </div>
+
+        <ScanHistory patientId={currentUser?.id} refreshKey={historyRefreshKey} />
 
         {/* Back Link */}
         <div className="mt-8">

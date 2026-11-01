@@ -1,0 +1,26 @@
+{
+  "name": "smileguard-campaign-video",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SmileGuard upbeat campaign video (Remotion)",
+  "scripts": {
+    "music": "node scripts/make-music.mjs",
+    "prestudio": "node scripts/make-music.mjs",
+    "studio": "remotion studio",
+    "prerender": "node scripts/make-music.mjs",
+    "render": "remotion render SmileGuardCampaign out/smileguard-campaign.mp4",
+    "prerender:vertical": "node scripts/make-music.mjs",
+    "render:vertical": "remotion render SmileGuardCampaignVertical out/smileguard-campaign-vertical.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.9.0"
+  }
+}
