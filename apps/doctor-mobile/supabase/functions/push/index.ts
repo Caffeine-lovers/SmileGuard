@@ -179,6 +179,7 @@ Deno.serve(async (req) => {
       body,
       data: dataPayload,
       channelId: 'default',
+      priority: 'high', // Critical: Forces FCM / APNs to deliver immediately, bypassing Android Doze mode
     }))
 
     const headers: Record<string, string> = {
