@@ -6,4 +6,7 @@ web-build/
 *.tsbuildinfo
 *.pt
 *.onnx
-
+apps/doctor-mobile/android/
+apps/doctor-mobile/ios/
+android/
+ios/
