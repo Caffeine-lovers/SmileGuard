@@ -491,7 +491,6 @@ export default function NotificationCenter({
                 style={[
                   styles.notificationCard,
                   isUnread && styles.notificationCardUnread,
-                  { borderLeftColor: isUnread ? config.color : '#E2E8F0' },
                 ]}
                 onPress={() => {
                   if (isUnread) {
@@ -932,7 +931,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderLeftWidth: 4,
     ...Platform.select({
       ios: {
         shadowColor: '#0F172A',

@@ -10,6 +10,7 @@
 
 import { supabase } from '@smileguard/supabase-client';
 import { Notification, NotificationType } from '../types/notifications';
+import { formatAppointmentDate, formatAppointmentTime } from './dateFormatters';
 
 let notificationId = 0;
 
@@ -43,11 +44,6 @@ async function generateNotification(
         return null;
       }
 
-      // Filter out appointments explicitly assigned to another doctor
-      if (doctorId && newRecord.dentist_id && newRecord.dentist_id !== doctorId) {
-        return null;
-      }
-
       let patientName = newRecord.patient_name || newRecord.name;
       if (!patientName && newRecord.patient_id) {
         try {
@@ -66,21 +62,22 @@ async function generateNotification(
 
       const displayPatient = patientName || 'A patient';
       const service = newRecord.service || 'Dental Consultation';
-      const date = newRecord.appointment_date || 'Upcoming date';
-      const time = newRecord.appointment_time || '';
+      const formattedDate = formatAppointmentDate(newRecord.appointment_date, 'long');
+      const formattedTime = formatAppointmentTime(newRecord.appointment_time);
+      const timeSuffix = formattedTime && formattedTime !== 'Not specified' ? ` at ${formattedTime}` : '';
 
       return {
         ...baseNotification,
         type: 'appointment-created',
         title: 'New Appointment Request',
-        message: `${displayPatient} booked an appointment for ${service} on ${date}${time ? ` at ${time}` : ''}.`,
+        message: `${displayPatient} booked an appointment for ${service} on ${formattedDate}${timeSuffix}.`,
         data: {
           appointmentId: newRecord.id,
           patientId: newRecord.patient_id,
           patientName: displayPatient,
           service,
-          appointmentDate: date,
-          appointmentTime: time,
+          appointmentDate: formattedDate,
+          appointmentTime: formattedTime,
           doctorId: newRecord.dentist_id,
           tableName,
           recordId: newRecord.id,

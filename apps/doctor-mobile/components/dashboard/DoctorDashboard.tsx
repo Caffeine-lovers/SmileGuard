@@ -1632,7 +1632,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               setShowPatientDetails={setShowPatientDetails}
               styles={styles}
               startTourTrigger={recordsTourTrigger}
-              onBack={handleGoBack}
             />
           ) : activeTab === 'appointments' ? (
             <AppointmentsTab
@@ -1641,7 +1640,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               styles={styles}
               doctorId={user.id}
-              onBack={handleGoBack}
               onAppointmentStatusUpdated={() => {
                 // Handled in AppointmentsTab
               }}
@@ -1649,7 +1647,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           ) : activeTab === 'appointment-requests' ? (
             <AppointmentsRequestTab
               userId={user.id || ''}
-              onBack={handleGoBack}
               onRequestAccepted={() => {
                 // Refresh dashboard data when request is accepted
                 refreshDashboardData();
@@ -1665,14 +1662,12 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               doctorId={user.id || ''}
               styles={styles}
               startTourTrigger={billingTourTrigger}
-              onBack={handleGoBack}
             />
           ) : (
             <SettingsTab
               user={doctorProfile}
               onUpdateProfile={handleUpdateProfile}
               styles={styles}
-              onBack={handleGoBack}
               onProfileUpdated={(doctorName, doctorId) => {
                 // Doctor profile updated
               }}

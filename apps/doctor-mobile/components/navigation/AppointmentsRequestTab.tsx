@@ -1,9 +1,10 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   Image,
   Alert,
   ScrollView,
@@ -14,7 +15,7 @@ import { updateDoctorAppointmentStatus, getAppointmentRequests } from '../../lib
 import { createManualNotification } from '../../lib/notificationService';
 import { formatAppointmentDate, formatAppointmentTime } from '../../lib/dateFormatters';
 import { DashboardAppointment } from '../dashboard/DoctorDashboard';
-import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck } from 'lucide-react-native';
+import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck, Search } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
 import { isDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
@@ -26,7 +27,6 @@ interface AppointmentsRequestTabProps {
   onRequestAcceptedWithNotification?: (notification: any) => void;
   styles: any;
   startTourTrigger?: number;
-  onBack?: () => void;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -37,15 +37,24 @@ export default function AppointmentsRequestTab({
   onRequestAcceptedWithNotification,
   styles,
   startTourTrigger,
-  onBack,
 }: AppointmentsRequestTabProps) {
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const scrollViewRef = useRef<any>(null);
 
-  const totalPages = Math.max(1, Math.ceil(appointmentRequests.length / ITEMS_PER_PAGE));
+  const filteredRequests = useMemo(() => {
+    if (!searchQuery.trim()) return appointmentRequests;
+    const query = searchQuery.toLowerCase().trim();
+    return appointmentRequests.filter((req: any) => {
+      const patientName = (req.patient_name || req.name || '').toLowerCase();
+      return patientName.includes(query);
+    });
+  }, [appointmentRequests, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / ITEMS_PER_PAGE));
 
   // ─────────────────────────────────────────
   // INTERACTIVE WALKTHROUGH SYSTEM
@@ -66,7 +75,7 @@ export default function AppointmentsRequestTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -81,7 +90,7 @@ export default function AppointmentsRequestTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -96,67 +105,82 @@ export default function AppointmentsRequestTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
+      },
+    },
+    {
+      id: "requests-search",
+      target: "requests-search",
+      title: "Search Patient Requests",
+      description: "Instantly filter pending requests by patient name.",
+      icon: Search,
+      padding: 6,
+      radius: 8,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) { }
       },
     },
     ...(appointmentRequests.length > 0
       ? [
-          {
-            id: "requests-first-card",
-            target: "requests-first-card",
-            title: "Patient & Booking Details",
-            description: "Inspect the patient's name, email, contact number, requested service, preferred date, and formatted AM/PM visit time.",
-            icon: Calendar,
-            padding: 6,
-            radius: 8,
-            placement: "bottom" as const,
-            onEnter: () => {
-              try {
-                scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-              } catch (e) {}
-            },
+        {
+          id: "requests-first-card",
+          target: "requests-first-card",
+          title: "Patient & Booking Details",
+          description: "Inspect the patient's name, email, contact number, requested service, preferred date, and formatted AM/PM visit time.",
+          icon: Calendar,
+          padding: 6,
+          radius: 8,
+          placement: "bottom" as const,
+          onEnter: () => {
+            try {
+              scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+            } catch (e) { }
           },
-          {
-            id: "requests-action-buttons",
-            target: "requests-action-buttons",
-            title: "Accept or Decline",
-            description: "Tap Accept to confirm the appointment and add it to your daily schedule, or tap Decline to reject the request.",
-            icon: UserCheck,
-            padding: 6,
-            radius: 8,
-            placement: "auto" as const,
-          },
-        ]
+        },
+        {
+          id: "requests-action-buttons",
+          target: "requests-action-buttons",
+          title: "Accept or Decline",
+          description: "Tap Accept to confirm the appointment and add it to your daily schedule, or tap Decline to reject the request.",
+          icon: UserCheck,
+          padding: 6,
+          radius: 8,
+          placement: "auto" as const,
+        },
+      ]
       : [
-          {
-            id: "requests-empty-state",
-            target: "requests-empty-state",
-            title: "Clean Triage Queue",
-            description: "When patient booking requests arrive, they will appear here with full clinical details and one-tap approval actions.",
-            icon: Inbox,
-            padding: 8,
-            radius: 8,
-            placement: "bottom" as const,
-          },
-        ]),
+        {
+          id: "requests-empty-state",
+          target: "requests-empty-state",
+          title: "Clean Triage Queue",
+          description: "When patient booking requests arrive, they will appear here with full clinical details and one-tap approval actions.",
+          icon: Inbox,
+          padding: 8,
+          radius: 8,
+          placement: "bottom" as const,
+        },
+      ]),
     ...(totalPages > 1
       ? [
-          {
-            id: "requests-pagination",
-            target: "requests-pagination",
-            title: "Queue Pagination",
-            description: "Browse across multiple pages of pending bookings easily using page numbers or next/previous buttons.",
-            icon: ChevronRight,
-            padding: 6,
-            radius: 8,
-            placement: "auto" as const,
-            onEnter: () => {
-              try {
-                scrollViewRef.current?.scrollToEnd?.({ animated: false });
-              } catch (e) {}
-            },
+        {
+          id: "requests-pagination",
+          target: "requests-pagination",
+          title: "Queue Pagination",
+          description: "Browse across multiple pages of pending bookings easily using page numbers or next/previous buttons.",
+          icon: ChevronRight,
+          padding: 6,
+          radius: 8,
+          placement: "auto" as const,
+          onEnter: () => {
+            try {
+              scrollViewRef.current?.scrollToEnd?.({ animated: false });
+            } catch (e) { }
           },
-        ]
+        },
+      ]
       : []),
     {
       id: "requests-finish",
@@ -245,7 +269,7 @@ export default function AppointmentsRequestTab({
     try {
       setIsLoading(true);
       const appointmentRequestsData = await getAppointmentRequests();
-      
+
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
         const filteredRequests = appointmentRequestsData.filter((apt: any) => !['cancelled', 'declined', 'completed', 'no-show'].includes((apt.status || '').toLowerCase()));
         const transformedRequests = filteredRequests.map((apt: any) => ({
@@ -304,7 +328,7 @@ export default function AppointmentsRequestTab({
       'Accept Request',
       `Accept this appointment request with ${request.name}?`,
       [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
         {
           text: 'Accept',
           onPress: async () => {
@@ -365,7 +389,7 @@ export default function AppointmentsRequestTab({
       'Decline Request',
       `Are you sure you want to decline this appointment request with ${request.name}?`,
       [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
         {
           text: 'Decline',
           onPress: async () => {
@@ -421,8 +445,13 @@ export default function AppointmentsRequestTab({
     );
   };
 
+  // Reset to page 1 when searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedRequests = appointmentRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedRequests = filteredRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // Keep currentPage valid if totalPages shrinks
   useEffect(() => {
@@ -479,27 +508,14 @@ export default function AppointmentsRequestTab({
     >
       {/* Header */}
       <View style={tabStyles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          {onBack && (
-            <TouchableOpacity
-              onPress={onBack}
-              style={tabStyles.backButton}
-              activeOpacity={0.7}
-              accessibilityLabel="Back to Dashboard"
-            >
-              <ChevronLeft size={18} color={AppColors.primaryDark} />
-              <Text style={tabStyles.backButtonText}>BACK</Text>
-            </TouchableOpacity>
-          )}
-          <View
-            ref={tour.register("requests-counter")}
-            collapsable={false}
-            style={tabStyles.headerContent}
-          >
-            <Text style={tabStyles.headerTitle}>Appointment Requests</Text>
-            <View style={tabStyles.badgeContainer}>
-              <Text style={tabStyles.badgeText}>{appointmentRequests.length}</Text>
-            </View>
+        <View
+          ref={tour.register("requests-counter")}
+          collapsable={false}
+          style={tabStyles.headerContent}
+        >
+          <Text style={tabStyles.headerTitle}>Appointment Requests</Text>
+          <View style={tabStyles.badgeContainer}>
+            <Text style={tabStyles.badgeText}>{appointmentRequests.length}</Text>
           </View>
         </View>
 
@@ -536,6 +552,35 @@ export default function AppointmentsRequestTab({
         </View>
       </View>
 
+      {/* Search Bar Section */}
+      <View style={tabStyles.searchSection}>
+        <View
+          ref={tour.register("requests-search")}
+          collapsable={false}
+          style={tabStyles.searchContainer}
+        >
+          <Search size={16} color="#047857" style={{ marginRight: 8 }} />
+          <TextInput
+            style={tabStyles.searchInput}
+            placeholder="Search by patient name..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              style={tabStyles.clearSearchBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Clear search query"
+            >
+              <X size={14} color="#64748B" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {appointmentRequests.length === 0 ? (
         <View
           ref={tour.register("requests-empty-state")}
@@ -548,12 +593,27 @@ export default function AppointmentsRequestTab({
             All pending appointments have been processed.
           </Text>
         </View>
+      ) : filteredRequests.length === 0 ? (
+        <View style={tabStyles.emptyState}>
+          <Search size={44} color={AppColors.textMuted} style={{ marginBottom: 14 }} />
+          <Text style={tabStyles.emptyStateTitle}>No Matching Requests</Text>
+          <Text style={tabStyles.emptyStateMessage}>
+            No appointment requests match "{searchQuery}".
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            style={tabStyles.clearSearchActionBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={tabStyles.clearSearchActionBtnText}>Clear Search Filter</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <ScrollView ref={scrollViewRef} style={tabStyles.requestsList} contentContainerStyle={tabStyles.requestsListContent}>
           {/* Header info showing request count and page */}
           <View style={tabStyles.countHeader}>
             <Text style={tabStyles.countHeaderText}>
-              Showing <Text style={tabStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, appointmentRequests.length)}</Text> of <Text style={tabStyles.countHeaderBold}>{appointmentRequests.length}</Text> requests
+              Showing <Text style={tabStyles.countHeaderBold}>{filteredRequests.length > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredRequests.length)}</Text> of <Text style={tabStyles.countHeaderBold}>{filteredRequests.length}</Text> requests{searchQuery.trim() ? ` (filtered from ${appointmentRequests.length})` : ''}
             </Text>
             {totalPages > 1 && (
               <View style={tabStyles.pageBadge}>
@@ -731,23 +791,62 @@ const tabStyles = StyleSheet.create({
     borderBottomColor: '#CBD5E1',
   },
 
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    gap: 4,
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#CBD5E1',
   },
 
-  backButtonText: {
-    fontSize: 11.5,
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    height: 42,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    height: '100%',
+    padding: 0,
+  },
+
+  clearSearchBtn: {
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+
+  clearSearchActionBtn: {
+    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  clearSearchActionBtnText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: AppColors.primaryDark,
-    letterSpacing: 0.5,
+    color: '#047857',
   },
 
   headerContent: {

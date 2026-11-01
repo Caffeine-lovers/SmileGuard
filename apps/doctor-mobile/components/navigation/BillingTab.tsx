@@ -49,7 +49,6 @@ interface BillingTabProps {
   doctorId: string;
   styles: any;
   startTourTrigger?: number;
-  onBack?: () => void;
 }
 
 interface BillingWithPatientName extends Billing {
@@ -71,7 +70,7 @@ interface AppointmentDetails {
 
 const ITEMS_PER_PAGE = 4;
 
-export default function BillingTab({ doctorId, styles, startTourTrigger, onBack }: BillingTabProps) {
+export default function BillingTab({ doctorId, styles, startTourTrigger }: BillingTabProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedPatientName, setSelectedPatientName] = useState<string>('');
@@ -585,8 +584,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, onBack 
   };
 
   const filteredPatients = patients.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.email.toLowerCase().includes(searchQuery.toLowerCase())
+    p.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
   return (
@@ -594,23 +592,10 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, onBack 
       <View ref={tour.setContainer} collapsable={false} style={{ flex: 1 }}>
         {/* Module Top Header */}
         <View style={localStyles.topHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {onBack && (
-              <TouchableOpacity
-                onPress={onBack}
-                style={localStyles.backButton}
-                activeOpacity={0.7}
-                accessibilityLabel="Back to Dashboard"
-              >
-                <ChevronLeft size={18} color="#047857" />
-                <Text style={localStyles.backButtonText}>BACK</Text>
-              </TouchableOpacity>
-            )}
-            <View style={localStyles.headerTitleGroup}>
-              <Text style={localStyles.topHeaderTitle}>BILLING LEDGER</Text>
-              <View style={localStyles.pillCountBadge}>
-                <Text style={localStyles.pillCountText}>{billings.length}</Text>
-              </View>
+          <View style={localStyles.headerTitleGroup}>
+            <Text style={localStyles.topHeaderTitle}>BILLING LEDGER</Text>
+            <View style={localStyles.pillCountBadge}>
+              <Text style={localStyles.pillCountText}>{billings.length}</Text>
             </View>
           </View>
 
@@ -1015,7 +1000,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, onBack 
               <View style={localStyles.searchContainer}>
                 <Search size={16} color="#047857" style={{ marginRight: 8 }} />
                 <TextInput
-                  placeholder="Search by name or email..."
+                  placeholder="Search by patient name..."
                   placeholderTextColor="#94A3B8"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -1276,23 +1261,6 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1.5,
     borderBottomColor: '#E2E8F0',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  backButtonText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#047857',
-    letterSpacing: 0.5,
   },
   headerTitleGroup: {
     flexDirection: 'row',

@@ -54,7 +54,6 @@ interface AppointmentsTabProps {
   doctorId?: string;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
   startTourTrigger?: number;
-  onBack?: () => void;
 }
 
 export default function AppointmentsTab({
@@ -64,7 +63,6 @@ export default function AppointmentsTab({
   doctorId: providedDoctorId,
   onAppointmentStatusUpdated,
   startTourTrigger,
-  onBack,
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
@@ -633,10 +631,7 @@ export default function AppointmentsTab({
   const appointmentsToDisplay = fetchedAppointments;
   const filteredAppointments = appointmentsToDisplay.filter((apt) => {
     const matchesSearch =
-      (apt.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (apt.service || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (apt.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (apt.contact || '').includes(searchQuery);
+      (apt.name || '').toLowerCase().includes(searchQuery.toLowerCase().trim());
 
     const cleanAptDate = apt.date ? apt.date.split('T')[0].split(' ')[0] : '';
     const matchesDate = selectedDate ? cleanAptDate === selectedDate : true;
@@ -697,8 +692,8 @@ export default function AppointmentsTab({
     {
       id: "appointments-search",
       target: "appointments-search",
-      title: "Patient & Service Search",
-      description: "Quickly locate bookings by patient name, dental service or procedure, email address, or contact number.",
+      title: "Search by Patient Name",
+      description: "Quickly locate bookings by typing the patient's name.",
       icon: Search,
       padding: 6,
       radius: 12,
@@ -854,27 +849,14 @@ export default function AppointmentsTab({
       >
         {/* Top Header Row matching DoctorDashboard modules */}
         <View style={localStyles.topHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {onBack && (
-              <TouchableOpacity
-                onPress={onBack}
-                style={localStyles.backButton}
-                activeOpacity={0.7}
-                accessibilityLabel="Back to Dashboard"
-              >
-                <ChevronLeft size={18} color="#047857" />
-                <Text style={localStyles.backButtonText}>BACK</Text>
-              </TouchableOpacity>
-            )}
-            <View
-              ref={tour.register("appointments-actions")}
-              collapsable={false}
-              style={localStyles.headerTitleGroup}
-            >
-              <Text style={localStyles.headerTitle}>APPOINTMENTS</Text>
-              <View style={localStyles.pillCountBadge}>
-                <Text style={localStyles.pillCountText}>{filteredAppointments.length}</Text>
-              </View>
+          <View
+            ref={tour.register("appointments-actions")}
+            collapsable={false}
+            style={localStyles.headerTitleGroup}
+          >
+            <Text style={localStyles.headerTitle}>APPOINTMENTS</Text>
+            <View style={localStyles.pillCountBadge}>
+              <Text style={localStyles.pillCountText}>{filteredAppointments.length}</Text>
             </View>
           </View>
 
@@ -914,7 +896,7 @@ export default function AppointmentsTab({
             <Search size={16} color="#047857" style={{ marginRight: 8 }} />
             <TextInput
               style={localStyles.searchInput}
-              placeholder="Search by name, service, email, contact..."
+              placeholder="Search by patient name..."
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -1131,7 +1113,7 @@ export default function AppointmentsTab({
                 <Text style={localStyles.emptyTitle}>NO APPOINTMENTS FOUND</Text>
                 <Text style={localStyles.emptySubtitle}>
                   {searchQuery
-                    ? `No bookings match "${searchQuery}". Try a different search keyword.`
+                    ? `No bookings match "${searchQuery}". Try a different patient name.`
                     : selectedDate
                       ? 'No chair appointments scheduled for this date.'
                       : 'No appointments match the selected status filter.'}
@@ -1255,23 +1237,6 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  backButtonText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#047857',
-    letterSpacing: 0.5,
   },
   headerTitleGroup: {
     flexDirection: 'row',

@@ -49,7 +49,6 @@ interface RecordsTabProps {
   setShowPatientDetails: (show: boolean) => void;
   styles: any;
   startTourTrigger?: number;
-  onBack?: () => void;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -67,7 +66,6 @@ export default function RecordsTab({
   setShowPatientDetails,
   styles,
   startTourTrigger,
-  onBack,
 }: RecordsTabProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -129,12 +127,7 @@ export default function RecordsTab({
   const filteredPatients = basePatients.filter((patient) => {
     const query = quickSearchQuery.trim().toLowerCase();
     if (!query) return true;
-    return (
-      (patient.name && patient.name.toLowerCase().includes(query)) ||
-      (patient.service && patient.service.toLowerCase().includes(query)) ||
-      (patient.email && patient.email.toLowerCase().includes(query)) ||
-      (patient.contact && patient.contact.toLowerCase().includes(query))
-    );
+    return Boolean(patient.name && patient.name.toLowerCase().includes(query));
   });
 
   const sortedPatients = sortPatients(filteredPatients);
@@ -242,8 +235,8 @@ export default function RecordsTab({
     {
       id: "records-search",
       target: "records-search",
-      title: "Quick Search",
-      description: "Instantly filter patients by full name, requested dental procedure, email address, or contact number.",
+      title: "Search by Patient Name",
+      description: "Instantly filter patients by their full name.",
       icon: Search,
       padding: 6,
       radius: 12,
@@ -400,27 +393,14 @@ export default function RecordsTab({
       >
         {/* Top Header Row matching DoctorDashboard modules */}
         <View style={localStyles.topHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {onBack && (
-              <TouchableOpacity
-                onPress={onBack}
-                style={localStyles.backButton}
-                activeOpacity={0.7}
-                accessibilityLabel="Back to Dashboard"
-              >
-                <ChevronLeft size={18} color="#047857" />
-                <Text style={localStyles.backButtonText}>BACK</Text>
-              </TouchableOpacity>
-            )}
-            <View
-              ref={tour.register("records-actions")}
-              collapsable={false}
-              style={localStyles.headerTitleGroup}
-            >
-              <Text style={localStyles.headerTitle}>PATIENT RECORDS</Text>
-              <View style={localStyles.pillCountBadge}>
-                <Text style={localStyles.pillCountText}>{basePatients.length}</Text>
-              </View>
+          <View
+            ref={tour.register("records-actions")}
+            collapsable={false}
+            style={localStyles.headerTitleGroup}
+          >
+            <Text style={localStyles.headerTitle}>PATIENT RECORDS</Text>
+            <View style={localStyles.pillCountBadge}>
+              <Text style={localStyles.pillCountText}>{basePatients.length}</Text>
             </View>
           </View>
 
@@ -460,7 +440,7 @@ export default function RecordsTab({
             <Search size={16} color="#047857" style={{ marginRight: 8 }} />
             <TextInput
               style={localStyles.searchInput}
-              placeholder="Search by name, service, email, contact..."
+              placeholder="Search by patient name..."
               placeholderTextColor="#94A3B8"
               value={quickSearchQuery}
               onChangeText={setQuickSearchQuery}
@@ -554,7 +534,7 @@ export default function RecordsTab({
               </View>
               <Text style={localStyles.emptyTitle}>NO MATCHES FOUND</Text>
               <Text style={localStyles.emptySubtitle}>
-                No patient records match "{quickSearchQuery}". Try a different name, email, or contact number.
+                No patient records match "{quickSearchQuery}". Try a different patient name.
               </Text>
               <TouchableOpacity
                 onPress={() => setQuickSearchQuery("")}
@@ -732,23 +712,6 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  backButtonText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#047857',
-    letterSpacing: 0.5,
   },
   headerTitleGroup: {
     flexDirection: 'row',
