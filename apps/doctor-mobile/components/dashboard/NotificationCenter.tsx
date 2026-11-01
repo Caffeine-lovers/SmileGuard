@@ -1,9 +1,12 @@
 /**
- * NotificationCenter Component - Doctor Dashboard
- * Displays real-time Supabase table updates and changes
+ * NotificationCenter Component - Doctor Mobile
+ * Modernized notifications center focused on:
+ * 1. New appointment requests
+ * 2. Paid bills
+ * 3. New registered patients
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,12 +16,37 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Image,
 } from 'react-native';
+import {
+  Bell,
+  BellOff,
+  Calendar,
+  CreditCard,
+  UserPlus,
+  CheckCheck,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Sparkles,
+  Clock,
+  Tag,
+  Mail,
+  Receipt,
+  X,
+  CheckCircle2,
+} from 'lucide-react-native';
 import { Notification, NotificationType } from '../../types/notifications';
-import { HeroIcon } from '../ui/HeroIcon';
 
-interface NotificationCenterProps {
+export type NotificationNavTab =
+  | 'appointments'
+  | 'dashboard'
+  | 'records'
+  | 'billing'
+  | 'settings'
+  | 'appointment-requests';
+
+export interface NotificationCenterProps {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
@@ -27,70 +55,82 @@ interface NotificationCenterProps {
   onMarkAllAsRead: () => void;
   onDeleteNotification: (id: string) => void;
   onClearAll: () => void;
+  onClose?: () => void;
+  onNavigateToTab?: (tab: NotificationNavTab) => void;
 }
 
-// Notification type to icon and color mapping
-// Icons are sourced from assets/images/notification_icon/
-const notificationConfig: Record<
-  NotificationType,
-  { icon: any; color: string; label: string }
-> = {
-  'appointment-created': {
-    icon: require('../../assets/images/notification_icon/appointment-created.png'),
-    color: '#4CAF50',
-    label: 'Appointment Created',
+type FilterCategory = 'all' | 'appointments' | 'billings' | 'patients';
+
+interface CategoryConfig {
+  label: string;
+  badgeLabel: string;
+  icon: any;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  pillBg: string;
+  pillText: string;
+  tabTarget?: NotificationNavTab;
+}
+
+const CATEGORY_MAP: Record<string, CategoryConfig> = {
+  appointment: {
+    label: 'Appointments',
+    badgeLabel: 'New Appointment',
+    icon: Calendar,
+    color: '#059669', // Emerald
+    bgColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    pillBg: '#DCFCE7',
+    pillText: '#15803D',
+    tabTarget: 'appointment-requests',
   },
-  'appointment-updated': {
-    icon: require('../../assets/images/notification_icon/appointment-updated.png'),
-    color: '#2196F3',
-    label: 'Appointment Updated',
+  billing: {
+    label: 'Paid Bills',
+    badgeLabel: 'Bill Paid',
+    icon: Receipt,
+    color: '#0284C7', // Sky Blue
+    bgColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    pillBg: '#E0F2FE',
+    pillText: '#0369A1',
+    tabTarget: 'billing',
   },
-  'appointment-cancelled': {
-    icon: require('../../assets/images/notification_icon/appointment-cancelled.png'),
-    color: '#F44336',
-    label: 'Appointment Cancelled',
+  patient: {
+    label: 'New Patients',
+    badgeLabel: 'New Patient',
+    icon: UserPlus,
+    color: '#7C3AED', // Violet
+    bgColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+    pillBg: '#EDE9FE',
+    pillText: '#6D28D9',
+    tabTarget: 'records',
   },
-  'appointment-completed': {
-    icon: require('../../assets/images/notification_icon/appointment-updated.png'),
-    color: '#4CAF50',
-    label: 'Appointment Completed',
-  },
-  'appointment-declined': {
-    icon: require('../../assets/images/notification_icon/appointment-cancelled.png'),
-    color: '#FF6F00',
-    label: 'Appointment Declined',
-  },
-  'patient-updated': {
-    icon: require('../../assets/images/notification_icon/patient-updated.png'),
-    color: '#FF9800',
-    label: 'Patient Updated',
-  },
-  'medical-intake-updated': {
-    icon: require('../../assets/images/notification_icon/medical-intake-updated.png'),
-    color: '#9C27B0',
-    label: 'Medical Records Updated',
-  },
-  'doctor-profile-updated': {
-    icon: require('../../assets/images/notification_icon/doctor-profile-updated-man.png'),
-    color: '#2196F3',
-    label: 'Profile Updated',
-  },
-  'billing-updated': {
-    icon: require('../../assets/images/notification_icon/appointment-updated.png'),
-    color: '#FF5722',
-    label: 'Billing Updated',
-  },
-  'treatment-added': {
-    icon: require('../../assets/images/notification_icon/appointment-updated.png'),
-    color: '#00BCD4',
-    label: 'Treatment Added',
-  },
-  error: {
-    icon: require('../../assets/images/notification_icon/notifications.png'),
-    color: '#F44336',
-    label: 'Error',
+  default: {
+    label: 'Updates',
+    badgeLabel: 'Update',
+    icon: Bell,
+    color: '#475569',
+    bgColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    pillBg: '#F1F5F9',
+    pillText: '#475569',
   },
 };
+
+function getCategoryConfig(type: NotificationType): CategoryConfig {
+  if (type === 'appointment-created' || type.startsWith('appointment-')) {
+    return CATEGORY_MAP.appointment;
+  }
+  if (type === 'bill-paid' || type === 'billing-paid' || type.startsWith('billing-')) {
+    return CATEGORY_MAP.billing;
+  }
+  if (type === 'patient-registered' || type.startsWith('patient-')) {
+    return CATEGORY_MAP.patient;
+  }
+  return CATEGORY_MAP.default;
+}
 
 export default function NotificationCenter({
   notifications,
@@ -101,14 +141,50 @@ export default function NotificationCenter({
   onMarkAllAsRead,
   onDeleteNotification,
   onClearAll,
+  onClose,
+  onNavigateToTab,
 }: NotificationCenterProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<NotificationType | 'all'>('all');
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
 
-  const filteredNotifications =
-    filterType === 'all'
-      ? notifications
-      : notifications.filter((n) => n.type === filterType);
+  // Filter counts
+  const counts = useMemo(() => {
+    let appointments = 0;
+    let billings = 0;
+    let patients = 0;
+
+    notifications.forEach((n) => {
+      if (n.type === 'appointment-created' || n.type.startsWith('appointment-')) {
+        appointments++;
+      } else if (n.type === 'bill-paid' || n.type === 'billing-paid' || n.type.startsWith('billing-')) {
+        billings++;
+      } else if (n.type === 'patient-registered' || n.type.startsWith('patient-')) {
+        patients++;
+      }
+    });
+
+    return {
+      all: notifications.length,
+      appointments,
+      billings,
+      patients,
+    };
+  }, [notifications]);
+
+  // Filtered notifications list
+  const filteredNotifications = useMemo(() => {
+    if (filterCategory === 'all') return notifications;
+    if (filterCategory === 'appointments') {
+      return notifications.filter((n) => n.type === 'appointment-created' || n.type.startsWith('appointment-'));
+    }
+    if (filterCategory === 'billings') {
+      return notifications.filter((n) => n.type === 'bill-paid' || n.type === 'billing-paid' || n.type.startsWith('billing-'));
+    }
+    if (filterCategory === 'patients') {
+      return notifications.filter((n) => n.type === 'patient-registered' || n.type.startsWith('patient-'));
+    }
+    return notifications;
+  }, [notifications, filterCategory]);
 
   const formatTime = (date: Date): string => {
     const now = new Date();
@@ -120,225 +196,528 @@ export default function NotificationCenter({
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   const handleDeleteWithConfirm = (id: string) => {
-    Alert.alert('Delete Notification', 'Remove this notification?', [
+    Alert.alert('Remove Notification', 'Are you sure you want to dismiss this notification?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete',
+        text: 'Remove',
         style: 'destructive',
         onPress: () => onDeleteNotification(id),
       },
     ]);
   };
 
+  const handleClearAllWithConfirm = () => {
+    Alert.alert(
+      'Clear All Notifications',
+      'This will remove all notifications from your notification center.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: onClearAll,
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Top Header Bar */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <HeroIcon name="bell" size="md" color="#10B981" />
-            <Text style={styles.headerTitle}>Notifications</Text>
+          <View style={styles.headerIconContainer}>
+            <Bell size={20} color="#059669" />
           </View>
+          <View>
+            <Text style={styles.headerTitle}>Notifications</Text>
+            <Text style={styles.headerSubtitle}>
+              {unreadCount > 0 ? `${unreadCount} unread update${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.headerActions}>
           {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
+            <TouchableOpacity
+              onPress={onMarkAllAsRead}
+              style={styles.markAllButton}
+              activeOpacity={0.7}
+            >
+              <CheckCheck size={14} color="#047857" />
+              <Text style={styles.markAllButtonText}>Read All</Text>
+            </TouchableOpacity>
+          )}
+
+          {onClose && (
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              activeOpacity={0.7}
+            >
+              <X size={18} color="#64748B" />
+            </TouchableOpacity>
           )}
         </View>
-        {filteredNotifications.length > 0 && (
-          <TouchableOpacity onPress={onMarkAllAsRead} style={styles.headerAction}>
-            <Text style={styles.headerActionText}>Mark all read</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
-      {/* Loading State */}
+      {/* Loading Bar */}
       {isLoading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
-          <Text style={styles.loadingText}>Setting up notifications...</Text>
+          <ActivityIndicator size="small" color="#059669" />
+          <Text style={styles.loadingText}>Syncing updates...</Text>
         </View>
       )}
 
-      {/* Error Display - Only show critical errors, hide subscription errors */}
+      {/* Critical Error Display */}
       {error && !error.includes('subscribe') && (
         <View style={styles.errorBanner}>
-          <HeroIcon name="information" size="sm" color="#ef4444" />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
-      {/* Filter Tabs */}
-      {!isLoading && filteredNotifications.length > 0 && (
+      {/* Category Filter Chips */}
+      <View style={styles.filterSection}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.filterTabs}
           contentContainerStyle={styles.filterTabsContent}
         >
+          {/* All Tab */}
           <TouchableOpacity
             style={[
               styles.filterTab,
-              filterType === 'all' && styles.filterTabActive,
+              filterCategory === 'all' && styles.filterTabActive,
             ]}
-            onPress={() => setFilterType('all')}
+            onPress={() => setFilterCategory('all')}
+            activeOpacity={0.8}
           >
             <Text
               style={[
                 styles.filterTabText,
-                filterType === 'all' && styles.filterTabTextActive,
+                filterCategory === 'all' && styles.filterTabTextActive,
               ]}
             >
               All
             </Text>
+            <View
+              style={[
+                styles.filterBadge,
+                filterCategory === 'all' && styles.filterBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterBadgeText,
+                  filterCategory === 'all' && styles.filterBadgeTextActive,
+                ]}
+              >
+                {counts.all}
+              </Text>
+            </View>
           </TouchableOpacity>
 
-          {Object.entries(notificationConfig).map(([type, config]) => {
-            const count = notifications.filter((n) => n.type === type as NotificationType).length;
-            if (count === 0) return null;
-
-            return (
-              <TouchableOpacity
-                key={type}
+          {/* Appointments Tab */}
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              filterCategory === 'appointments' && styles.filterTabActive,
+            ]}
+            onPress={() => setFilterCategory('appointments')}
+            activeOpacity={0.8}
+          >
+            <Calendar
+              size={14}
+              color={filterCategory === 'appointments' ? '#FFFFFF' : '#059669'}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={[
+                styles.filterTabText,
+                filterCategory === 'appointments' && styles.filterTabTextActive,
+              ]}
+            >
+              Appointments
+            </Text>
+            {counts.appointments > 0 && (
+              <View
                 style={[
-                  styles.filterTab,
-                  filterType === type && styles.filterTabActive,
+                  styles.filterBadge,
+                  filterCategory === 'appointments' && styles.filterBadgeActive,
                 ]}
-                onPress={() => setFilterType(type as NotificationType)}
               >
                 <Text
                   style={[
-                    styles.filterTabText,
-                    filterType === type && styles.filterTabTextActive,
+                    styles.filterBadgeText,
+                    filterCategory === 'appointments' && styles.filterBadgeTextActive,
                   ]}
                 >
-                  {config.label}
+                  {counts.appointments}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
+              </View>
+            )}
+          </TouchableOpacity>
 
-      {/* Notifications List */}
-      {isLoading ? null : filteredNotifications.length === 0 ? (
+          {/* Paid Bills Tab */}
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              filterCategory === 'billings' && styles.filterTabActive,
+            ]}
+            onPress={() => setFilterCategory('billings')}
+            activeOpacity={0.8}
+          >
+            <Receipt
+              size={14}
+              color={filterCategory === 'billings' ? '#FFFFFF' : '#0284C7'}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={[
+                styles.filterTabText,
+                filterCategory === 'billings' && styles.filterTabTextActive,
+              ]}
+            >
+              Paid Bills
+            </Text>
+            {counts.billings > 0 && (
+              <View
+                style={[
+                  styles.filterBadge,
+                  filterCategory === 'billings' && styles.filterBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterBadgeText,
+                    filterCategory === 'billings' && styles.filterBadgeTextActive,
+                  ]}
+                >
+                  {counts.billings}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* New Patients Tab */}
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              filterCategory === 'patients' && styles.filterTabActive,
+            ]}
+            onPress={() => setFilterCategory('patients')}
+            activeOpacity={0.8}
+          >
+            <UserPlus
+              size={14}
+              color={filterCategory === 'patients' ? '#FFFFFF' : '#7C3AED'}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={[
+                styles.filterTabText,
+                filterCategory === 'patients' && styles.filterTabTextActive,
+              ]}
+            >
+              New Patients
+            </Text>
+            {counts.patients > 0 && (
+              <View
+                style={[
+                  styles.filterBadge,
+                  filterCategory === 'patients' && styles.filterBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterBadgeText,
+                    filterCategory === 'patients' && styles.filterBadgeTextActive,
+                  ]}
+                >
+                  {counts.patients}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* Main List */}
+      {filteredNotifications.length === 0 ? (
         <View style={styles.emptyState}>
-          <HeroIcon name="bell" size="xl" color="#d1d5db" />
-          <Text style={styles.emptyStateTitle}>No Notifications</Text>
+          <View style={styles.emptyIconContainer}>
+            <BellOff size={36} color="#94A3B8" />
+          </View>
+          <Text style={styles.emptyStateTitle}>
+            {filterCategory === 'all'
+              ? 'No Notifications'
+              : filterCategory === 'appointments'
+              ? 'No Appointment Requests'
+              : filterCategory === 'billings'
+              ? 'No Paid Bills'
+              : 'No New Patients'}
+          </Text>
           <Text style={styles.emptyStateMessage}>
-            You're all caught up! Updates will appear here.
+            {filterCategory === 'all'
+              ? "You're all caught up! New patient registrations, paid bills, and appointment bookings will appear here in real-time."
+              : filterCategory === 'appointments'
+              ? 'When patients book or request appointments, you will see them here.'
+              : filterCategory === 'billings'
+              ? 'When invoices or bills are marked paid, confirmations will appear here.'
+              : 'When new patients sign up with the clinic, their profiles will appear here.'}
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.notificationsList} contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView
+          style={styles.notificationsList}
+          contentContainerStyle={styles.notificationsListContent}
+          showsVerticalScrollIndicator={false}
+        >
           {filteredNotifications.map((notification) => {
-            const config = notificationConfig[notification.type];
+            const config = getCategoryConfig(notification.type);
+            const IconComponent = config.icon;
             const isExpanded = expandedId === notification.id;
+            const isUnread = !notification.read;
 
             return (
               <TouchableOpacity
                 key={notification.id}
                 style={[
                   styles.notificationCard,
-                  !notification.read && styles.notificationCardUnread,
+                  isUnread && styles.notificationCardUnread,
+                  { borderLeftColor: isUnread ? config.color : '#E2E8F0' },
                 ]}
                 onPress={() => {
-                  if (!notification.read) {
+                  if (isUnread) {
                     onMarkAsRead(notification.id);
                   }
                   setExpandedId(isExpanded ? null : notification.id);
                 }}
-                activeOpacity={0.7}
+                activeOpacity={0.85}
               >
-                {/* Notification Header */}
-                <View style={styles.notificationHeader}>
-                  <View style={[styles.iconBadge, { backgroundColor: config.color }]}>
-                    <Image
-                      source={config.icon}
-                      style={styles.notificationIcon}
-                      resizeMode="contain"
-                    />
-                  </View>
-
-                  <View style={styles.notificationContent}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.notificationTitle} numberOfLines={1}>{notification.title}</Text>
-                      {!notification.read && (
-                        <View style={styles.unreadDot} />
-                      )}
+                {/* Header Row */}
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.cardHeaderLeft}>
+                    <View
+                      style={[
+                        styles.iconBadge,
+                        { backgroundColor: config.bgColor, borderColor: config.borderColor },
+                      ]}
+                    >
+                      <IconComponent size={18} color={config.color} />
                     </View>
-                    <Text style={styles.notificationTime}>
-                      {formatTime(notification.timestamp)}
-                    </Text>
+
+                    <View style={styles.metaColumn}>
+                      <View style={styles.categoryPillRow}>
+                        <View style={[styles.categoryPill, { backgroundColor: config.pillBg }]}>
+                          <Text style={[styles.categoryPillText, { color: config.pillText }]}>
+                            {config.badgeLabel}
+                          </Text>
+                        </View>
+                        {isUnread && (
+                          <View style={styles.newBadge}>
+                            <Text style={styles.newBadgeText}>NEW</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.timeRow}>
+                        <Clock size={11} color="#94A3B8" />
+                        <Text style={styles.notificationTime}>
+                          {formatTime(notification.timestamp)}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
 
                   <TouchableOpacity
-                    style={styles.deleteButton}
+                    style={styles.deleteIconButton}
                     onPress={() => handleDeleteWithConfirm(notification.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <HeroIcon name="trash" size="sm" color="#6b7280" />
+                    <Trash2 size={15} color="#94A3B8" />
                   </TouchableOpacity>
                 </View>
 
-                {/* Notification Body */}
-                <View style={styles.notificationBody}>
-                  <Text style={styles.notificationMessage}>{notification.message}</Text>
+                {/* Content */}
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{notification.title}</Text>
+                  <Text style={styles.cardMessage}>{notification.message}</Text>
                 </View>
 
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <View style={styles.expandedDetails}>
-                    {notification.data && (
-                      <>
-                        <View style={styles.detailRow}>
-                          <Text style={styles.detailLabel}>Event Type:</Text>
-                          <Text style={styles.detailValue}>{notification.data.action}</Text>
-                        </View>
-                        {notification.data.tableName && (
-                          <View style={styles.detailRow}>
-                            <Text style={styles.detailLabel}>Table:</Text>
-                            <Text style={styles.detailValue}>
-                              {notification.data.tableName}
-                            </Text>
-                          </View>
-                        )}
-                        {notification.data.recordId && (
-                          <View style={styles.detailRow}>
-                            <Text style={styles.detailLabel}>Record ID:</Text>
-                            <Text style={styles.detailValue}>
-                              {notification.data.recordId.substring(0, 8)}...
-                            </Text>
-                          </View>
-                        )}
-                      </>
+                {/* Structured Info Chips */}
+                {notification.data && (
+                  <View style={styles.chipsContainer}>
+                    {notification.data.patientName && (
+                      <View style={styles.infoChip}>
+                        <UserPlus size={12} color="#475569" />
+                        <Text style={styles.infoChipText} numberOfLines={1}>
+                          {notification.data.patientName}
+                        </Text>
+                      </View>
                     )}
+
+                    {notification.data.service && (
+                      <View style={styles.infoChip}>
+                        <Tag size={12} color="#059669" />
+                        <Text style={[styles.infoChipText, { color: '#047857' }]} numberOfLines={1}>
+                          {notification.data.service}
+                        </Text>
+                      </View>
+                    )}
+
+                    {notification.data.appointmentDate && (
+                      <View style={styles.infoChip}>
+                        <Calendar size={12} color="#2563EB" />
+                        <Text style={[styles.infoChipText, { color: '#1D4ED8' }]}>
+                          {notification.data.appointmentDate}
+                          {notification.data.appointmentTime ? ` ${notification.data.appointmentTime}` : ''}
+                        </Text>
+                      </View>
+                    )}
+
+                    {notification.data.amount !== undefined && (
+                      <View style={[styles.infoChip, { backgroundColor: '#ECFDF5' }]}>
+                        <Receipt size={12} color="#059669" />
+                        <Text style={[styles.infoChipText, { color: '#047857', fontWeight: '700' }]}>
+                          ₱{notification.data.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    )}
+
+                    {notification.data.paymentMethod && (
+                      <View style={styles.infoChip}>
+                        <CreditCard size={12} color="#0284C7" />
+                        <Text style={[styles.infoChipText, { color: '#0369A1' }]}>
+                          {notification.data.paymentMethod}
+                        </Text>
+                      </View>
+                    )}
+
+                    {notification.data.email && (
+                      <View style={styles.infoChip}>
+                        <Mail size={12} color="#6D28D9" />
+                        <Text style={[styles.infoChipText, { color: '#6D28D9' }]} numberOfLines={1}>
+                          {notification.data.email}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Expand Toggle Cue */}
+                <View style={styles.cardFooter}>
+                  <Text style={styles.expandCueText}>
+                    {isExpanded ? 'Hide details' : 'Tap for details & actions'}
+                  </Text>
+                  {isExpanded ? (
+                    <ChevronUp size={14} color="#94A3B8" />
+                  ) : (
+                    <ChevronDown size={14} color="#94A3B8" />
+                  )}
+                </View>
+
+                {/* Expanded Details Drawer */}
+                {isExpanded && (
+                  <View style={styles.expandedDrawer}>
+                    <View style={styles.drawerDivider} />
+
+                    <View style={styles.drawerGrid}>
+                      {notification.data?.patientName && (
+                        <View style={styles.drawerItem}>
+                          <Text style={styles.drawerItemLabel}>Patient</Text>
+                          <Text style={styles.drawerItemValue}>{notification.data.patientName}</Text>
+                        </View>
+                      )}
+
+                      {notification.data?.service && (
+                        <View style={styles.drawerItem}>
+                          <Text style={styles.drawerItemLabel}>Service</Text>
+                          <Text style={styles.drawerItemValue}>{notification.data.service}</Text>
+                        </View>
+                      )}
+
+                      {notification.data?.appointmentDate && (
+                        <View style={styles.drawerItem}>
+                          <Text style={styles.drawerItemLabel}>Date & Time</Text>
+                          <Text style={styles.drawerItemValue}>
+                            {notification.data.appointmentDate}{' '}
+                            {notification.data.appointmentTime || ''}
+                          </Text>
+                        </View>
+                      )}
+
+                      {notification.data?.amount !== undefined && (
+                        <View style={styles.drawerItem}>
+                          <Text style={styles.drawerItemLabel}>Amount Paid</Text>
+                          <Text style={[styles.drawerItemValue, { color: '#047857', fontWeight: '700' }]}>
+                            ₱{notification.data.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                      )}
+
+                      {notification.data?.paymentMethod && (
+                        <View style={styles.drawerItem}>
+                          <Text style={styles.drawerItemLabel}>Payment Method</Text>
+                          <Text style={styles.drawerItemValue}>{notification.data.paymentMethod}</Text>
+                        </View>
+                      )}
+
+                      {notification.data?.email && (
+                        <View style={styles.drawerItem}>
+                          <Text style={styles.drawerItemLabel}>Email</Text>
+                          <Text style={styles.drawerItemValue}>{notification.data.email}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Action Buttons Row */}
+                    <View style={styles.drawerActions}>
+                      {config.tabTarget && onNavigateToTab && (
+                        <TouchableOpacity
+                          style={[styles.primaryActionBtn, { backgroundColor: config.color }]}
+                          onPress={() => onNavigateToTab(config.tabTarget!)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.primaryActionBtnText}>
+                            View in {config.label}
+                          </Text>
+                          <ExternalLink size={14} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={styles.secondaryActionBtn}
+                        onPress={() => onMarkAsRead(notification.id)}
+                        activeOpacity={0.8}
+                      >
+                        <CheckCircle2 size={14} color="#059669" />
+                        <Text style={styles.secondaryActionBtnText}>
+                          {notification.read ? 'Marked as read' : 'Mark as read'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
               </TouchableOpacity>
             );
           })}
 
-          {/* Clear All Button */}
-          {filteredNotifications.length > 3 && (
+          {/* Clear All Footer Button */}
+          {filteredNotifications.length > 2 && (
             <TouchableOpacity
-              style={styles.clearAllButton}
-              onPress={() => {
-                Alert.alert('Clear Notifications', 'Remove all notifications?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Clear',
-                    style: 'destructive',
-                    onPress: onClearAll,
-                  },
-                ]);
-              }}
+              style={styles.clearAllBtn}
+              onPress={handleClearAllWithConfirm}
+              activeOpacity={0.8}
             >
-              <Text style={styles.clearAllButtonText}>Clear All Notifications</Text>
+              <Trash2 size={16} color="#DC2626" />
+              <Text style={styles.clearAllBtnText}>Clear All Notifications</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -350,18 +729,30 @@ export default function NotificationCenter({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F8FAFC',
   },
 
+  /* Top Bar */
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#E2E8F0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
 
   headerLeft: {
@@ -370,270 +761,463 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-
-  badge: {
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+  headerIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-
-  headerAction: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#ECFDF5',
-  },
-
-  headerActionText: {
-    color: '#047857',
-    fontSize: 12,
+  headerTitle: {
+    fontSize: 17,
     fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  markAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  markAllButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#047857',
+  },
+
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    backgroundColor: '#ECFDF5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#D1FAE5',
+  },
+
+  loadingText: {
+    fontSize: 12,
+    color: '#047857',
+    fontWeight: '600',
   },
 
   errorBanner: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: '#FEF2F2',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 8,
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: '#F44336',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
   },
 
   errorText: {
-    color: '#C62828',
+    color: '#B91C1C',
     fontSize: 12,
     fontWeight: '500',
   },
 
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  loadingText: {
-    marginTop: 12,
-    color: '#047857',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  filterTabs: {
-    backgroundColor: '#fff',
+  /* Filter Section */
+  filterSection: {
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    maxHeight: 60,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 10,
   },
 
   filterTabsContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
     gap: 8,
   },
 
   filterTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#E2E8F0',
   },
 
   filterTabActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+    backgroundColor: '#059669',
+    borderColor: '#059669',
   },
 
   filterTabText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#666',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
   },
 
   filterTabTextActive: {
-    color: '#fff',
+    color: '#FFFFFF',
   },
 
+  filterBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+  },
+
+  filterBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+
+  filterBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+
+  /* List */
   notificationsList: {
     flex: 1,
-    paddingHorizontal: 12,
-    paddingTop: 12,
   },
 
+  notificationsListContent: {
+    padding: 16,
+    gap: 12,
+    paddingBottom: 36,
+  },
+
+  /* Card */
+  notificationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderLeftWidth: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 1.5,
+      },
+    }),
+  },
+
+  notificationCardUnread: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#CBD5E1',
+  },
+
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  metaColumn: {
+    flex: 1,
+  },
+
+  categoryPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  categoryPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+
+  categoryPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+
+  newBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: '#059669',
+  },
+
+  newBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+
+  notificationTime: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+
+  deleteIconButton: {
+    padding: 6,
+    borderRadius: 6,
+  },
+
+  cardBody: {
+    marginTop: 10,
+  },
+
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+
+  cardMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#475569',
+    marginTop: 3,
+  },
+
+  /* Info Chips */
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+
+  infoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: '#E2E8F0',
+  },
+
+  infoChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#F1F5F9',
+  },
+
+  expandCueText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+
+  /* Expanded Drawer */
+  expandedDrawer: {
+    marginTop: 6,
+  },
+
+  drawerDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 10,
+  },
+
+  drawerGrid: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+
+  drawerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  drawerItemLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  drawerItemValue: {
+    fontSize: 12,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+
+  drawerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+
+  primaryActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+
+  primaryActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  secondaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+
+  secondaryActionBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+
+  clearAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+
+  clearAllBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+
+  /* Empty State */
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 64,
   },
 
-  emptyStateIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+  emptyIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
 
   emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 6,
   },
 
   emptyStateMessage: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-  },
-
-  notificationCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ddd',
-    overflow: 'hidden',
-  },
-
-  notificationCardUnread: {
-    backgroundColor: '#ECFDF5',
-    borderLeftColor: '#10B981',
-  },
-
-  notificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-
-  iconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-
-  notificationIcon: {
-    width: 24,
-    height: 24,
-  },
-
-  notificationContent: {
-    flex: 1,
-  },
-
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-
-  notificationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    flex: 1,
-  },
-
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-    flexShrink: 0,
-  },
-
-  notificationTime: {
-    fontSize: 12,
-    color: '#999',
-  },
-
-  deleteButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    flexShrink: 0,
-  },
-
-  deleteButtonText: {
-    fontSize: 14,
-    color: '#999',
-  },
-
-  notificationBody: {
-    marginLeft: 50,
-    marginTop: 8,
-  },
-
-  notificationMessage: {
     fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
-  },
-
-  expandedDetails: {
-    marginLeft: 50,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
-
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#999',
-  },
-
-  detailValue: {
-    fontSize: 12,
-    color: '#333',
-    fontFamily: 'monospace',
-  },
-
-  clearAllButton: {
-    marginVertical: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFEBEE',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F44336',
-  },
-
-  clearAllButtonText: {
+    lineHeight: 19,
+    color: '#64748B',
     textAlign: 'center',
-    color: '#C62828',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

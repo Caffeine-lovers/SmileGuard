@@ -36,12 +36,6 @@ import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile, isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from "../../lib/doctorService";
 import { getDoctorFullName, getDoctorPrefix, getDoctorTitleName } from "@smileguard/shared-types";
 import { supabase } from '@smileguard/supabase-client';
-import {
-  notifyAppointmentStatusChanged,
-  notifyAppointmentCreated,
-  notifyDoctorProfileUpdated,
-  createManualNotification,
-} from "../../lib/notificationService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
@@ -120,8 +114,13 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
   const handleIncomingNotification = useCallback((notification: any) => {
     console.log('[DoctorDashboard] Incoming notification popped:', notification.title);
-    // When appointment or medical intake arrives, auto refresh dashboard data immediately
-    if (notification.type.startsWith('appointment-') || notification.type.startsWith('medical-intake')) {
+    // When appointment, paid bill, or new patient registration arrives, auto refresh dashboard data
+    if (
+      notification.type.startsWith('appointment-') ||
+      notification.type === 'bill-paid' ||
+      notification.type === 'billing-paid' ||
+      notification.type === 'patient-registered'
+    ) {
       refreshRef.current?.();
     }
   }, []);
@@ -911,19 +910,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               // Add to appointments list with updated status and dentist_id
               setAppointments((prev) => [...prev, { ...request, dentist_id: user.id, status: 'scheduled' }]);
 
-              // Trigger manual notification for accepting request
-              const notification = createManualNotification(
-                'appointment-updated',
-                'Appointment Accepted',
-                `You accepted the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
-                {
-                  appointmentId: request.id,
-                  patientId: request.patient_id,
-                  action: 'UPDATE',
-                }
-              );
-              notificationState.actions.addNotification(notification);
-
               Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
             } catch (error) {
               Alert.alert('Error', 'Failed to accept appointment request');
@@ -968,19 +954,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               setAppointments((prev) =>
                 prev.map((apt) => (apt.id === request.id ? { ...apt, status: 'declined', dentist_id: user.id } : apt))
               );
-
-              // Trigger notification for declining request
-              const notification = createManualNotification(
-                'appointment-declined',
-                'Appointment Declined',
-                `You declined the appointment request with ${request.name}`,
-                {
-                  appointmentId: request.id,
-                  patientId: request.patient_id,
-                  action: 'UPDATE',
-                }
-              );
-              notificationState.actions.addNotification(notification);
 
               Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
             } catch (error) {
@@ -1030,21 +1003,6 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
       setAppointments((prev) =>
         prev.map((apt) => (apt.id === appointmentId ? { ...apt, status } : apt))
       );
-
-      // Trigger manual notification for status change (only for supported statuses)
-      if (status !== 'scheduled' && status !== 'declined') {
-        const appointment = appointments.find(apt => apt.id === appointmentId);
-        if (appointment) {
-          const notification = notifyAppointmentStatusChanged(
-            status as 'completed' | 'cancelled' | 'no-show',
-            appointment.name,
-            appointmentId,
-            appointment.patient_id || '',
-            user.id
-          );
-          notificationState.actions.addNotification(notification);
-        }
-      }
     } catch (error) {
       Alert.alert('Error', 'Failed to update appointment status');
       console.error('Error updating appointment status:', error);
@@ -1131,6 +1089,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               notificationState.actions.dismissActiveNotification();
               if (notif?.type.startsWith('appointment-')) {
                 navigateToTab('appointment-requests');
+              } else if (notif?.type === 'bill-paid' || notif?.type === 'billing-paid') {
+                navigateToTab('billing');
+              } else if (notif?.type === 'patient-registered') {
+                navigateToTab('records');
               } else {
                 setShowNotificationCenter(true);
               }
@@ -1680,30 +1642,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               styles={styles}
               doctorId={user.id}
               onBack={handleGoBack}
-              onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
-                // Trigger notification when appointment status is updated
-                let notification;
-                if (status === 'declined') {
-                  notification = createManualNotification(
-                    'appointment-declined',
-                    'Appointment Declined',
-                    `${patientName}'s appointment has been declined`,
-                    {
-                      appointmentId,
-                      patientId,
-                      action: 'UPDATE',
-                    }
-                  );
-                } else {
-                  notification = notifyAppointmentStatusChanged(
-                    status as 'completed' | 'cancelled' | 'no-show',
-                    patientName,
-                    appointmentId,
-                    patientId,
-                    doctorId
-                  );
-                }
-                notificationState.actions.addNotification(notification);
+              onAppointmentStatusUpdated={() => {
+                // Handled in AppointmentsTab
               }}
             />
           ) : activeTab === 'appointment-requests' ? (
@@ -1734,9 +1674,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               styles={styles}
               onBack={handleGoBack}
               onProfileUpdated={(doctorName, doctorId) => {
-                // Trigger notification when doctor profile is updated
-                const notification = notifyDoctorProfileUpdated(doctorName, doctorId);
-                notificationState.actions.addNotification(notification);
+                // Doctor profile updated
               }}
               onStartTutorial={() => {
                 navigateToTab('dashboard');
@@ -1771,30 +1709,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             setViewingPatient(null);
           }}
 
-          onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
-            // Trigger notification when appointment status is updated
-            let notification;
-            if (status === 'declined') {
-              notification = createManualNotification(
-                'appointment-declined',
-                'Appointment Declined',
-                `${patientName}'s appointment has been declined`,
-                {
-                  appointmentId,
-                  patientId,
-                  action: 'UPDATE',
-                }
-              );
-            } else {
-              notification = notifyAppointmentStatusChanged(
-                status as 'completed' | 'cancelled' | 'no-show',
-                patientName,
-                appointmentId,
-                patientId,
-                doctorId
-              );
-            }
-            notificationState.actions.addNotification(notification);
+          onAppointmentStatusUpdated={() => {
+            // Handled in PatientDetailsView
           }}
         />
 
@@ -1979,40 +1895,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           presentationStyle="pageSheet"
           onRequestClose={() => setShowNotificationCenter(false)}
         >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <View style={{ flex: 1 }}>
-              {/* Modal Header */}
-              <View style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                backgroundColor: '#fff',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e0e0e0',
-              }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333' }}>
-                  Notifications
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowNotificationCenter(false)}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 4,
-                    backgroundColor: '#DDE4E8',
-                    borderWidth: 1,
-                    borderColor: '#CBD5E1',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <X size={18} color="#475569" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Notification List */}
               <NotificationCenter
                 notifications={notificationState.notifications}
                 unreadCount={notificationState.unreadCount}
@@ -2022,6 +1906,11 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                 onMarkAllAsRead={notificationState.actions.markAllAsRead}
                 onDeleteNotification={notificationState.actions.deleteNotification}
                 onClearAll={notificationState.actions.clearAll}
+                onClose={() => setShowNotificationCenter(false)}
+                onNavigateToTab={(tab) => {
+                  setShowNotificationCenter(false);
+                  navigateToTab(tab);
+                }}
               />
             </View>
           </SafeAreaView>
@@ -2040,29 +1929,8 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             onSave={async () => {
               await refreshDashboardData();
             }}
-            onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
-              let notification;
-              if (status === 'declined') {
-                notification = createManualNotification(
-                  'appointment-declined',
-                  'Appointment Declined',
-                  `${patientName}'s appointment has been declined`,
-                  {
-                    appointmentId,
-                    patientId,
-                    doctorId,
-                  }
-                );
-              } else {
-                notification = notifyAppointmentStatusChanged(
-                  status as 'completed' | 'cancelled' | 'no-show',
-                  patientName,
-                  appointmentId,
-                  patientId,
-                  doctorId
-                );
-              }
-              notificationState.actions.addNotification(notification);
+            onAppointmentStatusUpdated={() => {
+              // Handled in AppointmentEdit
             }}
           />
         )}
