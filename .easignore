@@ -7,3 +7,8 @@ web-build/
 *.pt
 *.onnx
 
+
+# Not needed for the doctor app build (EAS uploads the whole repo)
+marketing/
+.vercel/
+*.mp4
