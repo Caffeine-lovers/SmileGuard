@@ -6,13 +6,29 @@ import {
   ScrollView,
   Modal,
   Switch,
-  Animated,
   ActivityIndicator,
-  Image,
+  StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
-import { Settings as SettingsIcon, ChevronRight, CreditCard, Compass, Sparkles, Users, Calendar } from 'lucide-react-native';
+import {
+  Settings as SettingsIcon,
+  ChevronRight,
+  CreditCard,
+  Compass,
+  Sparkles,
+  Users,
+  Calendar,
+  ShieldCheck,
+  Building,
+  Bell,
+  Type,
+  HelpCircle,
+  Lock,
+  FileCheck,
+  PhoneCall,
+  User,
+} from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
@@ -80,7 +96,7 @@ export default function SettingsTab({
       console.log('=== FETCH DOCTOR DEBUG ===');
       console.log('authUser:', authUser);
       console.log('User ID:', userId);
-      
+
       if (!userId) {
         console.warn('❌ No user ID available');
         setDoctorData(EMPTY_DOCTOR);
@@ -119,7 +135,7 @@ export default function SettingsTab({
   const handleSaveProfile = async (updatedDoctor: Partial<Doctor>) => {
     try {
       console.log('💾 Saving doctor profile updates:', updatedDoctor);
-      
+
       const effectiveUserId = updatedDoctor.user_id || doctorData.user_id || authUser?.id || user?.id;
       const targetId = updatedDoctor.id || doctorData.id || effectiveUserId;
       if (!targetId) {
@@ -136,23 +152,19 @@ export default function SettingsTab({
 
       // Call Supabase to update the doctor profile
       const result = await updateDoctorProfile(targetId, payload);
-      
+
       if (result) {
         console.log('✅ Profile updated in Supabase:', result);
-        // Update local state with the returned data
         setDoctorData(result);
-        
-        // Notify parent dashboard component immediately so title and name update in real-time
+
         if (onUpdateProfile) {
           onUpdateProfile(result);
         }
 
-        // Trigger notification callback if provided
         if (onProfileUpdated && result.id) {
           const docTitle = `${getDoctorPrefix(result)} ${getDoctorFullName(result)}`.trim();
           onProfileUpdated(docTitle || 'Doctor', result.id);
         }
-        // Don't close modal - keep it open for more edits
       } else {
         console.error('❌ Failed to update profile in Supabase');
         throw new Error('Failed to update doctor profile');
@@ -166,8 +178,6 @@ export default function SettingsTab({
   const handleSaveClinic = async (clinicData: any) => {
     try {
       console.log('💾 Saving clinic setup:', clinicData);
-      // TODO: Implement clinic data saving to Supabase
-      // For now, just log the data
       console.log('✅ Clinic data ready to save:', clinicData);
     } catch (error) {
       console.error('❌ Failed to save clinic data:', error);
@@ -181,13 +191,6 @@ export default function SettingsTab({
     }));
   };
 
-  const updateTheme = (newTheme: Theme) => {
-    setAppSettings(prev => ({
-      ...prev,
-      theme: newTheme,
-    }));
-  };
-
   const updateFontSize = (newSize: FontSize) => {
     setAppSettings(prev => ({
       ...prev,
@@ -196,394 +199,326 @@ export default function SettingsTab({
   };
 
   const fontSizeValues = { small: 12, medium: 14, large: 16 };
-  const ACCENT_COLOR = '#10B981';
-  const LIGHT_BG = '#F8FAFC';
-  const CARD_BG = '#fff';
-  const TEXT_PRIMARY = '#333';
-  const TEXT_SECONDARY = '#666';
-  const BORDER_COLOR = '#ddd';
 
   return (
-    <>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} style={{ backgroundColor: LIGHT_BG, flex: 1 }}>
-        <View style={{ paddingHorizontal: 16 }}>
-          {/* Header */}
-          <View style={{ marginBottom: 32, marginTop: 24, paddingBottom: 20, borderBottomWidth: 2, borderBottomColor: BORDER_COLOR }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, marginTop: 30 }}>
-              <SettingsIcon size={28} color={ACCENT_COLOR} />
-              <Text style={{ fontSize: 32, fontWeight: '800', color: ACCENT_COLOR }}>Settings</Text>
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+      {/* Module Top Header */}
+      <View style={localStyles.topHeader}>
+        <View style={localStyles.headerTitleGroup}>
+          <Text style={localStyles.topHeaderTitle}>CLINIC SETTINGS</Text>
+          <View style={localStyles.pillCountBadge}>
+            <Text style={localStyles.pillCountText}>CONFIG</Text>
+          </View>
+        </View>
+
+        <View style={localStyles.headerActionsRow}>
+          <TouchableOpacity
+            onPress={onStartTutorial}
+            style={localStyles.skeuoActionBtn}
+            activeOpacity={0.7}
+            accessibilityLabel="Start App Tour"
+          >
+            <Sparkles size={17} color="#047857" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* Doctor Profile Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>DOCTOR PROFILE</Text>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={() => setEditingProfile(true)}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <User size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Doctor Profile</Text>
+                <Text style={localStyles.cardSubtitle}>Name, specialty, license number & credentials</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
             </View>
-            <Text style={{ fontSize: 14, color: TEXT_SECONDARY }}>Manage clinic and appointments</Text>
-          </View>
+          </TouchableOpacity>
+        </View>
 
-          {/* Profile Section */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Profile Settings</Text>
-            <TouchableOpacity
-              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 16, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: ACCENT_COLOR, borderWidth: 1, borderTopColor: BORDER_COLOR, borderRightColor: BORDER_COLOR, borderBottomColor: BORDER_COLOR }}
-              onPress={() => setEditingProfile(true)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY, marginBottom: 4 }}>Doctor Profile</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Name, specialty, credentials</Text>
-                </View>
-                <ChevronRight size={20} color={ACCENT_COLOR} />
+        {/* Clinic Setup Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>CLINIC PRACTICE</Text>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={() => setEditingClinic(true)}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <Building size={18} color="#047857" />
               </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Clinic Settings Section */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Clinic</Text>
-            <TouchableOpacity
-              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: ACCENT_COLOR, borderWidth: 1, borderTopColor: BORDER_COLOR, borderRightColor: BORDER_COLOR, borderBottomColor: BORDER_COLOR }}
-              onPress={() => setEditingClinic(true)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY, marginBottom: 4 }}>Clinic Setup</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Hours, location, services</Text>
-                </View>
-                <ChevronRight size={20} color={ACCENT_COLOR} />
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Clinic Setup</Text>
+                <Text style={localStyles.cardSubtitle}>Operating hours, clinic address, services & chairs</Text>
               </View>
-            </TouchableOpacity>
-          </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
 
-          {/* PayMongo Billing & Payout Section */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Billing & Payouts</Text>
-            <TouchableOpacity
-              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 16, borderLeftWidth: 3, borderLeftColor: ACCENT_COLOR, borderWidth: 1, borderTopColor: BORDER_COLOR, borderRightColor: BORDER_COLOR, borderBottomColor: BORDER_COLOR }}
-              onPress={() => setShowPayMongoGuide(true)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY }}>PayMongo Gateway Guide</Text>
-                    <View style={{ backgroundColor: '#ECFDF5', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#A7F3D0' }}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#047857' }}>GUIDELINES</Text>
-                    </View>
+        {/* PayMongo Billing & Payout Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>BILLING & PAYOUTS</Text>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={() => setShowPayMongoGuide(true)}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <CreditCard size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={localStyles.cardTitle}>PayMongo Gateway Guide</Text>
+                  <View style={localStyles.miniBadge}>
+                    <Text style={localStyles.miniBadgeText}>GUIDELINES</Text>
                   </View>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Clinic merchant registration, GCash/Maya & bank payouts</Text>
                 </View>
-                <ChevronRight size={20} color={ACCENT_COLOR} />
+                <Text style={localStyles.cardSubtitle}>Clinic merchant setup, GCash/Maya & bank payouts</Text>
               </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Notifications Section */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notifications</Text>
-            
-            <View style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 0, overflow: 'hidden', borderWidth: 1, borderColor: BORDER_COLOR }}>
-              <View style={{ borderBottomWidth: 1, borderBottomColor: BORDER_COLOR, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY }}>Appointment Reminders</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 4 }}>Get notified before appointments</Text>
-                </View>
-                <Switch
-                  value={appSettings.appointmentReminders}
-                  onValueChange={() => toggleNotificationSetting('appointmentReminders')}
-                  trackColor={{ false: '#e0e0e0', true: '#B3E5FC' }}
-                  thumbColor={appSettings.appointmentReminders ? ACCENT_COLOR : '#ccc'}
-                />
-              </View>
-              <View style={{ paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_PRIMARY }}>New Patient Requests</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 4 }}>Get notifications for new requests</Text>
-                </View>
-                <Switch
-                  value={appSettings.newPatientRequests}
-                  onValueChange={() => toggleNotificationSetting('newPatientRequests')}
-                  trackColor={{ false: '#e0e0e0', true: '#B3E5FC' }}
-                  thumbColor={appSettings.newPatientRequests ? ACCENT_COLOR : '#ccc'}
-                />
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
+        </View>
 
-          {/* Font Size Selection */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Text Size</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              {(['small', 'medium', 'large'] as const).map((sizeOption) => (
+        {/* Notifications Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>NOTIFICATIONS</Text>
+          <View style={localStyles.skeuoGroupCard}>
+            <View style={[localStyles.switchRow, { borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }]}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={localStyles.cardTitle}>Appointment Reminders</Text>
+                <Text style={localStyles.cardSubtitle}>Receive alerts before scheduled patient visits</Text>
+              </View>
+              <Switch
+                value={appSettings.appointmentReminders}
+                onValueChange={() => toggleNotificationSetting('appointmentReminders')}
+                trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
+                thumbColor={appSettings.appointmentReminders ? '#047857' : '#94A3B8'}
+              />
+            </View>
+
+            <View style={localStyles.switchRow}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={localStyles.cardTitle}>New Patient Requests</Text>
+                <Text style={localStyles.cardSubtitle}>Notify when new booking requests arrive</Text>
+              </View>
+              <Switch
+                value={appSettings.newPatientRequests}
+                onValueChange={() => toggleNotificationSetting('newPatientRequests')}
+                trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
+                thumbColor={appSettings.newPatientRequests ? '#047857' : '#94A3B8'}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Text Size Selection */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>DISPLAY TEXT SIZE</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['small', 'medium', 'large'] as const).map((sizeOption) => {
+              const isSelected = appSettings.fontSize === sizeOption;
+              return (
                 <TouchableOpacity
                   key={sizeOption}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 12,
-                    borderRadius: 10,
-                    borderWidth: 2,
-                    borderColor: appSettings.fontSize === sizeOption ? ACCENT_COLOR : '#e0e0e0',
-                    backgroundColor: appSettings.fontSize === sizeOption ? '#EBF8FF' : '#f9f9f9',
-                    alignItems: 'center',
-                  }}
+                  style={[
+                    localStyles.fontSizeBtn,
+                    isSelected && localStyles.fontSizeBtnActive,
+                  ]}
                   activeOpacity={0.7}
                   onPress={() => updateFontSize(sizeOption)}
                 >
                   <Text
-                    style={{
-                      fontSize: fontSizeValues[sizeOption],
-                      fontWeight: '700',
-                      color: appSettings.fontSize === sizeOption ? ACCENT_COLOR : TEXT_SECONDARY,
-                      textTransform: 'capitalize',
-                    }}
+                    style={[
+                      localStyles.fontSizeBtnText,
+                      isSelected && localStyles.fontSizeBtnTextActive,
+                      { fontSize: fontSizeValues[sizeOption] },
+                    ]}
                   >
-                    {sizeOption[0].toUpperCase()}
+                    {sizeOption.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Interactive Walkthroughs Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>INTERACTIVE WALKTHROUGHS</Text>
+
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={onStartTutorial}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <Compass size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Doctor Dashboard Walkthrough</Text>
+                <Text style={localStyles.cardSubtitle}>Daily schedules, patient queue & quick actions</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          {/* Guide & Tutorials Section */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Guide & Tutorials</Text>
-
-            <TouchableOpacity
-              style={{
-                backgroundColor: CARD_BG,
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 10,
-                borderLeftWidth: 3,
-                borderLeftColor: ACCENT_COLOR,
-                borderWidth: 1,
-                borderTopColor: BORDER_COLOR,
-                borderRightColor: BORDER_COLOR,
-                borderBottomColor: BORDER_COLOR,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-              onPress={onStartTutorial}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
-                <View style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  backgroundColor: '#ECFDF5',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: '#A7F3D0',
-                }}>
-                  <Compass size={20} color="#047857" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>App Walkthrough</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how navigation, appointments, and charting work</Text>
-                </View>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={onStartRecordsTutorial}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <Users size={18} color="#047857" />
               </View>
-              <ChevronRight size={20} color={ACCENT_COLOR} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{
-                backgroundColor: CARD_BG,
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 10,
-                borderLeftWidth: 3,
-                borderLeftColor: '#059669',
-                borderWidth: 1,
-                borderTopColor: BORDER_COLOR,
-                borderRightColor: BORDER_COLOR,
-                borderBottomColor: BORDER_COLOR,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-              onPress={onStartRecordsTutorial}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
-                <View style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  backgroundColor: '#ECFDF5',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: '#A7F3D0',
-                }}>
-                  <Users size={20} color="#059669" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Patient Records Walkthrough</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to search, sort, and inspect patient charts</Text>
-                </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Patient Records Walkthrough</Text>
+                <Text style={localStyles.cardSubtitle}>Search, sort & digital dental charts</Text>
               </View>
-              <ChevronRight size={20} color="#059669" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{
-                backgroundColor: CARD_BG,
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 10,
-                borderLeftWidth: 3,
-                borderLeftColor: '#047857',
-                borderWidth: 1,
-                borderTopColor: BORDER_COLOR,
-                borderRightColor: BORDER_COLOR,
-                borderBottomColor: BORDER_COLOR,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-              onPress={onStartAppointmentsTutorial}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
-                <View style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  backgroundColor: '#ECFDF5',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: '#A7F3D0',
-                }}>
-                  <Calendar size={20} color="#047857" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Appointments Walkthrough</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to browse calendar dates, filter statuses, and edit visits</Text>
-                </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
               </View>
-              <ChevronRight size={20} color="#047857" />
-            </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={{
-                backgroundColor: CARD_BG,
-                borderRadius: 12,
-                padding: 16,
-                marginBottom: 10,
-                borderLeftWidth: 3,
-                borderLeftColor: '#10B981',
-                borderWidth: 1,
-                borderTopColor: BORDER_COLOR,
-                borderRightColor: BORDER_COLOR,
-                borderBottomColor: BORDER_COLOR,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-              onPress={onStartBillingTutorial}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
-                <View style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  backgroundColor: '#ECFDF5',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: '#A7F3D0',
-                }}>
-                  <CreditCard size={20} color="#10B981" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Billing Ledger Walkthrough</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Learn how to track revenue, filter invoices, and setup PayMongo</Text>
-                </View>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={onStartAppointmentsTutorial}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <Calendar size={18} color="#047857" />
               </View>
-              <ChevronRight size={20} color="#10B981" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{
-                backgroundColor: CARD_BG,
-                borderRadius: 12,
-                padding: 16,
-                borderLeftWidth: 3,
-                borderLeftColor: '#0284C7',
-                borderWidth: 1,
-                borderTopColor: BORDER_COLOR,
-                borderRightColor: BORDER_COLOR,
-                borderBottomColor: BORDER_COLOR,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-              onPress={() => router.push('/onboarding')}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
-                <View style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  backgroundColor: '#E0F2FE',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: '#BAE6FD',
-                }}>
-                  <Sparkles size={20} color="#0284C7" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT_PRIMARY, marginBottom: 2 }}>Clinic Onboarding Wizard</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_SECONDARY }}>Review clinic hours, catalog, and PayMongo setup</Text>
-                </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Appointments Walkthrough</Text>
+                <Text style={localStyles.cardSubtitle}>Monthly calendar, status filters & booking edits</Text>
               </View>
-              <ChevronRight size={20} color="#0284C7" />
-            </TouchableOpacity>
-          </View>
-
-          {/* About & Help Section */}
-          <View style={{ marginBottom: 28 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_SECONDARY, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>Support</Text>
-            
-            <TouchableOpacity
-              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: BORDER_COLOR }}
-              activeOpacity={0.7}
-            >
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_PRIMARY }}>Privacy Policy</Text>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
               </View>
-              <ChevronRight size={18} color={ACCENT_COLOR} />
-            </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 14, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: BORDER_COLOR }}
-              activeOpacity={0.7}
-            >
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_PRIMARY }}>Terms & Conditions</Text>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={onStartBillingTutorial}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <CreditCard size={18} color="#047857" />
               </View>
-              <ChevronRight size={18} color={ACCENT_COLOR} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ backgroundColor: CARD_BG, borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: BORDER_COLOR }}
-              activeOpacity={0.7}
-            >
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_PRIMARY }}>Contact Support</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Billing Ledger Walkthrough</Text>
+                <Text style={localStyles.cardSubtitle}>Revenue tracking, invoices & PayMongo payouts</Text>
               </View>
-              <ChevronRight size={18} color={ACCENT_COLOR} />
-            </TouchableOpacity>
-          </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
+            </View>
+          </TouchableOpacity>
 
-          {/* Version & Footer */}
-          <View style={{ alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
-            <Text style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: 6 }}>© 2026 SmileGuard Dental. All rights reserved.</Text>
-          </View>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={() => router.push('/onboarding')}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={[localStyles.iconBox, { backgroundColor: '#E0F2FE', borderColor: '#BAE6FD' }]}>
+                <Sparkles size={18} color="#0284C7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Clinic Onboarding Wizard</Text>
+                <Text style={localStyles.cardSubtitle}>Revisit the full setup: clinic hours, catalog & PayMongo</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#0284C7" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Support Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>SUPPORT & COMPLIANCE</Text>
+
+          <TouchableOpacity style={localStyles.skeuoCard} activeOpacity={0.75}>
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <Lock size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Privacy Policy</Text>
+                <Text style={localStyles.cardSubtitle}>Data privacy and patient confidentiality</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={localStyles.skeuoCard} activeOpacity={0.75}>
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <FileCheck size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Terms & Conditions</Text>
+                <Text style={localStyles.cardSubtitle}>Platform service agreement & clinical rules</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={localStyles.skeuoCard} activeOpacity={0.75}>
+            <View style={localStyles.cardContentRow}>
+              <View style={localStyles.iconBox}>
+                <PhoneCall size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Contact SmileGuard Support</Text>
+                <Text style={localStyles.cardSubtitle}>Get technical assistance or report an issue</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Version Footer */}
+        <View style={localStyles.footerContainer}>
+          <Text style={localStyles.footerVersionText}>SmileGuard Clinic Portal v2.6.0</Text>
+          <Text style={localStyles.footerCopyrightText}>© 2026 SmileGuard Dental. All rights reserved.</Text>
         </View>
       </ScrollView>
 
@@ -594,8 +529,11 @@ export default function SettingsTab({
         onRequestClose={() => setEditingProfile(false)}
       >
         {loadingDoctor ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#10B981" />
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+            <ActivityIndicator size="large" color="#047857" />
+            <Text style={{ marginTop: 12, color: '#047857', fontSize: 13, fontWeight: '700' }}>
+              Loading doctor profile...
+            </Text>
           </View>
         ) : (
           <DoctorProfileView
@@ -623,6 +561,202 @@ export default function SettingsTab({
         visible={showPayMongoGuide}
         onClose={() => setShowPayMongoGuide(false)}
       />
-    </>
+    </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  // Top Header Module Row
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E2E8F0',
+  },
+  headerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  topHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.6,
+  },
+  pillCountBadge: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 9999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  pillCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skeuoActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Section Label
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    paddingLeft: 2,
+  },
+
+  // Skeuomorphic Cards
+  skeuoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 12,
+    marginBottom: 8,
+  },
+  skeuoGroupCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    overflow: 'hidden',
+  },
+  cardContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  cardSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  chevronBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  miniBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  miniBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#047857',
+  },
+
+  // Switch Rows
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+
+  // Text Size Buttons
+  fontSizeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fontSizeBtnActive: {
+    backgroundColor: '#047857',
+    borderTopColor: '#047857',
+    borderLeftColor: '#047857',
+    borderRightColor: '#064E3B',
+    borderBottomColor: '#022C22',
+    borderBottomWidth: 2.5,
+  },
+  fontSizeBtnText: {
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  fontSizeBtnTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Footer
+  footerContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  footerVersionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  footerCopyrightText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+});

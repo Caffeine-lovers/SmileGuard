@@ -15,7 +15,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@smileguard/supabase-client';
 import { Billing } from '@smileguard/shared-types';
-import { FileText, X, ChevronDown, RefreshCw, Users, User, Check, ChevronLeft, ChevronRight, CreditCard, ShieldCheck, Sparkles, Receipt, DollarSign } from 'lucide-react-native';
+import {
+  FileText,
+  X,
+  ChevronDown,
+  RefreshCw,
+  Users,
+  User,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
+  ShieldCheck,
+  Sparkles,
+  Receipt,
+  DollarSign,
+  Calendar,
+  Search,
+} from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
 import { isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
@@ -115,84 +132,84 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
       placement: "center",
       onEnter: () => {
         try {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-        } catch (e) { }
-      },
-    },
-    {
-      id: "billing-paymongo",
-      target: "billing-paymongo",
-      title: "PayMongo Payout Guide",
-      description: "Step-by-step instructions on setting up your PayMongo account, submitting BIR Form 2303, and receiving automated payouts via GCash, Maya, or bank transfer.",
-      icon: CreditCard,
-      padding: 6,
-      radius: 14,
-      placement: "bottom",
-      onEnter: () => {
-        try {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
         } catch (e) { }
       },
     },
     {
       id: "billing-actions",
       target: "billing-actions",
-      title: "Sync & Walkthrough Guide",
-      description: "Tap Refresh to fetch the latest billing records and payment statuses from the cloud, or tap Sparkles anytime to replay this walkthrough.",
+      title: "Ledger Actions & Walkthrough",
+      description: "Tap the refresh icon anytime to sync payments from Supabase, or launch this walkthrough tour anytime.",
       icon: Sparkles,
       padding: 6,
-      radius: 8,
-      placement: "bottom",
+      radius: 12,
+      placement: "bottom" as const,
       onEnter: () => {
         try {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) { }
+      },
+    },
+    {
+      id: "billing-paymongo",
+      target: "billing-paymongo",
+      title: "PayMongo Payout Gateway",
+      description: "Learn how to link your clinic's bank account, GCash, or Maya via PayMongo to receive direct automated settlements.",
+      icon: CreditCard,
+      padding: 6,
+      radius: 14,
+      placement: "bottom" as const,
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
         } catch (e) { }
       },
     },
     {
       id: "billing-filter",
       target: "billing-filter",
-      title: "Filter by Patient",
-      description: "Filter billing records for an individual patient or view the entire clinic ledger. Tap to search patients by name or email.",
+      title: "Patient Ledger Filter",
+      description: "Filter all invoices by specific patient to audit their personal statement of account, or reset to show all clinic records.",
       icon: Users,
       padding: 6,
       radius: 12,
-      placement: "bottom",
+      placement: "bottom" as const,
       onEnter: () => {
         try {
-          scrollViewRef.current?.scrollTo({ y: 60, animated: false });
+          scrollViewRef.current?.scrollTo?.({ y: 60, animated: false });
         } catch (e) { }
       },
     },
     {
       id: "billing-summary",
       target: "billing-summary",
-      title: "Revenue Overview",
-      description: "Quickly view clinic financials at a glance: Total billed volume, Paid collections, and Pending balances waiting for patient settlement.",
+      title: "Financial Ledger Summary",
+      description: "At-a-glance financial health metrics: gross total billed, total settled payments, and pending outstanding balances.",
       icon: DollarSign,
       padding: 6,
       radius: 12,
-      placement: "bottom",
+      placement: "bottom" as const,
       onEnter: () => {
         try {
-          scrollViewRef.current?.scrollTo({ y: 130, animated: false });
+          scrollViewRef.current?.scrollTo?.({ y: 150, animated: false });
         } catch (e) { }
       },
     },
-    ...(billings.length > 0
+    ...(paginatedBillings.length > 0
       ? [
         {
           id: "billing-first-card",
           target: "billing-first-card",
-          title: "Invoice & Payment Details",
-          description: "Inspect invoice numbers, live payment status (Paid, Pending, Overdue, Cancelled), original price, applied discounts, and payment methods.",
-          icon: FileText,
+          title: "Invoice & Payment Card",
+          description: "Inspect invoice items, see original vs discounted amounts, payment method (Cash, GCash, Card), and tap appointment links to review details.",
+          icon: Receipt,
           padding: 6,
-          radius: 12,
-          placement: "auto" as const,
+          radius: 14,
+          placement: "bottom" as const,
           onEnter: () => {
             try {
-              scrollViewRef.current?.scrollTo({ y: 220, animated: false });
+              scrollViewRef.current?.scrollTo?.({ y: 240, animated: false });
             } catch (e) { }
           },
         },
@@ -209,7 +226,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
           placement: "bottom" as const,
           onEnter: () => {
             try {
-              scrollViewRef.current?.scrollTo({ y: 220, animated: false });
+              scrollViewRef.current?.scrollTo?.({ y: 220, animated: false });
             } catch (e) { }
           },
         },
@@ -227,7 +244,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
           placement: "auto" as const,
           onEnter: () => {
             try {
-              scrollViewRef.current?.scrollToEnd({ animated: false });
+              scrollViewRef.current?.scrollToEnd?.({ animated: false });
             } catch (e) { }
           },
         },
@@ -241,7 +258,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
       placement: "center",
       onEnter: () => {
         try {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
         } catch (e) { }
       },
     },
@@ -502,22 +519,35 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
     }
   };
 
-  const getPaymentStatusColor = (status: string): string => {
-    switch (status) {
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
       case 'paid':
-        return '#10b981';
+        return {
+          bg: '#ECFDF5',
+          text: '#047857',
+          border: '#A7F3D0',
+          label: 'PAID',
+        };
       case 'overdue':
-        return '#ef4444';
       case 'cancelled':
-        return '#6b7280';
+      case 'failed':
+        return {
+          bg: '#FEE2E2',
+          text: '#DC2626',
+          border: '#FECACA',
+          label: status.toUpperCase(),
+        };
       case 'not_paid':
       case 'pending':
       default:
-        return '#f59e0b';
+        return {
+          bg: '#FEF3C7',
+          text: '#B45309',
+          border: '#FDE68A',
+          label: 'PENDING',
+        };
     }
   };
-
-
 
   // Keep currentPage valid if totalPages shrinks
   useEffect(() => {
@@ -530,10 +560,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
     if (page >= 1 && page <= totalPages && page !== currentPage) {
       setCurrentPage(page);
       try {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      } catch (err) {
-        // safe fallback if scrollTo is not supported on ref
-      }
+        scrollViewRef.current?.scrollTo?.({ y: 0, animated: true });
+      } catch (err) { }
     }
   };
 
@@ -561,510 +589,389 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
       <View ref={tour.setContainer} collapsable={false} style={{ flex: 1 }}>
-        <ScrollView ref={scrollViewRef} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-          <View style={{ padding: 16, gap: 16 }}>
-            {/* Header */}
-            <View style={{ marginBottom: 4 }}>
-              <Text style={{ fontSize: 24, fontWeight: '700', color: '#111', marginBottom: 4 }}>
-                Billing Ledger
-              </Text>
-              <Text style={{ fontSize: 13, color: '#666' }}>
-                Manage patient billings and payment statuses
-              </Text>
+        {/* Module Top Header */}
+        <View style={localStyles.topHeader}>
+          <View style={localStyles.headerTitleGroup}>
+            <Text style={localStyles.topHeaderTitle}>BILLING LEDGER</Text>
+            <View style={localStyles.pillCountBadge}>
+              <Text style={localStyles.pillCountText}>{billings.length}</Text>
             </View>
+          </View>
 
-            {/* PayMongo Onboarding & Guidelines Card */}
-            <View ref={tour.register("billing-paymongo")} collapsable={false}>
-              <TouchableOpacity
-                onPress={() => setShowPayMongoGuide(true)}
-                style={{
-                  backgroundColor: '#042F2E',
-                  borderRadius: 14,
-                  padding: 16,
-                  borderWidth: 1,
-                  borderColor: '#0D9488',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#115E59', alignItems: 'center', justifyContent: 'center' }}>
-                    <CreditCard size={22} color="#34D399" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>PayMongo Payout Guide</Text>
-                      <View style={{ backgroundColor: '#059669', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>GUIDELINES</Text>
-                      </View>
-                    </View>
-                    <Text style={{ fontSize: 12, color: '#99F6E4', lineHeight: 16 }}>
-                      Step-by-step setup: BIR Form 2303, GCash/Maya & direct bank settlements.
-                    </Text>
-                  </View>
-                </View>
-                <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#10B981', borderRadius: 8 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#042F2E' }}>Open Steps</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Action Buttons */}
-            <View
-              ref={tour.register("billing-actions")}
-              collapsable={false}
-              style={{ flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'flex-end', alignItems: 'center' }}
+          <View
+            ref={tour.register("billing-actions")}
+            collapsable={false}
+            style={localStyles.headerActionsRow}
+          >
+            <TouchableOpacity
+              onPress={handleRefresh}
+              disabled={loading}
+              style={localStyles.skeuoActionBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Refresh Billing"
             >
-              {/* Refresh Button */}
-              <TouchableOpacity
-                onPress={handleRefresh}
-                disabled={loading}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                  backgroundColor: loading ? '#ccc' : '#10B981',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <RefreshCw size={14} color="#fff" style={loading ? { opacity: 0.7 } : undefined} />
-                <Text style={{ fontSize: 14, color: '#fff', fontWeight: '600' }}>
-                  {loading ? 'Refreshing...' : 'Refresh'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Walkthrough Button */}
-              <TouchableOpacity
-                onPress={handleStartTour}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                  backgroundColor: '#ECFDF5',
-                  borderWidth: 1,
-                  borderColor: '#A7F3D0',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                activeOpacity={0.7}
-                accessibilityLabel="Start Walkthrough"
-              >
-                <Sparkles size={16} color="#047857" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Patient Selection Card */}
-            <View
-              ref={tour.register("billing-filter")}
-              collapsable={false}
-              style={{
-                backgroundColor: '#fff',
-                borderRadius: 12,
-                padding: 14,
-
-
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 2,
-                elevation: 2,
-              }}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#666' }}>
-                  FILTER BY PATIENT
-                </Text>
-                {selectedPatientId ? (
-                  <TouchableOpacity onPress={() => handleSelectPatient(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={{ fontSize: 12, color: '#10B981', fontWeight: '600' }}>Show All</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-
-              <TouchableOpacity
-                onPress={() => setShowPatientModal(true)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  backgroundColor: '#f0f9ff',
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#10B981',
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#111' }}>
-                    {selectedPatientName || 'All'}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                    {selectedPatientId
-                      ? `ID: ${selectedPatientId.slice(0, 8)}...`
-                      : 'Showing all billing records'}
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 20, color: "#047857", marginLeft: 8 }}>▼</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Summary Cards */}
-            <View ref={tour.register("billing-summary")} collapsable={false} style={{ marginBottom: 16 }}>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                {/* Total Amount Card */}
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
-                    borderRadius: 12,
-                    padding: 12,
-
-
-                  }}
-                >
-                  <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
-                    TOTAL
-                  </Text>
-                  <Text
-                    style={{ fontSize: 16, fontWeight: '700', color: '#3b82f6' }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                  >
-                    ${totalAmount.toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Paid Amount Card */}
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
-                    borderRadius: 12,
-                    padding: 12,
-
-
-                  }}
-                >
-                  <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
-                    PAID
-                  </Text>
-                  <Text
-                    style={{ fontSize: 16, fontWeight: '700', color: '#10b981' }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                  >
-                    ${paidAmount.toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Pending Amount Card */}
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: '#fff',
-                    borderRadius: 12,
-                    padding: 12,
-
-
-                  }}
-                >
-                  <Text style={{ fontSize: 10, color: '#666', marginBottom: 6, fontWeight: '600' }}>
-                    PENDING
-                  </Text>
-                  <Text
-                    style={{ fontSize: 16, fontWeight: '700', color: '#ef4444' }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                  >
-                    ${pendingAmount.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Billings List */}
-            <View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#111' }}>
-                  Billing Records ({billings.length})
-                </Text>
-                {selectedPatientName ? (
-                  <Text style={{ fontSize: 12, color: '#10B981', fontWeight: '600' }}>
-                    Filtered: {selectedPatientName}
-                  </Text>
-                ) : (
-                  <Text style={{ fontSize: 12, color: '#666' }}>
-                    All Patients
-                  </Text>
-                )}
-              </View>
-
               {loading ? (
-                <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                  <ActivityIndicator size="large" color="#10B981" />
-                </View>
-              ) : billings.length === 0 ? (
-                <View
-                  ref={tour.register("billing-empty-state")}
-                  collapsable={false}
-                  style={{
-                    backgroundColor: '#E6ECEF',
-                    borderRadius: 4,
-                    borderWidth: 1.5,
-                    borderTopColor: '#FFFFFF',
-                    borderLeftColor: '#FFFFFF',
-                    borderBottomColor: '#B0BAC5',
-                    borderRightColor: '#B0BAC5',
-                    padding: 24,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <FileText size={44} color={AppColors.textMuted} style={{ marginBottom: 12 }} />
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: AppColors.textPrimary, marginBottom: 4 }}>
-                    No Billings Found
-                  </Text>
-                  <Text style={{ fontSize: 13, color: AppColors.textSecondary, textAlign: 'center' }}>
-                    {selectedPatientId
-                      ? 'No billing records found for this patient yet.'
-                      : 'No billing records found in the clinic ledger.'}
-                  </Text>
-                </View>
+                <ActivityIndicator size="small" color="#047857" />
               ) : (
-                <>
-                  {/* Header info showing billing count and page */}
-                  <View style={localStyles.countHeader}>
-                    <Text style={localStyles.countHeaderText}>
-                      Showing <Text style={localStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, billings.length)}</Text> of <Text style={localStyles.countHeaderBold}>{billings.length}</Text> records
-                    </Text>
-                    {totalPages > 1 && (
-                      <View style={localStyles.pageBadge}>
-                        <Text style={localStyles.pageBadgeText}>
-                          Page {currentPage} of {totalPages}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+                <RefreshCw size={17} color="#047857" />
+              )}
+            </TouchableOpacity>
 
-                  <FlatList
-                    scrollEnabled={false}
-                    data={paginatedBillings}
-                    keyExtractor={(item) => item.id || Math.random().toString()}
-                    renderItem={({ item, index }) => (
+            <TouchableOpacity
+              onPress={handleStartTour}
+              style={localStyles.skeuoActionBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Start Walkthrough"
+            >
+              <Sparkles size={17} color="#047857" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+
+          {/* PayMongo Onboarding & Guidelines Card */}
+          <View ref={tour.register("billing-paymongo")} collapsable={false} style={{ marginBottom: 14 }}>
+            <TouchableOpacity
+              onPress={() => setShowPayMongoGuide(true)}
+              style={localStyles.paymongoCard}
+              activeOpacity={0.85}
+            >
+              <View style={localStyles.paymongoBevel} />
+              <View style={localStyles.paymongoContent}>
+                <View style={localStyles.paymongoIconBox}>
+                  <CreditCard size={22} color="#34D399" />
+                </View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Text style={localStyles.paymongoTitle}>PayMongo Payout Guide</Text>
+                    <View style={localStyles.paymongoBadge}>
+                      <Text style={localStyles.paymongoBadgeText}>GUIDELINES</Text>
+                    </View>
+                  </View>
+                  <Text style={localStyles.paymongoDesc}>
+                    Step-by-step setup: BIR Form 2303, GCash/Maya & bank settlements.
+                  </Text>
+                </View>
+                <View style={localStyles.paymongoActionBtn}>
+                  <Text style={localStyles.paymongoActionBtnText}>Open</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Patient Selection Filter Card */}
+          <View
+            ref={tour.register("billing-filter")}
+            collapsable={false}
+            style={localStyles.skeuoCard}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Users size={14} color="#047857" />
+                <Text style={localStyles.cardSectionHeader}>FILTER BY PATIENT</Text>
+              </View>
+              {selectedPatientId ? (
+                <TouchableOpacity
+                  onPress={() => handleSelectPatient(null)}
+                  style={localStyles.showAllBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={localStyles.showAllBtnText}>Show All</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setShowPatientModal(true)}
+              style={localStyles.patientSelectorBtn}
+              activeOpacity={0.75}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.patientSelectorTitle}>
+                  {selectedPatientName || 'All Patients'}
+                </Text>
+                <Text style={localStyles.patientSelectorSubtitle}>
+                  {selectedPatientId
+                    ? `Patient ID: ${selectedPatientId.slice(0, 8)}...`
+                    : 'Showing all clinic ledger records'}
+                </Text>
+              </View>
+              <View style={localStyles.selectorChevronBox}>
+                <ChevronDown size={18} color="#047857" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Summary Cards */}
+          <View ref={tour.register("billing-summary")} collapsable={false} style={{ marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {/* Total Card */}
+              <View style={[localStyles.summaryCard, { borderTopColor: '#0284C7', borderTopWidth: 3 }]}>
+                <Text style={localStyles.summaryLabel}>TOTAL BILLED</Text>
+                <Text style={[localStyles.summaryValue, { color: '#0284C7' }]} numberOfLines={1} adjustsFontSizeToFit>
+                  ₱{totalAmount.toFixed(2)}
+                </Text>
+              </View>
+
+              {/* Paid Card */}
+              <View style={[localStyles.summaryCard, { borderTopColor: '#047857', borderTopWidth: 3 }]}>
+                <Text style={localStyles.summaryLabel}>PAID REVENUE</Text>
+                <Text style={[localStyles.summaryValue, { color: '#047857' }]} numberOfLines={1} adjustsFontSizeToFit>
+                  ₱{paidAmount.toFixed(2)}
+                </Text>
+              </View>
+
+              {/* Pending Card */}
+              <View style={[localStyles.summaryCard, { borderTopColor: '#DC2626', borderTopWidth: 3 }]}>
+                <Text style={localStyles.summaryLabel}>PENDING</Text>
+                <Text style={[localStyles.summaryValue, { color: '#DC2626' }]} numberOfLines={1} adjustsFontSizeToFit>
+                  ₱{pendingAmount.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Billings List */}
+          <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Receipt size={14} color="#047857" />
+                <Text style={localStyles.cardSectionHeader}>
+                  BILLING INVOICES ({billings.length})
+                </Text>
+              </View>
+              {selectedPatientName ? (
+                <View style={localStyles.filterActivePill}>
+                  <Text style={localStyles.filterActivePillText}>
+                    {selectedPatientName}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {loading ? (
+              <View style={localStyles.loadingContainer}>
+                <ActivityIndicator size="large" color="#047857" />
+                <Text style={localStyles.loadingText}>Loading ledger records...</Text>
+              </View>
+            ) : billings.length === 0 ? (
+              <View
+                ref={tour.register("billing-empty-state")}
+                collapsable={false}
+                style={localStyles.emptyContainer}
+              >
+                <View style={localStyles.emptyIconBox}>
+                  <FileText size={28} color="#047857" />
+                </View>
+                <Text style={localStyles.emptyTitle}>NO BILLING RECORDS</Text>
+                <Text style={localStyles.emptySubtitle}>
+                  {selectedPatientId
+                    ? 'No billing records found for this patient yet.'
+                    : 'No billing invoices recorded in the clinic ledger.'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Header count info */}
+                <View style={localStyles.countHeader}>
+                  <Text style={localStyles.countHeaderText}>
+                    Showing <Text style={localStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, billings.length)}</Text> of <Text style={localStyles.countHeaderBold}>{billings.length}</Text> invoices
+                  </Text>
+                  {totalPages > 1 && (
+                    <View style={localStyles.pageBadge}>
+                      <Text style={localStyles.pageBadgeText}>
+                        Page {currentPage} of {totalPages}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <FlatList
+                  scrollEnabled={false}
+                  data={paginatedBillings}
+                  keyExtractor={(item) => item.id || Math.random().toString()}
+                  renderItem={({ item, index }) => {
+                    const statusBadge = getPaymentStatusBadge(item.payment_status);
+                    return (
                       <View
                         ref={index === 0 ? tour.register("billing-first-card") : undefined}
                         collapsable={false}
-                        style={{
-                          backgroundColor: '#fff',
-                          borderRadius: 12,
-                          marginBottom: 12,
-                          padding: 14,
-
-
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.1,
-                          shadowRadius: 2,
-                          elevation: 2,
-                        }}
+                        style={localStyles.billingCard}
                       >
                         {/* Header Row */}
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 6,
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 12, color: '#666', fontWeight: '600' }}>
-                              Bill #{item.id?.slice(0, 8).toUpperCase()}
+                        <View style={localStyles.billingCardHeader}>
+                          <View style={localStyles.billIdPill}>
+                            <Text style={localStyles.billIdText}>
+                              BILL #{item.id?.slice(0, 8).toUpperCase()}
                             </Text>
                           </View>
                           <View
-                            style={{
-                              backgroundColor: getPaymentStatusColor(item.payment_status),
-                              paddingHorizontal: 10,
-                              paddingVertical: 4,
-                              borderRadius: 6,
-                            }}
+                            style={[
+                              localStyles.statusBadge,
+                              { backgroundColor: statusBadge.bg, borderColor: statusBadge.border },
+                            ]}
                           >
-                            <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600', textTransform: 'capitalize' }}>
-                              {item.payment_status ? item.payment_status.replace(/_/g, ' ') : 'Not Paid'}
+                            <Text style={[localStyles.statusBadgeText, { color: statusBadge.text }]}>
+                              {statusBadge.label}
                             </Text>
                           </View>
                         </View>
 
                         {/* Patient Name */}
                         <View style={{ marginBottom: 10 }}>
-                          <Text style={{ fontSize: 15, fontWeight: '700', color: '#111' }}>
+                          <Text style={localStyles.patientNameText}>
                             {item.patient_name || 'Patient'}
                           </Text>
                         </View>
 
-                        {/* Amount Row */}
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            marginBottom: 10,
-                            paddingBottom: 10,
-                            borderBottomWidth: 1,
-                            borderBottomColor: '#e5e5e5',
-                          }}
-                        >
+                        {/* Amount Box */}
+                        <View style={localStyles.amountBox}>
                           <View>
-                            <Text style={{ fontSize: 11, color: '#666' }}>Original Amount</Text>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111', marginTop: 2 }}>
-                              ${item.amount.toFixed(2)}
+                            <Text style={localStyles.amountLabel}>Original Amount</Text>
+                            <Text style={localStyles.amountValue}>
+                              ₱{item.amount.toFixed(2)}
                             </Text>
                           </View>
 
                           {item.discount_amount ? (
                             <View style={{ alignItems: 'flex-end' }}>
-                              <Text style={{ fontSize: 11, color: '#666' }}>Discount ({item.discount_type})</Text>
-                              <Text style={{ fontSize: 16, fontWeight: '700', color: '#ef4444', marginTop: 2 }}>
-                                -${item.discount_amount.toFixed(2)}
+                              <Text style={localStyles.amountLabel}>Discount ({item.discount_type})</Text>
+                              <Text style={[localStyles.amountValue, { color: '#DC2626' }]}>
+                                -₱{item.discount_amount.toFixed(2)}
                               </Text>
                             </View>
                           ) : null}
 
                           <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ fontSize: 11, color: '#666' }}>Final Amount</Text>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: "#047857", marginTop: 2 }}>
-                              ${(item.final_amount || item.amount).toFixed(2)}
+                            <Text style={localStyles.amountLabel}>Final Settled</Text>
+                            <Text style={[localStyles.amountValue, { color: '#047857', fontWeight: '900' }]}>
+                              ₱{(item.final_amount || item.amount).toFixed(2)}
                             </Text>
                           </View>
                         </View>
 
                         {/* Details */}
-                        <View style={{ gap: 6 }}>
+                        <View style={{ gap: 6, marginTop: 10 }}>
                           {item.appointment_id && (
                             <TouchableOpacity
                               onPress={() => loadAppointmentDetails(item.appointment_id!)}
                               activeOpacity={0.7}
                             >
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                <Text style={{ fontSize: 11, color: '#666' }}>Appointment</Text>
-                                <Text style={{ fontSize: 11, color: "#047857", fontWeight: '600', textDecorationLine: 'underline' }}>
-                                  {item.appointment_id.slice(0, 8).toUpperCase()}
-                                </Text>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text style={localStyles.detailLabel}>Appointment</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Calendar size={12} color="#047857" />
+                                  <Text style={localStyles.detailAppointmentLink}>
+                                    #{item.appointment_id.slice(0, 8).toUpperCase()}
+                                  </Text>
+                                </View>
                               </View>
                             </TouchableOpacity>
                           )}
 
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: 11, color: '#666' }}>Created</Text>
-                            <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                              {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+                            <Text style={localStyles.detailLabel}>Issued</Text>
+                            <Text style={localStyles.detailValue}>
+                              {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                             </Text>
                           </View>
 
                           {item.payment_date && (
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={{ fontSize: 11, color: '#666' }}>Payment Date</Text>
-                              <Text style={{ fontSize: 11, color: '#111', fontWeight: '500' }}>
-                                {new Date(item.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                              <Text style={localStyles.detailLabel}>Paid On</Text>
+                              <Text style={localStyles.detailValue}>
+                                {new Date(item.payment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                               </Text>
                             </View>
                           )}
 
                           {item.payment_method && (
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={{ fontSize: 11, color: '#666' }}>Method</Text>
-                              <Text style={{ fontSize: 11, color: '#111', fontWeight: '500', textTransform: 'capitalize' }}>
+                              <Text style={localStyles.detailLabel}>Method</Text>
+                              <Text style={[localStyles.detailValue, { textTransform: 'uppercase' }]}>
                                 {item.payment_method}
                               </Text>
                             </View>
                           )}
                         </View>
-
                       </View>
-                    )}
-                  />
+                    );
+                  }}
+                />
 
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <View ref={tour.register("billing-pagination")} collapsable={false} style={localStyles.paginationContainer}>
-                      {/* Previous Button */}
-                      <TouchableOpacity
-                        style={[
-                          localStyles.navButton,
-                          currentPage === 1 && localStyles.navButtonDisabled,
-                        ]}
-                        onPress={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        activeOpacity={0.7}
-                        accessibilityLabel="Previous Page"
-                      >
-                        <ChevronLeft size={18} color={currentPage === 1 ? '#94A3B8' : '#047857'} />
-                      </TouchableOpacity>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <View ref={tour.register("billing-pagination")} collapsable={false} style={localStyles.paginationContainer}>
+                    <TouchableOpacity
+                      style={[
+                        localStyles.navButton,
+                        currentPage === 1 && localStyles.navButtonDisabled,
+                      ]}
+                      onPress={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Previous Page"
+                    >
+                      <ChevronLeft size={16} color={currentPage === 1 ? '#94A3B8' : '#047857'} />
+                    </TouchableOpacity>
 
-                      {/* Page Numbers */}
-                      <View style={localStyles.pageNumbersRow}>
-                        {getPageNumbers().map((pageNum, index) => {
-                          if (pageNum === '...') {
-                            return (
-                              <View key={`ellipsis-${index}`} style={localStyles.ellipsisBox}>
-                                <Text style={localStyles.ellipsisText}>•••</Text>
-                              </View>
-                            );
-                          }
-                          const isSelected = pageNum === currentPage;
+                    <View style={localStyles.pageNumbersRow}>
+                      {getPageNumbers().map((pageNum, index) => {
+                        if (pageNum === '...') {
                           return (
-                            <TouchableOpacity
-                              key={`page-${pageNum}`}
-                              style={[
-                                localStyles.pageButton,
-                                isSelected && localStyles.pageButtonActive,
-                              ]}
-                              onPress={() => handlePageChange(pageNum as number)}
-                              activeOpacity={0.7}
-                            >
-                              <Text
-                                style={[
-                                  localStyles.pageButtonText,
-                                  isSelected && localStyles.pageButtonTextActive,
-                                ]}
-                              >
-                                {pageNum}
-                              </Text>
-                            </TouchableOpacity>
+                            <View key={`ellipsis-${index}`} style={localStyles.ellipsisBox}>
+                              <Text style={localStyles.ellipsisText}>•••</Text>
+                            </View>
                           );
-                        })}
-                      </View>
-
-                      {/* Next Button */}
-                      <TouchableOpacity
-                        style={[
-                          localStyles.navButton,
-                          currentPage === totalPages && localStyles.navButtonDisabled,
-                        ]}
-                        onPress={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        activeOpacity={0.7}
-                        accessibilityLabel="Next Page"
-                      >
-                        <ChevronRight size={18} color={currentPage === totalPages ? '#94A3B8' : '#047857'} />
-                      </TouchableOpacity>
+                        }
+                        const isSelected = pageNum === currentPage;
+                        return (
+                          <TouchableOpacity
+                            key={`page-${pageNum}`}
+                            style={[
+                              localStyles.pageButton,
+                              isSelected && localStyles.pageButtonActive,
+                            ]}
+                            onPress={() => handlePageChange(pageNum as number)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                localStyles.pageButtonText,
+                                isSelected && localStyles.pageButtonTextActive,
+                              ]}
+                            >
+                              {pageNum}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
-                  )}
-                </>
-              )}
-            </View>
+
+                    <TouchableOpacity
+                      style={[
+                        localStyles.navButton,
+                        currentPage === totalPages && localStyles.navButtonDisabled,
+                      ]}
+                      onPress={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      activeOpacity={0.7}
+                      accessibilityLabel="Next Page"
+                    >
+                      <ChevronRight size={16} color={currentPage === totalPages ? '#94A3B8' : '#047857'} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
           </View>
         </ScrollView>
 
@@ -1075,29 +982,37 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
           presentationStyle="pageSheet"
           onRequestClose={() => setShowPatientModal(false)}
         >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-            <View style={{ padding: 16 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>Select Patient</Text>
-                <TouchableOpacity onPress={() => setShowPatientModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={20} color={AppColors.primary} />
-                </TouchableOpacity>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <View style={localStyles.modalHeader}>
+              <View>
+                <Text style={localStyles.modalTitle}>SELECT PATIENT</Text>
+                <Text style={localStyles.modalSubtitle}>Filter ledger entries by patient</Text>
               </View>
+              <TouchableOpacity
+                onPress={() => setShowPatientModal(false)}
+                style={localStyles.modalCloseBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={18} color="#047857" />
+              </TouchableOpacity>
+            </View>
 
-              <TextInput
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#ddd',
-                  borderRadius: 8,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  fontSize: 14,
-                  marginBottom: 16,
-                }}
-              />
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+              <View style={localStyles.searchContainer}>
+                <Search size={16} color="#047857" style={{ marginRight: 8 }} />
+                <TextInput
+                  placeholder="Search by name or email..."
+                  placeholderTextColor="#94A3B8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  style={localStyles.searchInput}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={14} color="#64748B" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             <FlatList
@@ -1108,29 +1023,23 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                 !searchQuery ? (
                   <TouchableOpacity
                     onPress={() => handleSelectPatient(null)}
-                    style={{
-                      backgroundColor: !selectedPatientId ? '#ecfdf5' : '#fff',
-                      borderRadius: 12,
-                      padding: 14,
-                      marginBottom: 12,
-
-
-                      borderWidth: !selectedPatientId ? 1.5 : 0,
-                      borderColor: !selectedPatientId ? '#10B981' : 'transparent',
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
+                    style={[
+                      localStyles.patientModalItem,
+                      !selectedPatientId && localStyles.patientModalItemActive,
+                    ]}
+                    activeOpacity={0.7}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111' }}>
-                        All
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                      <Text style={localStyles.patientModalItemName}>All Patients</Text>
+                      <Text style={localStyles.patientModalItemEmail}>
                         View all billing records in the clinic ledger
                       </Text>
                     </View>
-                    {!selectedPatientId && <Check size={20} color="#10B981" />}
+                    {!selectedPatientId && (
+                      <View style={localStyles.checkPill}>
+                        <Check size={14} color="#047857" />
+                      </View>
+                    )}
                   </TouchableOpacity>
                 ) : null
               }
@@ -1139,31 +1048,29 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                 return (
                   <TouchableOpacity
                     onPress={() => handleSelectPatient(item)}
-                    style={{
-                      backgroundColor: isSelected ? '#ecfdf5' : '#fff',
-                      borderRadius: 12,
-                      padding: 14,
-                      marginBottom: 12,
-
-
-                      borderWidth: isSelected ? 1 : 0,
-                      borderColor: isSelected ? '#10B981' : 'transparent',
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
+                    style={[
+                      localStyles.patientModalItem,
+                      isSelected && localStyles.patientModalItemActive,
+                    ]}
+                    activeOpacity={0.7}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111' }}>{item.name}</Text>
-                      <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{item.email || 'No email'}</Text>
+                      <Text style={localStyles.patientModalItemName}>{item.name}</Text>
+                      <Text style={localStyles.patientModalItemEmail}>{item.email || 'No email'}</Text>
                     </View>
-                    {isSelected && <Check size={20} color="#10B981" />}
+                    {isSelected && (
+                      <View style={localStyles.checkPill}>
+                        <Check size={14} color="#047857" />
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               }}
               ListEmptyComponent={
                 <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                  <Text style={{ fontSize: 16, color: '#666' }}>No patients with billing records found</Text>
+                  <Text style={{ fontSize: 14, color: '#64748B', fontWeight: '500' }}>
+                    No patients with billing records found
+                  </Text>
                 </View>
               }
             />
@@ -1180,84 +1087,70 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
             setSelectedAppointment(null);
           }}
         >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              justifyContent: 'flex-end',
-            }}
-          >
-            <SafeAreaView style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
+          <View style={localStyles.modalOverlay}>
+            <SafeAreaView style={localStyles.appointmentModalCard}>
               <ScrollView
-                contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 24, paddingBottom: 32 }}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 32 }}
               >
                 {/* Header */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottomWidth: 1.5, borderBottomColor: '#E2E8F0', paddingBottom: 12 }}>
                   <View>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#111' }}>Appointment Details</Text>
-                    <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>View appointment information</Text>
+                    <Text style={localStyles.modalTitle}>APPOINTMENT DETAILS</Text>
+                    <Text style={localStyles.modalSubtitle}>Clinical booking & schedule info</Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => {
                       setShowAppointmentModal(false);
                       setSelectedAppointment(null);
                     }}
+                    style={localStyles.modalCloseBtn}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <X size={22} color={AppColors.textMuted} />
+                    <X size={18} color="#047857" />
                   </TouchableOpacity>
                 </View>
 
                 {loadingAppointment ? (
                   <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                    <ActivityIndicator size="large" color="#10B981" />
+                    <ActivityIndicator size="large" color="#047857" />
                   </View>
                 ) : selectedAppointment ? (
                   <>
-                    {/* Appointment Info Card */}
-                    <View
-                      style={{
-                        backgroundColor: '#f9f9f9',
-                        borderRadius: 12,
-                        padding: 14,
-                        marginBottom: 24,
-
-
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <View style={localStyles.skeuoCard}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Appointment ID</Text>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginTop: 4 }}>
-                            {selectedAppointment.id.slice(0, 8).toUpperCase()}
+                          <Text style={localStyles.amountLabel}>APPOINTMENT ID</Text>
+                          <Text style={[localStyles.patientNameText, { marginTop: 2 }]}>
+                            #{selectedAppointment.id.slice(0, 8).toUpperCase()}
                           </Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Status</Text>
+                          <Text style={localStyles.amountLabel}>STATUS</Text>
                           <View
                             style={{
                               backgroundColor:
                                 selectedAppointment.status === 'completed'
-                                  ? '#10b981'
+                                  ? '#ECFDF5'
                                   : selectedAppointment.status === 'cancelled'
-                                    ? '#ef4444'
-                                    : selectedAppointment.status === 'no-show'
-                                      ? '#f59e0b'
-                                      : selectedAppointment.status === 'pending'
-                                        ? '#f59e0b'
-                                        : '#10B981',
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                              borderRadius: 6,
+                                    ? '#FEE2E2'
+                                    : '#FEF3C7',
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 4,
                               marginTop: 4,
                             }}
                           >
                             <Text
                               style={{
                                 fontSize: 11,
-                                fontWeight: '600',
-                                color: '#fff',
-                                textTransform: 'capitalize',
+                                fontWeight: '800',
+                                color:
+                                  selectedAppointment.status === 'completed'
+                                    ? '#047857'
+                                    : selectedAppointment.status === 'cancelled'
+                                      ? '#DC2626'
+                                      : '#B45309',
+                                textTransform: 'uppercase',
                               }}
                             >
                               {selectedAppointment.status}
@@ -1266,39 +1159,29 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                         </View>
                       </View>
 
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e5e5e5' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
                         <View>
-                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Service</Text>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginTop: 4 }}>
+                          <Text style={localStyles.amountLabel}>SERVICE</Text>
+                          <Text style={[localStyles.patientNameText, { fontSize: 14, marginTop: 2 }]}>
                             {selectedAppointment.service || 'General'}
                           </Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600', marginTop: 8 }}>Patient ID</Text>
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: "#047857", marginTop: 4 }}>
-                            {selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
+                          <Text style={localStyles.amountLabel}>PATIENT ID</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginTop: 2 }}>
+                            #{selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
                           </Text>
                         </View>
                       </View>
                     </View>
 
                     {/* Date & Time */}
-                    <View style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 }}>
-                        Date & Time
-                      </Text>
-                      <View style={{ gap: 10 }}>
-                        <View
-                          style={{
-                            backgroundColor: '#fff',
-                            borderRadius: 10,
-                            padding: 12,
-                            borderWidth: 1,
-                            borderColor: '#e5e5e5',
-                          }}
-                        >
-                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Date</Text>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginTop: 6 }}>
+                    <View style={[localStyles.skeuoCard, { marginTop: 12 }]}>
+                      <Text style={[localStyles.cardSectionHeader, { marginBottom: 10 }]}>SCHEDULED TIME</Text>
+                      <View style={{ gap: 8 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={localStyles.detailLabel}>Date</Text>
+                          <Text style={localStyles.detailValue}>
                             {new Date(selectedAppointment.appointment_date).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'long',
@@ -1306,17 +1189,9 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                             })}
                           </Text>
                         </View>
-                        <View
-                          style={{
-                            backgroundColor: '#fff',
-                            borderRadius: 10,
-                            padding: 12,
-                            borderWidth: 1,
-                            borderColor: '#e5e5e5',
-                          }}
-                        >
-                          <Text style={{ fontSize: 11, color: '#666', fontWeight: '600' }}>Time</Text>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111', marginTop: 6 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={localStyles.detailLabel}>Time</Text>
+                          <Text style={[localStyles.detailValue, { fontWeight: '700', color: '#047857' }]}>
                             {selectedAppointment.appointment_time}
                           </Text>
                         </View>
@@ -1325,48 +1200,13 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
 
                     {/* Notes */}
                     {selectedAppointment.notes && (
-                      <View style={{ marginBottom: 24 }}>
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#111', marginBottom: 12 }}>
-                          Notes
+                      <View style={[localStyles.skeuoCard, { marginTop: 12 }]}>
+                        <Text style={[localStyles.cardSectionHeader, { marginBottom: 8 }]}>CLINICAL NOTES</Text>
+                        <Text style={{ fontSize: 13, color: '#334155', lineHeight: 19 }}>
+                          {selectedAppointment.notes}
                         </Text>
-                        <View
-                          style={{
-                            backgroundColor: '#f9f9f9',
-                            borderRadius: 10,
-                            padding: 12,
-
-
-                          }}
-                        >
-                          <Text style={{ fontSize: 12, color: '#333', lineHeight: 18 }}>
-                            {selectedAppointment.notes}
-                          </Text>
-                        </View>
                       </View>
                     )}
-
-                    {/* Created Date */}
-                    <View
-                      style={{
-                        backgroundColor: '#f0f9ff',
-                        borderRadius: 10,
-                        padding: 12,
-
-
-                      }}
-                    >
-                      <Text style={{ fontSize: 11, color: '#0369a1', fontWeight: '600' }}>
-                        Created: {selectedAppointment.created_at
-                          ? new Date(selectedAppointment.created_at).toLocaleString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                          : 'N/A'}
-                      </Text>
-                    </View>
 
                     {/* Close Button */}
                     <TouchableOpacity
@@ -1374,20 +1214,15 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                         setShowAppointmentModal(false);
                         setSelectedAppointment(null);
                       }}
-                      style={{
-                        marginTop: 24,
-                        paddingVertical: 14,
-                        borderRadius: 10,
-                        backgroundColor: '#10B981',
-                        alignItems: 'center',
-                      }}
+                      style={localStyles.modalPrimaryBtn}
+                      activeOpacity={0.8}
                     >
-                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>Close</Text>
+                      <Text style={localStyles.modalPrimaryBtnText}>Close</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-                    <Text style={{ fontSize: 14, color: '#666' }}>No appointment data available</Text>
+                    <Text style={{ fontSize: 14, color: '#64748B' }}>No appointment data available</Text>
                   </View>
                 )}
               </ScrollView>
@@ -1412,40 +1247,407 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
           onSkip={handleSkipTour}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const localStyles = StyleSheet.create({
+  // Top Header Module Row
+  topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E2E8F0',
+  },
+  headerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  topHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.6,
+  },
+  pillCountBadge: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 9999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  pillCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skeuoActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // PayMongo Card
+  paymongoCard: {
+    backgroundColor: '#042F2E',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#022C22',
+    padding: 14,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  paymongoBevel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+  },
+  paymongoContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  paymongoIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paymongoTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  paymongoBadge: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  paymongoBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  paymongoDesc: {
+    fontSize: 11,
+    color: '#99F6E4',
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  paymongoActionBtn: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: '#047857',
+  },
+  paymongoActionBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#022C22',
+    textTransform: 'uppercase',
+  },
+
+  // Skeuomorphic Cards
+  skeuoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 14,
+    marginBottom: 14,
+  },
+  cardSectionHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.6,
+  },
+  showAllBtn: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  showAllBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  patientSelectorBtn: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 10,
+  },
+  patientSelectorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  patientSelectorSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  selectorChevronBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Summary Cards
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 10,
+  },
+  summaryLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+
+  // Filter Pill
+  filterActivePill: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  filterActivePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+
+  // Loading & Empty States
+  loadingContainer: {
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#047857',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  emptyIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
+  },
+
+  // Count Header
   countHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     paddingHorizontal: 2,
   },
   countHeaderText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
     fontWeight: '500',
   },
   countHeaderBold: {
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#0F172A',
   },
   pageBadge: {
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingVertical: 2,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
   pageBadgeText: {
     fontSize: 11,
     color: '#047857',
+    fontWeight: '700',
+  },
+
+  // Billing Item Card
+  billingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 12,
+    marginBottom: 10,
+  },
+  billingCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  billIdPill: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  billIdText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.5,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  patientNameText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  amountBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    marginVertical: 4,
+  },
+  amountLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.3,
+  },
+  amountValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  detailLabel: {
+    fontSize: 11,
+    color: '#64748B',
     fontWeight: '600',
   },
+  detailValue: {
+    fontSize: 11,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  detailAppointmentLink: {
+    fontSize: 11,
+    color: '#047857',
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+  },
+
+  // Pagination
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1455,25 +1657,26 @@ const localStyles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
     gap: 8,
   },
   navButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
   },
   navButtonDisabled: {
     backgroundColor: '#F1F5F9',
@@ -1487,17 +1690,19 @@ const localStyles = StyleSheet.create({
   pageButton: {
     minWidth: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
   },
   pageButtonActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+    backgroundColor: '#047857',
+    borderColor: '#064E3B',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#022C22',
   },
   pageButtonText: {
     fontSize: 12,
@@ -1506,7 +1711,7 @@ const localStyles = StyleSheet.create({
   },
   pageButtonTextActive: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   ellipsisBox: {
     width: 20,
@@ -1517,5 +1722,126 @@ const localStyles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
     letterSpacing: 1,
+  },
+
+  // Modal Styles
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.6,
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    padding: 0,
+  },
+  patientModalItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  patientModalItemActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  patientModalItemName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  patientModalItemEmail: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  checkPill: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  appointmentModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '85%',
+  },
+  modalPrimaryBtn: {
+    marginTop: 20,
+    backgroundColor: '#047857',
+    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 3,
+    borderBottomColor: '#022C22',
+  },
+  modalPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
 });
