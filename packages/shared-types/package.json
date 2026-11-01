@@ -15,10 +15,5 @@
     }
   },
   "private": true,
-  "packageManager": "pnpm@9.0.0",
-  "dependencies": {
-    "react-native-screens": "4.20.0"
-  }
+  "packageManager": "pnpm@9.0.0"
 }
-
-

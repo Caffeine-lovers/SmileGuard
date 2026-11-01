@@ -1,217 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getPayMongoAuthHeader, isPayMongoConfigured, PAYMONGO_API_BASE } from '@/lib/paymongo';
+import { getAuthedUserId, getServiceClient } from '@/lib/serverSupabase';
+import {
+  findPaidPaymentForAppointment,
+  isPayMongoReference,
+  resolvePaymentFromResource,
+  validatePaymentForAppointment,
+  type ResolvedPayment,
+} from '@/lib/paymongoVerification';
 
 export const dynamic = 'force-dynamic';
 
-function getSupabaseClient(authHeader?: string | null) {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (serviceRoleKey && supabaseUrl) {
-    return createClient(supabaseUrl, serviceRoleKey);
-  }
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (anonKey && supabaseUrl) {
-    return createClient(supabaseUrl, anonKey, {
-      global: {
-        headers: authHeader ? { Authorization: authHeader } : {},
-      },
-    });
-  }
-  return null;
-}
-
+/**
+ * Settles a bill after a PayMongo payment.
+ *
+ * A bill is only marked paid when ALL of these hold:
+ *  - the caller is signed in (patient id comes from their JWT, never the request body)
+ *  - PayMongo itself reports the payment as `paid`
+ *  - the payment's metadata names this patient and this appointment
+ *  - the payment reference hasn't already been used to settle a different bill
+ * The amount recorded is the amount PayMongo actually captured.
+ */
 export async function POST(request: NextRequest) {
   try {
+    if (!isPayMongoConfigured) {
+      return NextResponse.json({ error: 'PayMongo payments are not configured on this server yet.' }, { status: 503 });
+    }
+
     const authHeader = request.headers.get('authorization');
-    const supabase = getSupabaseClient(authHeader);
-    if (!supabase) {
-      console.error('[Confirm Checkout] Supabase client misconfigured');
-      return NextResponse.json({ error: 'Database service configuration error' }, { status: 500 });
+    const patientId = await getAuthedUserId(authHeader);
+    if (!patientId) {
+      return NextResponse.json({ error: 'Please sign in again to confirm your payment.' }, { status: 401 });
     }
 
-    const body = await request.json();
-    let { 
-      appointmentId, 
-      patientId, 
-      paymentMethod = 'online', 
-      paymentRef,
-      amount 
-    } = body;
+    // Writing a "paid" status is a privileged operation; patients can't do it through RLS.
+    const admin = getServiceClient();
+    if (!admin) {
+      console.error('[Confirm Checkout] SUPABASE_SERVICE_ROLE_KEY is not configured.');
+      return NextResponse.json(
+        { error: 'Payment confirmation is temporarily unavailable. Your payment is safe — the clinic will reconcile it.' },
+        { status: 503 }
+      );
+    }
 
-    // 1. Verify payment with PayMongo API
-    let verifiedPaymentId = paymentRef || null;
-    let verifiedAmount = amount ? Number(amount) : null;
-    let verifiedMethod = paymentMethod;
+    const body = await request.json().catch(() => ({}));
+    const appointmentId: string | undefined = body.appointmentId || undefined;
+    const paymentRef: string | undefined = typeof body.paymentRef === 'string' ? body.paymentRef.trim() : undefined;
 
-    const secretKey = process.env.PAYMONGO_SECRET_KEY;
-    if (secretKey) {
-      try {
-        const auth = Buffer.from(secretKey + ':').toString('base64');
+    if (paymentRef && !isPayMongoReference(paymentRef)) {
+      return NextResponse.json(
+        { error: 'That does not look like a PayMongo reference. It should start with "pay_" or "cs_".' },
+        { status: 400 }
+      );
+    }
+    if (!paymentRef && !appointmentId) {
+      return NextResponse.json({ error: 'Provide a PayMongo reference or an appointment.' }, { status: 400 });
+    }
 
-        if (paymentRef) {
-          // Direct lookup by payment reference ID (pay_... or cs_...)
-          const isPaymentId = String(paymentRef).startsWith('pay_');
-          const url = isPaymentId
-            ? `https://api.paymongo.com/v1/payments/${paymentRef}`
-            : `https://api.paymongo.com/v1/checkout_sessions/${paymentRef}`;
+    // 1. Ask PayMongo what actually happened
+    const headers = { Authorization: getPayMongoAuthHeader() };
+    let payment: ResolvedPayment | null = null;
 
-          const pmRes = await fetch(url, {
-            headers: { Authorization: `Basic ${auth}` },
-          });
-
-          if (pmRes.ok) {
-            const pmData = await pmRes.json();
-            const item = pmData.data;
-            const attrs = item?.attributes;
-
-            if (isPaymentId) {
-              verifiedPaymentId = item.id;
-              verifiedAmount = (attrs?.amount || 0) / 100;
-              verifiedMethod = attrs?.source?.type || 'gcash';
-
-              const meta = attrs?.metadata || {};
-              if (meta.appointment_id && !appointmentId) appointmentId = meta.appointment_id;
-              if (meta.patient_id && !patientId) patientId = meta.patient_id;
-            } else {
-              const paymentItem = attrs?.payments?.[0];
-              if (paymentItem) {
-                verifiedPaymentId = paymentItem.id;
-                verifiedAmount = (paymentItem.attributes?.amount || 0) / 100;
-                verifiedMethod = paymentItem.attributes?.source?.type || 'card';
-              }
-              const meta = attrs?.metadata || {};
-              if (meta.appointment_id && !appointmentId) appointmentId = meta.appointment_id;
-              if (meta.patient_id && !patientId) patientId = meta.patient_id;
-            }
-          }
-        } else if (appointmentId || patientId) {
-          // Automatic resolution: Look up recent PayMongo payments matching appointmentId
-          const pmListRes = await fetch('https://api.paymongo.com/v1/payments?limit=30', {
-            headers: { Authorization: `Basic ${auth}` },
-          });
-
-          if (pmListRes.ok) {
-            const pmListData = await pmListRes.json();
-            const payments: any[] = pmListData.data || [];
-
-            // Find matching paid transaction
-            const matched = payments.find((p) => {
-              const meta = p.attributes?.metadata;
-              const isPaid = p.attributes?.status === 'paid';
-              if (!isPaid) return false;
-              if (appointmentId && meta?.appointment_id === appointmentId) return true;
-              return false;
-            }) || payments.find((p) => {
-              const meta = p.attributes?.metadata;
-              const isPaid = p.attributes?.status === 'paid';
-              if (!isPaid) return false;
-              if (patientId && meta?.patient_id === patientId) return true;
-              return false;
-            });
-
-            if (matched) {
-              verifiedPaymentId = matched.id;
-              verifiedAmount = (matched.attributes?.amount || 0) / 100;
-              verifiedMethod = matched.attributes?.source?.type || 'gcash';
-              const meta = matched.attributes?.metadata || {};
-              if (meta.appointment_id && !appointmentId) appointmentId = meta.appointment_id;
-              if (meta.patient_id && !patientId) patientId = meta.patient_id;
-            }
-          }
-        }
-      } catch (pmErr) {
-        console.warn('[Confirm Checkout] Failed to fetch PayMongo payment details:', pmErr);
+    if (paymentRef) {
+      const url = paymentRef.startsWith('pay_')
+        ? `${PAYMONGO_API_BASE}/payments/${paymentRef}`
+        : `${PAYMONGO_API_BASE}/checkout_sessions/${paymentRef}`;
+      const res = await fetch(url, { headers });
+      if (res.ok) {
+        payment = resolvePaymentFromResource((await res.json()).data);
+      } else if (res.status !== 404) {
+        console.error('[Confirm Checkout] PayMongo lookup failed:', res.status);
+        return NextResponse.json({ error: 'Could not reach PayMongo. Please try again shortly.' }, { status: 502 });
       }
+    } else if (appointmentId) {
+      const res = await fetch(`${PAYMONGO_API_BASE}/payments?limit=100`, { headers });
+      if (!res.ok) {
+        return NextResponse.json({ error: 'Could not reach PayMongo. Please try again shortly.' }, { status: 502 });
+      }
+      payment = findPaidPaymentForAppointment((await res.json()).data || [], appointmentId);
     }
 
-    // Default reference ID if not fetched from PayMongo
-    if (!verifiedPaymentId && paymentRef) {
-      verifiedPaymentId = paymentRef;
+    const verdict = validatePaymentForAppointment(payment, { patientId, appointmentId });
+    if (!verdict.ok) {
+      return NextResponse.json({ error: verdict.reason }, { status: verdict.status });
+    }
+    const verified = verdict.payment;
+    const targetAppointmentId = verdict.appointmentId;
+
+    // 2. The appointment must belong to this patient
+    const { data: appointment } = await admin
+      .from('appointments')
+      .select('id')
+      .eq('id', targetAppointmentId)
+      .eq('patient_id', patientId)
+      .maybeSingle();
+    if (!appointment) {
+      return NextResponse.json({ error: 'Appointment not found for this account.' }, { status: 404 });
     }
 
-    if (!appointmentId) {
-      return NextResponse.json({ error: 'Missing appointmentId and could not resolve from paymentRef' }, { status: 400 });
+    // 3. A payment reference can settle exactly one bill
+    const { data: reused } = await admin
+      .from('billings')
+      .select('id, appointment_id')
+      .eq('gateway_transaction_id', verified.paymentId)
+      .neq('appointment_id', targetAppointmentId)
+      .limit(1);
+    if (reused && reused.length > 0) {
+      return NextResponse.json({ error: 'This payment reference was already used for another bill.' }, { status: 409 });
     }
 
-    const effectiveAmount = verifiedAmount ?? 300;
-    let updatedBilling: any = null;
-
-    // 2. First attempt to call the SECURITY DEFINER RPC confirm_billing_payment
-    const { data: rpcRows, error: rpcErr } = await supabase.rpc('confirm_billing_payment', {
-      p_appointment_id: appointmentId,
-      p_patient_id: patientId || null,
-      p_amount: effectiveAmount,
-      p_reference_id: verifiedPaymentId,
-      p_payment_method: verifiedMethod,
+    // 4. Record the verified payment (idempotent for the same reference)
+    const { data: rpcRows, error: rpcErr } = await admin.rpc('confirm_billing_payment', {
+      p_appointment_id: targetAppointmentId,
+      p_patient_id: patientId,
+      p_amount: verified.amount,
+      p_reference_id: verified.paymentId,
+      p_payment_method: verified.method,
     });
-
-    if (!rpcErr && rpcRows && (Array.isArray(rpcRows) ? rpcRows.length > 0 : true)) {
-      updatedBilling = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
-    } else {
-      if (rpcErr) {
-        console.warn('[Confirm Checkout] RPC error (falling back to direct query):', rpcErr.message);
-      }
-
-      // 3. Fallback direct database update/insert
-      const { data: existingRows } = await supabase
-        .from('billings')
-        .select('*')
-        .eq('appointment_id', appointmentId);
-
-      const rows = existingRows || [];
-      if (rows.length > 0) {
-        const targetRow = rows.find((r) => r.payment_status !== 'paid') || rows[0];
-        const { data: updated, error: updateErr } = await supabase
-          .from('billings')
-          .update({
-            payment_status: 'paid',
-            payment_method: verifiedMethod,
-            gateway_transaction_id: verifiedPaymentId,
-            final_amount: effectiveAmount,
-            payment_date: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', targetRow.id)
-          .select()
-          .maybeSingle();
-
-        if (!updateErr && updated) {
-          updatedBilling = updated;
-        }
-      } else {
-        const { data: inserted, error: insertErr } = await supabase
-          .from('billings')
-          .insert({
-            patient_id: patientId,
-            appointment_id: appointmentId,
-            amount: effectiveAmount,
-            discount_type: 'none',
-            discount_amount: 0,
-            final_amount: effectiveAmount,
-            payment_status: 'paid',
-            payment_method: verifiedMethod,
-            gateway_transaction_id: verifiedPaymentId,
-            payment_date: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select()
-          .maybeSingle();
-
-        if (!insertErr && inserted) {
-          updatedBilling = inserted;
-        }
-      }
+    if (rpcErr) {
+      console.error('[Confirm Checkout] confirm_billing_payment failed:', rpcErr.message);
+      return NextResponse.json({ error: 'Payment verified, but saving it failed. Please contact the clinic.' }, { status: 500 });
     }
+    const billing = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
 
     return NextResponse.json({
       success: true,
-      billing: updatedBilling,
-      referenceId: verifiedPaymentId,
-      amount: effectiveAmount,
-      paymentMethod: verifiedMethod,
-      appointmentId,
-      patientId,
+      billing,
+      referenceId: verified.paymentId,
+      amount: verified.amount,
+      paymentMethod: verified.method,
+      appointmentId: targetAppointmentId,
     });
   } catch (error) {
     console.error('[Confirm Checkout] Unexpected error:', error);

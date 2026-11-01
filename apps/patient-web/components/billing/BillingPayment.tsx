@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing, Appointment, AppointmentBillingRow, AppointmentBillingStatus } from '@/lib/database';
 import { calculateDiscount, isPendingAppointment } from '@/lib/database';
+import { ID_ALLOWED_TYPES, ID_BUCKET, uploadIdCredential, validateIdFile } from '@/lib/idCredentials';
 import { fetchBillingDataForDashboard, getServicePrice } from '@/lib/outstandingBalanceService';
 import {
   CreditCard,
@@ -28,6 +29,8 @@ interface BillingPaymentProps {
   onSuccess?: (billing: Billing) => void;
   onCancel?: () => void;
 }
+
+const PENDING_CHECKOUT_KEY = 'smileguard:pending-checkout';
 
 export default function BillingPayment({
   appointmentId: _appointmentId,
@@ -97,7 +100,6 @@ export default function BillingPayment({
         },
         body: JSON.stringify({
           paymentRef: ref,
-          patientId: currentUser?.id,
           appointmentId: selectedAppointment?.id,
         }),
       });
@@ -107,8 +109,8 @@ export default function BillingPayment({
         throw new Error(data.error || 'Failed to verify reference ID');
       }
 
-      const settledAmount = Number(data.amount || data.billing?.final_amount || 300);
-      const settledAptId = data.billing?.appointment_id || data.appointmentId || selectedAppointment?.id || 'c2395afb-9970-4209-91d4-a4c0cbd50efd';
+      const settledAmount = Number(data.amount ?? data.billing?.final_amount ?? 0);
+      const settledAptId = data.billing?.appointment_id || data.appointmentId;
       const refId = data.referenceId || ref;
       const method = data.paymentMethod || 'gcash';
 
@@ -148,46 +150,7 @@ export default function BillingPayment({
       setOutstandingBalance((prev) => Math.max(0, prev - settledAmount));
       setSelectedAppointment(null);
 
-      // Direct client upsert to ensure Supabase persistence
-      if (currentUser?.id && settledAptId) {
-        try {
-          const { data: existingRows } = await supabase
-            .from('billings')
-            .select('id')
-            .eq('appointment_id', settledAptId);
-
-          const existingRow = existingRows?.[0];
-          if (existingRow?.id) {
-            await supabase
-              .from('billings')
-              .update({
-                payment_status: 'paid',
-                payment_method: method,
-                gateway_transaction_id: refId,
-                final_amount: settledAmount,
-                payment_date: new Date().toISOString(),
-              })
-              .eq('id', existingRow.id);
-          } else {
-            await supabase.from('billings').insert({
-              patient_id: currentUser.id,
-              appointment_id: settledAptId,
-              amount: settledAmount,
-              discount_type: 'none',
-              discount_amount: 0,
-              final_amount: settledAmount,
-              payment_status: 'paid',
-              payment_method: method,
-              gateway_transaction_id: refId,
-              payment_date: new Date().toISOString(),
-            });
-          }
-        } catch (clientSyncErr) {
-          console.warn('[handleVerifyReference] Client sync note:', clientSyncErr);
-        }
-      }
-
-      // Refresh database
+      // The server already recorded the verified payment; just reload what the database says.
       if (currentUser?.id) {
         await refreshBillingData();
       }
@@ -207,7 +170,13 @@ export default function BillingPayment({
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
     const aptId = params.get('apt');
-    const payRef = params.get('ref') || params.get('pay_id');
+    // The checkout session we created before redirecting to PayMongo (see handlePayMongoCheckout)
+    let storedCheckoutId: string | undefined;
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(PENDING_CHECKOUT_KEY) || 'null');
+      if (stored?.checkoutId && (!aptId || stored.appointmentId === aptId)) storedCheckoutId = stored.checkoutId;
+    } catch {}
+    const payRef = params.get('ref') || params.get('pay_id') || storedCheckoutId;
 
     if (status === 'success' || payRef) {
       setPaymentStatusBanner('success');
@@ -232,14 +201,14 @@ export default function BillingPayment({
             },
             body: JSON.stringify({
               appointmentId: aptId || undefined,
-              patientId: currentUser?.id,
               paymentRef: payRef || undefined,
             }),
           });
 
           const data = await res.json();
           if (data?.success && (data?.billing || data?.referenceId || data?.amount)) {
-            const paidAmount = Number(data.amount || data.billing?.final_amount || data.billing?.amount || 5000);
+            try { sessionStorage.removeItem(PENDING_CHECKOUT_KEY); } catch {}
+            const paidAmount = Number(data.amount ?? data.billing?.final_amount ?? 0);
             const resolvedAptId = data.billing?.appointment_id || data.appointmentId || aptId;
             const refId = data.referenceId || payRef || undefined;
             const method = data.paymentMethod || 'gcash';
@@ -275,45 +244,13 @@ export default function BillingPayment({
             }
             setOutstandingBalance((prev) => Math.max(0, prev - paidAmount));
             setSelectedAppointment((prev) => (prev?.id === resolvedAptId ? null : prev));
-
-            // Browser-authenticated direct sync fallback to guarantee Supabase persistence
-            if (currentUser?.id && resolvedAptId) {
-              try {
-                const { data: existingRows } = await supabase
-                  .from('billings')
-                  .select('id')
-                  .eq('appointment_id', resolvedAptId);
-
-                const existingRow = existingRows?.[0];
-                if (existingRow?.id) {
-                  await supabase
-                    .from('billings')
-                    .update({
-                      payment_status: 'paid',
-                      payment_method: method,
-                      gateway_transaction_id: refId,
-                      final_amount: paidAmount,
-                      payment_date: new Date().toISOString(),
-                    })
-                    .eq('id', existingRow.id);
-                } else {
-                  await supabase.from('billings').insert({
-                    patient_id: currentUser.id,
-                    appointment_id: resolvedAptId,
-                    amount: paidAmount,
-                    discount_type: 'none',
-                    discount_amount: 0,
-                    final_amount: paidAmount,
-                    payment_status: 'paid',
-                    payment_method: method,
-                    gateway_transaction_id: refId,
-                    payment_date: new Date().toISOString(),
-                  });
-                }
-              } catch (clientSyncErr) {
-                console.warn('[BillingPayment] Client sync note:', clientSyncErr);
-              }
-            }
+          } else {
+            // PayMongo didn't confirm a completed payment — don't show a false "paid" banner
+            setPaymentStatusBanner(null);
+            setPaymongoError(
+              data?.error ||
+                'We could not confirm your payment yet. If you were charged, enter your PayMongo reference below.'
+            );
           }
 
           // Full sync with database
@@ -394,6 +331,25 @@ export default function BillingPayment({
   const isSeniorVerified = isPwdApproved && currentPwdType === 'senior';
   const isPwdPendingReview = isPwdPending && currentPwdType === 'pwd';
   const isSeniorPendingReview = isPwdPending && currentPwdType === 'senior';
+  const approvedDiscountType: 'pwd' | 'senior' = currentPwdType === 'senior' ? 'senior' : 'pwd';
+
+  // Auto-apply the doctor-verified statutory discount once approval is known, so the
+  // amount sent to PayMongo matches the "20% deduction is applied" banner without the
+  // patient having to click the PWD/Senior tab. They can still switch to Standard Rate.
+  const autoAppliedDiscount = useRef(false);
+  useEffect(() => {
+    if (!isPwdApproved || autoAppliedDiscount.current) return;
+    autoAppliedDiscount.current = true;
+    setActiveDiscountTab(approvedDiscountType);
+    setDiscountType(approvedDiscountType);
+  }, [isPwdApproved, approvedDiscountType]);
+
+  // Keep the breakdown in sync with whatever discount type & amount are current.
+  useEffect(() => {
+    const result = calculateDiscount(amount, discountType);
+    setDiscountAmount(result.discountAmount);
+    setFinalAmount(result.finalAmount);
+  }, [amount, discountType]);
 
   const handleDiscountSelect = (type: Billing['discount_type']) => {
     setActiveDiscountTab(type as 'none' | 'pwd' | 'senior');
@@ -429,6 +385,12 @@ export default function BillingPayment({
   const handleIdFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const problem = validateIdFile(file);
+      if (problem) {
+        alert(problem);
+        e.target.value = '';
+        return;
+      }
       setSelectedIdFile(file);
       setIdPreviewUrl(URL.createObjectURL(file));
     }
@@ -442,21 +404,8 @@ export default function BillingPayment({
 
     setIsSubmittingId(true);
     try {
-      const fileExt = selectedIdFile.name.split('.').pop() || 'jpg';
-      const filePath = `${currentUser.id}/pwd_id_${Date.now()}.${fileExt}`;
-
-      let publicUrl = '';
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, selectedIdFile, {
-          upsert: true,
-          contentType: selectedIdFile.type,
-        });
-
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-        publicUrl = urlData.publicUrl;
-      }
+      // Government IDs go to the private "ID Credentials" bucket — never a public link
+      const idPath = await uploadIdCredential(currentUser.id, selectedIdFile, selectedVerificationType);
 
       // Persist pending status to Supabase profiles
       const { error: dbError } = await supabase
@@ -464,13 +413,16 @@ export default function BillingPayment({
         .update({
           pwd_status: 'pending',
           pwd_type: selectedVerificationType,
-          pwd_id_url: publicUrl,
+          pwd_id_path: idPath,
+          pwd_id_url: null,
           pwd_submitted_at: new Date().toISOString(),
         })
         .eq('id', currentUser.id);
 
       if (dbError) {
-        console.warn('[BillingPayment] PWD profile update notice:', dbError.message);
+        // Don't leave an orphaned ID photo behind if we couldn't record the request
+        await supabase.storage.from(ID_BUCKET).remove([idPath]);
+        throw new Error(dbError.message);
       }
 
       setLocalPwdStatus('pending');
@@ -478,7 +430,7 @@ export default function BillingPayment({
       alert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
     } catch (err) {
       console.error('[BillingPayment] Failed to submit ID:', err);
-      alert('Failed to upload ID. Please try again.');
+      alert(err instanceof Error ? err.message : 'Failed to upload ID. Please try again.');
     } finally {
       setIsSubmittingId(false);
     }
@@ -498,7 +450,9 @@ export default function BillingPayment({
     setLedger(ledger);
     setSelectedAppointment(null);
     setAmount(0);
-    setDiscountType('none');
+    // Keep a verified discount selected for the next payment instead of silently dropping it
+    setDiscountType(isPwdApproved ? approvedDiscountType : 'none');
+    setActiveDiscountTab(isPwdApproved ? approvedDiscountType : 'none');
     setPaymongoError(null);
   };
 
@@ -530,8 +484,6 @@ export default function BillingPayment({
         },
         body: JSON.stringify({
           appointmentId: selectedAppointment.id,
-          patientId: currentUser.id,
-          service: selectedAppointment.service,
           discountType,
         }),
       });
@@ -546,8 +498,21 @@ export default function BillingPayment({
         throw new Error('Payment gateway did not provide a checkout URL.');
       }
 
+      // Never send the patient to a full-price checkout when the UI promised a discount
+      if ((discountType === 'pwd' || discountType === 'senior') && !(Number(data.discountAmount) > 0)) {
+        throw new Error(
+          'Your PWD/Senior discount could not be confirmed by the server, so checkout was stopped to avoid charging the full price. Please refresh and try again, or contact the clinic.'
+        );
+      }
+
       // Redirect to PayMongo hosted checkout page
       // PayMongo handles Card, GCash, Maya, GrabPay, QR Ph on their PCI-compliant page
+      try {
+        sessionStorage.setItem(
+          PENDING_CHECKOUT_KEY,
+          JSON.stringify({ appointmentId: selectedAppointment.id, checkoutId: data.checkoutId })
+        );
+      } catch {}
       window.location.href = data.checkoutUrl;
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Failed to initiate payment';
@@ -956,7 +921,7 @@ export default function BillingPayment({
                 <div className="pt-1">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={ID_ALLOWED_TYPES.join(',')}
                     onChange={handleIdFileSelect}
                     className="block text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-emerald-700 file:bg-emerald-700 file:text-white file:text-xs file:font-bold file:uppercase file:cursor-pointer cursor-pointer max-w-full"
                   />

@@ -17,6 +17,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // Real patient-web modules (pure ones only — no Supabase client imports)
+      "@": path.resolve(__dirname, "../../apps/patient-web"),
       "@smileguard/shared-types": path.resolve(
         __dirname,
         "../shared-types/index.ts"

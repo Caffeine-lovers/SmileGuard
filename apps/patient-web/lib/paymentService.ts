@@ -1,36 +1,8 @@
-// Placeholder payment service for patient-web
-// Full implementation to be added during development
+// Patient-side billing reads. Marking a bill as paid happens only on the server
+// (/api/paymongo/confirm-checkout and the PayMongo webhook) after PayMongo verifies it.
 
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing } from './database';
-
-export async function processPayment(
-  billingId: string,
-  _amount: number,
-  paymentMethod: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    // Direct ledger update for non-card clinic payments (Cash, Bank Transfer)
-    // Online card & e-wallet payments are handled via PayMongo Checkout Sessions (/api/paymongo/create-checkout)
-    const { error } = await supabase
-      .from('billings')
-      .update({
-        payment_status: 'paid',
-        payment_method: paymentMethod,
-        payment_date: new Date().toISOString(),
-      })
-      .eq('id', billingId);
-
-    if (error) {
-      return { success: false, message: error.message };
-    }
-
-    return { success: true, message: 'Payment processed successfully' };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Payment failed';
-    return { success: false, message };
-  }
-}
 
 export async function getBillings(patientId: string): Promise<Billing[]> {
   try {

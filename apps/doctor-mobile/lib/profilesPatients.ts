@@ -15,17 +15,24 @@ export async function getPatientProfile(
   pwd_status?: 'none' | 'pending' | 'approved' | 'rejected';
   pwd_type?: 'pwd' | 'senior';
   pwd_id_url?: string;
+  pwd_id_path?: string;
   pwd_submitted_at?: string;
   pwd_reviewed_at?: string;
   created_at: string;
   updated_at: string;
 } | null> {
   try {
-    const { data, error } = await supabase
+    const baseCols = 'id, name, email, role, service, pwd_status, pwd_type, pwd_id_url, pwd_submitted_at, pwd_reviewed_at, created_at, updated_at';
+    let { data, error } = await supabase
       .from('profiles')
-      .select('id, name, email, role, service, pwd_status, pwd_type, pwd_id_url, pwd_submitted_at, pwd_reviewed_at, created_at, updated_at')
+      .select(`${baseCols}, pwd_id_path`)
       .eq('id', patientId)
       .maybeSingle();
+
+    // pwd_id_path arrives with migration 038; keep working on databases without it
+    if (error && error.message?.includes('pwd_id_path')) {
+      ({ data, error } = await supabase.from('profiles').select(baseCols).eq('id', patientId).maybeSingle());
+    }
 
     if (error && error.message?.includes('pwd_status')) {
       const { data: fallbackData } = await supabase
@@ -635,4 +642,23 @@ export async function getPatientBillingInfo(patientId: string): Promise<PatientB
     console.error('Exception fetching patient billing info:', error);
     return null;
   }
+}
+
+// ─────────────────────────────────────────
+// PWD / SENIOR ID PHOTO (private "ID Credentials" bucket)
+// ─────────────────────────────────────────
+export const ID_BUCKET = 'ID Credentials';
+
+/** Short-lived link to a patient's ID. Falls back to the legacy public URL for not-yet-migrated IDs. */
+export async function getPatientIdPhotoUrl(profile: { pwd_id_path?: string | null; pwd_id_url?: string | null } | null): Promise<string | null> {
+  if (!profile) return null;
+  if (profile.pwd_id_path) {
+    const { data, error } = await supabase.storage.from(ID_BUCKET).createSignedUrl(profile.pwd_id_path, 60 * 10);
+    if (error) {
+      console.warn('[profilesPatients] Could not sign ID photo URL:', error.message);
+      return null;
+    }
+    return data?.signedUrl ?? null;
+  }
+  return profile.pwd_id_url || null;
 }

@@ -10,3 +10,8 @@ apps/doctor-mobile/android/
 apps/doctor-mobile/ios/
 android/
 ios/
+
+# Not needed for the doctor app build (EAS uploads the whole repo)
+marketing/
+.vercel/
+*.mp4

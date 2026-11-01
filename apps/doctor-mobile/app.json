@@ -9,7 +9,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/images/SmileGuard-Doc-Logo.png",
+    "icon": "./assets/images/icon.png",
     "assetBundlePatterns": [
       "**/*"
     ],

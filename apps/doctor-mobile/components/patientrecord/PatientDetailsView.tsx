@@ -37,6 +37,7 @@ import {
   getPatientBillingInfo,
   getPatientProfile,
   updatePatientPwdStatus,
+  getPatientIdPhotoUrl,
   type PatientBillingInfo,
 } from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
@@ -142,6 +143,18 @@ export default function PatientDetailsView({
   const [showEditModal, setShowEditModal] = useState(false);
   const [patientProfile, setPatientProfile] = useState<any>(null);
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
+  const [idPhotoUrl, setIdPhotoUrl] = useState<string | null>(null);
+
+  // IDs live in a private bucket — resolve a short-lived signed link whenever the profile changes
+  useEffect(() => {
+    let cancelled = false;
+    getPatientIdPhotoUrl(patientProfile).then((url) => {
+      if (!cancelled) setIdPhotoUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [patientProfile?.pwd_id_path, patientProfile?.pwd_id_url]);
   const [updatingPwd, setUpdatingPwd] = useState(false);
 
   const effectivePatientId = patient?.patient_id || patient?.id;
@@ -335,7 +348,6 @@ export default function PatientDetailsView({
                         </Text>
                       </View>
                     )}
-
                     {patientProfile?.pwd_status === 'approved' && (
                       <View style={styles.pwdVerifiedBadge}>
                         <ShieldCheck size={11} color="#047857" />
@@ -410,7 +422,7 @@ export default function PatientDetailsView({
                     <Text style={styles.pwdApprovedDesc}>
                       Certified by clinic. The statutory 20% deduction is applied to invoices.
                     </Text>
-                    {patientProfile?.pwd_id_url && (
+                    {(idPhotoUrl || patientProfile?.pwd_id_url) && (
                       <TouchableOpacity
                         onPress={() => setShowIdPhotoModal(true)}
                         style={styles.pwdViewIdBtn}
@@ -443,14 +455,14 @@ export default function PatientDetailsView({
                       Patient uploaded government ID proof requesting 20% statutory discount. Please review the ID card below.
                     </Text>
 
-                    {patientProfile?.pwd_id_url && (
+                    {(idPhotoUrl || patientProfile?.pwd_id_url) && (
                       <TouchableOpacity
                         onPress={() => setShowIdPhotoModal(true)}
                         style={styles.pwdThumbnailBox}
                         activeOpacity={0.8}
                       >
                         <Image
-                          source={{ uri: patientProfile.pwd_id_url }}
+                          source={{ uri: idPhotoUrl || patientProfile.pwd_id_url }}
                           style={styles.pwdThumbnailImage}
                           resizeMode="contain"
                         />
@@ -741,7 +753,7 @@ export default function PatientDetailsView({
       </SafeAreaView>
 
       {/* ID Card Photo Modal */}
-      {showIdPhotoModal && patientProfile?.pwd_id_url && (
+      {showIdPhotoModal && (idPhotoUrl || patientProfile?.pwd_id_url) && (
         <Modal
           visible={showIdPhotoModal}
           transparent={true}
@@ -763,7 +775,7 @@ export default function PatientDetailsView({
 
               <View style={styles.photoModalImageWrap}>
                 <Image
-                  source={{ uri: patientProfile.pwd_id_url }}
+                  source={{ uri: idPhotoUrl || patientProfile.pwd_id_url }}
                   style={styles.photoModalImage}
                   resizeMode="contain"
                 />
@@ -804,6 +816,30 @@ export default function PatientDetailsView({
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
+
+      {/* PWD / Senior ID Photo Modal */}
+      <Modal
+        visible={showIdPhotoModal && !!idPhotoUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowIdPhotoModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', padding: 16 }}>
+          <TouchableOpacity
+            onPress={() => setShowIdPhotoModal(false)}
+            style={{ position: 'absolute', top: 48, right: 20, zIndex: 2, padding: 8 }}
+            accessibilityLabel="Close ID photo"
+          >
+            <X size={28} color="#fff" />
+          </TouchableOpacity>
+          {idPhotoUrl && (
+            <Image source={{ uri: idPhotoUrl }} style={{ width: '100%', height: '75%' }} resizeMode="contain" />
+          )}
+          <Text style={{ color: '#D1FAE5', fontSize: 12, textAlign: 'center', marginTop: 12 }}>
+            {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} ID · Confidential (RA 10173)
+          </Text>
+        </View>
+      </Modal>
     </Modal>
   );
 }
