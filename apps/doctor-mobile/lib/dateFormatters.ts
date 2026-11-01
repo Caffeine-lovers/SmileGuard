@@ -33,29 +33,30 @@ export const formatDateOfBirth = (dateStr: string): string => {
 /**
  * Format appointment date from various formats (YYYY-MM-DD or mm/dd/YYYY)
  * @param dateStr - Date string in YYYY-MM-DD or mm/dd/YYYY format
- * @returns Formatted date string like "January 15, 2020"
+ * @param monthFormat - 'short' (default, e.g. "Nov 1, 2026") or 'long' (e.g. "November 1, 2026")
+ * @returns Formatted date string like "Nov 15, 2020"
  */
-export const formatAppointmentDate = (dateStr: string): string => {
+export const formatAppointmentDate = (dateStr: string, monthFormat: 'short' | 'long' = 'short'): string => {
   if (!dateStr) return "Not provided";
   try {
     // Handle YYYY-MM-DD format
     if (dateStr.includes('-')) {
       const [year, month, day] = dateStr.split('-');
       const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: monthFormat, day: 'numeric' });
     }
     
     // Handle mm/dd/YYYY format
     if (dateStr.includes('/')) {
       const [month, day, year] = dateStr.split('/');
       const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: monthFormat, day: 'numeric' });
     }
     
     // Try parsing as ISO date
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: monthFormat, day: 'numeric' });
     }
     
     return dateStr;

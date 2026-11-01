@@ -13,6 +13,7 @@ import {
   ScrollView as RNScrollView,
 } from "react-native";
 import AppointmentCard from "./AppointmentCard";
+import AppointmentEdit from "../appointments/appointmentEdit";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -185,6 +186,10 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
+
+  // Appointment status edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
   // ─────────────────────────────────────────
   // INTERACTIVE APP TOUR SYSTEM
@@ -748,6 +753,15 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   // ─────────────────────────────────────────
   // Clinic data is now loaded from ClinicContext and updates in real-time
 
+  const handleOpenStatusModal = (appointment: DashboardAppointment) => {
+    setEditingAppointment({
+      ...appointment,
+      appointment_date: appointment.date,
+      appointment_time: appointment.time,
+    });
+    setShowEditModal(true);
+  };
+
   const handlePress = (apt: DashboardAppointment) => {
     setSelectedPatient(apt);
     setExpandPatientDetails(false);
@@ -1207,18 +1221,26 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         position: 'relative',
                       }]}>
                         {/* Status Badge - Top Right Corner */}
-                        <View style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          paddingHorizontal: 8,
-                          paddingVertical: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 4 : 3.5,
-                          borderRadius: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 10 : 4,
-                          borderWidth: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 1,
-                          borderColor: '#6EE7B7',
-                          backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#65A30D' : '#D1FAE5',
-                          zIndex: 10,
-                        }}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            if (selectedPatient) {
+                              handleOpenStatusModal(selectedPatient);
+                            }
+                          }}
+                          style={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
+                            paddingHorizontal: 8,
+                            paddingVertical: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 4 : 3.5,
+                            borderRadius: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 10 : 4,
+                            borderWidth: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 1,
+                            borderColor: '#6EE7B7',
+                            backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#65A30D' : '#D1FAE5',
+                            zIndex: 10,
+                          }}
+                        >
                           <Text style={{
                             fontWeight: 'bold',
                             color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FFFFFF' : '#065F46',
@@ -1227,7 +1249,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           }}>
                             {(selectedPatient.status || 'scheduled').toUpperCase()}
                           </Text>
-                        </View>
+                        </TouchableOpacity>
 
                         {/* Patient Header */}
                         <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
@@ -1282,7 +1304,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           style={{
                             paddingVertical: 10,
                             paddingHorizontal: 12,
-                            marginBottom: 12,
+                            marginBottom: 10,
                             backgroundColor: '#047857',
                             borderRadius: 6,
                             borderWidth: 1,
@@ -1304,6 +1326,35 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                           <FileText size={13} color="#FFFFFF" />
                           <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>VIEW FULL MEDICAL RECORD</Text>
                           <ChevronRight size={13} color="#6EE7B7" />
+                        </TouchableOpacity>
+
+                        {/* Action: Update Appointment Status */}
+                        <TouchableOpacity
+                          style={{
+                            paddingVertical: 10,
+                            paddingHorizontal: 12,
+                            marginBottom: 10,
+                            backgroundColor: '#ECFDF5',
+                            borderRadius: 6,
+                            borderWidth: 1.5,
+                            borderColor: '#10B981',
+                            borderBottomWidth: 2.5,
+                            borderBottomColor: '#059669',
+                            flexDirection: 'row',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                          onPress={() => {
+                            if (selectedPatient) {
+                              handleOpenStatusModal(selectedPatient);
+                            }
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Clock size={13} color="#047857" />
+                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#047857', letterSpacing: 0.5 }}>UPDATE APPOINTMENT STATUS</Text>
+                          <ChevronRight size={13} color="#047857" />
                         </TouchableOpacity>
 
                         {/* See More Toggle Button */}
@@ -1865,6 +1916,46 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             </View>
           </SafeAreaView>
         </Modal>
+
+        {/* Appointment Status Edit Modal */}
+        {editingAppointment && (
+          <AppointmentEdit
+            visible={showEditModal}
+            appointment={editingAppointment}
+            doctorId={user.id || ''}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditingAppointment(null);
+            }}
+            onSave={async () => {
+              await refreshDashboardData();
+            }}
+            onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
+              let notification;
+              if (status === 'declined') {
+                notification = createManualNotification(
+                  'appointment-declined',
+                  'Appointment Declined',
+                  `${patientName}'s appointment has been declined`,
+                  {
+                    appointmentId,
+                    patientId,
+                    doctorId,
+                  }
+                );
+              } else {
+                notification = notifyAppointmentStatusChanged(
+                  status as 'completed' | 'cancelled' | 'no-show',
+                  patientName,
+                  appointmentId,
+                  patientId,
+                  doctorId
+                );
+              }
+              notificationState.actions.addNotification(notification);
+            }}
+          />
+        )}
 
         {/* Interactive Walkthrough Tour */}
         <AppTour

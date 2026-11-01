@@ -8,16 +8,42 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X } from "lucide-react-native";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, getPatientBillingInfo, getPatientProfile, updatePatientPwdStatus, type PatientBillingInfo } from "../../lib/profilesPatients";
-import { Alert } from "react-native";
+import {
+  ChevronLeft,
+  X,
+  User,
+  Phone,
+  Mail,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  Stethoscope,
+  CreditCard,
+  ShieldCheck,
+  Activity,
+  ChevronRight,
+  ExternalLink,
+  Sparkles,
+} from "lucide-react-native";
+import {
+  getPatientMedicalInfo,
+  getPatientAppointments,
+  updatePastAppointmentsToNoShow,
+  getPatientBillingInfo,
+  getPatientProfile,
+  updatePatientPwdStatus,
+  type PatientBillingInfo,
+} from "../../lib/profilesPatients";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
-import { getStatusColor, getStatusLabel } from "../../lib/statusHelpers";
-import { formatDateOfBirth } from "../../lib/dateFormatters";
+import { getStatusColor, getStatusBgColor, getStatusLabel } from "../../lib/statusHelpers";
+import { formatDateOfBirth, formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 
 export type AppointmentType = {
   id: string;
@@ -33,7 +59,7 @@ export type AppointmentType = {
   notes: string;
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
-  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined'; // Appointment status
+  status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   // Medical intake fields
   dateOfBirth?: string;
   address?: string;
@@ -52,86 +78,66 @@ interface PatientDetailsViewProps {
   patient: AppointmentType | null;
   doctorId?: string;
   onClose: () => void;
-  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onAppointmentStatusUpdated?: (
+    status: 'completed' | 'cancelled' | 'no-show' | 'declined',
+    patientName: string,
+    appointmentId: string,
+    patientId: string,
+    doctorId: string
+  ) => void;
 }
 
 const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  if (!dateStr) return "Not available";
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch {
+    return dateStr;
+  }
 };
 
 const calculateAge = (dateOfBirth: string | undefined): number | null => {
   if (!dateOfBirth) return null;
-  
+
   try {
     let birthDate: Date;
-    
-    // Handle mm/dd/YYYY format
     if (dateOfBirth.includes('/')) {
       const [month, day, year] = dateOfBirth.split('/');
       birthDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     } else {
-      // Handle ISO date format and other formats
       birthDate = new Date(dateOfBirth);
     }
-    
-    // Check if date is valid
-    if (isNaN(birthDate.getTime())) {
-      return null;
-    }
-    
+
+    if (isNaN(birthDate.getTime())) return null;
+
     const today = new Date();
-    
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    // If birthday hasn't occurred yet this year, subtract 1 from age
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
-    
+
     return age >= 0 ? age : null;
-  } catch (error) {
-    console.error('Error calculating age:', error);
+  } catch {
     return null;
   }
 };
 
-const categorizeAppointments = (appointments: any[]) => {
-  const now = new Date();
-  const past: any[] = [];
-  const current: any[] = [];
-  const future: any[] = [];
-
-  appointments.forEach((appt) => {
-    const apptDate = new Date(appt.appointment_date);
-    const diffMs = apptDate.getTime() - now.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-    // Current: within today
-    if (diffDays >= 0 && diffDays < 1) {
-      current.push(appt);
-    }
-    // Future: more than 1 day away
-    else if (diffDays >= 1) {
-      future.push(appt);
-    }
-    // Past: more than 1 day ago
-    else {
-      past.push(appt);
-    }
-  });
-
-  return { past, current, future };
-};
-
-export default function PatientDetailsView({ visible, patient, doctorId, onClose, onAppointmentStatusUpdated }: PatientDetailsViewProps) {
+export default function PatientDetailsView({
+  visible,
+  patient,
+  doctorId,
+  onClose,
+  onAppointmentStatusUpdated,
+}: PatientDetailsViewProps) {
   const [medicalIntake, setMedicalIntake] = useState<MedicalIntake | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [billingInfo, setBillingInfo] = useState<PatientBillingInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [patientProfile, setPatientProfile] = useState<any>(null);
@@ -142,20 +148,16 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   useEffect(() => {
     if (visible && effectivePatientId) {
-      // Immediately clear old data and show loading
       setMedicalIntake(null);
       setAppointments([]);
       setBillingInfo(null);
       setLoading(true);
-      
-      // Load new patient data
       loadPatientData(effectivePatientId);
     }
   }, [visible, effectivePatientId]);
 
   const loadPatientData = async (patientId: string) => {
     try {
-      // Load intake, appointments, billing, and profile in parallel
       const [intake, appts, billing, profile] = await Promise.all([
         getPatientMedicalInfo(patientId),
         getPatientAppointments(patientId),
@@ -163,47 +165,14 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
         getPatientProfile(patientId),
       ]);
       setPatientProfile(profile);
-
-      // Update medical intake
       setMedicalIntake(intake);
-      console.log('✅ Loaded medical intake:', intake);
 
-      // Auto-update past appointments to no-show status
       await updatePastAppointmentsToNoShow(appts);
-
-      // Reload appointments to get updated statuses
       const updatedAppts = await getPatientAppointments(patientId);
-      
-      // Log appointments breakdown
-      const statusBreakdown = {
-        scheduled: updatedAppts.filter(a => a.status === 'scheduled').length,
-        completed: updatedAppts.filter(a => a.status === 'completed').length,
-        cancelled: updatedAppts.filter(a => a.status === 'cancelled').length,
-        'no-show': updatedAppts.filter(a => a.status === 'no-show').length,
-      };
-      console.log(`✅ Loaded ${updatedAppts.length} appointments. Breakdown:`, statusBreakdown);
-      console.log('📋 Filtered cancelled:', updatedAppts.filter(a => a.status === 'cancelled'));
-      
       setAppointments(updatedAppts);
-
-      // Update billing info
       setBillingInfo(billing);
-      console.log('✅ Loaded billing info:', billing);
     } catch (error) {
       console.error('❌ Error loading patient data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadMedicalIntake = async (patientId: string) => {
-    setLoading(true);
-    try {
-      const intake = await getPatientMedicalInfo(patientId);
-      setMedicalIntake(intake);
-      console.log('Loaded medical intake:', intake);
-    } catch (error) {
-      console.error('Error loading medical intake:', error);
     } finally {
       setLoading(false);
     }
@@ -212,31 +181,26 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const loadAppointments = async (patientId: string) => {
     try {
       const appts = await getPatientAppointments(patientId);
-      
-      // Auto-update past appointments to no-show status
       await updatePastAppointmentsToNoShow(appts);
-      
-      // Reload appointments to get updated statuses
       const updatedAppts = await getPatientAppointments(patientId);
       setAppointments(updatedAppts);
-      console.log('Loaded appointments:', updatedAppts.length);
     } catch (error) {
-      console.error('Error loading appointments:', error);
+      console.error('Error reloading appointments:', error);
     }
   };
 
-
   const handleApprovePwd = async () => {
     if (!effectivePatientId) return;
-    const effectiveId = effectivePatientId;
     setUpdatingPwd(true);
     try {
-      const res = await updatePatientPwdStatus(effectiveId, 'approved', doctorId);
+      const res = await updatePatientPwdStatus(effectivePatientId, 'approved', doctorId);
       if (res.success) {
         setPatientProfile((prev: any) => ({ ...prev, pwd_status: 'approved' }));
         Alert.alert(
           'Verification Approved',
-          'Patient has been certified as a verified ' + (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') + '. The statutory 20% discount is now active.'
+          'Patient has been certified as a verified ' +
+            (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') +
+            '. The statutory 20% discount is now active.'
         );
       } else {
         Alert.alert('Error', res.error || 'Failed to approve PWD status.');
@@ -250,13 +214,15 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   const handleRejectPwd = async () => {
     if (!effectivePatientId) return;
-    const effectiveId = effectivePatientId;
     setUpdatingPwd(true);
     try {
-      const res = await updatePatientPwdStatus(effectiveId, 'rejected', doctorId);
+      const res = await updatePatientPwdStatus(effectivePatientId, 'rejected', doctorId);
       if (res.success) {
         setPatientProfile((prev: any) => ({ ...prev, pwd_status: 'rejected' }));
-        Alert.alert('Verification Declined', 'Patient verification was rejected. The patient will be notified to re-submit.');
+        Alert.alert(
+          'Verification Declined',
+          'Patient verification was rejected. The patient will be notified to re-submit.'
+        );
       } else {
         Alert.alert('Error', res.error || 'Failed to reject PWD status.');
       }
@@ -268,13 +234,15 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   };
 
   const handleEditAppointment = (appointment: any) => {
-    console.log('🔧 Opening appointment edit modal for:', appointment.id);
-    setEditingAppointment(appointment);
+    setEditingAppointment({
+      ...appointment,
+      appointment_date: appointment.appointment_date || appointment.date,
+      appointment_time: appointment.appointment_time || appointment.time,
+    });
     setShowEditModal(true);
   };
 
   const handleSaveAppointment = async () => {
-    console.log('✅ Appointment saved, refreshing appointments...');
     if (effectivePatientId) {
       await loadAppointments(effectivePatientId);
     }
@@ -282,347 +250,547 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
 
   if (!patient) return null;
 
-  // Show full-page loading screen while data is being fetched
-  if (loading) {
-    return (
-      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose}>
-              <X size={22} color="#047857" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Patient Details</Text>
-            <View style={{ width: 30 }} />
-          </View>
+  const patientName = patientProfile?.name || patient.name || 'Patient';
+  const avatarSource =
+    typeof patientProfile?.avatar_url === 'string' && patientProfile.avatar_url.length > 0
+      ? { uri: patientProfile.avatar_url }
+      : typeof patient.imageUrl === 'string' && patient.imageUrl.length > 0
+      ? { uri: patient.imageUrl }
+      : typeof patient.imageUrl === 'number'
+      ? patient.imageUrl
+      : null;
 
-          {/* Loading Screen */}
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#10B981" />
-            <Text style={{ marginTop: 12, fontSize: 14, color: '#047857', fontWeight: '600' }}>
-              Loading patient details...
-            </Text>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    );
-  }
+  const age = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth) ?? (patient.age > 0 ? patient.age : null);
+  const gender = medicalIntake?.gender || patient.gender || null;
+  const phone = medicalIntake?.phone || patientProfile?.phone || patient.contact || null;
+  const email = patientProfile?.email || patient.email || null;
+
+  // Appointment metrics
+  const completedCount = appointments.filter((a) => a.status === 'completed').length;
+  const totalAppointmentsCount = appointments.length;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f9f9f9" }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.closeButton}>✕</Text>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Top App Bar */}
+        <View style={styles.topAppBar}>
+          <TouchableOpacity
+            style={styles.navIconButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+            accessibilityLabel="Back"
+          >
+            <ChevronLeft size={20} color="#047857" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {scrollY > 100 ? patient.name : "Patient Details"}
-          </Text>
-          <View style={{ width: 30 }} />
+
+          <View style={styles.topAppBarCenter}>
+            <Text style={styles.topAppBarTitle}>PATIENT MEDICAL RECORD</Text>
+            <Text style={styles.topAppBarSubtitle} numberOfLines={1}>
+              {patientName} • Comprehensive Chart
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.closeIconButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+            accessibilityLabel="Close"
+          >
+            <X size={18} color="#475569" />
+          </TouchableOpacity>
         </View>
 
-        <ScrollView 
-          style={styles.container} 
-          contentContainerStyle={{ paddingBottom: 20 }}
-          onScroll={(event) => {
-            const offsetY = event.nativeEvent.contentOffset.y;
-            setScrollY(offsetY);
-          }}
-          scrollEventThrottle={16}
-        >
-          {/* Patient Profile Section */}
-          <View style={styles.profileSection}>
-            <Image
-              source={typeof patient.imageUrl === "string" ? { uri: patient.imageUrl } : patient.imageUrl}
-              style={styles.profileImage}
-            />
-            <Text style={styles.patientName}>{patient.name}</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={styles.loadingText}>Loading patient records...</Text>
           </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Patient Hero Card */}
+            <View style={[styles.skeuoCard, styles.cardShadow]}>
+              <View style={styles.heroHeaderRow}>
+                {avatarSource ? (
+                  <Image source={avatarSource} style={styles.heroAvatar} />
+                ) : (
+                  <View style={styles.heroAvatarFallback}>
+                    <User size={28} color="#047857" />
+                  </View>
+                )}
 
-          {/* Personal Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Personal Information</Text>
-            <View style={styles.infoContainer}>
-              <DetailRow label="Gender" value={medicalIntake?.gender ? medicalIntake.gender : patient.gender || "Not specified"} />
-              <DetailRow label="Contact Number" value={medicalIntake?.phone ? medicalIntake.phone : patient.contact || "Not provided"} />
-              <DetailRow label="Email" value={patientProfile?.email || patient.email || "Not provided"} />
-              <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
-              {(() => {
-                const calculatedAge = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth);
-                return calculatedAge !== null ? (
-                  <DetailRow label="Age" value={calculatedAge.toString()} />
-                ) : patient.age > 0 ? (
-                  <DetailRow label="Age" value={patient.age.toString()} />
-                ) : null;
-              })()}
-              <DetailRow label="Address" value={medicalIntake?.address || patient.address || "Not provided"} />
-            </View>
-          </View>
+                <View style={styles.heroInfoWrap}>
+                  <Text style={styles.heroName} numberOfLines={1}>
+                    {patientName}
+                  </Text>
 
-          {/* Statutory Discount & Verification Status */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Statutory Discount (PWD / Senior Citizen)</Text>
-            <View style={styles.infoContainer}>
-              {patientProfile?.pwd_status === 'approved' ? (
-                <View style={{ padding: 12, backgroundColor: '#ECFDF5', borderRadius: 8, borderWidth: 1, borderColor: '#10B981', gap: 6 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#047857' }}>
-                    ✓ Verified {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} Patient
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#065F46', lineHeight: 16 }}>
-                    Approved by doctor. Patient receives statutory 20% discount on all procedures.
-                  </Text>
-                  {patientProfile?.pwd_id_url && (
-                    <TouchableOpacity
-                      onPress={() => setShowIdPhotoModal(true)}
-                      style={{ marginTop: 4, alignSelf: 'flex-start' }}
-                    >
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', textDecorationLine: 'underline' }}>
-                        View Verified ID Card Photo
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    onPress={handleRejectPwd}
-                    disabled={updatingPwd}
-                    style={{ marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#FEE2E2', borderRadius: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FCA5A5' }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#B91C1C' }}>Revoke Discount Verification</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : patientProfile?.pwd_status === 'pending' ? (
-                <View style={{ padding: 12, backgroundColor: '#FFFBEB', borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B', gap: 8 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#92400E' }}>
-                    ⚠️ {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} Verification Request
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#78350F', lineHeight: 16 }}>
-                    Patient submitted government ID proof requesting 20% statutory deduction. Please review the ID below before approving.
-                  </Text>
-                  {patientProfile?.pwd_id_url && (
-                    <TouchableOpacity
-                      onPress={() => setShowIdPhotoModal(true)}
-                      style={{ borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#FCD34D', height: 140, backgroundColor: '#000' }}
-                    >
-                      <Image
-                        source={{ uri: patientProfile.pwd_id_url }}
-                        style={{ width: '100%', height: '100%' }}
-                        resizeMode="contain"
-                      />
-                      <View style={{ position: 'absolute', bottom: 4, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>Tap to Expand</Text>
+                  <View style={styles.heroBadgeRow}>
+                    {(age || gender) && (
+                      <View style={styles.demographicBadge}>
+                        <Text style={styles.demographicText}>
+                          {[age ? `${age} yrs` : null, gender].filter(Boolean).join(' • ')}
+                        </Text>
                       </View>
-                    </TouchableOpacity>
+                    )}
+
+                    {patientProfile?.pwd_status === 'approved' && (
+                      <View style={styles.pwdVerifiedBadge}>
+                        <ShieldCheck size={11} color="#047857" />
+                        <Text style={styles.pwdVerifiedText}>
+                          {patientProfile.pwd_type === 'senior' ? 'SENIOR' : 'PWD'} VERIFIED
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* Quick Contact Chips */}
+              {(phone || email) && (
+                <View style={styles.contactChipsRow}>
+                  {phone && (
+                    <View style={styles.contactChip}>
+                      <Phone size={12} color="#047857" />
+                      <Text style={styles.contactChipText}>{phone}</Text>
+                    </View>
                   )}
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                    <TouchableOpacity
-                      onPress={handleApprovePwd}
-                      disabled={updatingPwd}
-                      style={{ flex: 1, paddingVertical: 10, backgroundColor: '#047857', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>
-                        {updatingPwd ? 'Updating...' : '✓ Approve 20% Discount'}
+                  {email && (
+                    <View style={styles.contactChip}>
+                      <Mail size={12} color="#047857" />
+                      <Text style={styles.contactChipText} numberOfLines={1}>
+                        {email}
                       </Text>
-                    </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Practice Metrics Bar */}
+              <View style={styles.metricsBar}>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>APPOINTMENTS</Text>
+                  <Text style={styles.metricValue}>{totalAppointmentsCount}</Text>
+                </View>
+                <View style={styles.metricDivider} />
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>COMPLETED</Text>
+                  <Text style={[styles.metricValue, { color: '#047857' }]}>{completedCount}</Text>
+                </View>
+                <View style={styles.metricDivider} />
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricLabel}>TOTAL PAID</Text>
+                  <Text style={[styles.metricValue, { color: '#10B981' }]}>
+                    ₱{billingInfo ? billingInfo.paidAmount.toFixed(0) : '0'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Statutory Discount & Verification Banner */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <ShieldCheck size={14} color="#047857" />
+                  <Text style={styles.sectionHeaderTitle}>STATUTORY DISCOUNT (PWD / SENIOR)</Text>
+                </View>
+              </View>
+
+              <View style={[styles.skeuoCard, styles.cardShadow, { padding: 14 }]}>
+                {patientProfile?.pwd_status === 'approved' ? (
+                  <View style={styles.pwdApprovedBox}>
+                    <View style={styles.pwdAlertHeader}>
+                      <ShieldCheck size={15} color="#047857" />
+                      <Text style={styles.pwdApprovedTitle}>
+                        Verified {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} Patient
+                      </Text>
+                    </View>
+                    <Text style={styles.pwdApprovedDesc}>
+                      Certified by clinic. The statutory 20% deduction is applied to invoices.
+                    </Text>
+                    {patientProfile?.pwd_id_url && (
+                      <TouchableOpacity
+                        onPress={() => setShowIdPhotoModal(true)}
+                        style={styles.pwdViewIdBtn}
+                        activeOpacity={0.7}
+                      >
+                        <ExternalLink size={12} color="#047857" />
+                        <Text style={styles.pwdViewIdText}>View Verified Government ID</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                       onPress={handleRejectPwd}
                       disabled={updatingPwd}
-                      style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#FEE2E2', borderRadius: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FCA5A5' }}
+                      style={styles.pwdRevokeBtn}
+                      activeOpacity={0.7}
                     >
-                      <Text style={{ color: '#B91C1C', fontSize: 12, fontWeight: '700' }}>✕ Reject</Text>
+                      <Text style={styles.pwdRevokeText}>
+                        {updatingPwd ? 'Updating...' : 'Revoke Discount Verification'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-              ) : patientProfile?.pwd_status === 'rejected' ? (
-                <View style={{ padding: 12, backgroundColor: '#FEF2F2', borderRadius: 8, borderWidth: 1, borderColor: '#F87171', gap: 6 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#991B1B' }}>
-                    ✕ Verification Declined by Doctor
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#7F1D1D' }}>
-                    Patient has not been certified for statutory discounts.
-                  </Text>
-                  <TouchableOpacity
-                    onPress={handleApprovePwd}
-                    disabled={updatingPwd}
-                    style={{ marginTop: 4, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#ECFDF5', borderRadius: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#A7F3D0' }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>Re-evaluate & Approve</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <Text style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic', padding: 8 }}>
-                  No statutory PWD or Senior Citizen discount requested. Standard clinic rates apply.
-                </Text>
-              )}
-            </View>
-          </View>
+                ) : patientProfile?.pwd_status === 'pending' ? (
+                  <View style={styles.pwdPendingBox}>
+                    <View style={styles.pwdAlertHeader}>
+                      <AlertCircle size={15} color="#B45309" />
+                      <Text style={styles.pwdPendingTitle}>
+                        {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} Verification Request
+                      </Text>
+                    </View>
+                    <Text style={styles.pwdPendingDesc}>
+                      Patient uploaded government ID proof requesting 20% statutory discount. Please review the ID card below.
+                    </Text>
 
-          {/* Emergency Contact */}
-          {medicalIntake && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Emergency Contact</Text>
-              <View style={styles.infoContainer}>
-                <DetailRow label="Name" value={medicalIntake.emergencyContactName || "Not provided"} />
-                <DetailRow label="Phone" value={medicalIntake.emergencyContactPhone || "Not provided"} />
+                    {patientProfile?.pwd_id_url && (
+                      <TouchableOpacity
+                        onPress={() => setShowIdPhotoModal(true)}
+                        style={styles.pwdThumbnailBox}
+                        activeOpacity={0.8}
+                      >
+                        <Image
+                          source={{ uri: patientProfile.pwd_id_url }}
+                          style={styles.pwdThumbnailImage}
+                          resizeMode="contain"
+                        />
+                        <View style={styles.pwdExpandPill}>
+                          <Text style={styles.pwdExpandPillText}>Tap to View Full Size</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+
+                    <View style={styles.pwdActionButtons}>
+                      <TouchableOpacity
+                        onPress={handleApprovePwd}
+                        disabled={updatingPwd}
+                        style={styles.pwdApproveBtn}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.pwdApproveBtnText}>
+                          {updatingPwd ? 'Processing...' : '✓ Approve 20% Discount'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleRejectPwd}
+                        disabled={updatingPwd}
+                        style={styles.pwdRejectBtn}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.pwdRejectBtnText}>✕ Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : patientProfile?.pwd_status === 'rejected' ? (
+                  <View style={styles.pwdRejectedBox}>
+                    <View style={styles.pwdAlertHeader}>
+                      <AlertCircle size={15} color="#B91C1C" />
+                      <Text style={styles.pwdRejectedTitle}>Verification Declined by Doctor</Text>
+                    </View>
+                    <Text style={styles.pwdRejectedDesc}>
+                      Patient has not been certified for statutory discounts.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleApprovePwd}
+                      disabled={updatingPwd}
+                      style={styles.pwdReevaluateBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.pwdReevaluateText}>
+                        {updatingPwd ? 'Updating...' : 'Re-evaluate & Approve'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={styles.noDataMutedText}>
+                    No statutory PWD or Senior Citizen discount requested. Standard clinic pricing applies.
+                  </Text>
+                )}
               </View>
             </View>
-          )}
 
-          {/* Medical History */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Medical History</Text>
-            <View style={styles.infoContainer}>
-              {medicalIntake ? (
-                <>
-                  <DetailRow label="Allergies" value={medicalIntake.allergies || "None"} />
-                  <DetailRow label="Current Medications" value={medicalIntake.currentMedications || "None"} />
-                  <DetailRow label="Medical Conditions" value={medicalIntake.medicalConditions || "None"} />
-                  <DetailRow label="Past Surgeries" value={medicalIntake.pastSurgeries || "None"} />
-                  <DetailRow label="Smoking Status" value={medicalIntake.smokingStatus || "None"} />
-                  {medicalIntake.gender?.toLowerCase() !== 'male' && (
-                    <DetailRow label="Pregnancy Status" value={medicalIntake.pregnancyStatus || "Not specified"} />
-                  )}
-                </>
-              ) : (
-                <Text style={styles.noDataText}>No medical history records available</Text>
-              )}
+            {/* Personal Information */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <User size={14} color="#047857" />
+                  <Text style={styles.sectionHeaderTitle}>PERSONAL INFORMATION</Text>
+                </View>
+              </View>
+
+              <View style={[styles.skeuoCard, styles.cardShadow, { paddingHorizontal: 12, paddingVertical: 4 }]}>
+                <DetailRow label="Gender" value={gender || "Not specified"} />
+                <DetailRow label="Contact Number" value={phone || "Not provided"} />
+                <DetailRow label="Email" value={email || "Not provided"} />
+                <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
+                {age !== null && <DetailRow label="Age" value={`${age} years old`} />}
+                <DetailRow
+                  label="Address"
+                  value={medicalIntake?.address || patient.address || "Not provided"}
+                  isLast={true}
+                />
+              </View>
             </View>
-          </View>
 
-          {/* Notes Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <View style={[styles.infoContainer, { minHeight: 80 }]}>
-              <Text style={styles.notesText}>
-                {medicalIntake?.notes || patient.notes || "No notes available"}
-              </Text>
+            {/* Emergency Contact */}
+            {medicalIntake?.emergencyContactName || medicalIntake?.emergencyContactPhone ? (
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={styles.sectionTitleGroup}>
+                    <Phone size={14} color="#047857" />
+                    <Text style={styles.sectionHeaderTitle}>EMERGENCY CONTACT INFORMATION</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.skeuoCard, styles.cardShadow, { paddingHorizontal: 12, paddingVertical: 4 }]}>
+                  <DetailRow
+                    label="Contact Person"
+                    value={medicalIntake.emergencyContactName || "Not provided"}
+                  />
+                  <DetailRow
+                    label="Emergency Phone"
+                    value={medicalIntake.emergencyContactPhone || "Not provided"}
+                    isHighlight={true}
+                    isLast={true}
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {/* Clinical & Medical History */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <Activity size={14} color="#047857" />
+                  <Text style={styles.sectionHeaderTitle}>CLINICAL & MEDICAL HISTORY</Text>
+                </View>
+              </View>
+
+              <View style={[styles.skeuoCard, styles.cardShadow, { paddingHorizontal: 12, paddingVertical: 4 }]}>
+                {medicalIntake ? (
+                  <>
+                    <DetailRow
+                      label="Allergies"
+                      value={medicalIntake.allergies || "None declared"}
+                      isAlert={Boolean(medicalIntake.allergies && medicalIntake.allergies.toLowerCase() !== 'none')}
+                    />
+                    <DetailRow
+                      label="Current Medications"
+                      value={medicalIntake.currentMedications || "None"}
+                    />
+                    <DetailRow
+                      label="Medical Conditions"
+                      value={medicalIntake.medicalConditions || "None declared"}
+                      isAlert={Boolean(medicalIntake.medicalConditions && medicalIntake.medicalConditions.toLowerCase() !== 'none')}
+                    />
+                    <DetailRow
+                      label="Past Surgeries"
+                      value={medicalIntake.pastSurgeries || "None"}
+                    />
+                    <DetailRow
+                      label="Smoking Status"
+                      value={medicalIntake.smokingStatus ? medicalIntake.smokingStatus.toUpperCase() : "None"}
+                    />
+                    {medicalIntake.gender?.toLowerCase() !== 'male' && (
+                      <DetailRow
+                        label="Pregnancy Status"
+                        value={medicalIntake.pregnancyStatus || "Not applicable"}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <Text style={styles.noDataMutedText}>No medical history intake records available</Text>
+                )}
+              </View>
             </View>
-          </View>
 
-          {/* Billing Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Billing Information</Text>
-            <View style={styles.infoContainer}>
-              {billingInfo ? (
-                <>
-                  <DetailRow label="Total Charges" value={`₱${billingInfo.totalAmount.toFixed(2)}`} />
-                  <DetailRow label="Amount Paid" value={`₱${billingInfo.paidAmount.toFixed(2)}`} />
-                  {billingInfo.pendingAmount > 0 && (
-                    <DetailRow label="Pending Payment" value={`₱${billingInfo.pendingAmount.toFixed(2)}`} />
-                  )}
-                  {billingInfo.overdueAmount > 0 && (
-                    <DetailRow label="Overdue Amount" value={`₱${billingInfo.overdueAmount.toFixed(2)}`} />
-                  )}
-                  <DetailRow label="Number of Bills" value={billingInfo.billingCount.toString()} />
-                </>
-              ) : (
-                <Text style={styles.noDataText}>No billing records available</Text>
-              )}
+            {/* Clinical Intake Notes */}
+            {(medicalIntake?.notes || patient.notes) ? (
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={styles.sectionTitleGroup}>
+                    <FileText size={14} color="#047857" />
+                    <Text style={styles.sectionHeaderTitle}>CLINICAL INTAKE NOTES</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.skeuoCard, styles.cardShadow, { padding: 12 }]}>
+                  <Text style={styles.notesBodyText}>
+                    {medicalIntake?.notes || patient.notes}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Financial & Billing Summary */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <CreditCard size={14} color="#047857" />
+                  <Text style={styles.sectionHeaderTitle}>BILLING & PAYMENT SUMMARY</Text>
+                </View>
+              </View>
+
+              <View style={[styles.skeuoCard, styles.cardShadow, { paddingHorizontal: 12, paddingVertical: 4 }]}>
+                {billingInfo ? (
+                  <>
+                    <DetailRow
+                      label="Total Charges"
+                      value={`₱${billingInfo.totalAmount.toFixed(2)}`}
+                    />
+                    <DetailRow
+                      label="Amount Paid"
+                      value={`₱${billingInfo.paidAmount.toFixed(2)}`}
+                      isHighlight={true}
+                    />
+                    {billingInfo.pendingAmount > 0 && (
+                      <DetailRow
+                        label="Pending Balance"
+                        value={`₱${billingInfo.pendingAmount.toFixed(2)}`}
+                        isAlert={true}
+                      />
+                    )}
+                    {billingInfo.overdueAmount > 0 && (
+                      <DetailRow
+                        label="Overdue Balance"
+                        value={`₱${billingInfo.overdueAmount.toFixed(2)}`}
+                        isAlert={true}
+                      />
+                    )}
+                    <DetailRow
+                      label="Total Invoices"
+                      value={billingInfo.billingCount.toString()}
+                      isLast={true}
+                    />
+                  </>
+                ) : (
+                  <Text style={styles.noDataMutedText}>No billing records generated for this patient yet</Text>
+                )}
+              </View>
             </View>
-          </View>
 
-          {/* All Appointments History */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Appointments History</Text>
-            <View style={styles.infoContainer}>
-              {appointments.length === 0 ? (
-                <Text style={styles.noDataText}>No appointments found</Text>
-              ) : (
-                <>
-                  {(() => {
-                    // Filter: Prioritize accepted appointments (dentist_id exists) or completed/past appointments.
-                    // If no appointments match (e.g. dentist_id not set in legacy/test data),
-                    // fallback to all non-declined appointments so valid appointment history is never hidden.
-                    const acceptedAppointments = appointments.filter(
-                      (appt: any) =>
-                        appt.dentist_id ||
-                        appt.status === 'completed' ||
-                        appt.status === 'cancelled' ||
-                        appt.status === 'no-show'
-                    );
+            {/* Appointments History Timeline */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <Calendar size={14} color="#047857" />
+                  <Text style={styles.sectionHeaderTitle}>APPOINTMENTS TIMELINE</Text>
+                </View>
+                {appointments.length > 0 && (
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{appointments.length}</Text>
+                  </View>
+                )}
+              </View>
 
-                    const appointmentsToDisplay =
-                      acceptedAppointments.length > 0
-                        ? acceptedAppointments
-                        : appointments.filter((appt: any) => appt.status !== 'declined');
+              <View style={[styles.skeuoCard, styles.cardShadow, { padding: 12 }]}>
+                {appointments.length === 0 ? (
+                  <Text style={styles.noDataMutedText}>No appointment records found for this patient</Text>
+                ) : (
+                  <>
+                    {appointments.slice(0, 3).map((appt: any) => (
+                      <AppointmentItemRow
+                        key={appt.id}
+                        appointment={appt}
+                        onEdit={handleEditAppointment}
+                      />
+                    ))}
 
-                    const cancelledAppts = appointmentsToDisplay.filter((appt: any) => appt.status === 'cancelled');
-                    const otherAppts = appointmentsToDisplay.filter((appt: any) => appt.status !== 'cancelled').slice(0, 3);
-                    console.log(`🔍 Rendering appointments: ${cancelledAppts.length} cancelled, ${otherAppts.length} other (total to display: ${appointmentsToDisplay.length})`);
-                    
-                    return (
-                      <>
-                        {/* Show cancelled appointments first if they exist */}
-                        {cancelledAppts.length > 0 && (
-                          <>
-                            {cancelledAppts.map((appt: any) => (
-                              <AppointmentRow key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
-                            ))}
-                          </>
-                        )}
-                        
-                        {/* Show other appointments (max 3) */}
-                        {otherAppts.length > 0 && (
-                          <>
-                            {cancelledAppts.length > 0 && <Text style={{ fontSize: 11, color: '#999', marginBottom: 8, marginTop: 12 }}>Other Appointments:</Text>}
-                            {otherAppts.map((appt: any) => (
-                              <AppointmentRow key={appt.id} appointment={appt} onEdit={handleEditAppointment} />
-                            ))}
-                          </>
-                        )}
-                        
-                        {/* See More Button - only show if there are more than 3 appointments to display */}
-                        {appointmentsToDisplay.length > 3 && (
-                          <TouchableOpacity 
-                            style={styles.seeMoreButton}
-                            onPress={() => setShowAppointmentHistory(true)}
-                          >
-                            <Text style={styles.seeMoreText}>
-                              See All ({appointmentsToDisplay.length}) →
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                        
-                        {/* Show message if no appointments to display */}
-                        {appointmentsToDisplay.length === 0 && (
-                          <Text style={styles.noDataText}>No accepted appointments yet</Text>
-                        )}
-                      </>
-                    );
-                  })()}
-                </>
-              )}
+                    {appointments.length > 3 && (
+                      <TouchableOpacity
+                        style={styles.seeAllApptsBtn}
+                        onPress={() => setShowAppointmentHistory(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.seeAllApptsBtnText}>
+                          View All Appointments ({appointments.length})
+                        </Text>
+                        <ChevronRight size={14} color="#047857" />
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
             </View>
-          </View>
 
-          {/* Additional Information */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Additional Information</Text>
-            <View style={styles.infoContainer}>
-              <DetailRow label="Patient ID" value={effectivePatientId || patient.id} />
-              <DetailRow label="Account Created" value={patientProfile?.created_at ? formatDate(patientProfile.created_at) : (patient.date ? formatDate(patient.date) : "Not available")} />
+            {/* Additional Metadata */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <Text style={styles.sectionHeaderTitle}>SYSTEM METADATA</Text>
+                </View>
+              </View>
+
+              <View style={[styles.skeuoCard, styles.cardShadow, { paddingHorizontal: 12, paddingVertical: 4, marginBottom: 30 }]}>
+                <DetailRow label="Patient ID" value={effectivePatientId || patient.id} />
+                <DetailRow
+                  label="Registered Since"
+                  value={
+                    patientProfile?.created_at
+                      ? formatDate(patientProfile.created_at)
+                      : patient.date
+                      ? formatDate(patient.date)
+                      : "Not available"
+                  }
+                  isLast={true}
+                />
+              </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        )}
       </SafeAreaView>
+
+      {/* ID Card Photo Modal */}
+      {showIdPhotoModal && patientProfile?.pwd_id_url && (
+        <Modal
+          visible={showIdPhotoModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowIdPhotoModal(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <SafeAreaView style={styles.photoModalContainer}>
+              <View style={styles.photoModalHeader}>
+                <Text style={styles.photoModalTitle}>Government ID Card Proof</Text>
+                <TouchableOpacity
+                  style={styles.photoModalCloseBtn}
+                  onPress={() => setShowIdPhotoModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <X size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.photoModalImageWrap}>
+                <Image
+                  source={{ uri: patientProfile.pwd_id_url }}
+                  style={styles.photoModalImage}
+                  resizeMode="contain"
+                />
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
+      )}
 
       {/* Appointment History Modal */}
       {showAppointmentHistory && patient && (
         <Modal
           visible={showAppointmentHistory}
           animationType="slide"
+          presentationStyle="pageSheet"
           onRequestClose={() => setShowAppointmentHistory(false)}
         >
           <AppointmentHistory
             patientId={effectivePatientId || patient.id}
-            patientName={patient.name}
+            patientName={patientName}
             doctorId={doctorId || ''}
             onBack={() => setShowAppointmentHistory(false)}
           />
         </Modal>
       )}
 
-
-      {/* AppointmentEdit Modal */}
+      {/* Modernized AppointmentEdit Modal */}
       {editingAppointment && doctorId && (
         <AppointmentEdit
           visible={showEditModal}
@@ -640,266 +808,797 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   );
 }
 
-// Helper Component for Detail Rows
-function DetailRow({ label, value }: { label: string; value: string }) {
+// ─────────────────────────────────────────
+// HELPER COMPONENTS
+// ─────────────────────────────────────────
+
+function DetailRow({
+  label,
+  value,
+  isHighlight,
+  isAlert,
+  isLast,
+}: {
+  label: string;
+  value: string;
+  isHighlight?: boolean;
+  isAlert?: boolean;
+  isLast?: boolean;
+}) {
   return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}:</Text>
-      <Text style={styles.detailValue}>{value}</Text>
+    <View
+      style={[
+        styles.detailRow,
+        isLast && { borderBottomWidth: 0 },
+      ]}
+    >
+      <Text style={styles.detailLabel}>{label}</Text>
+      {isAlert ? (
+        <View style={styles.alertPill}>
+          <Text style={styles.alertPillText}>{value}</Text>
+        </View>
+      ) : isHighlight ? (
+        <View style={styles.highlightPill}>
+          <Text style={styles.highlightPillText}>{value}</Text>
+        </View>
+      ) : (
+        <Text style={styles.detailValue} numberOfLines={2}>
+          {value}
+        </Text>
+      )}
     </View>
   );
 }
 
-// Helper Component for Appointment Rows
-function AppointmentRow({ appointment, onEdit }: { appointment: any; onEdit?: (appt: any) => void }) {
-  const formattedDate = (() => {
-    try {
-      if (!appointment.appointment_date) return 'Date not available';
-      const cleanDateStr = String(appointment.appointment_date).split('T')[0].trim();
-      const timeStr = appointment.appointment_time ? String(appointment.appointment_time).trim() : null;
+function AppointmentItemRow({
+  appointment,
+  onEdit,
+}: {
+  appointment: any;
+  onEdit?: (appt: any) => void;
+}) {
+  const status = ((appointment.status || 'scheduled') as string).toLowerCase();
+  const statusColor = getStatusColor(status);
+  const statusBg = getStatusBgColor(status);
+  const statusLabel = getStatusLabel(status);
 
-      if (timeStr) {
-        const timeParts = timeStr.split(':').map(Number);
-        const dateParts = cleanDateStr.split('-').map(Number);
-        if (dateParts.length === 3 && !dateParts.some(isNaN) && timeParts.length >= 2 && !timeParts.slice(0, 2).some(isNaN)) {
-          const [year, month, day] = dateParts;
-          const [hour, minute] = timeParts;
-          const date = new Date(year, month - 1, day, hour, minute);
-          if (!isNaN(date.getTime())) {
-            return date.toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true,
-            });
-          }
-        }
-      }
-
-      // If only date is provided
-      const dateParts = cleanDateStr.split('-').map(Number);
-      if (dateParts.length === 3 && !dateParts.some(isNaN)) {
-        const [year, month, day] = dateParts;
-        const date = new Date(year, month - 1, day);
-        if (!isNaN(date.getTime())) {
-          return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          });
-        }
-      }
-
-      const parsed = new Date(cleanDateStr);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      }
-
-      return cleanDateStr;
-    } catch {
-      return appointment.appointment_date || 'Date not available';
-    }
-  })();
-  
-  const statusColor = getStatusColor(appointment.status || 'scheduled');
+  const dateValue = appointment.appointment_date || appointment.date;
+  const timeValue = appointment.appointment_time || appointment.time;
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View style={[styles.appointmentRow, { borderLeftColor: statusColor, flex: 1 }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.appointmentService}>{appointment.service || 'General'}</Text>
-          <Text style={styles.appointmentDate}>{formattedDate}</Text>
+    <View style={styles.apptItemRow}>
+      <View style={styles.apptItemContent}>
+        <View style={styles.apptItemHeader}>
+          <Text style={styles.apptItemService} numberOfLines={1}>
+            {appointment.service || 'General Dental Treatment'}
+          </Text>
+          <View
+            style={[
+              styles.apptStatusBadge,
+              { backgroundColor: statusBg, borderColor: statusColor },
+            ]}
+          >
+            <Text style={[styles.apptStatusBadgeText, { color: statusColor }]}>
+              {statusLabel.toUpperCase()}
+            </Text>
+          </View>
         </View>
-        <Text style={[styles.appointmentStatus, { color: statusColor }]}>
-          {getStatusLabel(appointment.status)}
-        </Text>
+
+        <View style={styles.apptItemDateTimeRow}>
+          <Calendar size={12} color="#64748B" />
+          <Text style={styles.apptItemDateTimeText}>
+            {formatAppointmentDate(dateValue)} • {formatAppointmentTime(timeValue)}
+          </Text>
+        </View>
       </View>
+
       {onEdit && (
         <TouchableOpacity
           onPress={() => onEdit(appointment)}
-          style={{
-            paddingVertical: 8,
-            paddingHorizontal: 12,
-            backgroundColor: '#10B981',
-            borderRadius: 6,
-          }}
+          style={styles.apptEditBtn}
+          activeOpacity={0.7}
         >
-          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>Edit</Text>
+          <Text style={styles.apptEditBtnText}>Edit</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
+// ─────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomColor: '#ddd',
-    borderBottomWidth: 1,
-    backgroundColor: '#fff',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#047857',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#047857',
-    fontWeight: 'bold',
-    width: 30,
-    textAlign: 'center',
-  },
-  container: {
+  safeArea: {
     flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+
+  // Top App Bar
+  topAppBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-  },
-  profileSection: {
-    alignItems: 'center',
-    marginVertical: 24,
-    paddingBottom: 16,
-    borderBottomColor: '#e0e0e0',
-    borderBottomWidth: 1,
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 12,
-    backgroundColor: '#f0f0f0',
-  },
-  patientName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#047857',
-    marginBottom: 12,
-  },
-  infoContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    padding: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomColor: '#f0f0f0',
-    borderBottomWidth: 1,
-  },
-  detailRow_last: {
-    borderBottomWidth: 0,
-  },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    flex: 0.4,
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#333',
-    flex: 0.6,
-    textAlign: 'right',
-    fontWeight: '500',
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
-  },
-  serviceText: {
-    fontSize: 14,
-    color: '#047857',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  noDataText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 8,
-  },
-  appointmentCategoryTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#047857',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  appointmentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 6,
-    borderLeftWidth: 4,
-  },
-  appointmentService: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  appointmentDate: {
-    fontSize: 12,
-    color: '#666',
-  },
-  appointmentStatus: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  moreText: {
-    fontSize: 12,
-    color: '#047857',
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  seeMoreButton: {
-    marginTop: 12,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+
+  topAppBarCenter: {
+    alignItems: "center",
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+
+  topAppBarTitle: {
+    fontSize: 13.5,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: 0.5,
+  },
+
+  topAppBarSubtitle: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+    marginTop: 1,
+  },
+
+  navIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  closeIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loadingText: {
+    marginTop: 14,
+    fontSize: 14,
+    color: "#047857",
+    fontWeight: "700",
+  },
+
+  // Content
+  scrollContainer: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+
+  // Skeuomorphic Card
+  skeuoCard: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#10B981',
-    alignItems: 'center',
+    borderTopColor: "#FFFFFF",
+    borderLeftColor: "#E2E8F0",
+    borderRightColor: "#CBD5E1",
+    borderBottomColor: "#CBD5E1",
   },
-  seeMoreText: {
+
+  cardShadow: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
+  // Hero Card
+  heroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    paddingBottom: 12,
+  },
+
+  heroAvatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+  },
+
+  heroAvatarFallback: {
+    width: 58,
+    height: 58,
+    borderRadius: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  heroInfoWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  heroName: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.3,
+  },
+
+  heroBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+
+  demographicBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+
+  demographicText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475569",
+  },
+
+  pwdVerifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+
+  pwdVerifiedText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.4,
+  },
+
+  // Contact Chips
+  contactChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+
+  contactChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+
+  contactChipText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#047857",
+  },
+
+  // Metrics Bar
+  metricsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+  },
+
+  metricItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+
+  metricDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "#E2E8F0",
+  },
+
+  metricLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 0.5,
+  },
+
+  metricValue: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#0F172A",
+    marginTop: 2,
+  },
+
+  // Section Headers
+  sectionContainer: {
+    marginTop: 18,
+  },
+
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+
+  sectionTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  sectionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#047857",
+    letterSpacing: 0.6,
+  },
+
+  countBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "#E2E8F0",
+  },
+
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#475569",
+  },
+
+  // Detail Row
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    gap: 12,
+  },
+
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    flexShrink: 0,
+  },
+
+  detailValue: {
+    fontSize: 12.5,
+    color: "#0F172A",
+    textAlign: "right",
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+
+  alertPill: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+
+  alertPillText: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#B91C1C",
+    textAlign: "right",
+  },
+
+  highlightPill: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+
+  highlightPillText: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#047857",
+    textAlign: "right",
+  },
+
+  noDataMutedText: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontStyle: "italic",
+    paddingVertical: 8,
+    textAlign: "center",
+  },
+
+  // PWD Cards
+  pwdApprovedBox: {
+    padding: 4,
+    gap: 6,
+  },
+
+  pwdAlertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  pwdApprovedTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#047857',
+    fontWeight: "800",
+    color: "#047857",
+  },
+
+  pwdApprovedDesc: {
+    fontSize: 11.5,
+    color: "#065F46",
+    lineHeight: 16,
+  },
+
+  pwdViewIdBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+
+  pwdViewIdText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#047857",
+    textDecorationLine: "underline",
+  },
+
+  pwdRevokeBtn: {
+    marginTop: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#FEE2E2",
+    borderRadius: 4,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+  },
+
+  pwdRevokeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#B91C1C",
+  },
+
+  pwdPendingBox: {
+    padding: 4,
+    gap: 8,
+  },
+
+  pwdPendingTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#92400E",
+  },
+
+  pwdPendingDesc: {
+    fontSize: 11.5,
+    color: "#78350F",
+    lineHeight: 16,
+  },
+
+  pwdThumbnailBox: {
+    borderRadius: 6,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    height: 130,
+    backgroundColor: "#0F172A",
+    marginTop: 4,
+    position: "relative",
+  },
+
+  pwdThumbnailImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  pwdExpandPill: {
+    position: "absolute",
+    bottom: 6,
+    right: 8,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+
+  pwdExpandPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+
+  pwdActionButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+
+  pwdApproveBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    backgroundColor: "#047857",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#064E3B",
+    borderBottomWidth: 2.5,
+    borderBottomColor: "#022C22",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  pwdApproveBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  pwdRejectBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "#FEE2E2",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  pwdRejectBtnText: {
+    color: "#B91C1C",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  pwdRejectedBox: {
+    padding: 4,
+    gap: 6,
+  },
+
+  pwdRejectedTitle: {
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#991B1B",
+  },
+
+  pwdRejectedDesc: {
+    fontSize: 11.5,
+    color: "#7F1D1D",
+  },
+
+  pwdReevaluateBtn: {
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 4,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+
+  pwdReevaluateText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
+  },
+
+  // Notes Body
+  notesBodyText: {
+    fontSize: 12.5,
+    color: "#334155",
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+
+  // Appointment Timeline Item
+  apptItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 10,
+    marginBottom: 8,
+  },
+
+  apptItemContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+
+  apptItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+
+  apptItemService: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+    flex: 1,
+    marginRight: 8,
+  },
+
+  apptStatusBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 3.5,
+    borderWidth: 1,
+  },
+
+  apptStatusBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+  },
+
+  apptItemDateTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  apptItemDateTimeText: {
+    fontSize: 11.5,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+
+  apptEditBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#10B981",
+    borderBottomWidth: 2,
+    borderBottomColor: "#059669",
+  },
+
+  apptEditBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#047857",
+  },
+
+  seeAllApptsBtn: {
+    marginTop: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#10B981",
+    borderBottomWidth: 2.5,
+    borderBottomColor: "#059669",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  seeAllApptsBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.4,
+  },
+
+  // Fullscreen Photo Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.95)",
+    justifyContent: "center",
+  },
+
+  photoModalContainer: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+
+  photoModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+
+  photoModalTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  photoModalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  photoModalImageWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+
+  photoModalImage: {
+    width: "100%",
+    height: "100%",
   },
 });
