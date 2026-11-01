@@ -26,6 +26,7 @@ interface AppointmentsRequestTabProps {
   onRequestAcceptedWithNotification?: (notification: any) => void;
   styles: any;
   startTourTrigger?: number;
+  onBack?: () => void;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -36,6 +37,7 @@ export default function AppointmentsRequestTab({
   onRequestAcceptedWithNotification,
   styles,
   startTourTrigger,
+  onBack,
 }: AppointmentsRequestTabProps) {
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -477,14 +479,27 @@ export default function AppointmentsRequestTab({
     >
       {/* Header */}
       <View style={tabStyles.header}>
-        <View
-          ref={tour.register("requests-counter")}
-          collapsable={false}
-          style={tabStyles.headerContent}
-        >
-          <Text style={tabStyles.headerTitle}>Appointment Requests</Text>
-          <View style={tabStyles.badgeContainer}>
-            <Text style={tabStyles.badgeText}>{appointmentRequests.length}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {onBack && (
+            <TouchableOpacity
+              onPress={onBack}
+              style={tabStyles.backButton}
+              activeOpacity={0.7}
+              accessibilityLabel="Back to Dashboard"
+            >
+              <ChevronLeft size={18} color={AppColors.primaryDark} />
+              <Text style={tabStyles.backButtonText}>BACK</Text>
+            </TouchableOpacity>
+          )}
+          <View
+            ref={tour.register("requests-counter")}
+            collapsable={false}
+            style={tabStyles.headerContent}
+          >
+            <Text style={tabStyles.headerTitle}>Appointment Requests</Text>
+            <View style={tabStyles.badgeContainer}>
+              <Text style={tabStyles.badgeText}>{appointmentRequests.length}</Text>
+            </View>
           </View>
         </View>
 
@@ -714,6 +729,25 @@ const tabStyles = StyleSheet.create({
     backgroundColor: '#E6ECEF',
     borderBottomWidth: 1.5,
     borderBottomColor: '#CBD5E1',
+  },
+
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    gap: 4,
+  },
+
+  backButtonText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: AppColors.primaryDark,
+    letterSpacing: 0.5,
   },
 
   headerContent: {

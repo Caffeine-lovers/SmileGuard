@@ -49,6 +49,7 @@ interface RecordsTabProps {
   setShowPatientDetails: (show: boolean) => void;
   styles: any;
   startTourTrigger?: number;
+  onBack?: () => void;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -66,6 +67,7 @@ export default function RecordsTab({
   setShowPatientDetails,
   styles,
   startTourTrigger,
+  onBack,
 }: RecordsTabProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -398,14 +400,27 @@ export default function RecordsTab({
       >
         {/* Top Header Row matching DoctorDashboard modules */}
         <View style={localStyles.topHeader}>
-          <View
-            ref={tour.register("records-actions")}
-            collapsable={false}
-            style={localStyles.headerTitleGroup}
-          >
-            <Text style={localStyles.headerTitle}>PATIENT RECORDS</Text>
-            <View style={localStyles.pillCountBadge}>
-              <Text style={localStyles.pillCountText}>{basePatients.length}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {onBack && (
+              <TouchableOpacity
+                onPress={onBack}
+                style={localStyles.backButton}
+                activeOpacity={0.7}
+                accessibilityLabel="Back to Dashboard"
+              >
+                <ChevronLeft size={18} color="#047857" />
+                <Text style={localStyles.backButtonText}>BACK</Text>
+              </TouchableOpacity>
+            )}
+            <View
+              ref={tour.register("records-actions")}
+              collapsable={false}
+              style={localStyles.headerTitleGroup}
+            >
+              <Text style={localStyles.headerTitle}>PATIENT RECORDS</Text>
+              <View style={localStyles.pillCountBadge}>
+                <Text style={localStyles.pillCountText}>{basePatients.length}</Text>
+              </View>
             </View>
           </View>
 
@@ -717,6 +732,23 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  backButtonText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#047857',
+    letterSpacing: 0.5,
   },
   headerTitleGroup: {
     flexDirection: 'row',

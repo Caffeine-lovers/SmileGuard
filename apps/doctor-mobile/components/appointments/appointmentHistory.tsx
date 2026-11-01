@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -162,6 +163,24 @@ export default function AppointmentHistory({
   const [activeTab, setActiveTab] = useState<"all" | "current" | "future" | "past">("all");
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (showEditModal) {
+        setShowEditModal(false);
+        setEditingAppointment(null);
+        return true;
+      }
+      onBack();
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
+    return () => subscription.remove();
+  }, [showEditModal, onBack]);
 
   useEffect(() => {
     loadAppointments();

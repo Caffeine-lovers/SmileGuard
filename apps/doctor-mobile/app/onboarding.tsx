@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -40,6 +41,31 @@ export default function DoctorOnboardingWizard() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (showPayMongoGuide) {
+        setShowPayMongoGuide(false);
+        return true;
+      }
+      if (currentStep > 0) {
+        handlePrev();
+        return true;
+      }
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(doctor)/dashboard");
+      }
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
+    return () => subscription.remove();
+  }, [showPayMongoGuide, currentStep]);
 
   const steps = [
     {
@@ -347,7 +373,7 @@ export default function DoctorOnboardingWizard() {
 
         {/* Action Buttons */}
         <View style={styles.btnRow}>
-          {currentStep > 0 && (
+          {currentStep > 0 ? (
             <TouchableOpacity
               onPress={handlePrev}
               style={styles.backBtn}
@@ -355,6 +381,15 @@ export default function DoctorOnboardingWizard() {
             >
               <ChevronLeft size={16} color="#94a3b8" />
               <Text style={styles.backBtnText}>Back</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/(doctor)/dashboard")}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft size={16} color="#94a3b8" />
+              <Text style={styles.backBtnText}>Close</Text>
             </TouchableOpacity>
           )}
 

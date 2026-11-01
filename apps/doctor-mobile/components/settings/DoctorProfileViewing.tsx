@@ -1,8 +1,9 @@
 import { Doctor, getDoctorFullName, getDoctorPrefix, getDoctorTitleName } from "@smileguard/shared-types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,19 @@ export default function DoctorProfileView({
 }: DoctorProfileViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const onBackPress = () => {
+      setIsEditing(false);
+      return true;
+    };
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress
+    );
+    return () => subscription.remove();
+  }, [isEditing]);
 
   const handleSave = async (updatedDoctor: Partial<Doctor>) => {
     setLoading(true);

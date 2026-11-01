@@ -11,6 +11,9 @@ import {
   Animated,
   ActivityIndicator,
   ScrollView as RNScrollView,
+  BackHandler,
+  Platform,
+  ToastAndroid,
 } from "react-native";
 import AppointmentCard from "./AppointmentCard";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -186,20 +189,121 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
+  const [tabHistory, setTabHistory] = useState<('dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings')[]>([]);
+  const lastBackPressRef = useRef<number>(0);
 
   // Appointment status edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
-  // ─────────────────────────────────────────
-  // INTERACTIVE APP TOUR SYSTEM
-  // ─────────────────────────────────────────
-  const tour = useTourTargets();
+  // App tour state
   const [tourVisible, setTourVisible] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
+
+  // Hierarchical back handler & tab navigation
+  const navigateToTab = useCallback((nextTab: 'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings') => {
+    if (nextTab === activeTab) return;
+    setTabHistory(prev => {
+      if (nextTab === 'dashboard') {
+        return [];
+      }
+      const filtered = prev.filter(t => t !== nextTab);
+      return [...filtered, activeTab];
+    });
+    setActiveTab(nextTab);
+  }, [activeTab]);
+
+  const handleGoBack = useCallback(() => {
+    // 1. If sidebar drawer is open, close it
+    if (sidebarOpen) {
+      setSidebarOpen(false);
+      return true;
+    }
+
+    // 2. If app tour is visible, dismiss it
+    if (tourVisible) {
+      setTourVisible(false);
+      return true;
+    }
+
+    // 3. If notification center is open, close it
+    if (showNotificationCenter) {
+      setShowNotificationCenter(false);
+      return true;
+    }
+
+    // 4. If appointment status edit modal is open, close it
+    if (showEditModal) {
+      setShowEditModal(false);
+      setEditingAppointment(null);
+      return true;
+    }
+
+    // 5. If patient details view is open, close it
+    if (showPatientDetails) {
+      setShowPatientDetails(false);
+      setViewingPatient(null);
+      return true;
+    }
+
+    // 6. If quick patient search is active, dismiss it
+    if (showQuickPatientSearch) {
+      setShowQuickPatientSearch(false);
+      setQuickSearchQuery("");
+      return true;
+    }
+
+    // 7. If on a tab other than 'dashboard', go back respectively in tab history
+    if (activeTab !== 'dashboard') {
+      if (tabHistory.length > 0) {
+        const prevTab = tabHistory[tabHistory.length - 1];
+        setTabHistory(prev => prev.slice(0, prev.length - 1));
+        setActiveTab(prevTab);
+      } else {
+        setActiveTab('dashboard');
+      }
+      return true;
+    }
+
+    // 8. On root dashboard with no overlays: double press to exit
+    const now = Date.now();
+    if (now - lastBackPressRef.current < 2000) {
+      return false; // Exit app
+    }
+    lastBackPressRef.current = now;
+    if (Platform.OS === 'android') {
+      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+    }
+    return true;
+  }, [
+    sidebarOpen,
+    tourVisible,
+    showNotificationCenter,
+    showEditModal,
+    showPatientDetails,
+    showQuickPatientSearch,
+    activeTab,
+    tabHistory,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => handleGoBack();
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+      return () => subscription.remove();
+    }, [handleGoBack])
+  );
+
+  // ─────────────────────────────────────────
+  // INTERACTIVE APP TOUR SYSTEM
+  // ─────────────────────────────────────────
+  const tour = useTourTargets();
   const dashboardScrollRef = useRef<any>(null);
   const dashboardColumnsLayoutY = useRef<number>(0);
   const patientDetailsLayoutY = useRef<number>(0);
@@ -1026,7 +1130,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               const notif = notificationState.activeNotification;
               notificationState.actions.dismissActiveNotification();
               if (notif?.type.startsWith('appointment-')) {
-                setActiveTab('appointment-requests');
+                navigateToTab('appointment-requests');
               } else {
                 setShowNotificationCenter(true);
               }
@@ -1158,7 +1262,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         </View>
                       </View>
                       <TouchableOpacity
-                        onPress={() => setActiveTab('appointments')}
+                        onPress={() => navigateToTab('appointments')}
                         style={styles.seeAllBtn}
                         activeOpacity={0.7}
                       >
@@ -1426,7 +1530,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                       </View>
                       {patients.length > 0 && (
                         <TouchableOpacity
-                          onPress={() => setActiveTab('records')}
+                          onPress={() => navigateToTab('records')}
                           style={styles.seeAllBtn}
                           activeOpacity={0.7}
                         >
@@ -1473,7 +1577,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
                         </View>
                       </View>
                       <TouchableOpacity
-                        onPress={() => setActiveTab('appointment-requests')}
+                        onPress={() => navigateToTab('appointment-requests')}
                         style={styles.seeAllBtn}
                         activeOpacity={0.7}
                       >
@@ -1538,7 +1642,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
 
                     {appointmentRequests.length > 3 && (
                       <TouchableOpacity
-                        onPress={() => setActiveTab('appointment-requests')}
+                        onPress={() => navigateToTab('appointment-requests')}
                         style={styles.seeMoreRequestsBtn}
                         activeOpacity={0.8}
                       >
@@ -1566,6 +1670,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               setShowPatientDetails={setShowPatientDetails}
               styles={styles}
               startTourTrigger={recordsTourTrigger}
+              onBack={handleGoBack}
             />
           ) : activeTab === 'appointments' ? (
             <AppointmentsTab
@@ -1574,6 +1679,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               styles={styles}
               doctorId={user.id}
+              onBack={handleGoBack}
               onAppointmentStatusUpdated={(status, patientName, appointmentId, patientId, doctorId) => {
                 // Trigger notification when appointment status is updated
                 let notification;
@@ -1603,6 +1709,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
           ) : activeTab === 'appointment-requests' ? (
             <AppointmentsRequestTab
               userId={user.id || ''}
+              onBack={handleGoBack}
               onRequestAccepted={() => {
                 // Refresh dashboard data when request is accepted
                 refreshDashboardData();
@@ -1618,34 +1725,36 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               doctorId={user.id || ''}
               styles={styles}
               startTourTrigger={billingTourTrigger}
+              onBack={handleGoBack}
             />
           ) : (
             <SettingsTab
               user={doctorProfile}
               onUpdateProfile={handleUpdateProfile}
               styles={styles}
+              onBack={handleGoBack}
               onProfileUpdated={(doctorName, doctorId) => {
                 // Trigger notification when doctor profile is updated
                 const notification = notifyDoctorProfileUpdated(doctorName, doctorId);
                 notificationState.actions.addNotification(notification);
               }}
               onStartTutorial={() => {
-                setActiveTab('dashboard');
+                navigateToTab('dashboard');
                 setTimeout(() => {
                   setTourIndex(0);
                   setTourVisible(true);
                 }, 250);
               }}
               onStartRecordsTutorial={() => {
-                setActiveTab('records');
+                navigateToTab('records');
                 setRecordsTourTrigger((prev) => prev + 1);
               }}
               onStartAppointmentsTutorial={() => {
-                setActiveTab('appointments');
+                navigateToTab('appointments');
                 setAppointmentsTourTrigger((prev) => prev + 1);
               }}
               onStartBillingTutorial={() => {
-                setActiveTab('billing');
+                navigateToTab('billing');
                 setBillingTourTrigger((prev) => prev + 1);
               }}
             />
@@ -1752,6 +1861,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
               style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
               onPress={() => {
                 setActiveTab('dashboard');
+                setTabHistory([]);
                 setSidebarOpen(false);
               }}
             >
@@ -1762,7 +1872,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'records' && styles.navItemActive]}
               onPress={() => {
-                setActiveTab('records');
+                navigateToTab('records');
                 setSidebarOpen(false);
               }}
             >
@@ -1773,7 +1883,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'appointments' && styles.navItemActive]}
               onPress={() => {
-                setActiveTab('appointments');
+                navigateToTab('appointments');
                 setSidebarOpen(false);
               }}
             >
@@ -1784,7 +1894,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'appointment-requests' && styles.navItemActive]}
               onPress={() => {
-                setActiveTab('appointment-requests');
+                navigateToTab('appointment-requests');
                 setSidebarOpen(false);
               }}
             >
@@ -1795,7 +1905,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
               onPress={() => {
-                setActiveTab('billing');
+                navigateToTab('billing');
                 setSidebarOpen(false);
               }}
             >
@@ -1806,7 +1916,7 @@ export default function DoctorDashboard({ user, onLogout }: DoctorDashboardProps
             <TouchableOpacity
               style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
               onPress={() => {
-                setActiveTab('settings');
+                navigateToTab('settings');
                 setSidebarOpen(false);
               }}
             >
