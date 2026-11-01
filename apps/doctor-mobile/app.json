@@ -3,8 +3,8 @@
     "name": "SmileGuard Doctor",
     "slug": "smileguard-doctor",
     "scheme": [
-      "smileguard://**",
-      "smileguard-doctor://**"
+      "smileguard",
+      "smileguard-doctor*"
     ],
     "version": "1.0.0",
     "orientation": "portrait",
