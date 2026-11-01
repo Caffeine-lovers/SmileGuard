@@ -3,28 +3,11 @@ import type { Billing, Appointment, AppointmentBillingRow, AppointmentBillingSta
 import { isCancelledAppointment, isPendingAppointment } from '@/lib/database';
 import { getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
+import { SERVICE_PRICES, getServicePrice, getServicePriceForClinic } from '@/lib/pricing';
 
-const SERVICE_PRICES: Record<string, number> = {
-  Cleaning: 1500,
-  Whitening: 5000,
-  Fillings: 2000,
-  Filling: 2000,
-  'Root Canal': 8000,
-  'Root Canals': 8000,
-  Extraction: 1500,
-  Aligners: 25000,
-  'Braces Consultation': 35000,
-  Braces: 35000,
-  'Implants Consultation': 45000,
-  Implants: 45000,
-  'X-Ray': 500,
-  'Check-up': 300,
-  Checkup: 300,
-  Consultation: 500,
-  'Initial Consultation': 500,
-  General: 500,
-  'General Checkup': 500,
-};
+// Re-exported so existing imports keep working; the implementations live in lib/pricing.ts
+export { SERVICE_PRICES, getServicePrice, getServicePriceForClinic };
+
 
 export interface ClinicInfo {
   id: string;
@@ -84,45 +67,7 @@ export async function fetchClinicLookup(): Promise<{
   return { clinicMap, defaultClinic };
 }
 
-export function getServicePrice(serviceName?: string | null): number {
-  if (!serviceName) return 1500;
-  if (SERVICE_PRICES[serviceName] && SERVICE_PRICES[serviceName] > 0) {
-    return SERVICE_PRICES[serviceName];
-  }
-  const normalized = serviceName.trim().toLowerCase();
-  for (const [key, price] of Object.entries(SERVICE_PRICES)) {
-    if (key.toLowerCase() === normalized) return price;
-    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
-      return price;
-    }
-  }
-  return 1500;
-}
 
-export function getServicePriceForClinic(
-  serviceName?: string | null,
-  clinicServices?: { id?: string; name?: string; price?: number }[]
-): number {
-  if (!serviceName) return 1500;
-  if (clinicServices && Array.isArray(clinicServices) && clinicServices.length > 0) {
-    const norm = serviceName.trim().toLowerCase();
-    // 1. Exact match
-    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
-    if (exact && typeof exact.price === 'number' && exact.price > 0) {
-      return exact.price;
-    }
-    // 2. Partial match
-    const partial = clinicServices.find(
-      (s) =>
-        s.name &&
-        (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
-    );
-    if (partial && typeof partial.price === 'number' && partial.price > 0) {
-      return partial.price;
-    }
-  }
-  return getServicePrice(serviceName);
-}
 
 export async function calculateOutstandingBalance(userId: string): Promise<number> {
   console.log("[calculateOutstandingBalance] Starting calculation for user:", userId);
@@ -235,4 +180,3 @@ export async function fetchBillingDataForDashboard(
   }
 }
 
-export { SERVICE_PRICES };

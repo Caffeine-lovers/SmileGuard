@@ -1,199 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '@/lib/paymongo';
+import { getAuthedUserId, getServiceClient, getUserClient } from '@/lib/serverSupabase';
+import { computeCheckoutTotal, resolveBaseAmount, type ClinicService } from '@/lib/pricing';
 
 export const dynamic = 'force-dynamic';
 
-function getSupabaseClient(authHeader?: string | null) {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return null;
-
-  // If service role key is available, use it (bypasses RLS)
-  if (serviceRoleKey) {
-    return createClient(supabaseUrl, serviceRoleKey);
-  }
-
-  // Otherwise, use anon key with the caller's auth header so RLS evaluates the user's session
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!anonKey) return null;
-
-  return createClient(supabaseUrl, anonKey, {
-    global: {
-      headers: authHeader ? { Authorization: authHeader } : {},
-    },
-  });
-}
-
-// Fallback service prices — authoritative baseline
-const DEFAULT_SERVICE_PRICES: Record<string, number> = {
-  Cleaning: 1500,
-  Whitening: 5000,
-  Fillings: 2000,
-  Filling: 2000,
-  'Root Canal': 8000,
-  'Root Canals': 8000,
-  Extraction: 1500,
-  Aligners: 25000,
-  'Braces Consultation': 35000,
-  Braces: 35000,
-  'Implants Consultation': 45000,
-  Implants: 45000,
-  'X-Ray': 500,
-  'Check-up': 300,
-  Checkup: 300,
-  Consultation: 500,
-  'Initial Consultation': 500,
-  General: 500,
-  'General Checkup': 500,
-};
-
-function getServicePriceForClinic(
-  serviceName?: string | null,
-  clinicServices?: { id?: string; name?: string; price?: number }[]
-): number {
-  if (!serviceName) return 1500;
-  if (clinicServices && Array.isArray(clinicServices) && clinicServices.length > 0) {
-    const norm = serviceName.trim().toLowerCase();
-    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
-    if (exact && typeof exact.price === 'number' && exact.price > 0) {
-      return exact.price;
-    }
-    const partial = clinicServices.find(
-      (s) =>
-        s.name &&
-        (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
-    );
-    if (partial && typeof partial.price === 'number' && partial.price > 0) {
-      return partial.price;
-    }
-  }
-
-  const normalized = serviceName.trim().toLowerCase();
-  for (const [key, price] of Object.entries(DEFAULT_SERVICE_PRICES)) {
-    if (key.toLowerCase() === normalized) return price;
-    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
-      return price;
-    }
-  }
-  return 1500;
-}
+const peso = (n: number) => `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export async function POST(request: NextRequest) {
   try {
     if (!isPayMongoConfigured) {
       return NextResponse.json(
-        {
-          error: 'PayMongo payments are not configured on this server yet.',
-          unconfigured: true,
-        },
+        { error: 'PayMongo payments are not configured on this server yet.', unconfigured: true },
         { status: 503 }
       );
     }
 
     const authHeader = request.headers.get('authorization');
-    const supabase = getSupabaseClient(authHeader);
+    const patientId = await getAuthedUserId(authHeader);
+    if (!patientId) {
+      return NextResponse.json({ error: 'Please sign in again before paying.' }, { status: 401 });
+    }
+
+    const supabase = getServiceClient() || getUserClient(authHeader);
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database service configuration error' }, { status: 500 });
+    }
 
     const body = await request.json();
-    const { appointmentId, patientId, discountType, billingId, service: bodyService } = body;
-
-    // Validate required fields
-    if (!appointmentId || !patientId) {
-      return NextResponse.json(
-        { error: 'Missing appointmentId or patientId' },
-        { status: 400 }
-      );
+    const { appointmentId, discountType } = body as { appointmentId?: string; discountType?: string };
+    if (!appointmentId) {
+      return NextResponse.json({ error: 'Missing appointmentId' }, { status: 400 });
     }
 
-    // Attempt to lookup appointment and clinic from database
-    let serviceName: string | null = null;
+    // The appointment must belong to the signed-in patient
+    const { data: appointment } = await supabase
+      .from('appointments')
+      .select('id, service, dentist_id, status')
+      .eq('id', appointmentId)
+      .eq('patient_id', patientId)
+      .maybeSingle();
+
+    if (!appointment) {
+      return NextResponse.json({ error: 'Appointment not found for this account.' }, { status: 404 });
+    }
+
+    // Clinic name + price list for this appointment's doctor
     let clinicName = "Kyler's Clinic";
-    let clinicServices: any[] = [];
-
-    if (supabase) {
-      const { data: appointment } = await supabase
-        .from('appointments')
-        .select('service, dentist_id, status')
-        .eq('id', appointmentId)
-        .eq('patient_id', patientId)
-        .maybeSingle();
-
-      if (appointment?.service) {
-        serviceName = appointment.service;
-      }
-
-      // Fetch the clinic setup for this appointment's doctor/clinic
-      let clinicQuery = supabase
-        .from('clinic_setup')
-        .select('clinic_name, services');
-
-      if (appointment?.dentist_id) {
-        clinicQuery = clinicQuery.eq('user_id', appointment.dentist_id);
-      } else {
-        clinicQuery = clinicQuery.limit(1);
-      }
-
-      const { data: clinicData } = await clinicQuery.maybeSingle();
-      if (clinicData) {
-        if (clinicData.clinic_name) clinicName = clinicData.clinic_name;
-        if (Array.isArray(clinicData.services)) {
-          clinicServices = clinicData.services;
-        } else if (typeof clinicData.services === 'string') {
-          try {
-            clinicServices = JSON.parse(clinicData.services);
-          } catch { }
-        }
-      }
-    }
-
-    // Fall back to client-provided service name if DB lookup was blocked by RLS
-    if (!serviceName && bodyService && typeof bodyService === 'string') {
-      serviceName = bodyService.trim();
-    }
-
-    if (!serviceName) {
-      serviceName = 'Dental Procedure';
-    }
-
-    const baseAmount = getServicePriceForClinic(serviceName, clinicServices);
-
-    // Apply statutory discount server-side ONLY if verified & approved by clinic doctor
-    let finalAmount = baseAmount;
-    let discountAmount = 0;
-    let effectiveDiscountType = discountType || 'none';
-
-    if (discountType === 'pwd' || discountType === 'senior') {
-      let isDoctorApproved = false;
-      if (supabase && patientId) {
+    let clinicServices: ClinicService[] = [];
+    let clinicQuery = supabase.from('clinic_setup').select('clinic_name, services');
+    clinicQuery = appointment.dentist_id ? clinicQuery.eq('user_id', appointment.dentist_id) : clinicQuery.limit(1);
+    const { data: clinicData } = await clinicQuery.maybeSingle();
+    if (clinicData) {
+      if (clinicData.clinic_name) clinicName = clinicData.clinic_name;
+      if (Array.isArray(clinicData.services)) clinicServices = clinicData.services;
+      else if (typeof clinicData.services === 'string') {
         try {
-          const { data: patientProfile } = await supabase
-            .from('profiles')
-            .select('pwd_status, pwd_type')
-            .eq('id', patientId)
-            .maybeSingle();
-
-          if (patientProfile?.pwd_status === 'approved') {
-            isDoctorApproved = true;
-          }
-        } catch (e) {
-          console.warn('[PayMongo] Exception checking patient PWD approval:', e);
-        }
-      }
-
-      if (isDoctorApproved) {
-        discountAmount = baseAmount * 0.2; // 20% statutory discount (RA 9994 / RA 10754)
-        finalAmount = baseAmount - discountAmount;
-      } else {
-        console.warn(`[PayMongo] Patient ${patientId} unapproved for ${discountType}. Charging standard rate.`);
-        effectiveDiscountType = 'none';
-        discountAmount = 0;
-        finalAmount = baseAmount;
+          clinicServices = JSON.parse(clinicData.services);
+        } catch {}
       }
     }
 
-    const amountInCentavos = Math.round(finalAmount * 100);
+    // The billing row is the source of truth for what is owed (same as the billing page shows)
+    const { data: billingRows } = await supabase
+      .from('billings')
+      .select('id, amount, final_amount, payment_status, created_at')
+      .eq('appointment_id', appointmentId)
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false });
 
-    // Create PayMongo Checkout Session
+    const billings = billingRows || [];
+    if (billings.some((b) => b.payment_status === 'paid')) {
+      return NextResponse.json({ error: 'This appointment has already been paid.' }, { status: 409 });
+    }
+    const billing = billings.find((b) => b.payment_status !== 'cancelled') || null;
+
+    const serviceName = appointment.service || 'Dental Procedure';
+    const baseAmount = resolveBaseAmount(billing, serviceName, clinicServices);
+
+    // Statutory discount only when the doctor approved the patient's PWD/Senior ID
+    let pwdStatus: string | null = null;
+    if (discountType === 'pwd' || discountType === 'senior') {
+      const { data: profile } = await supabase.from('profiles').select('pwd_status').eq('id', patientId).maybeSingle();
+      pwdStatus = profile?.pwd_status ?? null;
+      if (pwdStatus !== 'approved') {
+        console.warn(`[PayMongo] Patient ${patientId} not approved for ${discountType}. Charging standard rate.`);
+      }
+    }
+    const total = computeCheckoutTotal(baseAmount, discountType, pwdStatus);
+    const amountInCentavos = Math.round(total.finalAmount * 100);
+
+    // PayMongo line items can't be negative, so surface the statutory discount in the label
+    const discountLabel =
+      total.discountAmount > 0
+        ? ` (${total.discountType === 'senior' ? 'Senior Citizen' : 'PWD'} 20% off ${peso(total.baseAmount)})`
+        : '';
+
     const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
     const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
     const appUrl =
@@ -205,16 +107,13 @@ export async function POST(request: NextRequest) {
 
     const paymongoResponse = await fetch(`${PAYMONGO_API_BASE}/checkout_sessions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: getPayMongoAuthHeader(),
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: getPayMongoAuthHeader() },
       body: JSON.stringify({
         data: {
           attributes: {
             line_items: [
               {
-                name: `${serviceName} • ${clinicName}`,
+                name: `${serviceName} • ${clinicName}${discountLabel}`,
                 amount: amountInCentavos,
                 currency: 'PHP',
                 quantity: 1,
@@ -228,33 +127,34 @@ export async function POST(request: NextRequest) {
               patient_id: patientId,
               clinic_name: clinicName,
               service: serviceName,
-              billing_id: billingId || '',
-              discount_type: effectiveDiscountType || 'none',
-              discount_amount: String(discountAmount),
-              base_amount: String(baseAmount),
+              billing_id: billing?.id || '',
+              discount_type: total.discountType,
+              discount_amount: String(total.discountAmount),
+              base_amount: String(total.baseAmount),
             },
-            description: `SmileGuard - ${serviceName} (${clinicName})`,
+            description:
+              total.discountAmount > 0
+                ? `SmileGuard - ${serviceName} (${clinicName}) • ${peso(total.baseAmount)} less ${peso(total.discountAmount)} statutory discount = ${peso(total.finalAmount)}`
+                : `SmileGuard - ${serviceName} (${clinicName})`,
           },
         },
       }),
     });
 
     const paymongoData = await paymongoResponse.json();
-
     if (!paymongoResponse.ok) {
       console.error('[PayMongo] Checkout session creation failed:', paymongoData);
       const errorMsg = paymongoData?.errors?.[0]?.detail || 'Failed to create checkout session';
       return NextResponse.json({ error: errorMsg }, { status: 500 });
     }
 
-    const checkoutUrl = paymongoData.data.attributes.checkout_url;
-    const checkoutId = paymongoData.data.id;
-
     return NextResponse.json({
-      checkoutUrl,
-      checkoutId,
-      amount: finalAmount,
-      discountAmount,
+      checkoutUrl: paymongoData.data.attributes.checkout_url,
+      checkoutId: paymongoData.data.id,
+      baseAmount: total.baseAmount,
+      amount: total.finalAmount,
+      discountAmount: total.discountAmount,
+      discountType: total.discountType,
       clinicName,
     });
   } catch (error) {

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
-import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, getPatientBillingInfo, getPatientProfile, updatePatientPwdStatus, type PatientBillingInfo } from "../../lib/profilesPatients";
+import { getPatientMedicalInfo, getPatientAppointments, updatePastAppointmentsToNoShow, getPatientBillingInfo, getPatientProfile, updatePatientPwdStatus, getPatientIdPhotoUrl, type PatientBillingInfo } from "../../lib/profilesPatients";
 import { Alert } from "react-native";
 import { MedicalIntake } from "../../types/index";
 import AppointmentHistory from "../appointments/appointmentHistory";
@@ -136,6 +136,18 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
   const [showEditModal, setShowEditModal] = useState(false);
   const [patientProfile, setPatientProfile] = useState<any>(null);
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
+  const [idPhotoUrl, setIdPhotoUrl] = useState<string | null>(null);
+
+  // IDs live in a private bucket — resolve a short-lived signed link whenever the profile changes
+  useEffect(() => {
+    let cancelled = false;
+    getPatientIdPhotoUrl(patientProfile).then((url) => {
+      if (!cancelled) setIdPhotoUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [patientProfile?.pwd_id_path, patientProfile?.pwd_id_url]);
   const [updatingPwd, setUpdatingPwd] = useState(false);
 
   const effectivePatientId = patient?.patient_id || patient?.id;
@@ -372,7 +384,7 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                   <Text style={{ fontSize: 11, color: '#065F46', lineHeight: 16 }}>
                     Approved by doctor. Patient receives statutory 20% discount on all procedures.
                   </Text>
-                  {patientProfile?.pwd_id_url && (
+                  {idPhotoUrl && (
                     <TouchableOpacity
                       onPress={() => setShowIdPhotoModal(true)}
                       style={{ marginTop: 4, alignSelf: 'flex-start' }}
@@ -398,13 +410,13 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
                   <Text style={{ fontSize: 11, color: '#78350F', lineHeight: 16 }}>
                     Patient submitted government ID proof requesting 20% statutory deduction. Please review the ID below before approving.
                   </Text>
-                  {patientProfile?.pwd_id_url && (
+                  {idPhotoUrl && (
                     <TouchableOpacity
                       onPress={() => setShowIdPhotoModal(true)}
                       style={{ borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#FCD34D', height: 140, backgroundColor: '#000' }}
                     >
                       <Image
-                        source={{ uri: patientProfile.pwd_id_url }}
+                        source={{ uri: idPhotoUrl }}
                         style={{ width: '100%', height: '100%' }}
                         resizeMode="contain"
                       />
@@ -636,6 +648,30 @@ export default function PatientDetailsView({ visible, patient, doctorId, onClose
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
+
+      {/* PWD / Senior ID Photo Modal */}
+      <Modal
+        visible={showIdPhotoModal && !!idPhotoUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowIdPhotoModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', padding: 16 }}>
+          <TouchableOpacity
+            onPress={() => setShowIdPhotoModal(false)}
+            style={{ position: 'absolute', top: 48, right: 20, zIndex: 2, padding: 8 }}
+            accessibilityLabel="Close ID photo"
+          >
+            <X size={28} color="#fff" />
+          </TouchableOpacity>
+          {idPhotoUrl && (
+            <Image source={{ uri: idPhotoUrl }} style={{ width: '100%', height: '75%' }} resizeMode="contain" />
+          )}
+          <Text style={{ color: '#D1FAE5', fontSize: 12, textAlign: 'center', marginTop: 12 }}>
+            {patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} ID · Confidential (RA 10173)
+          </Text>
+        </View>
+      </Modal>
     </Modal>
   );
 }
