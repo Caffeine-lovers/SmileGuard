@@ -454,6 +454,48 @@ export default function DoctorProfileEdit({
 
   const licenseNum = doctorData.license_number || "";
 
+  // Check if any form fields have been modified compared to initial prop
+  const initialDoctor = doctor || EMPTY_DOCTOR;
+  const initialPhoneDigits = extractPhoneDigits(
+    initialDoctor.doctor_phone ||
+      (initialDoctor as any)?.phone_number ||
+      (initialDoctor as any)?.clinic_phone ||
+      ""
+  );
+
+  const isFirstNameChanged =
+    (doctorData.first_name || "").trim() !== (initialDoctor.first_name || "").trim();
+  const isLastNameChanged =
+    (doctorData.last_name || "").trim() !== (initialDoctor.last_name || "").trim();
+  const isMiddleNameChanged =
+    (doctorData.middle_name || "").trim() !== (initialDoctor.middle_name || "").trim();
+  const isGenderChanged =
+    (doctorData.gender || "").trim() !== (initialDoctor.gender || "").trim();
+  const isLicenseChanged =
+    (doctorData.license_number || "").trim() !== (initialDoctor.license_number || "").trim();
+  const isSpecializationChanged =
+    (doctorData.specialization || "").trim() !== (initialDoctor.specialization || "").trim();
+  const isPhoneChanged = phoneDigits.trim() !== initialPhoneDigits.trim();
+  const isBioChanged =
+    (doctorData.bio || "").trim() !== (initialDoctor.bio || "").trim();
+  const isExperienceChanged =
+    Number(doctorData.years_of_experience || 0) !== Number(initialDoctor.years_of_experience || 0);
+  const isPhotoChanged =
+    Boolean(selectedImage) ||
+    (imagePreviewUri || "").trim() !== (initialDoctor.profile_picture_url || "").trim();
+
+  const hasAnyChanges =
+    isFirstNameChanged ||
+    isLastNameChanged ||
+    isMiddleNameChanged ||
+    isGenderChanged ||
+    isLicenseChanged ||
+    isSpecializationChanged ||
+    isPhoneChanged ||
+    isBioChanged ||
+    isExperienceChanged ||
+    isPhotoChanged;
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
@@ -892,11 +934,11 @@ export default function DoctorProfileEdit({
           <TouchableOpacity
             style={[
               styles.saveBtn,
-              (loading || uploadingImage) && styles.btnDisabled,
+              (loading || uploadingImage || !hasAnyChanges) && styles.btnDisabled,
             ]}
             onPress={handleSave}
-            disabled={loading || uploadingImage}
-            activeOpacity={0.8}
+            disabled={loading || uploadingImage || !hasAnyChanges}
+            activeOpacity={hasAnyChanges ? 0.8 : 1}
           >
             {loading || uploadingImage ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
@@ -1509,7 +1551,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   btnDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+    backgroundColor: "#94A3B8",
+    borderColor: "#64748B",
+    borderBottomColor: "#475569",
   },
 
   // Modal Sheet

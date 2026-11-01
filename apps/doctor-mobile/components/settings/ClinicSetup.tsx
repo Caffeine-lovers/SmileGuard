@@ -818,7 +818,7 @@ export default function ClinicSetup({
             </View>
             <Text style={styles.emptyTitle}>Configure Your Dental Clinic</Text>
             <Text style={styles.emptySubtitle}>
-              Set up your clinic branding, address, operating hours, procedure rates, and facility gallery to showcase to patients.
+              Set up your clinic branding, address, operating hours, procedure rates, and photo gallery to showcase to patients.
             </Text>
             <TouchableOpacity
               style={styles.primaryActionButton}
@@ -1192,7 +1192,7 @@ export default function ClinicSetup({
             style={[styles.hubTabText, activeTab === 'overview' && styles.hubTabTextActive]}
             numberOfLines={1}
           >
-            Facility
+            Clinic
           </Text>
         </TouchableOpacity>
 
@@ -1308,7 +1308,7 @@ export default function ClinicSetup({
 
             {/* Clinic Name & Address */}
             <View style={styles.hubCard}>
-              <Text style={styles.cardHeaderTitle}>FACILITY INFORMATION</Text>
+              <Text style={styles.cardHeaderTitle}>CLINIC INFORMATION</Text>
 
               <View style={styles.inputGroup}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1342,7 +1342,7 @@ export default function ClinicSetup({
             {/* Facility Gallery Photos */}
             <View style={styles.hubCard}>
               <Text style={styles.cardHeaderTitle}>
-                FACILITY PHOTOS ({clinicData.gallery_images?.length || 0})
+                CLINIC PHOTOS ({clinicData.gallery_images?.length || 0})
               </Text>
               <Text style={styles.cardHelperText}>
                 Showcase treatment chairs, sterilization facilities, and receptionist area.
@@ -1615,15 +1615,25 @@ export default function ClinicSetup({
             <Text style={styles.hubSecondaryBtnText}>Cancel</Text>
           </TouchableOpacity>
 
-          {hasAnyChanges ? (
+          {isRegistration && !hasAnyChanges ? (
+            <TouchableOpacity
+              style={styles.hubSkipBtn}
+              onPress={handleSkip}
+              disabled={saving || uploadingLogo || uploadingGallery}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.hubSkipBtnText}>Skip Setup</Text>
+              <ChevronRight size={15} color="#047857" />
+            </TouchableOpacity>
+          ) : (
             <TouchableOpacity
               style={[
                 styles.hubPrimaryBtn,
-                (saving || uploadingLogo || uploadingGallery) && styles.btnDisabled,
+                (saving || uploadingLogo || uploadingGallery || !hasAnyChanges) && styles.btnDisabled,
               ]}
               onPress={handleSave}
-              disabled={saving || uploadingLogo || uploadingGallery}
-              activeOpacity={0.8}
+              disabled={saving || uploadingLogo || uploadingGallery || !hasAnyChanges}
+              activeOpacity={hasAnyChanges ? 0.8 : 1}
             >
               {saving ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -1633,16 +1643,6 @@ export default function ClinicSetup({
                   <Text style={styles.hubPrimaryBtnText}>Save Changes</Text>
                 </View>
               )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.hubSkipBtn}
-              onPress={handleSkip}
-              disabled={saving || uploadingLogo || uploadingGallery}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.hubSkipBtnText}>Skip Setup</Text>
-              <ChevronRight size={15} color="#047857" />
             </TouchableOpacity>
           )}
         </View>
@@ -3207,7 +3207,10 @@ const styles = StyleSheet.create({
     color: '#047857',
   },
   btnDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+    backgroundColor: '#94A3B8',
+    borderColor: '#64748B',
+    borderBottomColor: '#475569',
   },
 
   // Action Button
