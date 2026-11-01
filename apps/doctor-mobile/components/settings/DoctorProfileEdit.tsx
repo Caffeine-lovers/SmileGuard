@@ -40,6 +40,7 @@ import {
   ImagePickerResult,
   UploadedProfileImage,
 } from "../../lib/imageUploadService";
+import { doctorLicenseExists } from "../../lib/doctorService";
 
 interface DoctorProfileEditProps {
   doctor: Doctor;
@@ -60,11 +61,19 @@ export default function DoctorProfileEdit({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showSpecializationDropdown, setShowSpecializationDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isCheckingLicense, setIsCheckingLicense] = useState(false);
+  const [licenseDuplicateError, setLicenseDuplicateError] = useState<string | null>(null);
+  const [isLicenseVerified, setIsLicenseVerified] = useState(true);
 
   // Bucket photos state
   const [uploadedImages, setUploadedImages] = useState<UploadedProfileImage[]>([]);
   const [loadingBucketImages, setLoadingBucketImages] = useState(true);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+
+  const sanitizeName = (text: string): string => {
+    // Only allow alphabetic characters, spaces, and hyphens (e.g., Mary-Ann, Dela Cruz)
+    return text.replace(/[^a-zA-Z\s-]/g, "");
+  };
 
   const formatPhoneChunks = (digits: string) => {
     if (digits.length === 10) {
@@ -211,11 +220,50 @@ export default function DoctorProfileEdit({
     }));
   };
 
+  const formatLicenseNumber = (raw?: string): string => {
+    if (!raw) return "";
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (!digits) return "";
+    return digits.padStart(7, "0").slice(-7);
+  };
+
   const isValidLicenseNumber = (license?: string): boolean => {
     if (!license) return false;
     const trimmed = license.trim();
-    if (trimmed.length < 4 || trimmed.length > 15) return false;
-    return /^[a-zA-Z0-9-]+$/.test(trimmed);
+    return /^\d{1,7}$/.test(trimmed);
+  };
+
+  const handleLicenseBlur = async () => {
+    const current = (doctorData.license_number || "").trim();
+    if (!current) {
+      setLicenseDuplicateError(null);
+      setIsLicenseVerified(false);
+      return;
+    }
+
+    const padded = formatLicenseNumber(current);
+    if (current.length < 7) {
+      updateDoctorData("license_number", padded);
+    }
+
+    setIsCheckingLicense(true);
+    setIsLicenseVerified(false);
+    try {
+      const ownId = doctor?.id || doctor?.user_id;
+      const exists = await doctorLicenseExists(padded, ownId);
+      if (exists) {
+        setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
+        setIsLicenseVerified(false);
+      } else {
+        setLicenseDuplicateError(null);
+        setIsLicenseVerified(true);
+      }
+    } catch (e) {
+      console.warn("[DoctorProfileEdit] Failed to verify license uniqueness:", e);
+      setIsLicenseVerified(false);
+    } finally {
+      setIsCheckingLicense(false);
+    }
   };
 
   const handlePickAndUploadImage = async () => {
@@ -314,7 +362,10 @@ export default function DoctorProfileEdit({
     const license = (doctorData.license_number || "").trim();
     if (!license) return "Medical License Number is required.";
     if (!isValidLicenseNumber(license)) {
-      return "Medical License Number must be 4 to 15 alphanumeric characters.";
+      return "Medical License Number must be 1 to 7 numeric digits.";
+    }
+    if (licenseDuplicateError) {
+      return licenseDuplicateError;
     }
 
     const spec = (doctorData.specialization || "").trim();
@@ -336,6 +387,19 @@ export default function DoctorProfileEdit({
 
     setLoading(true);
     try {
+      const paddedLicense = formatLicenseNumber(doctorData.license_number || "");
+      const ownId = doctor?.id || doctor?.user_id;
+      const isDuplicate = await doctorLicenseExists(paddedLicense, ownId);
+      if (isDuplicate) {
+        setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
+        Alert.alert(
+          "Duplicate License Number",
+          `License number ${paddedLicense} is already registered to an existing doctor in the system. Please verify your PRC license credentials.`
+        );
+        setLoading(false);
+        return;
+      }
+
       let finalPictureUrl = imagePreviewUri || doctorData.profile_picture_url || "";
 
       if (selectedImage) {
@@ -365,7 +429,7 @@ export default function DoctorProfileEdit({
         middle_name: (doctorData.middle_name || "").trim(),
         last_name: (doctorData.last_name || "").trim(),
         gender: (doctorData.gender || "").trim(),
-        license_number: (doctorData.license_number || "").trim(),
+        license_number: formatLicenseNumber(doctorData.license_number || ""),
         specialization: (doctorData.specialization || "").trim(),
         doctor_phone: fullPhoneNumber,
         bio: (doctorData.bio || "").trim(),
@@ -582,7 +646,8 @@ export default function DoctorProfileEdit({
                   placeholder="e.g. Maria"
                   placeholderTextColor="#94A3B8"
                   value={doctorData.first_name || ""}
-                  onChangeText={(text) => updateDoctorData("first_name", text)}
+                  onChangeText={(text) => updateDoctorData("first_name", sanitizeName(text))}
+                  autoCapitalize="words"
                 />
               </View>
 
@@ -593,7 +658,8 @@ export default function DoctorProfileEdit({
                   placeholder="e.g. Santos"
                   placeholderTextColor="#94A3B8"
                   value={doctorData.last_name || ""}
-                  onChangeText={(text) => updateDoctorData("last_name", text)}
+                  onChangeText={(text) => updateDoctorData("last_name", sanitizeName(text))}
+                  autoCapitalize="words"
                 />
               </View>
             </View>
@@ -606,7 +672,8 @@ export default function DoctorProfileEdit({
                 placeholder="e.g. Clara (optional)"
                 placeholderTextColor="#94A3B8"
                 value={doctorData.middle_name || ""}
-                onChangeText={(text) => updateDoctorData("middle_name", text)}
+                onChangeText={(text) => updateDoctorData("middle_name", sanitizeName(text))}
+                autoCapitalize="words"
               />
             </View>
 
@@ -661,30 +728,46 @@ export default function DoctorProfileEdit({
               <Text style={styles.inputLabel}>PRC MEDICAL / DENTAL LICENSE NO. *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. 0123456 or DL-12345"
+                placeholder="e.g. 0123456 (7 digits)"
                 placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={7}
                 value={licenseNum}
-                onChangeText={(text) => updateDoctorData("license_number", text.trim())}
-                autoCapitalize="characters"
+                onChangeText={(text) => {
+                  const numericOnly = text.replace(/[^0-9]/g, "").slice(0, 7);
+                  updateDoctorData("license_number", numericOnly);
+                  if (licenseDuplicateError) setLicenseDuplicateError(null);
+                  setIsLicenseVerified(false);
+                }}
+                onBlur={handleLicenseBlur}
               />
 
-              {licenseNum.length > 0 && (
+              {isCheckingLicense && (
                 <View style={styles.validationRow}>
-                  {isValidLicenseNumber(licenseNum) ? (
-                    <View style={styles.feedbackSuccess}>
-                      <ShieldCheck size={12} color="#047857" style={{ marginRight: 4 }} />
-                      <Text style={styles.feedbackSuccessText}>Valid PRC License Number</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.feedbackError}>
-                      <AlertCircle size={12} color="#EF4444" style={{ marginRight: 4 }} />
-                      <Text style={styles.feedbackErrorText}>
-                        {licenseNum.length < 4 || licenseNum.length > 15
-                          ? `4 to 15 characters required (current: ${licenseNum.length})`
-                          : "Only alphanumeric characters and hyphens allowed"}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <ActivityIndicator size="small" color="#047857" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: "#047857" }}>
+                      Verifying license uniqueness...
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {!isCheckingLicense && licenseDuplicateError && (
+                <View style={styles.validationRow}>
+                  <View style={styles.feedbackError}>
+                    <AlertCircle size={12} color="#EF4444" style={{ marginRight: 4 }} />
+                    <Text style={styles.feedbackErrorText}>{licenseDuplicateError}</Text>
+                  </View>
+                </View>
+              )}
+
+              {!isCheckingLicense && !licenseDuplicateError && isLicenseVerified && licenseNum.length > 0 && (
+                <View style={styles.validationRow}>
+                  <View style={styles.feedbackSuccess}>
+                    <ShieldCheck size={12} color="#047857" style={{ marginRight: 4 }} />
+                    <Text style={styles.feedbackSuccessText}>PRC License verified & available</Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -721,7 +804,8 @@ export default function DoctorProfileEdit({
                     style={styles.expInput}
                     placeholder="e.g. 5"
                     placeholderTextColor="#94A3B8"
-                    keyboardType="numeric"
+                    keyboardType="number-pad"
+                    maxLength={2}
                     value={
                       doctorData.years_of_experience !== undefined &&
                         doctorData.years_of_experience !== null
@@ -729,7 +813,7 @@ export default function DoctorProfileEdit({
                         : ""
                     }
                     onChangeText={(text) => {
-                      const clean = text.replace(/[^0-9]/g, "");
+                      const clean = text.replace(/[^0-9]/g, "").slice(0, 2);
                       updateDoctorData("years_of_experience", clean === "" ? 0 : parseInt(clean, 10));
                     }}
                   />

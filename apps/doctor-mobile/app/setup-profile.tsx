@@ -1,8 +1,10 @@
-import React, { useState } from "react";
-import { View, Modal } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Alert, BackHandler } from "react-native";
 import DoctorProfileSetup from "../components/auth/DoctorProfileSetup";
 import ClinicSetup from "../components/settings/ClinicSetup";
 import { useRouter } from "expo-router";
+import { supabase } from "@smileguard/supabase-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
  * Setup Profile Page (OAuth redirect - Step 2)
@@ -32,9 +34,54 @@ export default function SetupProfilePage() {
   };
 
   const handleCancel = () => {
-    console.log("[SetupProfile] User cancelled setup");
-    router.back();
+    if (step === "clinic") {
+      setStep("profile");
+      return;
+    }
+
+    Alert.alert(
+      "Cancel Registration?",
+      "Are you sure you want to go back to the welcome screen? Any unsaved registration details will be discarded.",
+      [
+        { text: "Stay", style: "cancel" },
+        {
+          text: "Exit to Welcome Screen",
+          style: "destructive",
+          onPress: async () => {
+            console.log("[SetupProfile] User exited registration, signing out...");
+            try {
+              await supabase.auth.signOut();
+              await AsyncStorage.multiRemove([
+                "supabase.auth.token",
+                "supabase.auth.refreshToken",
+                "supabase.auth.user",
+                "@pending_doctor_access_code",
+              ]);
+            } catch (err) {
+              console.warn("[SetupProfile] Error during signOut on cancel:", err);
+            } finally {
+              router.replace("/");
+            }
+          },
+        },
+      ]
+    );
   };
+
+  // Intercept phone hardware back button on Android
+  useEffect(() => {
+    const onHardwareBack = () => {
+      handleCancel();
+      return true; // Prevent default OS pop which triggers route bounce loop
+    };
+
+    const backSubscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onHardwareBack
+    );
+
+    return () => backSubscription.remove();
+  }, [step]);
 
   return (
     <View style={{ flex: 1 }}>

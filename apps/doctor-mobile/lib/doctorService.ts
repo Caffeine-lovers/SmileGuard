@@ -660,26 +660,41 @@ export async function getDoctorWithProfile(userId: string): Promise<Doctor | nul
 }
 
 /**
- * Check if doctor license already exists
- * @param licenseNumber - License number to check
- * @returns true if license exists, false otherwise
+ * Check if doctor license already exists in the doctors table
+ * @param licenseNumber - License number to check (checks both raw and 7-digit padded versions)
+ * @param excludeDoctorId - Optional doctor ID to exclude (useful when editing own profile)
+ * @returns true if license exists on another doctor record, false otherwise
  */
-export async function doctorLicenseExists(licenseNumber: string): Promise<boolean> {
+export async function doctorLicenseExists(
+  licenseNumber: string,
+  excludeDoctorId?: string
+): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const trimmed = (licenseNumber || "").trim();
+    if (!trimmed) return false;
+
+    const padded = trimmed.replace(/[^0-9]/g, "").padStart(7, "0").slice(-7);
+    const variants = Array.from(new Set([trimmed, padded].filter(Boolean)));
+
+    let query = supabase
       .from("doctors")
-      .select("id")
-      .eq("license_number", licenseNumber)
-      .limit(1);
+      .select("id, user_id")
+      .in("license_number", variants);
+
+    if (excludeDoctorId) {
+      query = query.neq("id", excludeDoctorId).neq("user_id", excludeDoctorId);
+    }
+
+    const { data, error } = await query.limit(1);
 
     if (error) {
-      console.error("Error checking license:", error);
+      console.error("[DoctorService] Error checking license uniqueness:", error);
       return false;
     }
 
-    return data !== null && data.length > 0;
+    return Boolean(data && data.length > 0);
   } catch (error) {
-    console.error("Exception in doctorLicenseExists:", error);
+    console.error("[DoctorService] Exception in doctorLicenseExists:", error);
     return false;
   }
 }
