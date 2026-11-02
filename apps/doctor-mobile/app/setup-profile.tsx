@@ -85,16 +85,17 @@ export default function SetupProfilePage() {
 
   return (
     <View style={{ flex: 1 }}>
-      {step === "profile" && (
+      <View style={{ flex: 1, display: step === "profile" ? "flex" : "none" }}>
         <DoctorProfileSetup 
           onContinue={handleProfileContinue} 
           onCancel={handleCancel} 
         />
-      )}
+      </View>
       
       {step === "clinic" && (
         <ClinicSetup
           onClose={handleClinicClose}
+          onBack={handleClinicClose}
           onSave={handleClinicSave}
           onSkip={handleClinicSave}
           isRegistration={true}

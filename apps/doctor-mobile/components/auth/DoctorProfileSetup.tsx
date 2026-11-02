@@ -121,6 +121,45 @@ export default function DoctorProfileSetup({
         setAccessCode("SMILE-DOC-2026");
       }
     });
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.id) {
+        supabase
+          .from("doctors")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle()
+          .then(({ data: doc }) => {
+            if (doc) {
+              setDoctorData({
+                first_name: doc.first_name || "",
+                middle_name: doc.middle_name || "",
+                last_name: doc.last_name || "",
+                doctor_phone: doc.doctor_phone || "",
+                specialization: doc.specialization || "",
+                license_number: doc.license_number || "",
+                years_of_experience: doc.years_of_experience || 0,
+                profile_picture_url: doc.profile_picture_url || "",
+                user_id: doc.user_id,
+              });
+              if (doc.doctor_phone) {
+                const cleaned = doc.doctor_phone.replace(/\D/g, "").slice(-10);
+                setPhoneDigits(cleaned);
+                setPhoneDisplay(formatPhoneChunks(cleaned));
+              }
+              if (doc.years_of_experience) {
+                setYearsOfExperienceStr(String(doc.years_of_experience));
+              }
+              if (doc.license_number) {
+                setIsLicenseVerified(true);
+              }
+              if (doc.profile_picture_url) {
+                setSelectedImageUri(doc.profile_picture_url);
+              }
+            }
+          });
+      }
+    });
   }, []);
 
   // ── Specialization Dropdown
@@ -176,7 +215,7 @@ export default function DoctorProfileSetup({
     setIsCheckingLicense(true);
     setIsLicenseVerified(false);
     try {
-      const exists = await doctorLicenseExists(padded);
+      const exists = await doctorLicenseExists(padded, doctorData.user_id || undefined);
       if (exists) {
         setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
         setIsLicenseVerified(false);
@@ -305,10 +344,15 @@ export default function DoctorProfileSetup({
 
     setLoading(true);
     try {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        throw new Error("User not authenticated. Please log in again.");
+      }
+
       const paddedLicense = formatLicenseNumber(doctorData.license_number || "");
 
       // Pre-flight duplicate check against doctors table
-      const duplicateExists = await doctorLicenseExists(paddedLicense);
+      const duplicateExists = await doctorLicenseExists(paddedLicense, data.user.id);
       if (duplicateExists) {
         setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
         Alert.alert(
@@ -317,11 +361,6 @@ export default function DoctorProfileSetup({
         );
         setLoading(false);
         return;
-      }
-
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
-        throw new Error("User not authenticated. Please log in again.");
       }
 
       // Pre-seed profile in public.profiles to guarantee existence for doctor_user_id_fkey

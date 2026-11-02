@@ -27,6 +27,7 @@ import {
   MapPin,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
   Pencil,
   Image as ImageIcon,
   CheckCircle2,
@@ -45,6 +46,7 @@ const APP_LOGO = require('../../assets/images/SmileGuard-Doc-Logo.png');
 
 export interface ClinicSetupProps {
   onClose?: () => void;
+  onBack?: () => void;
   onSave?: (clinicData: ClinicData) => void;
   onSkip?: () => void;
   isRegistration?: boolean;
@@ -155,6 +157,7 @@ type ActiveClinicTab = 'overview' | 'schedule' | 'services';
 
 export default function ClinicSetup({
   onClose,
+  onBack,
   onSave,
   onSkip,
   isRegistration = false,
@@ -463,17 +466,12 @@ export default function ClinicSetup({
 
   // Gallery Handlers
   const handleUploadGalleryPress = () => {
-    if (Platform.OS === 'ios') {
-      setPendingUploadType('gallery');
-      setShowImageFormatModal(true);
-    } else {
-      performGalleryUpload();
-    }
+    performGalleryUpload();
   };
 
-  const performGalleryUpload = async (aspectRatio?: [number, number]) => {
+  const performGalleryUpload = async () => {
     try {
-      const images = await pickMultipleImages(aspectRatio);
+      const images = await pickMultipleImages();
       if (!images || images.length === 0) return;
 
       setUploadingGallery(true);
@@ -719,6 +717,16 @@ export default function ClinicSetup({
     }
   };
 
+  const handleBackPress = () => {
+    if (onBack) {
+      onBack();
+    } else if (onClose) {
+      onClose();
+    } else {
+      handleCancelEdit();
+    }
+  };
+
   const handleCancelEdit = () => {
     if (originalClinicData) {
       setClinicData(originalClinicData);
@@ -801,10 +809,26 @@ export default function ClinicSetup({
       <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         <View style={styles.topHeader}>
+          {isRegistration && (
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={handleBackPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Back to Step 1"
+            >
+              <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
+              <Text style={styles.headerBackBtnText}>Back</Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.headerTitleGroup}>
-            <Text style={styles.topHeaderTitle}>CLINIC SETUP</Text>
+            <Text style={styles.topHeaderTitle}>{isRegistration ? 'CLINIC REGISTRATION' : 'CLINIC SETUP'}</Text>
           </View>
-          {onClose && (
+          {isRegistration && (
+            <View style={styles.headerStepPill}>
+              <Text style={styles.headerStepPillText}>Step 2 of 2</Text>
+            </View>
+          )}
+          {onClose && !isRegistration && (
             <TouchableOpacity style={styles.closeActionBtn} onPress={onClose} activeOpacity={0.7}>
               <X size={17} color="#047857" />
             </TouchableOpacity>
@@ -842,11 +866,30 @@ export default function ClinicSetup({
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         {/* Module Top Header (No Badge) */}
         <View style={styles.topHeader}>
+          {isRegistration && (
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={handleBackPress}
+              disabled={saving || uploadingLogo || uploadingGallery}
+              activeOpacity={0.7}
+              accessibilityLabel="Back to Step 1"
+            >
+              <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
+              <Text style={styles.headerBackBtnText}>Back</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.headerTitleGroup}>
-            <Text style={styles.topHeaderTitle}>CLINIC PROFILE</Text>
+            <Text style={styles.topHeaderTitle}>{isRegistration ? 'CLINIC REGISTRATION' : 'CLINIC PROFILE'}</Text>
           </View>
 
           <View style={styles.headerActionsRow}>
+            {isRegistration && (
+              <View style={styles.headerStepPill}>
+                <Text style={styles.headerStepPillText}>Step 2 of 2</Text>
+              </View>
+            )}
+
             {isRegistration || Boolean(onSkip) ? (
               <TouchableOpacity style={styles.headerSkipBtn} onPress={handleSkip} activeOpacity={0.75}>
                 <Text style={styles.headerSkipBtnText}>Skip</Text>
@@ -989,7 +1032,7 @@ export default function ClinicSetup({
                   <ImageIcon size={28} color="#94A3B8" />
                   <Text style={styles.emptyGalleryTitle}>No Clinic Photos Yet</Text>
                   <Text style={styles.emptyGallerySubtitle}>
-                    Add photos of your dental operatories, waiting lounge, and sterilization room.
+                    Add photos of your dental operatories, waiting lounge, and sterilization room. You can pick multiple photos at once.
                   </Text>
                   <TouchableOpacity
                     style={styles.emptyUploadBtn}
@@ -1002,7 +1045,7 @@ export default function ClinicSetup({
                     ) : (
                       <>
                         <Plus size={15} color="#047857" strokeWidth={2.5} />
-                        <Text style={styles.emptyUploadBtnText}>Upload Clinic Photo</Text>
+                        <Text style={styles.emptyUploadBtnText}>Upload Clinic Photos</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -1156,11 +1199,30 @@ export default function ClinicSetup({
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
       {/* Module Top Header (No Badge) */}
       <View style={styles.topHeader}>
+        {isRegistration && (
+          <TouchableOpacity
+            style={styles.headerBackBtn}
+            onPress={handleBackPress}
+            disabled={saving || uploadingLogo || uploadingGallery}
+            activeOpacity={0.7}
+            accessibilityLabel="Back to Step 1"
+          >
+            <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
+            <Text style={styles.headerBackBtnText}>Back</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.topHeaderTitle}>EDIT CLINIC SETUP</Text>
+          <Text style={styles.topHeaderTitle}>{isRegistration ? 'CLINIC REGISTRATION' : 'EDIT CLINIC SETUP'}</Text>
         </View>
 
         <View style={styles.headerActionsRow}>
+          {isRegistration && (
+            <View style={styles.headerStepPill}>
+              <Text style={styles.headerStepPillText}>Step 2 of 2</Text>
+            </View>
+          )}
+
           {(isRegistration || Boolean(onSkip)) && !hasAnyChanges && (
             <TouchableOpacity style={styles.headerSkipBtn} onPress={handleSkip} activeOpacity={0.75}>
               <Text style={styles.headerSkipBtnText}>Skip</Text>
@@ -1168,15 +1230,17 @@ export default function ClinicSetup({
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            onPress={handleCancelEdit}
-            disabled={saving || uploadingLogo || uploadingGallery}
-            style={styles.closeActionBtn}
-            activeOpacity={0.7}
-            accessibilityLabel="Cancel Clinic Edit"
-          >
-            <X size={17} color="#047857" />
-          </TouchableOpacity>
+          {!isRegistration && (
+            <TouchableOpacity
+              onPress={handleCancelEdit}
+              disabled={saving || uploadingLogo || uploadingGallery}
+              style={styles.closeActionBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Cancel Clinic Edit"
+            >
+              <X size={17} color="#047857" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -1364,7 +1428,7 @@ export default function ClinicSetup({
                   ) : (
                     <>
                       <Plus size={18} color="#047857" strokeWidth={2.5} />
-                      <Text style={styles.addPhotoTileText}>Add Photo</Text>
+                      <Text style={styles.addPhotoTileText}>Add Photos</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -1608,11 +1672,11 @@ export default function ClinicSetup({
         <View style={styles.hubFooterRow}>
           <TouchableOpacity
             style={styles.hubSecondaryBtn}
-            onPress={handleCancelEdit}
+            onPress={isRegistration ? handleBackPress : handleCancelEdit}
             disabled={saving || uploadingLogo || uploadingGallery}
             activeOpacity={0.7}
           >
-            <Text style={styles.hubSecondaryBtnText}>Cancel</Text>
+            <Text style={styles.hubSecondaryBtnText}>{isRegistration ? "Back to Step 1" : "Cancel"}</Text>
           </TouchableOpacity>
 
           {isRegistration && !hasAnyChanges ? (
@@ -1949,7 +2013,7 @@ export default function ClinicSetup({
                 if (pendingUploadType === 'logo') {
                   performLogoUpload([1, 1]);
                 } else if (pendingUploadType === 'gallery') {
-                  performGalleryUpload([1, 1]);
+                  performGalleryUpload();
                 }
                 setPendingUploadType(null);
               }}
@@ -1966,7 +2030,7 @@ export default function ClinicSetup({
                 if (pendingUploadType === 'logo') {
                   performLogoUpload(undefined);
                 } else if (pendingUploadType === 'gallery') {
-                  performGalleryUpload(undefined);
+                  performGalleryUpload();
                 }
                 setPendingUploadType(null);
               }}
@@ -2208,6 +2272,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1.5,
     borderBottomColor: '#E2E8F0',
+  },
+  headerBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  headerBackBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  headerStepPill: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  headerStepPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.3,
   },
   headerTitleGroup: {
     flexDirection: 'row',

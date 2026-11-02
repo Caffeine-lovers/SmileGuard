@@ -99,18 +99,13 @@ export const pickMultipleImages = async (aspectRatio?: [number, number]): Promis
       throw new Error("Media library permission denied");
     }
 
-    const config: any = {
+    const config: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.7,
-      allowsMultiple: true,
+      allowsMultipleSelection: true,
+      selectionLimit: 0,
     };
-
-    // Apply aspect ratio only on iOS
-    // Android doesn't support aspect ratio with allowsMultiple - it disables multi-select
-    if (aspectRatio && Platform.OS === 'ios') {
-      config.aspect = aspectRatio;
-    }
 
     const result = await ImagePicker.launchImageLibraryAsync(config);
 
