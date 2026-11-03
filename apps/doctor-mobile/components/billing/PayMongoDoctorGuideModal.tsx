@@ -102,7 +102,7 @@ export default function PayMongoDoctorGuideModal({
         {
           tag: 'POINTER 1',
           label: 'Configure Rates in SmileGuard',
-          detail: 'Go to Settings → Clinic Setup → Services. Set standard fees for Oral Prophylaxis, Restorations, Extractions, and Orthodontics.',
+          detail: 'Go to Settings → Clinic Setup → Services. Set standard fees for Cleaning (Oral Prophylaxis), Fillings (Restorations), Extractions, and Braces (Orthodontics).',
         },
         {
           tag: 'POINTER 2',
@@ -112,16 +112,16 @@ export default function PayMongoDoctorGuideModal({
         {
           tag: 'POINTER 3',
           label: 'Automatic Senior / PWD 20% Calculation',
-          detail: 'Under Philippine RA 9994 and RA 10754, verified Senior Citizens and PWDs receive an automated 20% statutory deduction calculated server-side.',
+          detail: 'Under Philippine RA 9994 and RA 10754, verified Senior Citizens and PWDs automatically receive a 20% discount.',
         },
       ],
       tip: 'Whenever you adjust your treatment prices in the mobile app, patient web billing updates immediately.',
     },
     {
       id: 'realtime-flow',
-      badge: 'Step 4 of 5 • Invoicing & Real-time Webhooks',
+      badge: 'Step 4 of 5 • Invoicing & Live Updates',
       title: 'Digital Invoicing & Real-Time Status',
-      subtitle: 'Instant ledger reconciliation when patients complete payment.',
+      subtitle: 'Automatic payment updates as soon as patients pay.',
       icon: FileText,
       accentColor: '#0284c7',
       pointers: [
@@ -132,8 +132,8 @@ export default function PayMongoDoctorGuideModal({
         },
         {
           tag: 'POINTER 2',
-          label: 'Cryptographic HMAC Webhook',
-          detail: 'When the patient settles via PayMongo, PayMongo fires an HMAC-SHA256 authenticated webhook directly to our cloud server.',
+          label: 'Instant Payment Verification',
+          detail: 'When the patient pays via PayMongo, PayMongo immediately sends a secure verified confirmation to update your clinic records.',
         },
         {
           tag: 'POINTER 3',

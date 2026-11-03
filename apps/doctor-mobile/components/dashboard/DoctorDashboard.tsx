@@ -328,8 +328,8 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     {
       id: "menu-btn",
       target: "menu-btn",
-      title: "Clinic Navigation Drawer",
-      description: "Tap this menu icon anytime to slide out your navigation drawer and jump between clinic modules.",
+      title: "Clinic Menu",
+      description: "Tap this menu icon anytime to open the side menu and switch between clinic sections.",
       icon: Menu,
       padding: 6,
       radius: 12,
@@ -338,8 +338,8 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     {
       id: "sidebar-nav",
       target: "sidebar-nav",
-      title: "Clinic Modules & Tools",
-      description: "Easily navigate through Patient Records, Chair Appointments, Booking Requests, PayMongo Billings, and Clinic Settings.",
+      title: "Clinic Sections & Tools",
+      description: "Easily open Patient Records, Appointments, Booking Requests, Billings, and Clinic Settings.",
       icon: LayoutDashboard,
       padding: 6,
       radius: 14,
@@ -351,7 +351,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       id: "notifications-btn",
       target: "notifications-btn",
       title: "Live Patient Notifications",
-      description: "Instant alerts ring whenever patients book online, request schedule changes, or submit their digital medical intake.",
+      description: "Get notifications whenever patients book online, request schedule changes, or submit their health history.",
       icon: Bell,
       padding: 4,
       radius: 10,
@@ -361,8 +361,8 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     {
       id: "stats-panel",
       target: "stats-panel",
-      title: "Daily Practice Metrics",
-      description: "See your live patient volume, confirmed appointments, and verified PayMongo paid billings in real-time.",
+      title: "Daily Practice Stats",
+      description: "See your patient count, confirmed appointments, and paid patient bills in real-time.",
       icon: Activity,
       padding: 6,
       radius: 14,
@@ -376,7 +376,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       id: "today-appointments",
       target: "today-appointments",
       title: "Today's Patient Schedule",
-      description: "Chronological queue of patients arriving today. Tap any patient card to immediately inspect their chart and notes.",
+      description: "Today's schedule of arriving patients. Tap any patient card to view their dental chart and notes.",
       icon: Calendar,
       padding: 6,
       radius: 14,
@@ -1342,7 +1342,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                           </View>
                           <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>No Patient Selected</Text>
                           <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', textAlign: 'center', marginTop: 4, maxWidth: 220 }}>
-                            Select an appointment from Today's Schedule or Requests to inspect clinical records.
+                            Select an appointment from Today's Schedule or Requests to view patient records.
                           </Text>
                         </View>
                       ) : (

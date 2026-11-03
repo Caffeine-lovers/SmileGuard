@@ -326,7 +326,7 @@ export default function AppointmentEdit({
                 <View style={styles.notesContainer}>
                   <View style={styles.notesHeader}>
                     <FileText size={12} color="#64748B" />
-                    <Text style={styles.notesLabel}>PATIENT NOTES / INTAKE</Text>
+                    <Text style={styles.notesLabel}>PATIENT NOTES & HEALTH INFO</Text>
                   </View>
                   <Text style={styles.notesText}>{appointment.notes}</Text>
                 </View>
@@ -338,7 +338,7 @@ export default function AppointmentEdit({
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleGroup}>
               <Activity size={15} color="#64748B" />
-              <Text style={styles.sectionTitle}>SELECT NEW CLINICAL STATUS</Text>
+              <Text style={styles.sectionTitle}>SELECT NEW APPOINTMENT STATUS</Text>
             </View>
             <View style={styles.statusCountBadge}>
               <Text style={styles.statusCountText}>{STATUS_OPTIONS.length} OPTIONS</Text>

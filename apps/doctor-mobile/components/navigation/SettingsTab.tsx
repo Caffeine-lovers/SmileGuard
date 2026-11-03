@@ -244,7 +244,7 @@ export default function SettingsTab({
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={localStyles.cardTitle}>Doctor Profile</Text>
-                <Text style={localStyles.cardSubtitle}>Name, specialty, license number & credentials</Text>
+                <Text style={localStyles.cardSubtitle}>Name, specialty, and PRC license details</Text>
               </View>
               <View style={localStyles.chevronBox}>
                 <ChevronRight size={16} color="#047857" />

@@ -299,7 +299,7 @@ export default function PatientDetailsView({
           <View style={styles.topAppBarCenter}>
             <Text style={styles.topAppBarTitle}>PATIENT MEDICAL RECORD</Text>
             <Text style={styles.topAppBarSubtitle} numberOfLines={1}>
-              {patientName} • Comprehensive Chart
+              {patientName} • Dental Chart
             </Text>
           </View>
 
@@ -604,18 +604,18 @@ export default function PatientDetailsView({
                     )}
                   </>
                 ) : (
-                  <Text style={styles.noDataMutedText}>No medical history intake records available</Text>
+                  <Text style={styles.noDataMutedText}>No medical history records available</Text>
                 )}
               </View>
             </View>
 
-            {/* Clinical Intake Notes */}
+            {/* Doctor & Clinic Notes */}
             {(medicalIntake?.notes || patient.notes) ? (
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderRow}>
                   <View style={styles.sectionTitleGroup}>
                     <FileText size={14} color="#047857" />
-                    <Text style={styles.sectionHeaderTitle}>CLINICAL INTAKE NOTES</Text>
+                    <Text style={styles.sectionHeaderTitle}>DOCTOR & CLINIC NOTES</Text>
                   </View>
                 </View>
 
@@ -718,11 +718,11 @@ export default function PatientDetailsView({
               </View>
             </View>
 
-            {/* Additional Metadata */}
+            {/* Account Details */}
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionTitleGroup}>
-                  <Text style={styles.sectionHeaderTitle}>SYSTEM METADATA</Text>
+                  <Text style={styles.sectionHeaderTitle}>ACCOUNT DETAILS</Text>
                 </View>
               </View>
 

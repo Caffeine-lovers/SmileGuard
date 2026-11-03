@@ -762,7 +762,7 @@ export default function DoctorProfileEdit({
 
         {/* Section: Medical Credentials & License */}
         <View style={styles.formSection}>
-          <Text style={styles.formSectionTitle}>PRC CREDENTIALS & PRACTICE</Text>
+          <Text style={styles.formSectionTitle}>PRC LICENSE & PRACTICE</Text>
 
           <View style={styles.formCard}>
             {/* License Input */}

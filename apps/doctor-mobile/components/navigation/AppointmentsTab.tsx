@@ -723,7 +723,7 @@ export default function AppointmentsTab({
       id: "appointments-calendar",
       target: "appointments-calendar",
       title: "Interactive Clinic Calendar",
-      description: "Browse month-by-month, inspect daily appointment badges, identify clinic blockouts or closed days, and select any date to view its patient roster.",
+      description: "Browse month-by-month, check daily appointment counts, see closed or blocked days, and tap any date to view its appointments list.",
       icon: CalendarDays,
       padding: 6,
       radius: 12,
@@ -737,7 +737,7 @@ export default function AppointmentsTab({
     {
       id: "appointments-roster",
       target: "appointments-roster",
-      title: "Daily Patient Roster & Actions",
+      title: "Daily Appointments & Actions",
       description: "Review scheduled patients for the selected day with appointment times and service details. Tap 'Edit' to update status, add notes, or reschedule.",
       icon: Clock,
       padding: 6,

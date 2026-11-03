@@ -74,14 +74,14 @@ export default function DoctorOnboardingWizard() {
       title: "Welcome to SmileGuard Doctor Suite",
       subtitle: "Your Mobile Dental Clinic Command Center",
       description:
-        "SmileGuard Doctor connects your practice with your online patients. Manage chair schedules, treatment catalogs, patient intake, and digital invoicing anywhere, anytime from your Android device.",
+        "SmileGuard Doctor connects your practice with your online patients. Manage clinic schedules, service prices, patient health forms, and digital billing anywhere, anytime from your phone.",
       icon: Stethoscope,
       accentColor: "#059669",
       features: [
         {
           icon: Building2,
           title: "Multi-Chair Practice Hub",
-          desc: "Full operational control over clinic working hours, chair capacity, and operating schedules.",
+          desc: "Full control over clinic working hours, chair limits, and daily operating schedules.",
         },
         {
           icon: ShieldCheck,
@@ -98,17 +98,17 @@ export default function DoctorOnboardingWizard() {
     {
       id: "schedule",
       badge: "Step 2 of 5 • Hours & Schedule",
-      title: "Clinic Hours & Slot Logic",
-      subtitle: "Automated conflict-free chair booking for patients.",
+      title: "Clinic Hours & Booking Slots",
+      subtitle: "Automatic booking for patients without schedule conflicts.",
       description:
-        "Customize operating hours for each day of the week. SmileGuard calculates open slot intervals (e.g. 10:00 AM – 2:00 PM) and prevents double bookings automatically.",
+        "Set your clinic hours for each day of the week. SmileGuard calculates available time slots (e.g. 10:00 AM – 2:00 PM) and prevents double bookings automatically.",
       icon: Clock,
       accentColor: "#0d9488",
       features: [
         {
           icon: Calendar,
           title: "Custom Weekly Open Days",
-          desc: "Toggle open/closed days and specify lunch or break intervals.",
+          desc: "Turn open or closed days on and off, and set lunch or break times.",
         },
         {
           icon: Clock,
@@ -118,7 +118,7 @@ export default function DoctorOnboardingWizard() {
         {
           icon: ShieldCheck,
           title: "Blocked Slot Overrides",
-          desc: "Easily mark vacation days or emergency closures with instant calendar lockdown.",
+          desc: "Easily mark vacation days or emergency closures by blocking dates on the calendar.",
         },
       ],
     },
@@ -128,14 +128,14 @@ export default function DoctorOnboardingWizard() {
       title: "Custom Procedures & Pricing",
       subtitle: "Your services, priced transparently in Philippine Pesos (₱).",
       description:
-        "Define your clinic's service catalog (Oral Prophylaxis, Extractions, Restorations, Orthodontics, Whitening) and set prices. The patient web client pulls these rates for itemized checkout.",
+        "Set up your clinic's services (Cleaning, Extractions, Fillings, Braces, Whitening) and set prices. Patients see these prices when booking online.",
       icon: Tag,
       accentColor: "#0891b2",
       features: [
         {
           icon: CreditCard,
           title: "Transparent Rates",
-          desc: "Eliminates billing ambiguity by showing patients exact fees before and after treatment.",
+          desc: "Avoids billing confusion by showing patients exact fees before and after treatment.",
         },
         {
           icon: Tag,
@@ -145,7 +145,7 @@ export default function DoctorOnboardingWizard() {
         {
           icon: Sparkles,
           title: "Direct Invoice Link",
-          desc: "Procedures automatically populate billing invoices with accurate totals.",
+          desc: "Selected procedures are automatically added to invoices with accurate totals.",
         },
       ],
     },
@@ -155,7 +155,7 @@ export default function DoctorOnboardingWizard() {
       title: "Real-time Appointment Alerts",
       subtitle: "Instant notifications when patients request a chair.",
       description:
-        "When a patient books on the web portal, you receive an immediate alert. Review their preferred time, requested service, and medical intake, then Confirm or Reschedule with a single tap.",
+        "When a patient books online, you get an immediate alert. Review their preferred time, requested service, and health form, then Confirm or Reschedule with a single tap.",
       icon: Calendar,
       accentColor: "#059669",
       features: [
@@ -166,8 +166,8 @@ export default function DoctorOnboardingWizard() {
         },
         {
           icon: Users,
-          title: "Patient Medical Intake Preview",
-          desc: "Check pre-existing conditions, allergies, and oral screening before confirming.",
+          title: "Patient Health Form Preview",
+          desc: "Check past health conditions, allergies, and dental notes before confirming.",
         },
         {
           icon: CheckCircle,

@@ -225,7 +225,7 @@ export default function RecordsTab({
     {
       id: "records-welcome",
       title: "Welcome to Patient Records!",
-      description: "Manage your clinical directory, search patient records, organize appointments, and access full digital dental charts.",
+      description: "Manage your patient records, search patients, organize appointments, and open digital dental charts.",
       icon: Users,
       placement: "center",
       onEnter: () => {
@@ -253,7 +253,7 @@ export default function RecordsTab({
       id: "records-sort",
       target: "records-sort",
       title: "Sort & Reorder",
-      description: "Sort your patient roster alphabetically by Name or chronologically by Date Created, in Ascending or Descending order.",
+      description: "Sort your patient list by Name (A to Z) or by Date Created (newest or oldest first).",
       icon: ArrowUpDown,
       padding: 6,
       radius: 14,
@@ -268,7 +268,7 @@ export default function RecordsTab({
       id: "records-card",
       target: paginatedPatients.length > 0 ? "records-card" : "records-count",
       title: "Digital Dental Chart",
-      description: "Tap any patient card to open their complete clinical chart—including medical intake, allergies, notes, and past appointments.",
+      description: "Tap any patient card to open their complete dental chart—including health history, allergies, notes, and past appointments.",
       icon: FileText,
       padding: 6,
       radius: 14,
@@ -282,10 +282,10 @@ export default function RecordsTab({
     {
       id: "records-pagination",
       target: totalPages > 1 ? "records-pagination" : "records-count",
-      title: totalPages > 1 ? "Page Navigation" : "Patient Directory Stats",
+      title: totalPages > 1 ? "Page Navigation" : "Patient Count",
       description: totalPages > 1
-        ? "Flip through pages of your patient directory to manage large clinic rosters cleanly and efficiently."
-        : "Displays the active patient count currently matching your search and filter criteria.",
+        ? "Flip through pages to browse your patient list easily."
+        : "Shows the number of patients matching your search.",
       icon: Layers,
       padding: 6,
       radius: 14,
@@ -535,7 +535,7 @@ export default function RecordsTab({
               </View>
               <Text style={localStyles.emptyTitle}>NO PATIENTS YET</Text>
               <Text style={localStyles.emptySubtitle}>
-                No patient accounts have been registered in the clinic database yet.
+                No patient accounts have registered with your clinic yet.
               </Text>
             </View>
           ) : sortedPatients.length === 0 ? (

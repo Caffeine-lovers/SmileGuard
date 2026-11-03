@@ -132,7 +132,7 @@ export default function AppointmentsRequestTab({
           id: "requests-first-card",
           target: "requests-first-card",
           title: "Patient & Booking Details",
-          description: "Inspect the patient's name, email, contact number, requested service, preferred date, and formatted AM/PM visit time.",
+          description: "View the patient's name, email, contact number, requested service, preferred date, and visit time.",
           icon: Calendar,
           padding: 6,
           radius: 8,
@@ -158,8 +158,8 @@ export default function AppointmentsRequestTab({
         {
           id: "requests-empty-state",
           target: "requests-empty-state",
-          title: "Clean Triage Queue",
-          description: "When patient booking requests arrive, they will appear here with full clinical details and one-tap approval actions.",
+          title: "No Pending Requests",
+          description: "When patient booking requests arrive, they will appear here with appointment details and quick approve or decline buttons.",
           icon: Inbox,
           padding: 8,
           radius: 8,
@@ -171,7 +171,7 @@ export default function AppointmentsRequestTab({
         {
           id: "requests-pagination",
           target: "requests-pagination",
-          title: "Queue Pagination",
+          title: "Page Navigation",
           description: "Browse across multiple pages of pending bookings easily using page numbers or next/previous buttons.",
           icon: ChevronRight,
           padding: 6,

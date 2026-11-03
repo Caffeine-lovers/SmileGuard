@@ -466,9 +466,9 @@ export default function DoctorProfileSetup({
               <Stethoscope size={18} color="#047857" strokeWidth={2.3} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>Professional Credentials</Text>
+              <Text style={styles.heroTitle}>Doctor Profile & License</Text>
               <Text style={styles.heroSubtitle}>
-                Complete your medical practitioner registration to activate your SmileGuard clinic portal.
+                Complete your registration to activate your SmileGuard clinic account.
               </Text>
             </View>
           </View>
@@ -508,7 +508,7 @@ export default function DoctorProfileSetup({
                 </View>
               </View>
               <Text style={styles.fieldNote}>
-                Authenticated by your dental clinic administrator during initial setup.
+                Verified by your dental clinic administrator during initial setup.
               </Text>
             </View>
           </View>
@@ -658,7 +658,7 @@ export default function DoctorProfileSetup({
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <ShieldCheck size={13} color="#047857" />
-            <Text style={styles.formSectionTitle}>PRC CREDENTIALS & SPECIALTY</Text>
+            <Text style={styles.formSectionTitle}>PRC LICENSE & SPECIALTY</Text>
           </View>
 
           <View style={styles.formCard}>

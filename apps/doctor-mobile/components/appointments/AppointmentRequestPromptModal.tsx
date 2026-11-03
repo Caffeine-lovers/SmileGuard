@@ -181,7 +181,7 @@ export default function AppointmentRequestPromptModal({
                 <View style={styles.notesSection}>
                   <View style={styles.notesHeader}>
                     <FileText size={15} color="#0284C7" />
-                    <Text style={styles.notesTitle}>PATIENT NOTES / INTAKE</Text>
+                    <Text style={styles.notesTitle}>PATIENT NOTES & HEALTH INFO</Text>
                   </View>
                   <Text style={styles.notesBody}>{appointment.notes}</Text>
                 </View>
