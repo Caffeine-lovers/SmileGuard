@@ -37,11 +37,31 @@ export async function fetchClinicLookup(): Promise<{
             servicesList = JSON.parse(row.services);
           } catch {}
         }
+        const normalizedServices = Array.isArray(servicesList)
+          ? servicesList.map((s: any, idx: number) => {
+              if (typeof s === 'string') {
+                return { id: `service_${idx}`, name: s, price: getServicePrice(s) };
+              }
+              const parsedPrice =
+                typeof s.price === 'number'
+                  ? s.price
+                  : parseFloat(s.price) >= 0
+                  ? parseFloat(s.price)
+                  : getServicePrice(s.name);
+              return {
+                id: s.id || `service_${idx}`,
+                name: s.name || 'Dental Service',
+                price: parsedPrice,
+                description: s.description || '',
+              };
+            })
+          : [];
+
         const info: ClinicInfo = {
           id: row.id,
           user_id: row.user_id,
           clinic_name: row.clinic_name || "Kyler's Clinic",
-          services: servicesList,
+          services: normalizedServices,
         };
         clinicMap.set(row.user_id, info);
         clinicMap.set(row.id, info);

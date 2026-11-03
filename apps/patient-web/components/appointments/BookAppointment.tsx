@@ -1,7 +1,9 @@
 'use client';
 
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { supabase } from '@smileguard/supabase-client';
+import { getServicePrice } from '@/lib/pricing';
 import { useAuth } from '@smileguard/shared-hooks';
 import { 
   bookSlot, 
@@ -21,16 +23,35 @@ import type { Appointment } from '@/lib/database';
 
 import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 
-const SERVICES = [
-  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
-  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
-  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000,  icon: '' },
-  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000,  icon: '' },
-  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500,  icon: '' },
-  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000, icon: '' },
-  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000, icon: '' },
-  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500,   icon: '' },
-  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300,   icon: '' },
+export interface ServiceOption {
+  id: string;
+  name: string;
+  duration: number;
+  price: number;
+  description?: string;
+}
+
+export function getServiceDuration(name: string): number {
+  const norm = name.toLowerCase();
+  if (norm.includes('root') || norm.includes('canal')) return 90;
+  if (norm.includes('whiten') || norm.includes('brace') || norm.includes('implant')) return 60;
+  if (norm.includes('fill')) return 45;
+  if (norm.includes('clean') || norm.includes('extract')) return 30;
+  if (norm.includes('check') || norm.includes('consult')) return 20;
+  if (norm.includes('x-ray') || norm.includes('xray') || norm.includes('scan')) return 15;
+  return 30;
+}
+
+export const FALLBACK_DEFAULT_SERVICES: ServiceOption[] = [
+  { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500 },
+  { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000 },
+  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000 },
+  { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000 },
+  { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500 },
+  { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000 },
+  { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000 },
+  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500 },
+  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300 },
 ];
 
 interface BookAppointmentProps {
@@ -65,19 +86,18 @@ function LockedOverlay({ message }: { message: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function BookAppointment({ onSuccess, onCancel }: BookAppointmentProps) {
   const { currentUser } = useAuth();
-  const [selectedServices, setSelectedServices]       = useState<((typeof SERVICES)[0])[]>([]);
-  const selectedService = selectedServices[0] || null;
+  const [selectedServices, setSelectedServices]       = useState<ServiceOption[]>([]);
   const combinedServiceName = selectedServices.map(s => s.name).join(', ');
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
   const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
 
-  const toggleService = (service: (typeof SERVICES)[0], price: number) => {
+  const toggleService = (service: ServiceOption) => {
     setSelectedServices(prev => {
-      const exists = prev.some(s => s.id === service.id);
+      const exists = prev.some(s => s.id === service.id || s.name.toLowerCase() === service.name.toLowerCase());
       if (exists) {
-        return prev.filter(s => s.id !== service.id);
+        return prev.filter(s => s.id !== service.id && s.name.toLowerCase() !== service.name.toLowerCase());
       } else {
-        return [...prev, { ...service, price }];
+        return [...prev, service];
       }
     });
   };
@@ -95,6 +115,31 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [availableClinics, setAvailableClinics]       = useState<ClinicDetails[]>([]);
   const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
   const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
+
+  // Connect to ClinicSetup: derive services & prices from clinic_setup "services" JSON column
+  const displayedServices: ServiceOption[] = useMemo(() => {
+    const clinicServices = clinicDetails?.services;
+    if (Array.isArray(clinicServices) && clinicServices.length > 0) {
+      return clinicServices.map((cs, idx) => {
+        const id = cs.id || `clinic_service_${idx}`;
+        const name = cs.name || 'Dental Service';
+        const parsedPrice =
+          typeof cs.price === 'number'
+            ? cs.price
+            : parseFloat(cs.price as any) >= 0
+            ? parseFloat(cs.price as any)
+            : getServicePrice(name);
+        return {
+          id,
+          name,
+          duration: getServiceDuration(name),
+          price: parsedPrice,
+          description: cs.description || '',
+        };
+      });
+    }
+    return FALLBACK_DEFAULT_SERVICES;
+  }, [clinicDetails?.services]);
 
   console.log('🔴 [DIAGNOSTIC] BookAppointment component RENDERED');
   console.log('🔴 [DIAGNOSTIC] currentUser:', currentUser);
@@ -135,7 +180,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         setAvailableClinics(clinics);
 
         // Pick Kyler's Clinic by default, or first available
-        const defaultClinic = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler')) || clinics[0];
+        const defaultClinic = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler') || c.clinic_name.toLowerCase().includes('kiler')) || clinics[0];
 
         let scheduleToUse: ClinicSchedule | null = null;
         if (defaultClinic) {
@@ -187,8 +232,26 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     
     loadClinicData();
 
+    // Subscribe to real-time changes in clinic_setup so when doctor saves ClinicSetup.tsx, patient-web updates automatically
+    const channel = supabase
+      .channel(`clinic_setup_patient_web_${Date.now()}_${Math.random().toString(36).slice(2)}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'clinic_setup',
+        },
+        () => {
+          console.log('🔄 [BookAppointment] clinic_setup updated, reloading clinic services & prices...');
+          loadClinicData();
+        }
+      )
+      .subscribe();
+
     return () => {
       isMounted = false;
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -199,6 +262,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     if (selected.schedule) {
       setClinicSchedule(selected.schedule);
     }
+    setSelectedServices([]);
     setSelectedTime('');
   };
 
@@ -390,35 +454,27 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
-            {SERVICES.map((service) => {
-              // Check if clinic customized the price
-              const clinicCustom = clinicDetails?.services?.find(
-                (s) => s.name?.trim().toLowerCase() === service.name.trim().toLowerCase()
+            {displayedServices.map((service) => {
+              const active = selectedServices.some(
+                (s) => s.id === service.id || s.name.toLowerCase() === service.name.toLowerCase()
               );
-              const effectivePrice =
-                clinicCustom && typeof clinicCustom.price === 'number' && clinicCustom.price > 0
-                  ? clinicCustom.price
-                  : service.price;
-
-              const active = selectedServices.some(s => s.id === service.id);
               return (
                 <button
                   type="button"
                   key={service.id}
-                  onClick={() => toggleService(service, effectivePrice)}
+                  onClick={() => toggleService(service)}
                   className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
                       : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
                   }`}
                 >
-                  <span className="text-xl sm:text-2xl block mb-1.5">{service.icon}</span>
                   <p className={`font-semibold text-xs sm:text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
                     {service.name}
                   </p>
                   <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">{service.duration} min</p>
                   <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
-                    ₱{effectivePrice.toLocaleString()}
+                    ₱{service.price.toLocaleString()}
                   </p>
                   {active && (
                     <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-brand-primary flex items-center justify-center">
@@ -441,12 +497,11 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-3 sm:mb-4">Your Booking</p>
             <div className="space-y-3">
               {[
-                { icon: selectedService?.icon ?? '🦷', label: 'Service(s)', value: selectedServices.length > 0 ? combinedServiceName : null },
-                { icon: '📅', label: 'Date',    value: formattedDate },
-                { icon: '⏰', label: 'Time',    value: selectedTime || null },
-              ].map(({ icon, label, value }) => (
+                { label: 'Service(s)', value: selectedServices.length > 0 ? combinedServiceName : null },
+                { label: 'Date',    value: formattedDate },
+                { label: 'Time',    value: selectedTime || null },
+              ].map(({ label, value }) => (
                 <div key={label} className="flex items-start gap-3">
-                  <span className="text-lg mt-0.5">{icon}</span>
                   <div>
                     <p className="text-[10px] text-white/60 uppercase tracking-wide">{label}</p>
                     <p className="text-sm font-semibold">

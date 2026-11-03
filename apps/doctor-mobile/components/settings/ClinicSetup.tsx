@@ -13,6 +13,7 @@ import {
   Modal,
   Platform,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -165,6 +166,8 @@ export default function ClinicSetup({
 }: ClinicSetupProps) {
   const { currentUser } = useAuth();
   const { refetch: refetchClinic } = useClinic();
+  const { width: windowWidth } = useWindowDimensions();
+  const galleryCardWidth = Math.max(120, Math.floor((windowWidth - 32 - 10) / 2));
 
   const [isEditing, setIsEditing] = useState(initialMode === 'edit');
   const [activeTab, setActiveTab] = useState<ActiveClinicTab>('overview');
@@ -187,6 +190,8 @@ export default function ClinicSetup({
   // Editing state
   const [newService, setNewService] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editingServiceName, setEditingServiceName] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [lastCustomLogoUrl, setLastCustomLogoUrl] = useState<string | null>(null);
   const [uploadingGallery, setUploadingGallery] = useState(false);
@@ -381,7 +386,42 @@ export default function ClinicSetup({
     }));
   };
 
+  const handleStartEditServiceName = (service: Service) => {
+    setEditingServiceId(service.id);
+    setEditingServiceName(service.name);
+  };
+
+  const handleSaveServiceName = (id: string) => {
+    const trimmed = editingServiceName.trim();
+    if (!trimmed) {
+      Alert.alert('Invalid Name', 'Service procedure name cannot be empty.');
+      return;
+    }
+    const duplicate = clinicData.services.some(
+      (s) => s.id !== id && s.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (duplicate) {
+      Alert.alert('Notice', 'A procedure with this name already exists.');
+      return;
+    }
+    setClinicData((prev) => ({
+      ...prev,
+      services: prev.services.map((s) => (s.id === id ? { ...s, name: trimmed } : s)),
+    }));
+    setEditingServiceId(null);
+    setEditingServiceName('');
+  };
+
+  const handleCancelEditServiceName = () => {
+    setEditingServiceId(null);
+    setEditingServiceName('');
+  };
+
   const handleRemoveService = (id: string) => {
+    if (editingServiceId === id) {
+      setEditingServiceId(null);
+      setEditingServiceName('');
+    }
     setClinicData((prev) => ({
       ...prev,
       services: prev.services.filter((s) => s.id !== id),
@@ -517,11 +557,25 @@ export default function ClinicSetup({
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          const updated = clinicData.gallery_images?.filter((u) => u !== imageUrl) || [];
           setClinicData((prev) => ({
             ...prev,
-            gallery_images: prev.gallery_images?.filter((u) => u !== imageUrl) || [],
+            gallery_images: updated,
           }));
+
+          // If in View mode, auto-save to database immediately
+          if (!isEditing && clinicSetupId) {
+            try {
+              await supabase.from('clinic_setup').update({
+                gallery_images: updated,
+                updated_at: new Date().toISOString(),
+              }).eq('id', clinicSetupId);
+              await refetchClinic();
+            } catch (err) {
+              console.error('[ClinicSetup] Auto-save remove gallery error:', err);
+            }
+          }
         },
       },
     ]);
@@ -666,6 +720,17 @@ export default function ClinicSetup({
       return;
     }
 
+    let servicesToSave = clinicData.services || [];
+    if (editingServiceId && editingServiceName.trim()) {
+      const trimmed = editingServiceName.trim();
+      servicesToSave = servicesToSave.map((s) =>
+        s.id === editingServiceId ? { ...s, name: trimmed } : s
+      );
+      setClinicData((prev) => ({ ...prev, services: servicesToSave }));
+      setEditingServiceId(null);
+      setEditingServiceName('');
+    }
+
     setSaving(true);
     try {
       const dataToSave = {
@@ -673,7 +738,7 @@ export default function ClinicSetup({
         address: clinicData.address.trim(),
         logo_url: clinicData.logo_url || null,
         gallery_images: clinicData.gallery_images || [],
-        services: clinicData.services || [],
+        services: servicesToSave,
         schedule: clinicData.schedule,
         updated_at: new Date().toISOString(),
       };
@@ -728,6 +793,8 @@ export default function ClinicSetup({
   };
 
   const handleCancelEdit = () => {
+    setEditingServiceId(null);
+    setEditingServiceName('');
     if (originalClinicData) {
       setClinicData(originalClinicData);
       setIsEditing(false);
@@ -1016,14 +1083,45 @@ export default function ClinicSetup({
             <View>
               {/* Facility Gallery Header with Quick Upload Button */}
               <View style={styles.sectionHeaderWrap}>
-                <Text style={styles.sectionTitle}>PHOTO GALLERY</Text>
+                <Text style={styles.sectionTitle}>
+                  PHOTO GALLERY ({clinicData.gallery_images?.length || 0})
+                </Text>
+                {clinicData.gallery_images && clinicData.gallery_images.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.quickUploadBtn}
+                    onPress={handleUploadGalleryPress}
+                    disabled={uploadingGallery}
+                    activeOpacity={0.75}
+                    accessibilityLabel="Add Clinic Photos"
+                  >
+                    {uploadingGallery ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Plus size={13} color="#FFFFFF" strokeWidth={2.5} />
+                        <Text style={styles.quickUploadBtnText}>Add Photos</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
 
               {clinicData.gallery_images && clinicData.gallery_images.length > 0 ? (
                 <View style={styles.galleryMasonryGrid}>
                   {clinicData.gallery_images.map((imgUrl, index) => (
-                    <View key={index} style={styles.galleryMasonryCard}>
+                    <View
+                      key={index}
+                      style={[styles.galleryMasonryCard, { width: galleryCardWidth }]}
+                    >
                       <Image source={{ uri: imgUrl }} style={styles.galleryMasonryImg} />
+                      <TouchableOpacity
+                        style={styles.deleteThumbBtn}
+                        onPress={() => handleRemoveGalleryImage(imgUrl)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        accessibilityLabel="Remove photo"
+                      >
+                        <Trash2 size={11} color="#FFFFFF" />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -1638,11 +1736,64 @@ export default function ClinicSetup({
               </Text>
               <View style={styles.serviceRatesList}>
                 {clinicData.services.map((service) => (
-                  <View key={service.id} style={styles.serviceRateRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.serviceRateName}>{service.name}</Text>
-                      <Text style={styles.serviceRateSub}>Online Booking</Text>
-                    </View>
+                  <View
+                    key={service.id}
+                    style={[
+                      styles.serviceRateRow,
+                      editingServiceId === service.id && styles.serviceRateRowEditing,
+                    ]}
+                  >
+                    {editingServiceId === service.id ? (
+                      <View style={styles.serviceNameEditContainer}>
+                        <TextInput
+                          style={styles.serviceNameInput}
+                          value={editingServiceName}
+                          onChangeText={setEditingServiceName}
+                          placeholder="Procedure name"
+                          placeholderTextColor="#94A3B8"
+                          autoFocus
+                          selectTextOnFocus
+                          returnKeyType="done"
+                          onSubmitEditing={() => handleSaveServiceName(service.id)}
+                        />
+                        <View style={styles.serviceNameActionBtns}>
+                          <TouchableOpacity
+                            style={styles.saveServiceNameBtn}
+                            onPress={() => handleSaveServiceName(service.id)}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            accessibilityLabel="Save procedure name"
+                          >
+                            <Check size={13} color="#FFFFFF" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.cancelServiceNameBtn}
+                            onPress={handleCancelEditServiceName}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            accessibilityLabel="Cancel editing procedure name"
+                          >
+                            <X size={13} color="#64748B" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={{ flex: 1 }}
+                        onPress={() => handleStartEditServiceName(service)}
+                        activeOpacity={0.7}
+                        accessibilityLabel={`Edit ${service.name}`}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={styles.serviceRateName} numberOfLines={1}>
+                            {service.name}
+                          </Text>
+                          <View style={styles.serviceEditPencilBadge}>
+                            <Pencil size={10} color="#047857" />
+                          </View>
+                        </View>
+                        <Text style={styles.serviceRateSub}>Tap to edit name</Text>
+                      </TouchableOpacity>
+                    )}
+
                     <View style={styles.serviceRatePriceWrap}>
                       <Text style={styles.serviceRatePrefix}>₱</Text>
                       <TextInput
@@ -2605,12 +2756,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   galleryMasonryCard: {
-    width: '48.5%',
-    height: 90,
+    height: 120,
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
+    backgroundColor: '#F1F5F9',
+    position: 'relative',
   },
   galleryMasonryImg: {
     width: '100%',
@@ -2997,12 +3149,12 @@ const styles = StyleSheet.create({
   },
   deleteThumbBtn: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: 4,
+    right: 4,
     backgroundColor: '#EF4444',
-    borderRadius: 8,
-    width: 16,
-    height: 16,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -3198,6 +3350,57 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     padding: 8,
     gap: 8,
+  },
+  serviceRateRowEditing: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  serviceEditPencilBadge: {
+    backgroundColor: '#ECFDF5',
+    padding: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  serviceNameEditContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  serviceNameInput: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#047857',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    height: 32,
+  },
+  serviceNameActionBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  saveServiceNameBtn: {
+    backgroundColor: '#047857',
+    borderRadius: 4,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelServiceNameBtn: {
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   serviceRateName: {
     fontSize: 12.5,

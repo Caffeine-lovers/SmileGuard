@@ -28,7 +28,7 @@ export const SERVICE_PRICES: Record<string, number> = {
 
 export const FALLBACK_PRICE = 1500;
 
-export type ClinicService = { id?: string; name?: string; price?: number };
+export type ClinicService = { id?: string; name?: string; price?: number; description?: string };
 
 /** Catalog price for a service name (exact match first, then partial match). */
 export function getServicePrice(serviceName?: string | null): number {
@@ -39,6 +39,12 @@ export function getServicePrice(serviceName?: string | null): number {
   const normalized = serviceName.trim().toLowerCase();
   for (const [key, price] of Object.entries(SERVICE_PRICES)) {
     if (key.toLowerCase() === normalized) return price;
+  }
+  if (serviceName.includes(',')) {
+    const parts = serviceName.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      return parts.reduce((sum, part) => sum + getServicePrice(part), 0);
+    }
   }
   for (const [key, price] of Object.entries(SERVICE_PRICES)) {
     if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
@@ -51,10 +57,18 @@ export function getServicePrice(serviceName?: string | null): number {
 /** Clinic-specific price if the clinic lists the service, otherwise the catalog price. */
 export function getServicePriceForClinic(serviceName?: string | null, clinicServices?: ClinicService[]): number {
   if (!serviceName) return FALLBACK_PRICE;
+  const norm = serviceName.trim().toLowerCase();
   if (Array.isArray(clinicServices) && clinicServices.length > 0) {
-    const norm = serviceName.trim().toLowerCase();
     const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
     if (exact && typeof exact.price === 'number' && exact.price > 0) return exact.price;
+  }
+  if (serviceName.includes(',')) {
+    const parts = serviceName.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      return parts.reduce((sum, part) => sum + getServicePriceForClinic(part, clinicServices), 0);
+    }
+  }
+  if (Array.isArray(clinicServices) && clinicServices.length > 0) {
     const partial = clinicServices.find(
       (s) => s.name && (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
     );
