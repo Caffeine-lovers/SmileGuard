@@ -855,9 +855,6 @@ export default function AppointmentsTab({
             style={localStyles.headerTitleGroup}
           >
             <Text style={localStyles.headerTitle}>APPOINTMENTS</Text>
-            <View style={localStyles.pillCountBadge}>
-              <Text style={localStyles.pillCountText}>{filteredAppointments.length}</Text>
-            </View>
           </View>
 
           <View style={localStyles.headerActionsRow}>

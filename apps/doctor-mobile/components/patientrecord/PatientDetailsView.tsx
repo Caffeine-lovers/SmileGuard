@@ -16,7 +16,6 @@ import {
   X,
   User,
   Phone,
-  Mail,
   Calendar,
   Clock,
   CheckCircle2,
@@ -352,26 +351,6 @@ export default function PatientDetailsView({
                   </View>
                 </View>
               </View>
-
-              {/* Quick Contact Chips */}
-              {(phone || email) && (
-                <View style={styles.contactChipsRow}>
-                  {phone && (
-                    <View style={styles.contactChip}>
-                      <Phone size={12} color="#047857" />
-                      <Text style={styles.contactChipText}>{phone}</Text>
-                    </View>
-                  )}
-                  {email && (
-                    <View style={styles.contactChip}>
-                      <Mail size={12} color="#047857" />
-                      <Text style={styles.contactChipText} numberOfLines={1}>
-                        {email}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
 
               {/* Practice Metrics Bar */}
               <View style={styles.metricsBar}>
@@ -1045,7 +1024,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    paddingBottom: 12,
   },
 
   heroAvatar: {
@@ -1119,33 +1097,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#047857",
     letterSpacing: 0.4,
-  },
-
-  // Contact Chips
-  contactChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-  },
-
-  contactChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-
-  contactChipText: {
-    fontSize: 11.5,
-    fontWeight: "700",
-    color: "#047857",
   },
 
   // Metrics Bar
