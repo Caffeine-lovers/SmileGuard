@@ -14,6 +14,7 @@ import {
   Platform,
   StatusBar,
   useWindowDimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -29,6 +30,8 @@ import {
   Sparkles,
   ChevronRight,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   Pencil,
   Image as ImageIcon,
   CheckCircle2,
@@ -195,6 +198,8 @@ export default function ClinicSetup({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [lastCustomLogoUrl, setLastCustomLogoUrl] = useState<string | null>(null);
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [selectedFullPhotoUrl, setSelectedFullPhotoUrl] = useState<string | null>(null);
+  const [selectedFullPhotoTitle, setSelectedFullPhotoTitle] = useState('Clinic Photo');
 
   // Time Picker states
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState<keyof Schedule | null>(null);
@@ -657,6 +662,111 @@ export default function ClinicSetup({
     setShowClosingTimePicker(null);
   };
 
+  // Time Picker Modern Stepper Helpers
+  const incrementHours = () => {
+    let h = parseInt(tempHours, 10) || 12;
+    h = h === 12 ? 1 : h + 1;
+    setTempHours(h.toString().padStart(2, '0'));
+  };
+
+  const decrementHours = () => {
+    let h = parseInt(tempHours, 10) || 1;
+    h = h === 1 ? 12 : h - 1;
+    setTempHours(h.toString().padStart(2, '0'));
+  };
+
+  const incrementMinutes = () => {
+    let m = parseInt(tempMinutes, 10) || 0;
+    m = m + 5;
+    if (m >= 60) m = 0;
+    setTempMinutes(m.toString().padStart(2, '0'));
+  };
+
+  const decrementMinutes = () => {
+    let m = parseInt(tempMinutes, 10) || 0;
+    m = m - 5;
+    if (m < 0) m = 55;
+    setTempMinutes(m.toString().padStart(2, '0'));
+  };
+
+  // Blockout Date 6-Month Advance & Recursive Stepper Helpers
+  const getBlockoutMonthList = () => {
+    const now = new Date();
+    const list: { month: number; year: number; label: string; shortLabel: string }[] = [];
+    for (let i = 0; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      list.push({
+        month: d.getMonth() + 1,
+        year: d.getFullYear(),
+        label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        shortLabel: d.toLocaleDateString('en-US', { month: 'short' }),
+      });
+    }
+    return list;
+  };
+
+  const getDayRangeForMonth = (m: number, y: number) => {
+    const now = new Date();
+    const isCurrentMonth = m === (now.getMonth() + 1) && y === now.getFullYear();
+
+    const maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() + 6);
+    const isMaxMonth = m === (maxDate.getMonth() + 1) && y === maxDate.getFullYear();
+
+    const totalDaysInMonth = new Date(y, m, 0).getDate();
+    const minDay = isCurrentMonth ? now.getDate() : 1;
+    const maxDay = isMaxMonth ? Math.min(maxDate.getDate(), totalDaysInMonth) : totalDaysInMonth;
+
+    return { minDay, maxDay, totalDaysInMonth };
+  };
+
+  const handleStepMonth = (direction: 'next' | 'prev') => {
+    const months = getBlockoutMonthList();
+    const currentM = parseInt(tempBlockoutMonth, 10) || (new Date().getMonth() + 1);
+    const currentY = parseInt(tempBlockoutYear, 10) || new Date().getFullYear();
+
+    let idx = months.findIndex((item) => item.month === currentM && item.year === currentY);
+    if (idx === -1) idx = 0;
+
+    let nextIdx: number;
+    if (direction === 'next') {
+      nextIdx = (idx + 1) % months.length;
+    } else {
+      nextIdx = (idx - 1 + months.length) % months.length;
+    }
+
+    const target = months[nextIdx];
+    const { minDay, maxDay } = getDayRangeForMonth(target.month, target.year);
+    let currentD = parseInt(tempBlockoutDay, 10) || minDay;
+    if (currentD < minDay) currentD = minDay;
+    if (currentD > maxDay) currentD = maxDay;
+
+    setTempBlockoutMonth(target.month.toString());
+    setTempBlockoutYear(target.year.toString());
+    setTempBlockoutDay(currentD.toString());
+  };
+
+  const handleStepDay = (direction: 'next' | 'prev') => {
+    const m = parseInt(tempBlockoutMonth, 10) || (new Date().getMonth() + 1);
+    const y = parseInt(tempBlockoutYear, 10) || new Date().getFullYear();
+    const { minDay, maxDay } = getDayRangeForMonth(m, y);
+
+    let currentD = parseInt(tempBlockoutDay, 10) || minDay;
+    if (direction === 'next') {
+      currentD = currentD >= maxDay ? minDay : currentD + 1;
+    } else {
+      currentD = currentD <= minDay ? maxDay : currentD - 1;
+    }
+
+    setTempBlockoutDay(currentD.toString());
+  };
+
+  const handleSelectExactDate = (d: number, m: number, y: number) => {
+    setTempBlockoutDay(d.toString());
+    setTempBlockoutMonth(m.toString());
+    setTempBlockoutYear(y.toString());
+  };
+
   // Blockout Dates Handlers
   const handleAddBlockoutDate = async (month: number, day: number, year: number) => {
     try {
@@ -994,7 +1104,22 @@ export default function ClinicSetup({
           {/* Clinic Facade Card (Always Visible) */}
           <View style={styles.clinicFacadeCard}>
             <View style={styles.facadeLogoRow}>
-              <View style={styles.facadeLogoContainer}>
+              <TouchableOpacity
+                style={styles.facadeLogoContainer}
+                onPress={() => {
+                  if (isUsingAppLogo) {
+                    const source = Image.resolveAssetSource(APP_LOGO);
+                    setSelectedFullPhotoUrl(source.uri);
+                    setSelectedFullPhotoTitle('Clinic Profile Logo');
+                  } else if (clinicData.logo_url) {
+                    setSelectedFullPhotoUrl(clinicData.logo_url);
+                    setSelectedFullPhotoTitle('Clinic Profile Photo');
+                  }
+                }}
+                activeOpacity={clinicData.logo_url ? 0.8 : 1}
+                disabled={!clinicData.logo_url}
+                accessibilityLabel="View clinic profile photo in full size"
+              >
                 {isUsingAppLogo ? (
                   <Image
                     source={APP_LOGO}
@@ -1008,7 +1133,7 @@ export default function ClinicSetup({
                     <Building2 size={38} color="#047857" />
                   </View>
                 )}
-              </View>
+              </TouchableOpacity>
 
               <View style={styles.facadeTitleCol}>
                 <Text style={styles.facadeClinicName}>
@@ -1109,9 +1234,15 @@ export default function ClinicSetup({
               {clinicData.gallery_images && clinicData.gallery_images.length > 0 ? (
                 <View style={styles.galleryMasonryGrid}>
                   {clinicData.gallery_images.map((imgUrl, index) => (
-                    <View
+                    <TouchableOpacity
                       key={index}
                       style={[styles.galleryMasonryCard, { width: galleryCardWidth }]}
+                      onPress={() => {
+                        setSelectedFullPhotoUrl(imgUrl);
+                        setSelectedFullPhotoTitle(`Clinic Photo (${index + 1})`);
+                      }}
+                      activeOpacity={0.85}
+                      accessibilityLabel="View clinic photo in full screen"
                     >
                       <Image source={{ uri: imgUrl }} style={styles.galleryMasonryImg} />
                       <TouchableOpacity
@@ -1122,7 +1253,7 @@ export default function ClinicSetup({
                       >
                         <Trash2 size={11} color="#FFFFFF" />
                       </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               ) : (
@@ -1287,6 +1418,46 @@ export default function ClinicSetup({
             </View>
           )}
         </ScrollView>
+
+        {/* Full Screen Photo Viewer Modal for View Mode (Clinic Profile) */}
+        <Modal
+          visible={selectedFullPhotoUrl !== null}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setSelectedFullPhotoUrl(null)}
+        >
+          <View style={styles.fullPhotoOverlay}>
+            <SafeAreaView style={styles.fullPhotoSafeArea} edges={["top", "bottom"]}>
+              <View style={styles.fullPhotoHeader}>
+                <View style={styles.fullPhotoBadge}>
+                  <Building2 size={14} color="#A7F3D0" />
+                  <Text style={styles.fullPhotoBadgeText}>
+                    {selectedFullPhotoTitle || 'Clinic Photo'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.fullPhotoCloseBtn}
+                  onPress={() => setSelectedFullPhotoUrl(null)}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  accessibilityLabel="Close full photo view"
+                >
+                  <X size={20} color="#FFFFFF" strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.fullPhotoImageWrapper}>
+                {Boolean(selectedFullPhotoUrl) && (
+                  <Image
+                    source={{ uri: selectedFullPhotoUrl! }}
+                    style={styles.fullPhotoImage}
+                    resizeMode="contain"
+                  />
+                )}
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -1387,12 +1558,16 @@ export default function ClinicSetup({
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         {/* EDIT TAB 1: BRAND, ADDRESS & GALLERY */}
         {activeTab === 'overview' && (
           <View>
@@ -1532,7 +1707,13 @@ export default function ClinicSetup({
                 </TouchableOpacity>
 
                 {clinicData.gallery_images?.map((imgUrl, index) => (
-                  <View key={index} style={styles.galleryThumbCard}>
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.galleryThumbCard}
+                    onPress={() => setSelectedFullPhotoUrl(imgUrl)}
+                    activeOpacity={0.85}
+                    accessibilityLabel="View photo full size"
+                  >
                     <Image source={{ uri: imgUrl }} style={styles.galleryThumbImg} />
                     <TouchableOpacity
                       style={styles.deleteThumbBtn}
@@ -1541,7 +1722,7 @@ export default function ClinicSetup({
                     >
                       <Trash2 size={10} color="#FFFFFF" />
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
@@ -1672,31 +1853,39 @@ export default function ClinicSetup({
           <View>
             <View style={styles.hubCard}>
               <Text style={styles.cardHeaderTitle}>QUICK-ADD COMMON PROCEDURES</Text>
-              <View style={styles.predefinedPillsWrap}>
-                {PREDEFINED_SERVICES.map((predefined) => {
-                  const alreadyAdded = clinicData.services.some(
-                    (s) => s.name.toLowerCase() === predefined.toLowerCase()
-                  );
+              <View style={styles.predefinedGrid}>
+                {[0, 1, 2].map((rowIndex) => {
+                  const rowServices = PREDEFINED_SERVICES.slice(rowIndex * 3, rowIndex * 3 + 3);
                   return (
-                    <TouchableOpacity
-                      key={predefined}
-                      style={[
-                        styles.predefinedPill,
-                        alreadyAdded ? styles.predefinedPillDisabled : styles.predefinedPillActive,
-                      ]}
-                      onPress={() => handleAddService(predefined)}
-                      disabled={alreadyAdded}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.predefinedPillText,
-                          alreadyAdded && styles.predefinedPillTextDisabled,
-                        ]}
-                      >
-                        {alreadyAdded ? `✓ ${predefined}` : `+ ${predefined}`}
-                      </Text>
-                    </TouchableOpacity>
+                    <View key={rowIndex} style={styles.predefinedRow}>
+                      {rowServices.map((predefined) => {
+                        const alreadyAdded = clinicData.services.some(
+                          (s) => s.name.toLowerCase() === predefined.toLowerCase()
+                        );
+                        return (
+                          <TouchableOpacity
+                            key={predefined}
+                            style={[
+                              styles.predefinedPill,
+                              alreadyAdded ? styles.predefinedPillDisabled : styles.predefinedPillActive,
+                            ]}
+                            onPress={() => handleAddService(predefined)}
+                            disabled={alreadyAdded}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.predefinedPillText,
+                                alreadyAdded && styles.predefinedPillTextDisabled,
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {alreadyAdded ? `✓ ${predefined}` : `+ ${predefined}`}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   );
                 })}
               </View>
@@ -1736,63 +1925,23 @@ export default function ClinicSetup({
               </Text>
               <View style={styles.serviceRatesList}>
                 {clinicData.services.map((service) => (
-                  <View
-                    key={service.id}
-                    style={[
-                      styles.serviceRateRow,
-                      editingServiceId === service.id && styles.serviceRateRowEditing,
-                    ]}
-                  >
-                    {editingServiceId === service.id ? (
-                      <View style={styles.serviceNameEditContainer}>
-                        <TextInput
-                          style={styles.serviceNameInput}
-                          value={editingServiceName}
-                          onChangeText={setEditingServiceName}
-                          placeholder="Procedure name"
-                          placeholderTextColor="#94A3B8"
-                          autoFocus
-                          selectTextOnFocus
-                          returnKeyType="done"
-                          onSubmitEditing={() => handleSaveServiceName(service.id)}
-                        />
-                        <View style={styles.serviceNameActionBtns}>
-                          <TouchableOpacity
-                            style={styles.saveServiceNameBtn}
-                            onPress={() => handleSaveServiceName(service.id)}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                            accessibilityLabel="Save procedure name"
-                          >
-                            <Check size={13} color="#FFFFFF" strokeWidth={2.5} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.cancelServiceNameBtn}
-                            onPress={handleCancelEditServiceName}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                            accessibilityLabel="Cancel editing procedure name"
-                          >
-                            <X size={13} color="#64748B" strokeWidth={2.5} />
-                          </TouchableOpacity>
+                  <View key={service.id} style={styles.serviceRateRow}>
+                    <TouchableOpacity
+                      style={{ flex: 1 }}
+                      onPress={() => handleStartEditServiceName(service)}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Edit ${service.name}`}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.serviceRateName} numberOfLines={1}>
+                          {service.name}
+                        </Text>
+                        <View style={styles.serviceEditPencilBadge}>
+                          <Pencil size={10} color="#047857" />
                         </View>
                       </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={{ flex: 1 }}
-                        onPress={() => handleStartEditServiceName(service)}
-                        activeOpacity={0.7}
-                        accessibilityLabel={`Edit ${service.name}`}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={styles.serviceRateName} numberOfLines={1}>
-                            {service.name}
-                          </Text>
-                          <View style={styles.serviceEditPencilBadge}>
-                            <Pencil size={10} color="#047857" />
-                          </View>
-                        </View>
-                        <Text style={styles.serviceRateSub}>Tap to edit name</Text>
-                      </TouchableOpacity>
-                    )}
+                      <Text style={styles.serviceRateSub}>Tap to edit name</Text>
+                    </TouchableOpacity>
 
                     <View style={styles.serviceRatePriceWrap}>
                       <Text style={styles.serviceRatePrefix}>₱</Text>
@@ -1862,8 +2011,111 @@ export default function ClinicSetup({
           )}
         </View>
       </ScrollView>
+    </KeyboardAvoidingView>
 
-      {/* Opening Time Modal */}
+      {/* Edit Service Procedure Modal - Floats on top of keyboard */}
+      <Modal
+        visible={editingServiceId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelEditServiceName}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Pencil size={15} color="#047857" strokeWidth={2.5} />
+                <Text style={styles.modalSheetTitle}>Edit Procedure Name</Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleCancelEditServiceName}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Close"
+              >
+                <X size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>PROCEDURE NAME *</Text>
+            <TextInput
+              style={[styles.inputField, { marginBottom: 16 }]}
+              value={editingServiceName}
+              onChangeText={setEditingServiceName}
+              placeholder="e.g. Root Canal"
+              placeholderTextColor="#94A3B8"
+              autoFocus
+              selectTextOnFocus
+              returnKeyType="done"
+              onSubmitEditing={() => editingServiceId && handleSaveServiceName(editingServiceId)}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={handleCancelEditServiceName}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={() => editingServiceId && handleSaveServiceName(editingServiceId)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <Check size={14} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.modalConfirmBtnText}>Save</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Full Screen Photo Viewer Modal */}
+      <Modal
+        visible={selectedFullPhotoUrl !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setSelectedFullPhotoUrl(null)}
+      >
+        <View style={styles.fullPhotoOverlay}>
+          <SafeAreaView style={styles.fullPhotoSafeArea} edges={["top", "bottom"]}>
+            <View style={styles.fullPhotoHeader}>
+              <View style={styles.fullPhotoBadge}>
+                <Building2 size={14} color="#A7F3D0" />
+                <Text style={styles.fullPhotoBadgeText}>
+                  {selectedFullPhotoTitle || 'Clinic Photo'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.fullPhotoCloseBtn}
+                onPress={() => setSelectedFullPhotoUrl(null)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityLabel="Close full photo view"
+              >
+                <X size={20} color="#FFFFFF" strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.fullPhotoImageWrapper}>
+              {Boolean(selectedFullPhotoUrl) && (
+                <Image
+                  source={{ uri: selectedFullPhotoUrl! }}
+                  style={styles.fullPhotoImage}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Modern Select Opening Time Modal */}
       <Modal
         visible={showOpeningTimePicker !== null}
         transparent
@@ -1873,132 +2125,136 @@ export default function ClinicSetup({
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalSheetTitle}>Select Opening Time</Text>
-              <TouchableOpacity onPress={() => setShowOpeningTimePicker(null)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.modernModalIconCircle}>
+                  <Clock size={16} color="#047857" strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={styles.modalSheetTitle}>Select Opening Time</Text>
+                  {showOpeningTimePicker && (
+                    <Text style={styles.modalSheetSubtitle}>
+                      {DAY_LABELS[showOpeningTimePicker]}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowOpeningTimePicker(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.timeSelectorRow}>
-              <View style={styles.timeCol}>
+            {/* Modern Hero Digital Clock Display */}
+            <View style={styles.modernClockCard}>
+              <View style={styles.modernClockCol}>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let h = parseInt(tempHours, 10) || 1;
-                    h = h === 12 ? 1 : h + 1;
-                    setTempHours(h.toString());
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={incrementHours}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
+                  <ChevronUp size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.timeNumberInput}
-                  value={tempHours}
-                  onChangeText={(t) => {
-                    const c = t.replace(/[^0-9]/g, '');
-                    if (!c) {
-                      setTempHours('');
-                    } else {
-                      let num = parseInt(c, 10);
-                      if (num > 12) num = 12;
-                      if (num < 1) num = 1;
-                      setTempHours(num.toString());
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
+                <View style={styles.modernClockDigitBox}>
+                  <Text style={styles.modernClockDigitText}>{tempHours.padStart(2, '0')}</Text>
+                  <Text style={styles.modernClockDigitLabel}>HOURS</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let h = parseInt(tempHours, 10) || 1;
-                    h = h === 1 ? 12 : h - 1;
-                    setTempHours(h.toString());
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={decrementHours}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▼</Text>
+                  <ChevronDown size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.timeColon}>:</Text>
+              <Text style={styles.modernClockColon}>:</Text>
 
-              <View style={styles.timeCol}>
+              <View style={styles.modernClockCol}>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let m = parseInt(tempMinutes, 10) || 0;
-                    m = m + 5;
-                    if (m >= 60) m = 0;
-                    setTempMinutes(m.toString().padStart(2, '0'));
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={incrementMinutes}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
+                  <ChevronUp size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.timeNumberInput}
-                  value={tempMinutes}
-                  onChangeText={(t) => {
-                    const c = t.replace(/[^0-9]/g, '');
-                    if (!c) {
-                      setTempMinutes('');
-                    } else {
-                      let num = parseInt(c, 10);
-                      if (num > 59) num = 59;
-                      setTempMinutes(num.toString().padStart(2, '0'));
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
+                <View style={styles.modernClockDigitBox}>
+                  <Text style={styles.modernClockDigitText}>{tempMinutes.padStart(2, '0')}</Text>
+                  <Text style={styles.modernClockDigitLabel}>MINUTES</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let m = parseInt(tempMinutes, 10) || 0;
-                    m = m - 5;
-                    if (m < 0) m = 55;
-                    setTempMinutes(m.toString().padStart(2, '0'));
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={decrementMinutes}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▼</Text>
+                  <ChevronDown size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.timeCol}>
+              {/* AM / PM Segmented Switch */}
+              <View style={styles.modernPeriodToggleCol}>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => setTempPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
+                  style={[
+                    styles.modernPeriodOption,
+                    tempPeriod === 'AM' && styles.modernPeriodOptionActive,
+                  ]}
+                  onPress={() => setTempPeriod('AM')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
+                  <Text
+                    style={[
+                      styles.modernPeriodOptionText,
+                      tempPeriod === 'AM' && styles.modernPeriodOptionTextActive,
+                    ]}
+                  >
+                    AM
+                  </Text>
                 </TouchableOpacity>
-                <Text style={styles.timePeriodDisplay}>{tempPeriod}</Text>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => setTempPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
+                  style={[
+                    styles.modernPeriodOption,
+                    tempPeriod === 'PM' && styles.modernPeriodOptionActive,
+                  ]}
+                  onPress={() => setTempPeriod('PM')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.timeArrowText}>▼</Text>
+                  <Text
+                    style={[
+                      styles.modernPeriodOptionText,
+                      tempPeriod === 'PM' && styles.modernPeriodOptionTextActive,
+                    ]}
+                  >
+                    PM
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
                 onPress={() => setShowOpeningTimePicker(null)}
+                activeOpacity={0.7}
               >
                 <Text style={styles.modalCancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalConfirmBtn}
                 onPress={() => confirmOpeningTime(showOpeningTimePicker)}
+                activeOpacity={0.8}
               >
-                <Text style={styles.modalConfirmBtnText}>Confirm</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.modalConfirmBtnText}>Confirm Time</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Closing Time Modal */}
+      {/* Modern Select Closing Time Modal */}
       <Modal
         visible={showClosingTimePicker !== null}
         transparent
@@ -2008,125 +2264,129 @@ export default function ClinicSetup({
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalSheetTitle}>Select Closing Time</Text>
-              <TouchableOpacity onPress={() => setShowClosingTimePicker(null)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.modernModalIconCircle}>
+                  <Clock size={16} color="#047857" strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={styles.modalSheetTitle}>Select Closing Time</Text>
+                  {showClosingTimePicker && (
+                    <Text style={styles.modalSheetSubtitle}>
+                      {DAY_LABELS[showClosingTimePicker]}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowClosingTimePicker(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.timeSelectorRow}>
-              <View style={styles.timeCol}>
+            {/* Modern Hero Digital Clock Display */}
+            <View style={styles.modernClockCard}>
+              <View style={styles.modernClockCol}>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let h = parseInt(tempHours, 10) || 1;
-                    h = h === 12 ? 1 : h + 1;
-                    setTempHours(h.toString());
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={incrementHours}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
+                  <ChevronUp size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.timeNumberInput}
-                  value={tempHours}
-                  onChangeText={(t) => {
-                    const c = t.replace(/[^0-9]/g, '');
-                    if (!c) {
-                      setTempHours('');
-                    } else {
-                      let num = parseInt(c, 10);
-                      if (num > 12) num = 12;
-                      if (num < 1) num = 1;
-                      setTempHours(num.toString());
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
+                <View style={styles.modernClockDigitBox}>
+                  <Text style={styles.modernClockDigitText}>{tempHours.padStart(2, '0')}</Text>
+                  <Text style={styles.modernClockDigitLabel}>HOURS</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let h = parseInt(tempHours, 10) || 1;
-                    h = h === 1 ? 12 : h - 1;
-                    setTempHours(h.toString());
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={decrementHours}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▼</Text>
+                  <ChevronDown size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.timeColon}>:</Text>
+              <Text style={styles.modernClockColon}>:</Text>
 
-              <View style={styles.timeCol}>
+              <View style={styles.modernClockCol}>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let m = parseInt(tempMinutes, 10) || 0;
-                    m = m + 5;
-                    if (m >= 60) m = 0;
-                    setTempMinutes(m.toString().padStart(2, '0'));
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={incrementMinutes}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
+                  <ChevronUp size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
-                <TextInput
-                  style={styles.timeNumberInput}
-                  value={tempMinutes}
-                  onChangeText={(t) => {
-                    const c = t.replace(/[^0-9]/g, '');
-                    if (!c) {
-                      setTempMinutes('');
-                    } else {
-                      let num = parseInt(c, 10);
-                      if (num > 59) num = 59;
-                      setTempMinutes(num.toString().padStart(2, '0'));
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
+                <View style={styles.modernClockDigitBox}>
+                  <Text style={styles.modernClockDigitText}>{tempMinutes.padStart(2, '0')}</Text>
+                  <Text style={styles.modernClockDigitLabel}>MINUTES</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let m = parseInt(tempMinutes, 10) || 0;
-                    m = m - 5;
-                    if (m < 0) m = 55;
-                    setTempMinutes(m.toString().padStart(2, '0'));
-                  }}
+                  style={styles.modernStepperBtn}
+                  onPress={decrementMinutes}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.timeArrowText}>▼</Text>
+                  <ChevronDown size={20} color="#047857" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.timeCol}>
+              {/* AM / PM Segmented Switch */}
+              <View style={styles.modernPeriodToggleCol}>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => setTempPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
+                  style={[
+                    styles.modernPeriodOption,
+                    tempPeriod === 'AM' && styles.modernPeriodOptionActive,
+                  ]}
+                  onPress={() => setTempPeriod('AM')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
+                  <Text
+                    style={[
+                      styles.modernPeriodOptionText,
+                      tempPeriod === 'AM' && styles.modernPeriodOptionTextActive,
+                    ]}
+                  >
+                    AM
+                  </Text>
                 </TouchableOpacity>
-                <Text style={styles.timePeriodDisplay}>{tempPeriod}</Text>
                 <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => setTempPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
+                  style={[
+                    styles.modernPeriodOption,
+                    tempPeriod === 'PM' && styles.modernPeriodOptionActive,
+                  ]}
+                  onPress={() => setTempPeriod('PM')}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.timeArrowText}>▼</Text>
+                  <Text
+                    style={[
+                      styles.modernPeriodOptionText,
+                      tempPeriod === 'PM' && styles.modernPeriodOptionTextActive,
+                    ]}
+                  >
+                    PM
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
                 onPress={() => setShowClosingTimePicker(null)}
+                activeOpacity={0.7}
               >
                 <Text style={styles.modalCancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalConfirmBtn}
                 onPress={() => confirmClosingTime(showClosingTimePicker)}
+                activeOpacity={0.8}
               >
-                <Text style={styles.modalConfirmBtnText}>Confirm</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.modalConfirmBtnText}>Confirm Time</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -2212,171 +2472,271 @@ export default function ClinicSetup({
         animationType="fade"
         onRequestClose={() => setShowBlockoutDatePicker(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalSheetTitle}>Add Blockout Date</Text>
-              <TouchableOpacity onPress={() => setShowBlockoutDatePicker(false)}>
-                <X size={18} color="#64748B" />
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          {(() => {
+            const selBlockoutM = parseInt(tempBlockoutMonth, 10) || (new Date().getMonth() + 1);
+            const selBlockoutY = parseInt(tempBlockoutYear, 10) || new Date().getFullYear();
+            const { minDay: blockoutMinDay, maxDay: blockoutMaxDay, totalDaysInMonth: blockoutTotalDays } = getDayRangeForMonth(selBlockoutM, selBlockoutY);
+            const selBlockoutD = Math.max(blockoutMinDay, Math.min(parseInt(tempBlockoutDay, 10) || blockoutMinDay, blockoutMaxDay));
 
-            <Text style={styles.fieldLabel}>SELECT DATE (MONTH / DAY / YEAR)</Text>
-            <View style={styles.dateSelectorRow}>
-              {/* Month */}
-              <View style={styles.dateCol}>
-                <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let m = parseInt(tempBlockoutMonth, 10) || 1;
-                    m = m === 12 ? 1 : m + 1;
-                    setTempBlockoutMonth(m.toString());
-                  }}
+            const currentBlockoutDateStr = `${selBlockoutY}-${String(selBlockoutM).padStart(2, '0')}-${String(selBlockoutD).padStart(2, '0')}`;
+            const isSelectedDateAlreadyBlocked = blockoutDates.some((b) => b.blockout_date === currentBlockoutDateStr);
+
+            const blockoutSelectedDateObj = new Date(selBlockoutY, selBlockoutM - 1, selBlockoutD);
+            const blockoutSelectedDateFormatted = blockoutSelectedDateObj.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            });
+
+            const nowTime = new Date();
+            const todayOnly = new Date(nowTime.getFullYear(), nowTime.getMonth(), nowTime.getDate());
+            const targetOnly = new Date(selBlockoutY, selBlockoutM - 1, selBlockoutD);
+            const diffDays = Math.round((targetOnly.getTime() - todayOnly.getTime()) / (1000 * 60 * 60 * 24));
+            const relativeDateTag = diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : diffDays > 1 ? `In ${diffDays} days` : '';
+
+            const currentMonthObj = new Date(selBlockoutY, selBlockoutM - 1, 1);
+            const currentMonthTitle = currentMonthObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const firstDayOfWeek = new Date(selBlockoutY, selBlockoutM - 1, 1).getDay();
+
+            return (
+              <View style={[styles.modalSheet, { maxHeight: '90%', paddingBottom: 16 }]}>
+                {/* Header */}
+                <View style={styles.modalHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={styles.modernModalIconCircle}>
+                      <Calendar size={18} color="#047857" strokeWidth={2.5} />
+                    </View>
+                    <View>
+                      <Text style={styles.modalSheetTitle}>Add Blockout Date</Text>
+                      <Text style={styles.modalSheetSubtitle}>Select up to 6 months in advance</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setShowBlockoutDatePicker(false)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <X size={18} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 8 }}
                 >
-                  <Text style={styles.timeArrowText}>▲</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.dateInput}
-                  value={tempBlockoutMonth}
-                  onChangeText={(t) => {
-                    const c = t.replace(/[^0-9]/g, '');
-                    if (!c) {
-                      setTempBlockoutMonth('');
-                    } else {
-                      let num = parseInt(c, 10);
-                      if (num > 12) num = 12;
-                      if (num < 1) num = 1;
-                      setTempBlockoutMonth(num.toString());
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="MM"
-                />
-                <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let m = parseInt(tempBlockoutMonth, 10) || 1;
-                    m = m === 1 ? 12 : m - 1;
-                    setTempBlockoutMonth(m.toString());
-                  }}
-                >
-                  <Text style={styles.timeArrowText}>▼</Text>
-                </TouchableOpacity>
-                <Text style={styles.dateSubtext}>Month</Text>
+                  {/* Selected Date Hero Preview */}
+                  <View style={styles.modernDateHeroCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modernDateHeroSub}>SELECTED DATE</Text>
+                      <Text style={styles.modernDateHeroText}>{blockoutSelectedDateFormatted}</Text>
+                    </View>
+                    {relativeDateTag ? (
+                      <View style={styles.modernDateHeroPill}>
+                        <Text style={styles.modernDateHeroPillText}>{relativeDateTag}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Warning if already blocked */}
+                  {isSelectedDateAlreadyBlocked && (
+                    <View style={styles.modernConflictBanner}>
+                      <Text style={styles.modernConflictBannerText}>
+                        This date is already added to your clinic blockout list.
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Month Navigation Bar (Recursive) */}
+                  <View style={styles.modernMonthNavBar}>
+                    <TouchableOpacity
+                      style={styles.modernMonthNavBtn}
+                      onPress={() => handleStepMonth('prev')}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronLeft size={18} color="#047857" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                    <Text style={styles.modernMonthNavTitle}>{currentMonthTitle}</Text>
+                    <TouchableOpacity
+                      style={styles.modernMonthNavBtn}
+                      onPress={() => handleStepMonth('next')}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronRight size={18} color="#047857" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 6-Month Quick Pills Row */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.modernMonthPillsRow}
+                    style={{ marginBottom: 12 }}
+                  >
+                    {getBlockoutMonthList().map((item) => {
+                      const isActive = item.month === selBlockoutM && item.year === selBlockoutY;
+                      return (
+                        <TouchableOpacity
+                          key={`${item.year}-${item.month}`}
+                          style={[
+                            styles.modernMonthPill,
+                            isActive && styles.modernMonthPillActive,
+                          ]}
+                          onPress={() => {
+                            const { minDay, maxDay } = getDayRangeForMonth(item.month, item.year);
+                            let newD = selBlockoutD;
+                            if (newD < minDay) newD = minDay;
+                            if (newD > maxDay) newD = maxDay;
+                            setTempBlockoutMonth(item.month.toString());
+                            setTempBlockoutYear(item.year.toString());
+                            setTempBlockoutDay(newD.toString());
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          <Text
+                            style={[
+                              styles.modernMonthPillText,
+                              isActive && styles.modernMonthPillTextActive,
+                            ]}
+                          >
+                            {item.shortLabel} {item.year !== new Date().getFullYear() ? `'${String(item.year).slice(-2)}` : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Calendar Grid Card */}
+                  <View style={styles.modernCalendarGridCard}>
+                    {/* Weekday headers */}
+                    <View style={styles.modernCalendarWeekHeader}>
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
+                        <View key={i} style={styles.modernCalendarDayCell}>
+                          <Text style={styles.modernCalendarWeekDayText}>{d}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Day cells */}
+                    <View style={styles.modernCalendarDaysWrap}>
+                      {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                        <View key={`empty-${i}`} style={styles.modernCalendarDayCell} />
+                      ))}
+                      {Array.from({ length: blockoutTotalDays }, (_, i) => i + 1).map((dayNum) => {
+                        const isPastOrBeyond = dayNum < blockoutMinDay || dayNum > blockoutMaxDay;
+                        const isSelected = dayNum === selBlockoutD;
+                        const dateStr = `${selBlockoutY}-${String(selBlockoutM).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                        const isBlocked = blockoutDates.some((b) => b.blockout_date === dateStr);
+
+                        return (
+                          <TouchableOpacity
+                            key={dayNum}
+                            style={[
+                              styles.modernCalendarDayCell,
+                              isSelected && styles.modernCalendarDayCellSelected,
+                            ]}
+                            disabled={isPastOrBeyond}
+                            onPress={() => handleSelectExactDate(dayNum, selBlockoutM, selBlockoutY)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.modernCalendarDayNum,
+                                isPastOrBeyond && styles.modernCalendarDayNumDisabled,
+                                isSelected && styles.modernCalendarDayNumSelected,
+                              ]}
+                            >
+                              {dayNum}
+                            </Text>
+                            {isBlocked && (
+                              <View
+                                style={[
+                                  styles.modernCalendarBlockedDot,
+                                  isSelected && styles.modernCalendarBlockedDotSelected,
+                                ]}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Recursive Day Stepper Bar */}
+                  <View style={styles.modernDayStepperRow}>
+                    <TouchableOpacity
+                      style={styles.modernDayStepBtn}
+                      onPress={() => handleStepDay('prev')}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronLeft size={15} color="#047857" strokeWidth={2.5} />
+                      <Text style={styles.modernDayStepBtnText}>Prev Day</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.modernDayStepDisplay}>
+                      <Text style={styles.modernDayStepDisplayText}>Day {selBlockoutD}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.modernDayStepBtn}
+                      onPress={() => handleStepDay('next')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modernDayStepBtnText}>Next Day</Text>
+                      <ChevronRight size={15} color="#047857" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Closure Reason Input */}
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={styles.fieldLabel}>CLOSURE REASON (OPTIONAL)</Text>
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="e.g. Clinic Renovation, Seminar, Holiday"
+                      placeholderTextColor="#94A3B8"
+                      value={blockoutReason}
+                      onChangeText={setBlockoutReason}
+                    />
+                  </View>
+                </ScrollView>
+
+                {/* Modal Action Buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtn}
+                    onPress={() => setShowBlockoutDatePicker(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalConfirmBtn,
+                      isSelectedDateAlreadyBlocked && { opacity: 0.5 },
+                    ]}
+                    onPress={() => {
+                      if (isSelectedDateAlreadyBlocked) {
+                        Alert.alert('Notice', 'This date is already blocked.');
+                        return;
+                      }
+                      handleAddBlockoutDate(selBlockoutM, selBlockoutD, selBlockoutY);
+                    }}
+                    activeOpacity={0.8}
+                    disabled={isSelectedDateAlreadyBlocked}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
+                      <Text style={styles.modalConfirmBtnText}>Block Date</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              <Text style={styles.dateSlash}>/</Text>
-
-              {/* Day */}
-              <View style={styles.dateCol}>
-                <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let d = parseInt(tempBlockoutDay, 10) || 1;
-                    d = d === 31 ? 1 : d + 1;
-                    setTempBlockoutDay(d.toString());
-                  }}
-                >
-                  <Text style={styles.timeArrowText}>▲</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.dateInput}
-                  value={tempBlockoutDay}
-                  onChangeText={(t) => {
-                    const c = t.replace(/[^0-9]/g, '');
-                    if (!c) {
-                      setTempBlockoutDay('');
-                    } else {
-                      let num = parseInt(c, 10);
-                      if (num > 31) num = 31;
-                      if (num < 1) num = 1;
-                      setTempBlockoutDay(num.toString());
-                    }
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="DD"
-                />
-                <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let d = parseInt(tempBlockoutDay, 10) || 1;
-                    d = d === 1 ? 31 : d - 1;
-                    setTempBlockoutDay(d.toString());
-                  }}
-                >
-                  <Text style={styles.timeArrowText}>▼</Text>
-                </TouchableOpacity>
-                <Text style={styles.dateSubtext}>Day</Text>
-              </View>
-
-              <Text style={styles.dateSlash}>/</Text>
-
-              {/* Year */}
-              <View style={[styles.dateCol, { flex: 1.3 }]}>
-                <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let y = parseInt(tempBlockoutYear, 10) || today.getFullYear();
-                    setTempBlockoutYear((y + 1).toString());
-                  }}
-                >
-                  <Text style={styles.timeArrowText}>▲</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.dateInput}
-                  value={tempBlockoutYear}
-                  onChangeText={(t) => setTempBlockoutYear(t.replace(/[^0-9]/g, ''))}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  placeholder="YYYY"
-                />
-                <TouchableOpacity
-                  style={styles.timeArrowBtn}
-                  onPress={() => {
-                    let y = parseInt(tempBlockoutYear, 10) || today.getFullYear();
-                    if (y > today.getFullYear()) setTempBlockoutYear((y - 1).toString());
-                  }}
-                >
-                  <Text style={styles.timeArrowText}>▼</Text>
-                </TouchableOpacity>
-                <Text style={styles.dateSubtext}>Year</Text>
-              </View>
-            </View>
-
-            <View style={{ marginBottom: 16 }}>
-              <Text style={styles.fieldLabel}>REASON (OPTIONAL)</Text>
-              <TextInput
-                style={styles.inputField}
-                placeholder="e.g. Clinic Renovation, Public Holiday..."
-                placeholderTextColor="#94A3B8"
-                value={blockoutReason}
-                onChangeText={setBlockoutReason}
-              />
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setShowBlockoutDatePicker(false)}
-              >
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalConfirmBtn}
-                onPress={() => {
-                  const m = parseInt(tempBlockoutMonth, 10) || 1;
-                  const d = parseInt(tempBlockoutDay, 10) || 1;
-                  const y = parseInt(tempBlockoutYear, 10) || today.getFullYear();
-                  handleAddBlockoutDate(m, d, y);
-                }}
-              >
-                <Text style={styles.modalConfirmBtnText}>Add Date</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+            );
+          })()}
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -3261,16 +3621,22 @@ const styles = StyleSheet.create({
   },
 
   // Procedures & Rates Edit Tab
-  predefinedPillsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  predefinedGrid: {
     gap: 6,
-    marginBottom: 6,
+    marginBottom: 8,
+  },
+  predefinedRow: {
+    flexDirection: 'row',
+    gap: 6,
   },
   predefinedPill: {
+    flex: 1,
     borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 46,
   },
   predefinedPillActive: {
     backgroundColor: '#F8FAFC',
@@ -3286,12 +3652,15 @@ const styles = StyleSheet.create({
     borderColor: '#A7F3D0',
   },
   predefinedPillText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#475569',
+    color: '#334155',
+    textAlign: 'center',
+    lineHeight: 13,
   },
   predefinedPillTextDisabled: {
     color: '#047857',
+    fontWeight: '800',
   },
   addServiceRow: {
     flexDirection: 'row',
@@ -3743,5 +4112,415 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#94A3B8',
     marginBottom: 14,
+  },
+
+  // Full Screen Photo Viewer
+  fullPhotoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.95)',
+  },
+  fullPhotoSafeArea: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  fullPhotoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  fullPhotoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  fullPhotoBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
+  fullPhotoCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullPhotoImageWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  fullPhotoImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  // Modern Modal Shared Styles
+  modernModalIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSheetSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  // Modern Digital Clock Picker
+  modernClockCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginVertical: 14,
+    gap: 12,
+  },
+  modernClockCol: {
+    alignItems: 'center',
+  },
+  modernStepperBtn: {
+    width: 36,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernClockDigitBox: {
+    minWidth: 54,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#047857',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernClockDigitText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#047857',
+    fontVariant: ['tabular-nums'],
+  },
+  modernClockDigitLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  modernClockColon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 16,
+  },
+  modernClockColonText: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#047857',
+  },
+  modernPeriodToggleCol: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    marginLeft: 4,
+  },
+  modernPeriodOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernPeriodOptionActive: {
+    backgroundColor: '#047857',
+  },
+  modernPeriodOptionText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  modernPeriodOptionTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Modern Preset Chips
+  modernPresetSectionLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  modernPresetChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  modernPresetChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  modernPresetChipActive: {
+    backgroundColor: '#047857',
+    borderColor: '#047857',
+  },
+  modernPresetChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  modernPresetChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
+  // Modern Date Hero Card
+  modernDateHeroCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  modernDateHeroSub: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.5,
+  },
+  modernDateHeroText: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#064E3B',
+    marginTop: 2,
+  },
+  modernDateHeroPill: {
+    backgroundColor: '#047857',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  modernDateHeroPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Conflict Banner
+  modernConflictBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  modernConflictBannerText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+
+  // Modern Month Navigation Bar (Recursive)
+  modernMonthNavBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  modernMonthNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernMonthNavTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+
+  // 6-Month Quick Pills
+  modernMonthPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 2,
+  },
+  modernMonthPill: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modernMonthPillActive: {
+    backgroundColor: '#047857',
+    borderColor: '#047857',
+  },
+  modernMonthPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  modernMonthPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
+  // Modern Calendar Grid Card
+  modernCalendarGridCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  modernCalendarWeekHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 6,
+    marginBottom: 4,
+  },
+  modernCalendarWeekDayText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  modernCalendarDaysWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  modernCalendarDayCell: {
+    width: '14.28%',
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderRadius: 18,
+    marginVertical: 1,
+  },
+  modernCalendarDayCellSelected: {
+    backgroundColor: '#047857',
+  },
+  modernCalendarDayNum: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  modernCalendarDayNumDisabled: {
+    color: '#CBD5E1',
+    fontWeight: '400',
+  },
+  modernCalendarDayNumSelected: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  modernCalendarBlockedDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#EF4444',
+    position: 'absolute',
+    bottom: 3,
+  },
+  modernCalendarBlockedDotSelected: {
+    backgroundColor: '#FFFFFF',
+  },
+
+  // Recursive Day Stepper Bar
+  modernDayStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  modernDayStepBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  modernDayStepBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  modernDayStepDisplay: {
+    alignItems: 'center',
+  },
+  modernDayStepDisplayText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modernDayStepDisplaySub: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#64748B',
   },
 });

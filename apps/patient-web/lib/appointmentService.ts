@@ -431,7 +431,7 @@ export async function getBlockoutDates(): Promise<string[]> {
   try {
     const { data, error } = await supabase
       .from('clinic_blockout_dates')
-      .select('blockout_date, is_blocked')
+      .select('blockout_date, reason, is_blocked')
       .eq('is_blocked', true);
 
     if (error) {
@@ -445,6 +445,31 @@ export async function getBlockoutDates(): Promise<string[]> {
   } catch (err) {
     console.error('❌ Exception in getBlockoutDates:', err);
     return [];
+  }
+}
+
+export async function getBlockoutDateReasons(): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await supabase
+      .from('clinic_blockout_dates')
+      .select('blockout_date, reason, is_blocked')
+      .eq('is_blocked', true);
+
+    if (error) {
+      console.error('❌ Error fetching blockout reasons:', error);
+      return {};
+    }
+
+    const map: Record<string, string> = {};
+    for (const row of (data || [])) {
+      if (row.blockout_date && row.reason) {
+        map[row.blockout_date] = row.reason;
+      }
+    }
+    return map;
+  } catch (err) {
+    console.error('❌ Exception in getBlockoutDateReasons:', err);
+    return {};
   }
 }
 

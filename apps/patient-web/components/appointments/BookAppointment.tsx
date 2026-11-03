@@ -9,6 +9,7 @@ import {
   bookSlot, 
   getAllBlockedSlots, 
   getBlockoutDates,
+  getBlockoutDateReasons,
   isSlotTaken, 
   getPatientAppointments, 
   getFullClinicSetup,
@@ -115,6 +116,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [availableClinics, setAvailableClinics]       = useState<ClinicDetails[]>([]);
   const [timeSlots, setTimeSlots]                     = useState<string[]>([]);
   const [blockedDates, setBlockedDates]               = useState<Set<string>>(new Set());
+  const [blockoutReasons, setBlockoutReasons]         = useState<Record<string, string>>({});
 
   // Connect to ClinicSetup: derive services & prices from clinic_setup "services" JSON column
   const displayedServices: ServiceOption[] = useMemo(() => {
@@ -197,13 +199,15 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           }
         }
         
-        const [blockoutDatesList, slots] = await Promise.all([
+        const [blockoutDatesList, blockoutReasonsMap, slots] = await Promise.all([
           withTimeout(getBlockoutDates(), 4000, []),
+          withTimeout(getBlockoutDateReasons(), 4000, {}),
           withTimeout(getAllBlockedSlots(scheduleToUse), 4000, []),
         ]);
         
         if (!isMounted) return;
         setBlockedSlots(slots || []);
+        setBlockoutReasons(blockoutReasonsMap || {});
         
         // Track blocked dates from both direct blockout records and slots
         const blocked = new Set<string>(blockoutDatesList || []);
@@ -222,6 +226,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           setBlockedSlots([]);
           setClinicSchedule(null);
           setBlockedDates(new Set());
+          setBlockoutReasons({});
         }
       } finally {
         if (isMounted) {
@@ -232,7 +237,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     
     loadClinicData();
 
-    // Subscribe to real-time changes in clinic_setup so when doctor saves ClinicSetup.tsx, patient-web updates automatically
+    // Subscribe to real-time changes in clinic_setup and clinic_blockout_dates
     const channel = supabase
       .channel(`clinic_setup_patient_web_${Date.now()}_${Math.random().toString(36).slice(2)}`)
       .on(
@@ -244,6 +249,18 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         },
         () => {
           console.log('🔄 [BookAppointment] clinic_setup updated, reloading clinic services & prices...');
+          loadClinicData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'clinic_blockout_dates',
+        },
+        () => {
+          console.log('🔄 [BookAppointment] clinic_blockout_dates updated, reloading blockout dates & reasons...');
           loadClinicData();
         }
       )
@@ -594,6 +611,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               const isTodayOrPast = date <= today;
               const isClinicClosed = !isDateAvailable(date);
               const isBlockedDate = blockedDates.has(dateString);
+              const customBlockoutReason = blockoutReasons[dateString];
               const isFullyBookedDate = isFullyBooked(dateString);
               const isSelected = selectedDate === dateString;
               
@@ -623,12 +641,14 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   key={dateString}
                   onClick={() => !isDisabled && setSelectedDate(dateString)}
                   disabled={isDisabled}
-                  className={cellStyle}
+                  className={`${cellStyle} group hover:z-30`}
                   title={
                     isToday
                       ? 'Same-day booking is not permitted — please book at least 1 day in advance'
                       : isBlockedDate
-                      ? 'Blocked date - no appointments available'
+                      ? customBlockoutReason
+                        ? `Blocked: ${customBlockoutReason}`
+                        : 'Blocked date - no appointments available'
                       : isFullyBookedDate
                       ? 'Fully booked - 3 appointments already scheduled'
                       : isClinicClosed 
@@ -639,6 +659,26 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   }
                 >
                   <span className={dateNumStyle}>{date.getDate()}</span>
+
+                  {/* Indicator dot on blocked days */}
+                  {isBlockedDate && (
+                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  )}
+
+                  {/* Hover tooltip for custom blockout reason */}
+                  {isBlockedDate && customBlockoutReason ? (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-30 min-w-max animate-in fade-in duration-150">
+                      <div className="bg-slate-900 text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-xl border border-slate-700/60 max-w-[220px] text-center">
+                        <span className="text-[10px] text-rose-300 font-bold uppercase tracking-wider block mb-0.5">
+                          Blocked / Closed
+                        </span>
+                        <span className="text-slate-100 font-medium leading-tight block">
+                          {customBlockoutReason}
+                        </span>
+                      </div>
+                      <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 border-r border-b border-slate-700/60" />
+                    </div>
+                  ) : null}
                 </button>
               );
             })}
