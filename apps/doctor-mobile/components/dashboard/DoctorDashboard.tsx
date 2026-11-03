@@ -1319,20 +1319,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                     <View ref={tour.register("patient-details")} collapsable={false} onLayout={(e) => { patientDetailsLayoutY.current = e.nativeEvent.layout.y; }}>
                     <View style={styles.sectionHeaderRow}>
                       <Text style={styles.sectionHeaderTitle}>Patient Details</Text>
-                      {selectedPatient && (
-                        <TouchableOpacity
-                          style={styles.seeAllBtn}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            if (selectedPatient) {
-                              handleOpenPatientDetails(selectedPatient);
-                            }
-                          }}
-                        >
-                          <Text style={styles.seeAllBtnText}>Full Chart</Text>
-                          <ChevronRight size={14} color="#047857" />
-                        </TouchableOpacity>
-                      )}
                     </View>
                     {!selectedPatient ? (
                       <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 140, paddingVertical: 24, backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}>
@@ -1349,13 +1335,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                         position: 'relative',
                       }]}>
                         {/* Status Badge - Top Right Corner */}
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            if (selectedPatient) {
-                              handleOpenStatusModal(selectedPatient);
-                            }
-                          }}
+                        <View
                           style={{
                             position: 'absolute',
                             top: 12,
@@ -1377,7 +1357,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                           }}>
                             {(selectedPatient.status || 'scheduled').toUpperCase()}
                           </Text>
-                        </TouchableOpacity>
+                        </View>
 
                         {/* Patient Header */}
                         <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
@@ -1427,118 +1407,68 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                           <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
                         </View>
 
-                        {/* Action: Open Full Medical Record */}
-                        <TouchableOpacity
-                          style={{
-                            paddingVertical: 10,
-                            paddingHorizontal: 12,
-                            marginBottom: 10,
-                            backgroundColor: '#047857',
-                            borderRadius: 6,
-                            borderWidth: 1,
-                            borderColor: '#064E3B',
-                            borderBottomWidth: 2.5,
-                            borderBottomColor: '#022C22',
-                            flexDirection: 'row',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                          onPress={() => {
-                            if (selectedPatient) {
-                              handleOpenPatientDetails(selectedPatient);
-                            }
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <FileText size={13} color="#FFFFFF" />
-                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>VIEW FULL MEDICAL RECORD</Text>
-                          <ChevronRight size={13} color="#6EE7B7" />
-                        </TouchableOpacity>
-
-                        {/* Action: Update Appointment Status */}
-                        <TouchableOpacity
-                          style={{
-                            paddingVertical: 10,
-                            paddingHorizontal: 12,
-                            marginBottom: 10,
-                            backgroundColor: '#ECFDF5',
-                            borderRadius: 6,
-                            borderWidth: 1.5,
-                            borderColor: '#10B981',
-                            borderBottomWidth: 2.5,
-                            borderBottomColor: '#059669',
-                            flexDirection: 'row',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                          onPress={() => {
-                            if (selectedPatient) {
-                              handleOpenStatusModal(selectedPatient);
-                            }
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Clock size={13} color="#047857" />
-                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#047857', letterSpacing: 0.5 }}>UPDATE APPOINTMENT STATUS</Text>
-                          <ChevronRight size={13} color="#047857" />
-                        </TouchableOpacity>
-
-                        {/* See More Toggle Button */}
-                        <TouchableOpacity
-                          style={{
-                            paddingVertical: 11,
-                            paddingHorizontal: 14,
-                            marginBottom: expandPatientDetails ? 16 : 4,
-                            backgroundColor: expandPatientDetails ? '#ECFDF5' : '#F1F5F9',
-                            borderRadius: 6,
-                            borderWidth: 1.5,
-                            borderBottomWidth: 2.5,
-                            borderColor: expandPatientDetails ? '#10B981' : '#CBD5E1',
-                            borderBottomColor: expandPatientDetails ? '#047857' : '#94A3B8',
-                            flexDirection: 'row',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                          onPress={() => setExpandPatientDetails(!expandPatientDetails)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={{
-                            fontSize: 12,
-                            fontWeight: '800',
-                            color: expandPatientDetails ? '#047857' : '#475569',
-                            letterSpacing: 0.4,
-                          }}>
-                            {expandPatientDetails ? 'HIDE CLINICAL INTAKE' : 'EXPAND CLINICAL INTAKE'}
-                          </Text>
-                          <ChevronDown
-                            size={15}
-                            color={expandPatientDetails ? '#047857' : '#475569'}
-                            style={{ transform: [{ rotate: expandPatientDetails ? '180deg' : '0deg' }] }}
-                          />
-                        </TouchableOpacity>
-
-                        {/* Emergency Contact Information - Expanded */}
-                        {expandPatientDetails && (
-                          <View style={{ gap: 12 }}>
-                            <View style={{
-                              backgroundColor: '#F8FAFC',
+                        {/* Action Buttons: Full Record & Update Status (Side by Side) */}
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                          {/* Action: Open Full Medical Record */}
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              paddingVertical: 10,
+                              paddingHorizontal: 8,
+                              backgroundColor: '#047857',
                               borderRadius: 6,
                               borderWidth: 1,
-                              borderColor: '#E2E8F0',
-                              padding: 10,
-                            }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                                <Phone size={13} color="#047857" />
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>EMERGENCY CONTACT INFORMATION</Text>
-                              </View>
-                              <DetailRow label="Contact Name" value={selectedPatient.medicalIntake?.emergencyContactName || "Not provided"} />
-                              <DetailRow label="Contact Phone" value={selectedPatient.medicalIntake?.emergencyContactPhone || "Not provided"} />
-                            </View>
-                          </View>
-                        )}
+                              borderColor: '#064E3B',
+                              borderBottomWidth: 2.5,
+                              borderBottomColor: '#022C22',
+                              flexDirection: 'row',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                            onPress={() => {
+                              if (selectedPatient) {
+                                handleOpenPatientDetails(selectedPatient);
+                              }
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <FileText size={13} color="#FFFFFF" />
+                            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>
+                              FULL RECORD
+                            </Text>
+                          </TouchableOpacity>
+
+                          {/* Action: Update Appointment Status */}
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              paddingVertical: 10,
+                              paddingHorizontal: 8,
+                              backgroundColor: '#F8FAFC',
+                              borderRadius: 6,
+                              borderWidth: 1.5,
+                              borderColor: '#CBD5E1',
+                              borderBottomWidth: 2.5,
+                              borderBottomColor: '#94A3B8',
+                              flexDirection: 'row',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                            onPress={() => {
+                              if (selectedPatient) {
+                                handleOpenStatusModal(selectedPatient);
+                              }
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Clock size={13} color="#475569" />
+                            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#1E293B', letterSpacing: 0.4 }}>
+                              UPDATE STATUS
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     )}
 

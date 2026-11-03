@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ChevronLeft,
-  X,
   Calendar,
   Clock,
   Check,
@@ -225,9 +224,9 @@ export default function AppointmentEdit({
             onPress={onClose}
             disabled={loading}
             activeOpacity={0.7}
-            accessibilityLabel="Close"
+            accessibilityLabel="Back"
           >
-            <ChevronLeft size={20} color="#047857" />
+            <ChevronLeft size={20} color="#475569" />
           </TouchableOpacity>
 
           <View style={styles.topAppBarCenter}>
@@ -235,15 +234,7 @@ export default function AppointmentEdit({
             <Text style={styles.topAppBarSubtitle}>Clinical Status & Schedule</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.closeIconButton}
-            onPress={onClose}
-            disabled={loading}
-            activeOpacity={0.7}
-            accessibilityLabel="Close"
-          >
-            <X size={18} color="#475569" />
-          </TouchableOpacity>
+          <View style={styles.topAppBarSpacer} />
         </View>
 
         {/* Scrollable Content */}
@@ -259,7 +250,7 @@ export default function AppointmentEdit({
                 <Image source={avatarSource} style={styles.patientAvatar} />
               ) : (
                 <View style={styles.patientAvatarFallback}>
-                  <User size={22} color="#047857" />
+                  <User size={22} color="#64748B" />
                 </View>
               )}
 
@@ -268,7 +259,7 @@ export default function AppointmentEdit({
                   {patientName}
                 </Text>
                 <View style={styles.serviceRow}>
-                  <Stethoscope size={13} color="#047857" />
+                  <Stethoscope size={13} color="#64748B" />
                   <Text style={styles.serviceText} numberOfLines={1}>
                     {serviceName}
                   </Text>
@@ -306,7 +297,7 @@ export default function AppointmentEdit({
               <View style={styles.infoRow}>
                 <View style={styles.infoItem}>
                   <View style={styles.infoIconWrap}>
-                    <Calendar size={14} color="#047857" />
+                    <Calendar size={14} color="#64748B" />
                   </View>
                   <View style={styles.infoTextWrap}>
                     <Text style={styles.infoLabel}>APPOINTMENT DATE</Text>
@@ -320,7 +311,7 @@ export default function AppointmentEdit({
 
                 <View style={styles.infoItem}>
                   <View style={styles.infoIconWrap}>
-                    <Clock size={14} color="#047857" />
+                    <Clock size={14} color="#64748B" />
                   </View>
                   <View style={styles.infoTextWrap}>
                     <Text style={styles.infoLabel}>SCHEDULED TIME</Text>
@@ -334,7 +325,7 @@ export default function AppointmentEdit({
               {appointment.notes ? (
                 <View style={styles.notesContainer}>
                   <View style={styles.notesHeader}>
-                    <FileText size={12} color="#047857" />
+                    <FileText size={12} color="#64748B" />
                     <Text style={styles.notesLabel}>PATIENT NOTES / INTAKE</Text>
                   </View>
                   <Text style={styles.notesText}>{appointment.notes}</Text>
@@ -346,7 +337,7 @@ export default function AppointmentEdit({
           {/* Section: Status Selector */}
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionTitleGroup}>
-              <Activity size={15} color="#047857" />
+              <Activity size={15} color="#64748B" />
               <Text style={styles.sectionTitle}>SELECT NEW CLINICAL STATUS</Text>
             </View>
             <View style={styles.statusCountBadge}>
@@ -636,22 +627,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 6,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  closeIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#CBD5E1",
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  topAppBarSpacer: {
+    width: 36,
+    height: 36,
   },
 
   // Content
@@ -705,9 +690,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 6,
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
+    borderColor: "#CBD5E1",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -735,7 +720,7 @@ const styles = StyleSheet.create({
   serviceText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#047857",
+    color: "#475569",
   },
 
   currentBadge: {
@@ -836,7 +821,7 @@ const styles = StyleSheet.create({
   notesLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#047857",
+    color: "#475569",
     letterSpacing: 0.5,
   },
 
@@ -864,7 +849,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11.5,
     fontWeight: "900",
-    color: "#047857",
+    color: "#0F172A",
     letterSpacing: 0.6,
   },
 

@@ -293,7 +293,7 @@ export default function PatientDetailsView({
             activeOpacity={0.7}
             accessibilityLabel="Back"
           >
-            <ChevronLeft size={20} color="#047857" />
+            <ChevronLeft size={20} color="#475569" />
           </TouchableOpacity>
 
           <View style={styles.topAppBarCenter}>
@@ -303,14 +303,7 @@ export default function PatientDetailsView({
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.closeIconButton}
-            onPress={onClose}
-            activeOpacity={0.7}
-            accessibilityLabel="Close"
-          >
-            <X size={18} color="#475569" />
-          </TouchableOpacity>
+          <View style={styles.topAppBarSpacer} />
         </View>
 
         {loading ? (
@@ -992,22 +985,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 6,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  closeIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#CBD5E1",
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  topAppBarSpacer: {
+    width: 36,
+    height: 36,
   },
 
   // Loading
