@@ -243,6 +243,29 @@ export async function getBookedSlots(date: string): Promise<string[]> {
 // ─────────────────────────────────────────
 // 2. BOOK A SLOT
 // ─────────────────────────────────────────
+/**
+ * Returns the patient's upcoming appointment request that the clinic has not yet
+ * scheduled (status "pending", any letter case), or null if there is none.
+ * Past-dated pending requests are ignored so an old, never-reviewed request
+ * cannot block the patient forever.
+ */
+export async function getOpenPendingRequest(
+  patientId: string
+): Promise<{ id: string; service: string; appointment_date: string; appointment_time: string } | null> {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, service, appointment_date, appointment_time, status')
+    .eq('patient_id', patientId)
+    .ilike('status', 'pending')
+    .gte('appointment_date', todayStr)
+    .order('appointment_date', { ascending: true })
+    .limit(1);
+
+  if (error) throw new Error(`Could not check your existing bookings: ${error.message}`);
+  return data && data.length > 0 ? data[0] : null;
+}
+
 export async function bookSlot(
   patientId: string,
   dentistId: string,
@@ -251,6 +274,19 @@ export async function bookSlot(
   appointmentTime: string
 ): Promise<{ success: boolean; message: string; appointmentId?: string }> {
   console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
+
+  // Rule: only one unscheduled (pending) request at a time
+  try {
+    const pending = await getOpenPendingRequest(patientId);
+    if (pending) {
+      return {
+        success: false,
+        message: 'You already have a pending appointment request. Booking is restricted until the clinic schedules or declines it.',
+      };
+    }
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : 'Could not check your existing bookings.' };
+  }
   
   // Validation: No same-day booking allowed (must be at least 1 day in advance)
   const todayStr = new Date().toISOString().slice(0, 10);
