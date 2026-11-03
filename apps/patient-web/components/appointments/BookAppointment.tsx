@@ -23,6 +23,7 @@ import type { Appointment } from '@/lib/database';
 import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 
 import { showAlert } from '@/components/ui/AppDialog';
+import { busyIntervalsForDate, fits, formatMinutes, freeUntil, toMinutes } from '@/lib/scheduling';
 const SERVICES = [
   { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
   { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
@@ -239,13 +240,51 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     fetchUserAppointments();
   }, [currentUser?.id]);
 
-  const isSlotDisabled = (date: string, time: string) => {
-    const taken = isSlotTaken(blockedSlots, date, time);
-    if (taken) {
-      console.log(`🔒 Slot disabled: ${date} @ ${time}`);
-    }
-    return taken;
+  // ── Duration-aware availability ────────────────────────────────────────────
+  // Each booking occupies [start, start + its services' duration). A start time is only
+  // offered if the patient's whole appointment fits before the next booking and closing.
+  const closingMinutes = (() => {
+    if (!selectedDate || !clinicSchedule) return NaN;
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
+      new Date(y, m - 1, d).getDay()
+    ] as keyof ClinicSchedule;
+    const day = clinicSchedule[dayName];
+    return day?.isOpen ? toMinutes(day.closing_time) : NaN;
+  })();
+  const busyToday = selectedDate ? busyIntervalsForDate(blockedSlots, selectedDate) : [];
+
+  /** Minutes available from `time` until the next booking or closing (0 if unavailable). */
+  const minutesFreeFrom = (time: string): number => {
+    if (!Number.isFinite(closingMinutes) || isSlotTaken(blockedSlots, selectedDate, time)) return 0;
+    const start = toMinutes(time);
+    const limit = freeUntil(start, busyToday, closingMinutes);
+    return limit === null ? 0 : limit - start;
   };
+
+  const isSlotDisabled = (date: string, time: string) => {
+    if (isSlotTaken(blockedSlots, date, time)) return true;
+    if (!Number.isFinite(closingMinutes)) return false;
+    return !fits(toMinutes(time), Math.max(totalDuration, 1), busyToday, closingMinutes);
+  };
+
+  // Time budget for adding services: from the chosen time, or the longest free stretch that day
+  const remainingMinutes: number | null = selectedTime
+    ? minutesFreeFrom(selectedTime)
+    : selectedDate && timeSlots.length > 0
+      ? Math.max(0, ...timeSlots.map(minutesFreeFrom))
+      : null;
+  const minutesLeftToAdd = remainingMinutes === null ? null : remainingMinutes - totalDuration;
+  const endTimeLabel =
+    selectedTime && totalDuration > 0 ? formatMinutes(toMinutes(selectedTime) + totalDuration) : null;
+
+  // If the services change so the chosen time no longer fits, clear it
+  useEffect(() => {
+    if (selectedTime && selectedDate && isSlotDisabled(selectedDate, selectedTime)) {
+      setSelectedTime('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalDuration, selectedDate, blockedSlots, closingMinutes]);
 
   // Check if a date is available based on clinic schedule
   const isDateAvailable = (date: Date): boolean => {
@@ -310,7 +349,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
       // Book the appointment with the clinic's doctor user_id
       const dentistIdToBook = clinicDetails?.user_id || '';
-      const result = await bookSlot(userId, dentistIdToBook, combinedServiceName, selectedDate, selectedTime);
+      const result = await bookSlot(userId, dentistIdToBook, combinedServiceName, selectedDate, selectedTime, totalDuration);
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
@@ -406,6 +445,14 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             <StepBadge n={1} done={step1Complete} />
             Choose Services (Multi-Select Allowed)
           </p>
+          {minutesLeftToAdd !== null && (
+            <p className={`-mt-2 mb-3 text-xs font-semibold ${minutesLeftToAdd > 0 ? 'text-text-secondary' : 'text-amber-700'}`}>
+              {selectedTime
+                ? `Time left in your ${selectedTime} slot: ${Math.max(minutesLeftToAdd, 0)} min`
+                : `Longest opening on this date: ${remainingMinutes} min`}
+              {minutesLeftToAdd <= 0 && ' — pick a different time to add more services'}
+            </p>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
             {SERVICES.map((service) => {
@@ -419,22 +466,29 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   : service.price;
 
               const active = selectedServices.some(s => s.id === service.id);
+              const tooLong = !active && minutesLeftToAdd !== null && service.duration > minutesLeftToAdd;
               return (
                 <button
                   type="button"
                   key={service.id}
                   onClick={() => toggleService(service, effectivePrice)}
+                  disabled={tooLong}
+                  title={tooLong ? `Needs ${service.duration} min — only ${Math.max(minutesLeftToAdd ?? 0, 0)} min left in this time slot` : undefined}
                   className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
-                      : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
+                      : tooLong
+                        ? 'border-border-card opacity-45 cursor-not-allowed bg-slate-50'
+                        : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
                   }`}
                 >
                   <span className="text-xl sm:text-2xl block mb-1.5">{service.icon}</span>
                   <p className={`font-semibold text-xs sm:text-sm leading-tight ${active ? 'text-brand-primary' : 'text-text-primary'}`}>
                     {service.name}
                   </p>
-                  <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">{service.duration} min</p>
+                  <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">
+                    {service.duration} min{tooLong && <span className="block text-amber-700 font-semibold">Not enough time left</span>}
+                  </p>
                   <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
                     ₱{effectivePrice.toLocaleString()}
                   </p>
@@ -461,7 +515,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               {[
                 { icon: selectedService?.icon ?? '🦷', label: 'Service(s)', value: selectedServices.length > 0 ? combinedServiceName : null },
                 { icon: '📅', label: 'Date',    value: formattedDate },
-                { icon: '⏰', label: 'Time',    value: selectedTime || null },
+                { icon: '⏰', label: 'Time',    value: selectedTime ? (endTimeLabel ? `${formatMinutes(toMinutes(selectedTime))} – ${endTimeLabel}` : selectedTime) : null },
               ].map(({ icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <span className="text-lg mt-0.5">{icon}</span>
@@ -476,7 +530,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               {selectedServices.length > 0 && (
                 <div className="border-t border-white/20 pt-3 space-y-1">
                   <div className="flex justify-between items-center text-xs text-white/70">
-                    <span>Total Duration:</span>
+                    <span>Time needed:</span>
                     <span className="font-semibold">{totalDuration} mins</span>
                   </div>
                   <div className="flex justify-between items-center">

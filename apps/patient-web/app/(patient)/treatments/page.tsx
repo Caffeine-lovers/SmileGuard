@@ -13,13 +13,19 @@ import {
   ArrowLeft,
   ShieldCheck,
   Stethoscope,
-  Clock
+  Clock,
+  ChevronDown,
+  Building2,
+  Receipt,
 } from 'lucide-react';
+import { getServicePrice } from '@/lib/pricing';
+import { formatMinutes, getServiceDuration, toMinutes } from '@/lib/scheduling';
 
 export default function TreatmentsPage() {
   const { currentUser } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -135,10 +141,74 @@ export default function TreatmentsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="self-start xs:self-auto shrink-0">
+                  <div className="self-start xs:self-auto shrink-0 flex items-center gap-2">
                     {getStatusBadge(appointment.status)}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(expandedId === appointment.id ? null : appointment.id ?? null)}
+                      aria-expanded={expandedId === appointment.id}
+                      className="skeuo-btn-secondary px-2.5 py-1 text-[11px] uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{expandedId === appointment.id ? 'Hide details' : 'View details'}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedId === appointment.id ? 'rotate-180' : ''}`} />
+                    </button>
                   </div>
                 </div>
+
+                {expandedId === appointment.id && (() => {
+                  const services = (appointment.service || '').split(',').map((x) => x.trim()).filter(Boolean);
+                  const duration = getServiceDuration(appointment.service);
+                  const start = appointment.appointment_time ? toMinutes(appointment.appointment_time) : NaN;
+                  const timeRange = Number.isFinite(start)
+                    ? `${formatMinutes(start)} – ${formatMinutes(start + duration)}`
+                    : appointment.appointment_time || '—';
+                  const fee = appointment.price ?? services.reduce((sum, name) => sum + getServicePrice(name), 0);
+                  const rows: [string, string][] = [
+                    ['Date', new Date(appointment.appointment_date).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })],
+                    ['Time', timeRange],
+                    ['Duration', `${duration} min`],
+                    ['Clinic', appointment.clinic_name || "Kyler's Clinic"],
+                    ['Fee', `₱${fee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`],
+                    ['Requested on', appointment.created_at ? new Date(appointment.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'],
+                  ];
+                  return (
+                    <div className="border-t border-slate-200 pt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="space-y-1.5">
+                        {rows.map(([label, value]) => (
+                          <div key={label} className="flex justify-between gap-4">
+                            <span className="text-slate-500">{label}</span>
+                            <span className="font-semibold text-slate-900 text-right">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                          <Stethoscope className="w-3 h-3" /> Procedures
+                        </p>
+                        <ul className="space-y-1">
+                          {services.map((name) => (
+                            <li key={name} className="flex justify-between bg-slate-50 border border-slate-200 rounded-xs px-2 py-1">
+                              <span className="font-medium text-slate-800">{name}</span>
+                              <span className="text-slate-500">{getServiceDuration(name)} min</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {appointment.status === 'completed' && (
+                            <Link href="/billing" className="skeuo-btn-secondary px-2.5 py-1 text-[11px] uppercase tracking-wider">
+                              <Receipt className="w-3 h-3" /> <span>Billing</span>
+                            </Link>
+                          )}
+                          {['pending', 'PENDING', 'scheduled'].includes(appointment.status) && (
+                            <Link href="/dashboard" className="skeuo-btn-secondary px-2.5 py-1 text-[11px] uppercase tracking-wider">
+                              <Building2 className="w-3 h-3" /> <span>Reschedule / Cancel</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {appointment.notes && (
                   <div className="bg-slate-50 rounded-xs p-2.5 sm:p-3 border border-slate-200 text-xs">

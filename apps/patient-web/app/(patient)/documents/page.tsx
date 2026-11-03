@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Download,
   ArrowLeft,
-  Eye,
   X,
   Receipt,
   ScanLine,
@@ -18,7 +17,6 @@ import {
   ClipboardList,
   UploadCloud,
   Trash2,
-  Printer,
 } from 'lucide-react';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
@@ -428,28 +426,19 @@ export default function DocumentsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openItem(item);
-                  }}
-                  className="skeuo-btn-secondary px-2.5 py-1.5 text-xs uppercase tracking-wider flex items-center gap-1"
-                >
-                  <Eye className="w-3.5 h-3.5 text-slate-700" />
-                  <span>View</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    exportItem(item);
-                  }}
-                  className="skeuo-btn-primary px-3 py-1.5 text-xs uppercase tracking-wider flex items-center gap-1"
-                >
-                  {item.kind === 'upload' ? <Download className="w-3.5 h-3.5 text-white" /> : <Printer className="w-3.5 h-3.5 text-white" />}
-                  <span>{item.kind === 'upload' ? 'Download' : 'Print / PDF'}</span>
-                </button>
+                {item.kind === 'upload' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      exportItem(item);
+                    }}
+                    className="skeuo-btn-primary px-3 py-1.5 text-xs uppercase tracking-wider flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5 text-white" />
+                    <span>Download</span>
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -539,14 +528,16 @@ export default function DocumentsPage() {
             </div>
 
             <div className="flex gap-2.5 pt-4 border-t border-slate-200 mt-4">
-              <button
-                type="button"
-                onClick={() => exportItem(selected)}
-                className="flex-1 skeuo-btn-primary py-2.5 text-xs uppercase tracking-wider flex items-center justify-center gap-1.5"
-              >
-                {selected.kind === 'upload' ? <Download className="w-3.5 h-3.5" /> : <Printer className="w-3.5 h-3.5" />}
-                <span>{selected.kind === 'upload' ? 'Download' : 'Print / Save as PDF'}</span>
-              </button>
+              {selected.kind === 'upload' && (
+                <button
+                  type="button"
+                  onClick={() => exportItem(selected)}
+                  className="flex-1 skeuo-btn-primary py-2.5 text-xs uppercase tracking-wider flex items-center justify-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </button>
+              )}
               {selected.kind === 'upload' && selected.upload?.uploaded_by === patientId && (
                 <button
                   type="button"

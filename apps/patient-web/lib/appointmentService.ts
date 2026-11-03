@@ -1,3 +1,5 @@
+import { isPendingAppointment } from '@/lib/database';
+import { busyIntervalsForDate, getServiceDuration, toMinutes } from '@/lib/scheduling';
 import { supabase } from '@smileguard/supabase-client';
 import { formatDoctorDisplayName, getDoctorTitleName, Doctor } from '@smileguard/shared-types';
 
@@ -245,7 +247,7 @@ export async function getBookedSlots(date: string): Promise<string[]> {
 // ─────────────────────────────────────────
 /**
  * Returns the patient's upcoming appointment request that the clinic has not yet
- * scheduled (status "pending", any letter case), or null if there is none.
+ * scheduled (see isPendingAppointment), or null if there is none.
  * Past-dated pending requests are ignored so an old, never-reviewed request
  * cannot block the patient forever.
  */
@@ -255,15 +257,14 @@ export async function getOpenPendingRequest(
   const todayStr = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, service, appointment_date, appointment_time, status')
+    .select('id, service, appointment_date, appointment_time, status, dentist_id')
     .eq('patient_id', patientId)
-    .ilike('status', 'pending')
     .gte('appointment_date', todayStr)
-    .order('appointment_date', { ascending: true })
-    .limit(1);
+    .order('appointment_date', { ascending: true });
 
   if (error) throw new Error(`Could not check your existing bookings: ${error.message}`);
-  return data && data.length > 0 ? data[0] : null;
+  // Same rule the rest of the app uses: "pending" in any case, or a legacy request with no dentist assigned
+  return (data || []).find((a: any) => isPendingAppointment(a)) ?? null;
 }
 
 export async function bookSlot(
@@ -271,7 +272,8 @@ export async function bookSlot(
   dentistId: string,
   service: string,
   appointmentDate: string,
-  appointmentTime: string
+  appointmentTime: string,
+  durationMinutes?: number
 ): Promise<{ success: boolean; message: string; appointmentId?: string }> {
   console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
 
@@ -297,18 +299,26 @@ export async function bookSlot(
     };
   }
 
+  // Overlap check: the new appointment [start, start+duration) must not overlap any booking that day
   const { data: existing, error: checkError } = await supabase
     .from('appointments')
-    .select('id')
+    .select('appointment_time, service')
     .eq('appointment_date', appointmentDate)
-    .eq('appointment_time', appointmentTime)
     .not('status', 'in', '(cancelled,declined)');
 
   if (checkError) {
     console.error('Check availability error:', checkError);
     return { success: false, message: `Error checking availability: ${checkError.message}` };
   }
-  if (existing && existing.length > 0) return { success: false, message: 'Sorry, this slot was just taken!' };
+  const newStart = toMinutes(appointmentTime);
+  const newEnd = newStart + (durationMinutes && durationMinutes > 0 ? durationMinutes : getServiceDuration(service));
+  const busy = busyIntervalsForDate(
+    (existing || []).map((a: any) => ({ date: appointmentDate, time: a.appointment_time, service: a.service })),
+    appointmentDate
+  );
+  if (busy.some((b) => newStart < b.end && b.start < newEnd)) {
+    return { success: false, message: 'Sorry, part of this time was just booked by someone else. Please pick another time.' };
+  }
 
   let insertedData: any = null;
   let insertError: any = null;
