@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 
+import { showAlert } from '@/components/ui/AppDialog';
 export default function SignupVerifyPage() {
   const router = useRouter();
   const {
@@ -189,7 +190,7 @@ export default function SignupVerifyPage() {
         } else {
           setOtpSentAt(Date.now());
           setVerificationCode('');
-          alert('Verification code resent to your email!');
+          showAlert('Verification code resent to your email!');
         }
       }
     } catch (err) {

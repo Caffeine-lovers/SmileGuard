@@ -4,8 +4,8 @@ import BillingPayment from '@/components/billing/BillingPayment';
 
 export default function BillingPage() {
   return (
-    <div className="min-h-screen bg-bg-screen w-full">
-      <div className="max-w-5xl mx-auto w-full">
+    <div className="bg-bg-screen w-full">
+      <div className="w-full">
         <BillingPayment />
       </div>
     </div>
