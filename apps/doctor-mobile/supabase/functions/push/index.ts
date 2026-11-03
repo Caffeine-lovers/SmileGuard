@@ -13,10 +13,61 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 )
 
+// Helper to format date as "February 14, 2026" (matches AppointmentsTab formatDateDisplay)
+function formatAppointmentDate(dateStr?: string): string {
+  if (!dateStr) return 'scheduled date'
+  try {
+    if (dateStr.includes('-')) {
+      const parts = dateStr.split('T')[0].split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1
+        const day = parseInt(parts[2], 10)
+        const dateObj = new Date(year, month, day)
+        return dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      }
+    }
+    const dateObj = new Date(dateStr)
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    }
+  } catch {
+    // fallback
+  }
+  return dateStr
+}
+
+// Helper to format time as "10:00 AM" or "1:30 PM" (matches AppointmentsTab formatAppointmentTime)
+function formatAppointmentTime(timeStr?: string): string {
+  if (!timeStr) return ''
+  const trimmed = timeStr.trim()
+  if (/am|pm/i.test(trimmed)) {
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)$/i)
+    if (match) {
+      const hour = parseInt(match[1], 10)
+      const min = match[2]
+      const period = match[3].toUpperCase()
+      return `${hour}:${min} ${period}`
+    }
+    return trimmed
+  }
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+  if (match24) {
+    let hour = parseInt(match24[1], 10)
+    const min = match24[2]
+    const period = hour >= 12 ? 'PM' : 'AM'
+    hour = hour % 12
+    if (hour === 0) hour = 12
+    return `${hour}:${min} ${period}`
+  }
+  return trimmed
+}
+
 Deno.serve(async (req) => {
   try {
     const payload: WebhookPayload = await req.json()
-    console.log(`[PushFunction] Incoming webhook for table ${payload.table} (${payload.type})`)
+    console.log(`[PushFunction] Incoming webhook for table: ${payload.table} (${payload.type})`)
+    console.log(`[PushFunction] Record data:`, JSON.stringify(payload.record || payload.old_record))
 
     let targetUserIds: string[] = []
     let title = 'SmileGuard Notification'
@@ -29,6 +80,17 @@ Deno.serve(async (req) => {
         appointmentId: record.id,
         screen: 'dashboard',
         table: 'appointments',
+      }
+
+      // Fetch all registered doctors so every doctor is notified
+      const { data: allDoctors } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'doctor')
+
+      targetUserIds = (allDoctors || []).map((d) => d.id)
+      if (record.dentist_id && !targetUserIds.includes(record.dentist_id)) {
+        targetUserIds.push(record.dentist_id)
       }
 
       // Fetch patient display name
@@ -48,21 +110,13 @@ Deno.serve(async (req) => {
         }
       }
 
+      const formattedDate = formatAppointmentDate(record.appointment_date)
+      const formattedTime = formatAppointmentTime(record.appointment_time)
+      const timeSuffix = formattedTime ? ` at ${formattedTime}` : ''
+
       if (payload.type === 'INSERT') {
         title = 'New Appointment Request'
-        body = `${patientName} booked ${record.service || 'an appointment'} on ${record.appointment_date || 'scheduled date'} at ${record.appointment_time || 'TBD'}.`
-
-        if (record.dentist_id) {
-          targetUserIds = [record.dentist_id]
-        } else {
-          // Unassigned appointment request: alert all doctors
-          const { data: doctors } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('role', 'doctor')
-
-          targetUserIds = (doctors || []).map((d) => d.id)
-        }
+        body = `${patientName} booked ${record.service || 'an appointment'} on ${formattedDate}${timeSuffix}.`
       } else if (payload.type === 'UPDATE') {
         const oldStatus = payload.old_record?.status
         const newStatus = record.status
@@ -70,7 +124,7 @@ Deno.serve(async (req) => {
         if (oldStatus !== newStatus) {
           if (newStatus === 'cancelled') {
             title = 'Appointment Cancelled'
-            body = `${patientName} cancelled the appointment for ${record.service || 'service'} on ${record.appointment_date || ''}.`
+            body = `${patientName} cancelled the appointment for ${record.service || 'service'} on ${formattedDate}.`
           } else if (newStatus === 'completed') {
             title = 'Appointment Completed'
             body = `Appointment for ${patientName} (${record.service || 'service'}) has been completed.`
@@ -83,21 +137,14 @@ Deno.serve(async (req) => {
           payload.old_record?.appointment_time !== record.appointment_time
         ) {
           title = 'Appointment Rescheduled'
-          body = `Appointment for ${patientName} moved to ${record.appointment_date} at ${record.appointment_time}.`
+          body = `Appointment for ${patientName} moved to ${formattedDate}${timeSuffix}.`
         } else {
           title = 'Appointment Updated'
           body = `Details for ${record.service || 'appointment'} with ${patientName} have been updated.`
         }
-
-        if (record.dentist_id) {
-          targetUserIds.push(record.dentist_id)
-        }
       } else if (payload.type === 'DELETE') {
         title = 'Appointment Cancelled'
-        body = `An appointment on ${payload.old_record?.appointment_date || 'scheduled date'} was cancelled.`
-        if (payload.old_record?.dentist_id) {
-          targetUserIds.push(payload.old_record.dentist_id)
-        }
+        body = `An appointment on ${formatAppointmentDate(payload.old_record?.appointment_date)} was cancelled.`
       }
     } else {
       // Generic fallback for any other table or notification row
@@ -110,6 +157,10 @@ Deno.serve(async (req) => {
       body = record.body || record.message || 'You have a new notification.'
     }
 
+    // Deduplicate target user IDs
+    targetUserIds = Array.from(new Set(targetUserIds.filter(Boolean)))
+    console.log(`[PushFunction] Initial target user IDs:`, targetUserIds)
+
     if (!targetUserIds.length) {
       console.log('[PushFunction] No target user IDs found for notification.')
       return new Response(JSON.stringify({ message: 'No target recipients' }), {
@@ -119,7 +170,7 @@ Deno.serve(async (req) => {
     }
 
     // Query profiles for registered expo_push_tokens
-    const { data: profiles, error: profileError } = await supabase
+    let { data: profiles, error: profileError } = await supabase
       .from('profiles')
       .select('id, expo_push_token')
       .in('id', targetUserIds)
@@ -133,9 +184,30 @@ Deno.serve(async (req) => {
       })
     }
 
-    const pushTokens = (profiles || [])
+    // Fallback: If assigned doctor has no push token (or unassigned), notify any active doctor
+    if ((!profiles || profiles.length === 0) && payload.type === 'INSERT') {
+      console.log('[PushFunction] Target doctor has no active token. Checking all active doctor profiles...')
+      const { data: fallbackProfiles } = await supabase
+        .from('profiles')
+        .select('id, expo_push_token')
+        .eq('role', 'doctor')
+        .not('expo_push_token', 'is', null)
+
+      if (fallbackProfiles && fallbackProfiles.length > 0) {
+        profiles = fallbackProfiles
+        console.log(`[PushFunction] Found ${profiles.length} active doctor fallback profile(s).`)
+      }
+    }
+
+    console.log(`[PushFunction] Active profiles with tokens:`, profiles?.map(p => ({ id: p.id, token: p.expo_push_token })))
+
+    const rawPushTokens = (profiles || [])
       .map((p) => p.expo_push_token)
       .filter((t): t is string => typeof t === 'string' && (t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken[')))
+
+    // Deduplicate push tokens so a single device never receives duplicate notifications
+    const pushTokens = Array.from(new Set(rawPushTokens))
+    console.log(`[PushFunction] Unique push tokens to notify:`, pushTokens)
 
     if (!pushTokens.length) {
       console.log('[PushFunction] Target users have no active Expo push tokens.')
@@ -153,6 +225,7 @@ Deno.serve(async (req) => {
       body,
       data: dataPayload,
       channelId: 'default',
+      priority: 'high', // Critical: Forces FCM / APNs to deliver immediately, bypassing Android Doze mode
     }))
 
     const headers: Record<string, string> = {

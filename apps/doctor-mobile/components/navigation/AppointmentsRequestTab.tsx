@@ -1,9 +1,10 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   Image,
   Alert,
   ScrollView,
@@ -14,9 +15,10 @@ import { updateDoctorAppointmentStatus, getAppointmentRequests } from '../../lib
 import { createManualNotification } from '../../lib/notificationService';
 import { formatAppointmentDate, formatAppointmentTime } from '../../lib/dateFormatters';
 import { DashboardAppointment } from '../dashboard/DoctorDashboard';
-import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck } from 'lucide-react-native';
+import { Inbox, Check, X, RefreshCw, ChevronLeft, ChevronRight, Sparkles, Clock, Calendar, ShieldCheck, UserCheck, Search } from 'lucide-react-native';
 import { AppColors } from '../../constants/theme';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
+import AppointmentRequestPromptModal from '../appointments/AppointmentRequestPromptModal';
 import { isDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -38,12 +40,24 @@ export default function AppointmentsRequestTab({
   startTourTrigger,
 }: AppointmentsRequestTabProps) {
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedPromptRequest, setSelectedPromptRequest] = useState<DashboardAppointment | null>(null);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   const scrollViewRef = useRef<any>(null);
 
-  const totalPages = Math.max(1, Math.ceil(appointmentRequests.length / ITEMS_PER_PAGE));
+  const filteredRequests = useMemo(() => {
+    if (!searchQuery.trim()) return appointmentRequests;
+    const query = searchQuery.toLowerCase().trim();
+    return appointmentRequests.filter((req: any) => {
+      const patientName = (req.patient_name || req.name || '').toLowerCase();
+      return patientName.includes(query);
+    });
+  }, [appointmentRequests, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / ITEMS_PER_PAGE));
 
   // ─────────────────────────────────────────
   // INTERACTIVE WALKTHROUGH SYSTEM
@@ -64,7 +78,7 @@ export default function AppointmentsRequestTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -79,7 +93,7 @@ export default function AppointmentsRequestTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -94,67 +108,82 @@ export default function AppointmentsRequestTab({
       onEnter: () => {
         try {
           scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
+      },
+    },
+    {
+      id: "requests-search",
+      target: "requests-search",
+      title: "Search Patient Requests",
+      description: "Instantly filter pending requests by patient name.",
+      icon: Search,
+      padding: 6,
+      radius: 8,
+      placement: "bottom",
+      onEnter: () => {
+        try {
+          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) { }
       },
     },
     ...(appointmentRequests.length > 0
       ? [
-          {
-            id: "requests-first-card",
-            target: "requests-first-card",
-            title: "Patient & Booking Details",
-            description: "Inspect the patient's name, email, contact number, requested service, preferred date, and formatted AM/PM visit time.",
-            icon: Calendar,
-            padding: 6,
-            radius: 8,
-            placement: "bottom" as const,
-            onEnter: () => {
-              try {
-                scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-              } catch (e) {}
-            },
+        {
+          id: "requests-first-card",
+          target: "requests-first-card",
+          title: "Patient & Booking Details",
+          description: "View the patient's name, email, contact number, requested service, preferred date, and visit time.",
+          icon: Calendar,
+          padding: 6,
+          radius: 8,
+          placement: "bottom" as const,
+          onEnter: () => {
+            try {
+              scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
+            } catch (e) { }
           },
-          {
-            id: "requests-action-buttons",
-            target: "requests-action-buttons",
-            title: "Accept or Decline",
-            description: "Tap Accept to confirm the appointment and add it to your daily schedule, or tap Decline to reject the request.",
-            icon: UserCheck,
-            padding: 6,
-            radius: 8,
-            placement: "auto" as const,
-          },
-        ]
+        },
+        {
+          id: "requests-action-buttons",
+          target: "requests-action-buttons",
+          title: "Accept or Decline",
+          description: "Tap Accept to confirm the appointment and add it to your daily schedule, or tap Decline to reject the request.",
+          icon: UserCheck,
+          padding: 6,
+          radius: 8,
+          placement: "auto" as const,
+        },
+      ]
       : [
-          {
-            id: "requests-empty-state",
-            target: "requests-empty-state",
-            title: "Clean Triage Queue",
-            description: "When patient booking requests arrive, they will appear here with full clinical details and one-tap approval actions.",
-            icon: Inbox,
-            padding: 8,
-            radius: 8,
-            placement: "bottom" as const,
-          },
-        ]),
+        {
+          id: "requests-empty-state",
+          target: "requests-empty-state",
+          title: "No Pending Requests",
+          description: "When patient booking requests arrive, they will appear here with appointment details and quick approve or decline buttons.",
+          icon: Inbox,
+          padding: 8,
+          radius: 8,
+          placement: "bottom" as const,
+        },
+      ]),
     ...(totalPages > 1
       ? [
-          {
-            id: "requests-pagination",
-            target: "requests-pagination",
-            title: "Queue Pagination",
-            description: "Browse across multiple pages of pending bookings easily using page numbers or next/previous buttons.",
-            icon: ChevronRight,
-            padding: 6,
-            radius: 8,
-            placement: "auto" as const,
-            onEnter: () => {
-              try {
-                scrollViewRef.current?.scrollToEnd?.({ animated: false });
-              } catch (e) {}
-            },
+        {
+          id: "requests-pagination",
+          target: "requests-pagination",
+          title: "Page Navigation",
+          description: "Browse across multiple pages of pending bookings easily using page numbers or next/previous buttons.",
+          icon: ChevronRight,
+          padding: 6,
+          radius: 8,
+          placement: "auto" as const,
+          onEnter: () => {
+            try {
+              scrollViewRef.current?.scrollToEnd?.({ animated: false });
+            } catch (e) { }
           },
-        ]
+        },
+      ]
       : []),
     {
       id: "requests-finish",
@@ -243,7 +272,7 @@ export default function AppointmentsRequestTab({
     try {
       setIsLoading(true);
       const appointmentRequestsData = await getAppointmentRequests();
-      
+
       if (appointmentRequestsData && appointmentRequestsData.length > 0) {
         const filteredRequests = appointmentRequestsData.filter((apt: any) => !['cancelled', 'declined', 'completed', 'no-show'].includes((apt.status || '').toLowerCase()));
         const transformedRequests = filteredRequests.map((apt: any) => ({
@@ -298,129 +327,109 @@ export default function AppointmentsRequestTab({
   );
 
   const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
-    Alert.alert(
-      'Accept Request',
-      `Accept this appointment request with ${request.name}?`,
-      [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+    try {
+      if (!userId) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
+
+      // Update the appointment with the current doctor's ID
+      const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', userId, {
+        dentist_id: userId,
+      });
+
+      if (!result?.success) {
+        Alert.alert('Error', result?.message || 'Failed to accept appointment');
+        return;
+      }
+
+      // Remove from requests list
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+      // Trigger manual notification for accepting request
+      const notification = createManualNotification(
+        'appointment-updated',
+        'Appointment Accepted',
+        `You accepted the appointment with ${request.name} for ${request.date}`,
         {
-          text: 'Accept',
-          onPress: async () => {
-            try {
-              if (!userId) {
-                Alert.alert('Error', 'Doctor ID not found');
-                return;
-              }
+          appointmentId: request.id,
+          patientId: request.patient_id,
+          action: 'UPDATE',
+        }
+      );
 
-              // Update the appointment with the current doctor's ID
-              const result = await updateDoctorAppointmentStatus(request.id, 'scheduled', userId, {
-                dentist_id: userId,
-              });
+      // Call the callback to add notification to DoctorDashboard
+      if (onRequestAcceptedWithNotification) {
+        onRequestAcceptedWithNotification(notification);
+      }
 
-              if (!result?.success) {
-                Alert.alert('Error', result?.message || 'Failed to accept appointment');
-                return;
-              }
+      if (onRequestAccepted) {
+        onRequestAccepted();
+      }
 
-              // Remove from requests list
-              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-
-              // Trigger manual notification for accepting request
-              const notification = createManualNotification(
-                'appointment-updated',
-                'Appointment Accepted',
-                `You accepted the appointment with ${request.name} for ${request.date}`,
-                {
-                  appointmentId: request.id,
-                  patientId: request.patient_id,
-                  action: 'UPDATE',
-                }
-              );
-
-              // Call the callback to add notification to DoctorDashboard
-              if (onRequestAcceptedWithNotification) {
-                onRequestAcceptedWithNotification(notification);
-              }
-
-              if (onRequestAccepted) {
-                onRequestAccepted();
-              }
-
-              Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to accept appointment request');
-              console.error('Error accepting appointment request:', error);
-            }
-          },
-          style: 'default',
-        },
-      ]
-    );
+      Alert.alert('Success', `Appointment with ${request.name} has been accepted`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to accept appointment request');
+      console.error('Error accepting appointment request:', error);
+    }
   };
 
-  const handleDeclineAppointmentRequest = async (request: DashboardAppointment) => {
-    Alert.alert(
-      'Decline Request',
-      `Are you sure you want to decline this appointment request with ${request.name}?`,
-      [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+  const handleDeclineAppointmentRequest = async (request: DashboardAppointment, doctorNote?: string) => {
+    try {
+      if (!userId) {
+        Alert.alert('Error', 'Doctor ID not found');
+        return;
+      }
+
+      // Update appointment status to 'declined' and assign doctor ID + doctor note
+      const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId, {
+        dentist_id: userId,
+        doctor_note: doctorNote || undefined,
+      });
+
+      if (!result?.success) {
+        Alert.alert('Error', result?.message || 'Failed to decline appointment');
+        return;
+      }
+
+      // Remove from requests list
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+      // Trigger manual notification for declining request
+      const notification = createManualNotification(
+        'appointment-declined',
+        'Appointment Declined',
+        `You declined the appointment with ${request.name} for ${request.date}`,
         {
-          text: 'Decline',
-          onPress: async () => {
-            try {
-              if (!userId) {
-                Alert.alert('Error', 'Doctor ID not found');
-                return;
-              }
+          appointmentId: request.id,
+          patientId: request.patient_id,
+          action: 'UPDATE',
+        }
+      );
 
-              // Update appointment status to 'declined' and assign the doctor ID
-              const result = await updateDoctorAppointmentStatus(request.id, 'declined', userId, {
-                dentist_id: userId,
-              });
+      // Call the callback to add notification to DoctorDashboard
+      if (onRequestAcceptedWithNotification) {
+        onRequestAcceptedWithNotification(notification);
+      }
 
-              if (!result?.success) {
-                Alert.alert('Error', result?.message || 'Failed to decline appointment');
-                return;
-              }
+      if (onRequestAccepted) {
+        onRequestAccepted();
+      }
 
-              // Remove from requests list
-              setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-
-              // Trigger manual notification for declining request
-              const notification = createManualNotification(
-                'appointment-declined',
-                'Appointment Declined',
-                `You declined the appointment with ${request.name} for ${request.date}`,
-                {
-                  appointmentId: request.id,
-                  patientId: request.patient_id,
-                  action: 'UPDATE',
-                }
-              );
-
-              // Call the callback to add notification to DoctorDashboard
-              if (onRequestAcceptedWithNotification) {
-                onRequestAcceptedWithNotification(notification);
-              }
-
-              if (onRequestAccepted) {
-                onRequestAccepted();
-              }
-
-              Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to decline appointment request');
-              console.error('Error declining appointment request:', error);
-            }
-          },
-          style: 'destructive',
-        },
-      ]
-    );
+      Alert.alert('Success', `Appointment request with ${request.name} has been declined`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to decline appointment request');
+      console.error('Error declining appointment request:', error);
+    }
   };
+
+  // Reset to page 1 when searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedRequests = appointmentRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedRequests = filteredRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // Keep currentPage valid if totalPages shrinks
   useEffect(() => {
@@ -521,6 +530,35 @@ export default function AppointmentsRequestTab({
         </View>
       </View>
 
+      {/* Search Bar Section */}
+      <View style={tabStyles.searchSection}>
+        <View
+          ref={tour.register("requests-search")}
+          collapsable={false}
+          style={tabStyles.searchContainer}
+        >
+          <Search size={16} color="#047857" style={{ marginRight: 8 }} />
+          <TextInput
+            style={tabStyles.searchInput}
+            placeholder="Search by patient name..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              style={tabStyles.clearSearchBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Clear search query"
+            >
+              <X size={14} color="#64748B" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {appointmentRequests.length === 0 ? (
         <View
           ref={tour.register("requests-empty-state")}
@@ -533,12 +571,27 @@ export default function AppointmentsRequestTab({
             All pending appointments have been processed.
           </Text>
         </View>
+      ) : filteredRequests.length === 0 ? (
+        <View style={tabStyles.emptyState}>
+          <Search size={44} color={AppColors.textMuted} style={{ marginBottom: 14 }} />
+          <Text style={tabStyles.emptyStateTitle}>No Matching Requests</Text>
+          <Text style={tabStyles.emptyStateMessage}>
+            No appointment requests match "{searchQuery}".
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            style={tabStyles.clearSearchActionBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={tabStyles.clearSearchActionBtnText}>Clear Search Filter</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <ScrollView ref={scrollViewRef} style={tabStyles.requestsList} contentContainerStyle={tabStyles.requestsListContent}>
           {/* Header info showing request count and page */}
           <View style={tabStyles.countHeader}>
             <Text style={tabStyles.countHeaderText}>
-              Showing <Text style={tabStyles.countHeaderBold}>{startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, appointmentRequests.length)}</Text> of <Text style={tabStyles.countHeaderBold}>{appointmentRequests.length}</Text> requests
+              Showing <Text style={tabStyles.countHeaderBold}>{filteredRequests.length > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredRequests.length)}</Text> of <Text style={tabStyles.countHeaderBold}>{filteredRequests.length}</Text> requests{searchQuery.trim() ? ` (filtered from ${appointmentRequests.length})` : ''}
             </Text>
             {totalPages > 1 && (
               <View style={tabStyles.pageBadge}>
@@ -600,14 +653,20 @@ export default function AppointmentsRequestTab({
                 style={tabStyles.actionButtons}
               >
                 <TouchableOpacity
-                  onPress={() => handleAcceptAppointmentRequest(request)}
+                  onPress={() => {
+                    setSelectedPromptRequest(request);
+                    setShowPromptModal(true);
+                  }}
                   style={tabStyles.acceptButton}
                 >
                   <Check size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={tabStyles.acceptButtonText}>Accept</Text>
+                  <Text style={tabStyles.acceptButtonText}>Review / Accept</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleDeclineAppointmentRequest(request)}
+                  onPress={() => {
+                    setSelectedPromptRequest(request);
+                    setShowPromptModal(true);
+                  }}
                   style={tabStyles.declineButton}
                 >
                   <X size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
@@ -700,6 +759,22 @@ export default function AppointmentsRequestTab({
         onFinish={handleFinishTour}
         onSkip={handleSkipTour}
       />
+
+      {/* Appointment Request Prompt Modal */}
+      <AppointmentRequestPromptModal
+        visible={showPromptModal}
+        appointment={selectedPromptRequest}
+        onClose={() => {
+          setShowPromptModal(false);
+          setSelectedPromptRequest(null);
+        }}
+        onAccept={async (req) => {
+          await handleAcceptAppointmentRequest(req);
+        }}
+        onDecline={async (req, doctorNote) => {
+          await handleDeclineAppointmentRequest(req, doctorNote);
+        }}
+      />
     </View>
   );
 }
@@ -714,6 +789,64 @@ const tabStyles = StyleSheet.create({
     backgroundColor: '#E6ECEF',
     borderBottomWidth: 1.5,
     borderBottomColor: '#CBD5E1',
+  },
+
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#CBD5E1',
+  },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    height: 42,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    height: '100%',
+    padding: 0,
+  },
+
+  clearSearchBtn: {
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+
+  clearSearchActionBtn: {
+    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+
+  clearSearchActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
   },
 
   headerContent: {
@@ -853,20 +986,17 @@ const tabStyles = StyleSheet.create({
   },
 
   pendingBadge: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 4,
+    backgroundColor: '#65A30D',
+    borderRadius: 10,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     alignSelf: 'center',
   },
 
   pendingBadgeText: {
-    color: '#B45309',
+    color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: 'bold',
   },
 
   detailsSection: {

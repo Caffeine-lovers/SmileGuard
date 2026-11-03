@@ -1,5 +1,6 @@
 import { supabase } from '@smileguard/supabase-client';
 import { formatDoctorDisplayName, getDoctorTitleName, Doctor } from '@smileguard/shared-types';
+import { getServicePrice } from './pricing';
 
 export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
@@ -59,12 +60,19 @@ function parse12HourTime(timeString: string): { hour: number; minute: number } {
 export const DEFAULT_CLINIC_NAME = "Kyler's Clinic";
 export const DEFAULT_DOCTOR_ID = "7c9b5331-3f19-4560-8256-44c7742e11ad";
 
+export interface ClinicServiceItem {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+}
+
 export interface ClinicDetails {
   id: string;
   user_id: string;
   clinic_name: string;
   address?: string;
-  services?: { id: string; name: string; price?: number }[];
+  services?: ClinicServiceItem[];
   schedule: ClinicSchedule;
 }
 
@@ -102,7 +110,7 @@ export async function getFullClinicSetup(): Promise<ClinicDetails | null> {
     const clinics = await getAllClinicsSetup();
     if (clinics.length > 0) {
       // Prioritize Kyler's Clinic
-      const kyler = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler'));
+      const kyler = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler') || c.clinic_name.toLowerCase().includes('kiler'));
       return kyler || clinics[0];
     }
     return FALLBACK_KYLER_CLINIC;
@@ -133,20 +141,45 @@ export async function getAllClinicsSetup(): Promise<ClinicDetails[]> {
         } catch {}
       }
 
+      const normalizedServices: ClinicServiceItem[] = Array.isArray(servicesList)
+        ? servicesList.map((s: any, idx: number) => {
+            if (typeof s === 'string') {
+              return {
+                id: `service_${idx}_${Date.now()}`,
+                name: s,
+                description: '',
+                price: getServicePrice(s),
+              };
+            }
+            const parsedPrice =
+              typeof s.price === 'number'
+                ? s.price
+                : parseFloat(s.price) >= 0
+                ? parseFloat(s.price)
+                : getServicePrice(s.name);
+            return {
+              id: s.id || `service_${idx}`,
+              name: s.name || 'Dental Service',
+              description: s.description || '',
+              price: parsedPrice,
+            };
+          })
+        : [];
+
       return {
         id: row.id,
         user_id: row.user_id,
         clinic_name: row.clinic_name || DEFAULT_CLINIC_NAME,
         address: row.address,
-        services: servicesList,
+        services: normalizedServices,
         schedule: row.schedule || FALLBACK_KYLER_CLINIC.schedule,
       };
     });
 
-    // Sort Kyler's Clinic first by default
+    // Sort Kyler / Kiler's Clinic first by default
     list.sort((a, b) => {
-      const aKyler = a.clinic_name.toLowerCase().includes('kyler') ? -1 : 1;
-      const bKyler = b.clinic_name.toLowerCase().includes('kyler') ? -1 : 1;
+      const aKyler = (a.clinic_name.toLowerCase().includes('kyler') || a.clinic_name.toLowerCase().includes('kiler')) ? -1 : 1;
+      const bKyler = (b.clinic_name.toLowerCase().includes('kyler') || b.clinic_name.toLowerCase().includes('kiler')) ? -1 : 1;
       return aKyler - bKyler;
     });
 
@@ -434,7 +467,7 @@ export async function getBlockoutDates(): Promise<string[]> {
   try {
     const { data, error } = await supabase
       .from('clinic_blockout_dates')
-      .select('blockout_date, is_blocked')
+      .select('blockout_date, reason, is_blocked')
       .eq('is_blocked', true);
 
     if (error) {
@@ -448,6 +481,31 @@ export async function getBlockoutDates(): Promise<string[]> {
   } catch (err) {
     console.error('❌ Exception in getBlockoutDates:', err);
     return [];
+  }
+}
+
+export async function getBlockoutDateReasons(): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await supabase
+      .from('clinic_blockout_dates')
+      .select('blockout_date, reason, is_blocked')
+      .eq('is_blocked', true);
+
+    if (error) {
+      console.error('❌ Error fetching blockout reasons:', error);
+      return {};
+    }
+
+    const map: Record<string, string> = {};
+    for (const row of (data || [])) {
+      if (row.blockout_date && row.reason) {
+        map[row.blockout_date] = row.reason;
+      }
+    }
+    return map;
+  } catch (err) {
+    console.error('❌ Exception in getBlockoutDateReasons:', err);
+    return {};
   }
 }
 

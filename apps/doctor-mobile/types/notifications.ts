@@ -1,10 +1,14 @@
 /**
  * Notification Types for Doctor Dashboard
- * Handles real-time updates from Supabase tables
+ * Handles real-time updates for new appointments, paid bills, and new patient registrations
  */
 
 export type NotificationType = 
   | 'appointment-created'
+  | 'bill-paid'
+  | 'billing-paid'
+  | 'patient-registered'
+  // Fallbacks for backward compatibility
   | 'appointment-updated'
   | 'appointment-cancelled'
   | 'appointment-completed'
@@ -26,7 +30,14 @@ export interface Notification {
   data?: {
     appointmentId?: string;
     patientId?: string;
+    patientName?: string;
     doctorId?: string;
+    amount?: number;
+    paymentMethod?: string;
+    service?: string;
+    appointmentDate?: string;
+    appointmentTime?: string;
+    email?: string;
     tableName?: string;
     recordId?: string;
     action?: 'INSERT' | 'UPDATE' | 'DELETE';

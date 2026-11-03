@@ -3,4 +3,5 @@ node_modules/
 dist/
 web-build/
 *.tsbuildinfo
-
+android/
+ios/
