@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatientProfilePicture';
 
+import { showAlert } from '@/components/ui/AppDialog';
 export default function ProfilePictureUpload({ userId, currentImageUrl }: { userId: string, currentImageUrl?: string }) {
   const [imageUrl, setImageUrl] = useState(currentImageUrl || '/default-avatar.png');
   const [isUploading, setIsUploading] = useState(false);
@@ -17,7 +18,7 @@ export default function ProfilePictureUpload({ userId, currentImageUrl }: { user
       const newUrl = await uploadPatientProfilePicture(userId, file);
       setImageUrl(newUrl);
     } catch (error) {
-      alert('Failed to upload image. Please try again.');
+      showAlert('Failed to upload image. Please try again.');
     } finally {
       setIsUploading(false);
     }

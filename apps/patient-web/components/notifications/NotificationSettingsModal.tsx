@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@smileguard/supabase-client';
 
+import { showAlert } from '@/components/ui/AppDialog';
 export interface NotificationItem {
   id: string;
   user_id: string;
@@ -127,7 +128,7 @@ export default function NotificationSettingsModal({
   // Request browser push permission
   const handleRequestPush = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      alert('Browser notifications are not supported on this device.');
+      showAlert('Browser notifications are not supported on this device.');
       return;
     }
     const permission = await Notification.requestPermission();
@@ -137,7 +138,7 @@ export default function NotificationSettingsModal({
       setTimeout(() => setSaveFeedback(null), 3000);
     } else {
       setPushEnabled(false);
-      alert('Notification permission was blocked in browser settings.');
+      showAlert('Notification permission was blocked in browser settings.');
     }
   };
 

@@ -8,6 +8,7 @@ import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatien
 import { setPatientUserCookie } from '@/lib/auth-cookie';
 import { withTimeout } from '@/lib/appointmentService';
 
+import { showAlert } from '@/components/ui/AppDialog';
 interface MedicalIntake {
   patient_id: string;
   date_of_birth: string | null;
@@ -209,7 +210,7 @@ export default function ProfilePage() {
                       });
                     } catch (err: any) {
                       console.error('Upload failed', err);
-                      alert(`Failed to upload image: ${err.message || 'Unknown error. Check console.'}`);
+                      showAlert(`Failed to upload image: ${err.message || 'Unknown error. Check console.'}`);
                     } finally {
                       setIsUploadingImage(false);
                     }

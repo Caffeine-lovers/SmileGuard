@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@smileguard/supabase-client';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@smileguard/shared-hooks';
@@ -14,6 +15,7 @@ import {
   FileText, 
   Stethoscope,
   ChevronRight,
+  ChevronDown,
   Bell
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -27,10 +29,59 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
-  // Close mobile menu on route change
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close menus on route change
   useEffect(() => {
     setMobileMenuOpen(false);
+    setProfileMenuOpen(false);
   }, [pathname]);
+
+  // Close profile menu on outside click / Escape
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setProfileMenuOpen(false);
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileMenuOpen]);
+
+  // Load the user's profile picture for the navbar avatar
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fromUser = (currentUser as any).avatar_url || (currentUser as any).profile_picture_url;
+    if (fromUser) setAvatarUrl(fromUser);
+    supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', currentUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.avatar_url) {
+          setAvatarUrl(data.avatar_url);
+          setAvatarError(false);
+        }
+      });
+  }, [currentUser?.id, pathname]);
+
+  const initials = (currentUser?.name || '?')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase();
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -113,7 +164,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex gap-5 lg:gap-6">
-              {navLinks.filter(l => l.href !== '/appointments').map((link) => {
+              {navLinks.filter(l => l.href !== '/appointments' && l.href !== '/profile').map((link) => {
                 const isActive = pathname === link.href;
                 return (
                   <Link 
@@ -144,33 +195,88 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
-            <span className="text-[13.5px] sm:text-sm font-semibold text-slate-700 hidden lg:block truncate max-w-[170px]">
-              {currentUser?.name || ''}
-            </span>
+            {/* Unified profile panel: avatar opens profile, name/chevron opens menu */}
+            <div className="relative" ref={profileMenuRef}>
+              <div className="flex items-center rounded-full border border-slate-200 bg-white shadow-2xs hover:border-emerald-300 transition-all">
+                <Link
+                  href="/profile"
+                  title="View profile"
+                  aria-label="View profile"
+                  className="relative shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  {unreadNotifCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-600 border border-white z-10" />
+                  )}
+                  {avatarUrl && !avatarError ? (
+                    <img
+                      src={avatarUrl}
+                      alt={currentUser?.name || 'Profile'}
+                      onError={() => setAvatarError(true)}
+                      className="w-8 h-8 rounded-full object-cover border border-emerald-200"
+                    />
+                  ) : (
+                    <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center border border-emerald-300">
+                      {initials}
+                    </span>
+                  )}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setProfileMenuOpen((o) => !o)}
+                  aria-haspopup="menu"
+                  aria-expanded={profileMenuOpen}
+                  aria-label="Open account menu"
+                  className="flex items-center gap-1 pl-2 pr-2.5 py-1.5 text-sm font-semibold text-slate-700 cursor-pointer"
+                >
+                  <span className="hidden lg:block truncate max-w-[140px]">{currentUser?.name || 'Account'}</span>
+                  <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
 
-            {/* Notification & Preferences Settings Button beside Logout */}
-            <button
-              type="button"
-              onClick={() => setSettingsModalOpen(true)}
-              className="relative p-1.5 sm:py-1.5 sm:px-2.5 text-[13.5px] sm:text-sm font-semibold rounded border border-slate-300 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 hover:border-emerald-300 shadow-2xs transition-all shrink-0 cursor-pointer flex items-center justify-center"
-              title="Notifications & Settings"
-              aria-label="Notifications & Settings"
-            >
-              <Bell className="w-4 h-4 text-slate-600" />
-              {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-600 border border-white animate-pulse" />
+              {profileMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-60 rounded-lg border border-slate-200 bg-white shadow-lg py-1 z-50"
+                >
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <p className="text-sm font-bold text-slate-900 truncate">{currentUser?.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{currentUser?.email}</p>
+                  </div>
+                  <Link
+                    href="/profile"
+                    role="menuitem"
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50"
+                  >
+                    <User className="w-4 h-4 text-slate-500" /> My Profile
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      setSettingsModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 cursor-pointer"
+                  >
+                    <Bell className="w-4 h-4 text-slate-500" />
+                    <span className="flex-1 text-left">Notifications & Settings</span>
+                    {unreadNotifCount > 0 && (
+                      <span className="text-[10px] font-bold bg-red-600 text-white rounded-full px-1.5 py-0.5">{unreadNotifCount}</span>
+                    )}
+                  </button>
+                  <div className="border-t border-slate-100 mt-1 pt-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" /> Log out
+                    </button>
+                  </div>
+                </div>
               )}
-            </button>
-
-            {/* Unified Single Logout Button (Clinical Palette with Subtle Logout Intent - Scaled +15%) */}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="py-1.5 px-3 sm:py-1.5 sm:px-3.5 text-[13.5px] sm:text-sm font-semibold rounded border border-slate-300 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 hover:border-rose-300 shadow-2xs transition-all shrink-0 cursor-pointer"
-              title="Log out"
-            >
-              Log out
-            </button>
+            </div>
           </div>
         </div>
 
