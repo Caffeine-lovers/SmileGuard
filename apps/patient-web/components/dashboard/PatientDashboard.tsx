@@ -13,6 +13,7 @@ import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
 import { isPendingAppointment, isCancelledAppointment } from '@/lib/database';
 import InteractiveTour from '@/components/tour/InteractiveTour';
+import { showAlert, showConfirm } from '@/components/ui/AppDialog';
 import { 
   Calendar,
   Compass, 
@@ -73,7 +74,7 @@ export default function PatientDashboard() {
         localStorage.setItem('sg_notif_prompt_dismissed', 'true');
         setShowNotificationPrompt(false);
         if (perm === 'granted') {
-          alert('Notifications enabled! You will now receive instant alerts for appointment updates.');
+          showAlert('Notifications enabled! You will now receive instant alerts for appointment updates.');
         }
       } catch (e) {
         setShowNotificationPrompt(false);
@@ -91,7 +92,7 @@ export default function PatientDashboard() {
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appointmentToReschedule?.id || !rescheduleDate || !rescheduleTime) {
-      alert('Please select both a date and a time slot.');
+      showAlert('Please select both a date and a time slot.');
       return;
     }
 
@@ -136,14 +137,14 @@ export default function PatientDashboard() {
       );
     } catch (err: any) {
       console.error('Error submitting reschedule:', err);
-      alert(err.message || 'Could not submit reschedule request');
+      showAlert(err.message || 'Could not submit reschedule request');
     } finally {
       setIsSubmittingReschedule(false);
     }
   };
 
   const handleCancelAppointment = async (apptId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this appointment request?')) return;
+    if (!(await showConfirm('Are you sure you want to cancel this appointment request?'))) return;
     setIsCancellingAppt(true);
     try {
       const { error } = await supabase
@@ -154,10 +155,10 @@ export default function PatientDashboard() {
       if (error) throw error;
       setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status: 'cancelled' } : a));
       setSelectedAppointment(null);
-      alert('Your appointment has been cancelled.');
+      showAlert('Your appointment has been cancelled.');
     } catch (err: any) {
       console.error('Error cancelling appointment:', err);
-      alert(`Could not cancel appointment: ${err.message || 'Unknown error'}`);
+      showAlert(`Could not cancel appointment: ${err.message || 'Unknown error'}`);
     } finally {
       setIsCancellingAppt(false);
     }
@@ -279,7 +280,7 @@ export default function PatientDashboard() {
     .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 min-h-screen max-w-5xl mx-auto space-y-4 sm:space-y-6 w-full">
+    <div className="p-3 sm:p-4 md:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6 w-full">
       {/* Real-time Notification Prompt Banner */}
       {showNotificationPrompt && (
         <div className="p-3.5 sm:p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">

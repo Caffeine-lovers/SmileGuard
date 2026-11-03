@@ -8,6 +8,7 @@ import type { Billing, Appointment, AppointmentBillingRow, AppointmentBillingSta
 import { calculateDiscount, isPendingAppointment } from '@/lib/database';
 import { ID_ALLOWED_TYPES, ID_BUCKET, uploadIdCredential, validateIdFile } from '@/lib/idCredentials';
 import { fetchBillingDataForDashboard, getServicePrice } from '@/lib/outstandingBalanceService';
+import { showAlert } from '@/components/ui/AppDialog';
 import {
   CreditCard,
   Building2,
@@ -77,7 +78,7 @@ export default function BillingPayment({
   const handleVerifyReference = async (refToVerify?: string) => {
     const ref = (refToVerify || referenceInput).trim();
     if (!ref) {
-      alert('Please enter a PayMongo Reference ID (e.g. pay_...)');
+      showAlert('Please enter a PayMongo Reference ID (e.g. pay_...)');
       return;
     }
 
@@ -387,7 +388,7 @@ export default function BillingPayment({
     if (file) {
       const problem = validateIdFile(file);
       if (problem) {
-        alert(problem);
+        showAlert(problem);
         e.target.value = '';
         return;
       }
@@ -398,7 +399,7 @@ export default function BillingPayment({
 
   const handleSubmitIdForDoctorVerification = async () => {
     if (!selectedIdFile || !currentUser?.id) {
-      alert('Please select a photo or scan of your ID.');
+      showAlert('Please select a photo or scan of your ID.');
       return;
     }
 
@@ -427,10 +428,10 @@ export default function BillingPayment({
 
       setLocalPwdStatus('pending');
       setShowVerificationPanel(false);
-      alert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
+      showAlert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
     } catch (err) {
       console.error('[BillingPayment] Failed to submit ID:', err);
-      alert(err instanceof Error ? err.message : 'Failed to upload ID. Please try again.');
+      showAlert(err instanceof Error ? err.message : 'Failed to upload ID. Please try again.');
     } finally {
       setIsSubmittingId(false);
     }
@@ -459,12 +460,12 @@ export default function BillingPayment({
   // Initiate PayMongo Checkout Session (redirect flow)
   const handlePayMongoCheckout = async () => {
     if (!selectedAppointment || !currentUser?.id) {
-      alert('Please select an appointment to pay.');
+      showAlert('Please select an appointment to pay.');
       return;
     }
 
     if ((discountType === 'pwd' || discountType === 'senior') && !isPwdApproved) {
-      alert('Statutory discount requires doctor verification. Please submit your PWD/Senior ID to Dr. Kyler first.');
+      showAlert('Statutory discount requires doctor verification. Please submit your PWD/Senior ID to Dr. Kyler first.');
       return;
     }
 
@@ -533,19 +534,66 @@ export default function BillingPayment({
   const filteredLedger = ledgerFilter === 'ALL' ? ledger : ledger.filter((r) => r.billing_status === ledgerFilter);
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-2.5 sm:p-4 md:p-6 min-h-screen space-y-3.5 sm:space-y-6">
-      {/* Clinic Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-3.5 sm:p-6 text-white border-2 border-emerald-950 shadow-md w-full">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
-            <ShieldCheck className="w-3 h-3 text-emerald-950" />
-            Clinic Billing Portal
-          </span>
+    <div className="w-full max-w-6xl mx-auto px-2.5 py-3 sm:px-4 sm:py-5 space-y-4">
+      {/* Billing workspace header + at-a-glance stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+        <div className="lg:col-span-4 flex">
+          {/* Clinic Header Banner */}
+          <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm px-4 py-3 sm:px-5 sm:py-4 text-white border-2 border-emerald-950 shadow-md w-full flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
+                <ShieldCheck className="w-3 h-3 text-emerald-950" />
+                Clinic Billing Portal
+              </span>
+            </div>
+            <h1 className="text-lg sm:text-2xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
+            <p className="text-emerald-100 text-[10px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
+              Settle procedure balances and review financial ledgers
+            </p>
+          </div>
         </div>
-        <h1 className="text-lg sm:text-2xl md:text-3xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
-        <p className="text-emerald-100 text-[10px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
-          Settle procedure balances and review financial ledgers
-        </p>
+        <div className="lg:col-span-8">
+          {/* Financial Summary Stats */}
+          {!loadingData && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 w-full h-full">
+              <Link href="/billing" className="block no-underline">
+                <div className="skeuo-card p-3 sm:p-4 border-2 border-red-300 bg-red-50/40 rounded-sm">
+                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
+                  <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
+                  <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
+                </div>
+              </Link>
+              <div className="skeuo-card p-3 sm:p-4 border-2 border-slate-300 rounded-sm">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
+                <div className="flex items-baseline gap-2.5 sm:gap-3 mt-1">
+                  <span className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
+                  <span className="text-xl sm:text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
+                  <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
+                </div>
+                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">
+                  Paid · Not Paid · Cancelled ({billingHistory.length} receipts)
+                </p>
+              </div>
+              <div className="skeuo-card p-3 sm:p-4 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
+                <div className="flex items-center gap-2 mt-1">
+                  {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <p className="text-base sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="w-5 h-5 text-amber-600" />
+                      <p className="text-base sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
+                    </>
+                  )}
+                </div>
+                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Clinical Settlement Status</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* PayMongo Checkout Redirect Banners */}
@@ -616,434 +664,432 @@ export default function BillingPayment({
         </div>
       )}
 
-      {/* Financial Summary Stats */}
-      {!loadingData && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 w-full">
-          <Link href="/billing" className="block no-underline">
-            <div className="skeuo-card p-3.5 sm:p-5 border-2 border-red-300 bg-red-50/40 rounded-sm">
-              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
-              <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
-              <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
-            </div>
-          </Link>
-          <div className="skeuo-card p-3.5 sm:p-5 border-2 border-slate-300 rounded-sm">
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
-            <div className="flex items-baseline gap-2.5 sm:gap-3 mt-1">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
-            </div>
-            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">
-              Paid · Not Paid · Cancelled ({billingHistory.length} receipts)
-            </p>
+      {/* Payment workspace: choose on the left, review & pay on the right */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        <section className="lg:col-span-7 skeuo-panel p-3.5 sm:p-5 border-2 border-slate-300 space-y-5">
+          <div className="flex items-center gap-2 pb-3 border-b-2 border-slate-200">
+            <Receipt className="w-5 h-5 text-emerald-700" />
+            <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
+              Process Invoice Payment
+            </h2>
           </div>
-          <div className="skeuo-card p-3.5 sm:p-5 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
-            <div className="flex items-center gap-2 mt-1">
-              {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <p className="text-base sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
-                </>
+            {/* Availed Services from Appointments */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                Select Procedure to Settle
+              </label>
+              {unpaidAppointments.length > 0 ? (
+                <div className="space-y-2">
+                  {unpaidAppointments.map((apt) => {
+                    const price = apt.price ?? getServicePrice(apt.service);
+                    const isSelected = selectedAppointment?.id === apt.id;
+                    return (
+                      <button
+                        type="button"
+                        key={apt.id}
+                        onClick={() => handleAppointmentSelect(apt)}
+                        className={`skeuo-card w-full p-3 sm:p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-2.5 rounded-sm text-left border-2 transition cursor-pointer hover:border-emerald-500 ${
+                          isSelected
+                            ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
+                            : 'border-slate-300 hover:border-slate-400 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start sm:items-center gap-3">
+                          <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 ${
+                            isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-400'
+                          }`}>
+                            {isSelected && <CheckCircle2 className="w-3 h-3" />}
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <p className="font-bold text-sm text-slate-900">{apt.service}</p>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[9px] sm:text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                <Building2 className="w-2.5 h-2.5 text-emerald-700" />
+                                {apt.clinic_name || "Kyler's Clinic"}
+                              </span>
+                            </div>
+                            <p className="text-xs font-mono text-slate-500 mt-0.5">
+                              {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="font-mono font-black text-sm sm:text-base text-emerald-800 shrink-0 self-end sm:self-auto sm:ml-3">
+                          ₱{price.toFixed(2)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               ) : (
-                <>
-                  <Clock className="w-5 h-5 text-amber-600" />
-                  <p className="text-base sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
-                </>
+                <div className="p-4 bg-slate-50 rounded-sm text-slate-500 text-center border-2 border-dashed border-slate-300 text-xs font-bold uppercase tracking-wider">
+                  No unpaid procedures currently outstanding on record.
+                </div>
               )}
             </div>
-            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Clinical Settlement Status</p>
-          </div>
-        </div>
-      )}
 
-      {/* Payment Form */}
-      <div className="skeuo-panel p-3.5 sm:p-6 border-2 border-slate-300 w-full">
-        <div className="flex items-center gap-2 pb-3 sm:pb-4 mb-4 sm:mb-6 border-b-2 border-slate-200">
-          <Receipt className="w-5 h-5 text-emerald-700" />
-          <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
-            Process Invoice Payment
-          </h2>
-        </div>
-
-        <div className="space-y-5 sm:space-y-6">
-          {/* PayMongo Reference ID Reconcile Box */}
-          <div className="p-3.5 sm:p-4 bg-slate-50 border-2 border-slate-300 rounded-sm space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-emerald-700 shrink-0" />
-                Already Paid? Reconcile with PayMongo Reference ID
-              </span>
-              <span className="text-[10px] font-mono text-slate-500">Auto-sync with clinic ledger</span>
-            </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              If you settled via GCash, Maya, or Card, enter your PayMongo Reference ID below to immediately link the transaction to your appointment and update your account balance.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2 pt-1">
-              <input
-                type="text"
-                value={referenceInput}
-                onChange={(e) => setReferenceInput(e.target.value)}
-                placeholder="Enter PayMongo Reference ID (e.g. pay_...)"
-                className="flex-1 p-2 bg-white border border-slate-300 rounded-xs text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
-              />
-              <button
-                type="button"
-                onClick={() => handleVerifyReference()}
-                disabled={isVerifyingRef || !referenceInput.trim()}
-                className="skeuo-btn-primary py-2 px-4 text-xs uppercase tracking-wider font-bold shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                {isVerifyingRef ? 'Verifying...' : 'Verify & Record ID'}
-              </button>
-            </div>
-            {refVerificationMsg && (
-              <div className={`p-2.5 rounded-xs text-xs font-bold flex items-center gap-2 mt-2 ${
-                refVerificationMsg.type === 'success' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-red-100 text-red-900 border border-red-300'
-              }`}>
-                {refVerificationMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />}
-                <span>{refVerificationMsg.text}</span>
+            {/* Discount Selection & Doctor Approval Status */}
+            <div className="space-y-3">
+              <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Statutory Discount (RA 9994 / RA 10754)
+                </label>
+                {isPwdApproved && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
+                    <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                    Doctor Verified {currentUser?.pwd_type === 'senior' ? 'Senior' : 'PWD'}
+                  </span>
+                )}
+                {isPwdPending && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded-xs border border-amber-300 w-fit">
+                    <Clock className="w-3 h-3 text-amber-700" />
+                    Verification Pending Doctor Review
+                  </span>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Availed Services from Appointments */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-              Select Procedure to Settle
-            </label>
-            {unpaidAppointments.length > 0 ? (
-              <div className="space-y-2">
-                {unpaidAppointments.map((apt) => {
-                  const price = apt.price ?? getServicePrice(apt.service);
-                  const isSelected = selectedAppointment?.id === apt.id;
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-3 w-full">
+                {[
+                  { value: 'none' as const, label: 'Standard Rate', badge: null },
+                  {
+                    value: 'pwd' as const,
+                    label: 'PWD (20%)',
+                    badge: isPwdVerified ? 'Verified' : isPwdPendingReview ? 'Pending' : 'Needs ID',
+                    isVerified: isPwdVerified,
+                    isPending: isPwdPendingReview,
+                  },
+                  {
+                    value: 'senior' as const,
+                    label: 'Senior (20%)',
+                    badge: isSeniorVerified ? 'Verified' : isSeniorPendingReview ? 'Pending' : 'Needs ID',
+                    isVerified: isSeniorVerified,
+                    isPending: isSeniorPendingReview,
+                  },
+                ].map((option) => {
+                  const isActive = activeDiscountTab === option.value;
                   return (
                     <button
                       type="button"
-                      key={apt.id}
-                      onClick={() => handleAppointmentSelect(apt)}
-                      className={`skeuo-card w-full p-3 sm:p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-2.5 rounded-sm text-left border-2 transition cursor-pointer hover:border-emerald-500 ${
-                        isSelected
-                          ? 'border-emerald-600 bg-emerald-50/50 shadow-xs'
-                          : 'border-slate-300 hover:border-slate-400 bg-white'
+                      key={option.value}
+                      onClick={() => handleDiscountSelect(option.value)}
+                      className={`py-1.5 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[9px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
+                        isActive
+                          ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
+                          : option.value !== 'none' && !option.isVerified
+                          ? 'border-slate-300 bg-slate-50 text-slate-600 hover:border-emerald-400'
+                          : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
                       }`}
                     >
-                      <div className="flex items-start sm:items-center gap-3">
-                        <div className={`w-4 h-4 rounded-xs border-2 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 ${
-                          isSelected ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-400'
+                      <div className="truncate sm:overflow-visible">{option.label}</div>
+                      {option.badge && (
+                        <span className={`block text-[7.5px] sm:text-[8px] font-bold mt-0.5 truncate sm:overflow-visible ${
+                          option.isVerified ? 'text-emerald-700' : option.isPending ? 'text-amber-700 font-black' : 'text-slate-500'
                         }`}>
-                          {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                        </div>
-                        <div>
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <p className="font-bold text-sm text-slate-900">{apt.service}</p>
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[9px] sm:text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
-                              <Building2 className="w-2.5 h-2.5 text-emerald-700" />
-                              {apt.clinic_name || "Kyler's Clinic"}
-                            </span>
-                          </div>
-                          <p className="text-xs font-mono text-slate-500 mt-0.5">
-                            {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="font-mono font-black text-sm sm:text-base text-emerald-800 shrink-0 self-end sm:self-auto sm:ml-3">
-                        ₱{price.toFixed(2)}
-                      </div>
+                          {option.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
               </div>
-            ) : (
-              <div className="p-6 bg-slate-50 rounded-sm text-slate-500 text-center border-2 border-dashed border-slate-300 text-xs font-bold uppercase tracking-wider">
-                No unpaid procedures currently outstanding on record.
-              </div>
-            )}
-          </div>
 
-          {/* Discount Selection & Doctor Approval Status */}
-          <div className="space-y-3">
-            <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Statutory Discount (RA 9994 / RA 10754)
-              </label>
+              {/* Approved Verification Banner */}
               {isPwdApproved && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
-                  <ShieldCheck className="w-3 h-3 text-emerald-700" />
-                  Doctor Verified {currentUser?.pwd_type === 'senior' ? 'Senior' : 'PWD'}
-                </span>
-              )}
-              {isPwdPending && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded-xs border border-amber-300 w-fit">
-                  <Clock className="w-3 h-3 text-amber-700" />
-                  Verification Pending Doctor Review
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-3 w-full">
-              {[
-                { value: 'none' as const, label: 'Standard Rate', badge: null },
-                {
-                  value: 'pwd' as const,
-                  label: 'PWD (20%)',
-                  badge: isPwdVerified ? 'Verified' : isPwdPendingReview ? 'Pending' : 'Needs ID',
-                  isVerified: isPwdVerified,
-                  isPending: isPwdPendingReview,
-                },
-                {
-                  value: 'senior' as const,
-                  label: 'Senior (20%)',
-                  badge: isSeniorVerified ? 'Verified' : isSeniorPendingReview ? 'Pending' : 'Needs ID',
-                  isVerified: isSeniorVerified,
-                  isPending: isSeniorPendingReview,
-                },
-              ].map((option) => {
-                const isActive = activeDiscountTab === option.value;
-                return (
-                  <button
-                    type="button"
-                    key={option.value}
-                    onClick={() => handleDiscountSelect(option.value)}
-                    className={`py-1.5 sm:py-2.5 px-1 sm:px-2 rounded-sm border-2 text-[9px] sm:text-xs font-bold uppercase tracking-wider transition text-center cursor-pointer relative ${
-                      isActive
-                        ? 'border-emerald-700 bg-emerald-50 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
-                        : option.value !== 'none' && !option.isVerified
-                        ? 'border-slate-300 bg-slate-50 text-slate-600 hover:border-emerald-400'
-                        : 'border-slate-300 bg-white hover:border-slate-400 text-slate-700'
-                    }`}
-                  >
-                    <div className="truncate sm:overflow-visible">{option.label}</div>
-                    {option.badge && (
-                      <span className={`block text-[7.5px] sm:text-[8px] font-bold mt-0.5 truncate sm:overflow-visible ${
-                        option.isVerified ? 'text-emerald-700' : option.isPending ? 'text-amber-700 font-black' : 'text-slate-500'
-                      }`}>
-                        {option.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Approved Verification Banner */}
-            {isPwdApproved && (
-              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-sm flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="text-xs text-emerald-950">
-                  <span className="font-bold">Verified Statutory Discount Active: </span>
-                  Dr. Kyler has approved your {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} verification. A 20% deduction is applied to your billing.
-                </div>
-              </div>
-            )}
-
-            {/* Pending Verification Notice */}
-            {isPwdPending && (
-              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-sm space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-900">
-                  <Clock className="w-4 h-4 text-amber-700" />
-                  ID Verification Submitted to Doctor
-                </div>
-                <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Your ID was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
-                </p>
-              </div>
-            )}
-
-            {/* Rejected Notice */}
-            {isPwdRejected && (
-              <div className="p-3.5 bg-red-50 border border-red-300 rounded-sm space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-red-900">
-                  <AlertCircle className="w-4 h-4 text-red-700" />
-                  Verification Declined by Doctor
-                </div>
-                <p className="text-[11px] text-red-800 leading-relaxed">
-                  Your previous ID could not be validated. Please click below to submit a clear, valid ID.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowVerificationPanel(true)}
-                  className="px-3 py-1 bg-red-700 text-white text-[11px] font-bold uppercase rounded-xs cursor-pointer hover:bg-red-800 transition"
-                >
-                  Re-submit ID
-                </button>
-              </div>
-            )}
-
-            {/* Verification Request Upload Panel (Shown when user clicks PWD/Senior without prior approval) */}
-            {(showVerificationPanel || (!isPwdApproved && !isPwdPending && !isPwdRejected && discountType !== 'none')) && (
-              <div className="p-4 sm:p-5 bg-bg-surface border-2 border-dashed border-emerald-500 rounded-sm space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-emerald-700" />
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                      Submit ID for Doctor Verification
-                    </span>
+                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-sm flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-950">
+                    <span className="font-bold">Verified Statutory Discount Active: </span>
+                    Dr. Kyler has approved your {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} verification. A 20% deduction is applied to your billing.
                   </div>
+                </div>
+              )}
+
+              {/* Pending Verification Notice */}
+              {isPwdPending && (
+                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-sm space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-900">
+                    <Clock className="w-4 h-4 text-amber-700" />
+                    ID Verification Submitted to Doctor
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Your ID was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
+                  </p>
+                </div>
+              )}
+
+              {/* Rejected Notice */}
+              {isPwdRejected && (
+                <div className="p-3.5 bg-red-50 border border-red-300 rounded-sm space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-red-900">
+                    <AlertCircle className="w-4 h-4 text-red-700" />
+                    Verification Declined by Doctor
+                  </div>
+                  <p className="text-[11px] text-red-800 leading-relaxed">
+                    Your previous ID could not be validated. Please click below to submit a clear, valid ID.
+                  </p>
                   <button
                     type="button"
-                    onClick={() => setShowVerificationPanel(false)}
-                    className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                    onClick={() => setShowVerificationPanel(true)}
+                    className="px-3 py-1 bg-red-700 text-white text-[11px] font-bold uppercase rounded-xs cursor-pointer hover:bg-red-800 transition"
                   >
-                    ✕
+                    Re-submit ID
                   </button>
                 </div>
+              )}
 
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
-                </p>
+              {/* Verification Request Upload Panel (Shown when user clicks PWD/Senior without prior approval) */}
+              {(showVerificationPanel || (!isPwdApproved && !isPwdPending && !isPwdRejected && discountType !== 'none')) && (
+                <div className="p-4 sm:p-5 bg-bg-surface border-2 border-dashed border-emerald-500 rounded-sm space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-emerald-700" />
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                        Submit ID for Doctor Verification
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowVerificationPanel(false)}
+                      className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
 
-                {/* ID Type Choice */}
-                <div className="flex items-center gap-4 text-xs font-bold text-slate-800">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
+                  </p>
+
+                  {/* ID Type Choice */}
+                  <div className="flex items-center gap-4 text-xs font-bold text-slate-800">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="verificationType"
+                        value="pwd"
+                        checked={selectedVerificationType === 'pwd'}
+                        onChange={() => setSelectedVerificationType('pwd')}
+                        className="accent-emerald-700"
+                      />
+                      PWD ID
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="verificationType"
+                        value="senior"
+                        checked={selectedVerificationType === 'senior'}
+                        onChange={() => setSelectedVerificationType('senior')}
+                        className="accent-emerald-700"
+                      />
+                      Snr. Cit. ID (60+)
+                    </label>
+                  </div>
+
+                  <div className="pt-1">
                     <input
-                      type="radio"
-                      name="verificationType"
-                      value="pwd"
-                      checked={selectedVerificationType === 'pwd'}
-                      onChange={() => setSelectedVerificationType('pwd')}
-                      className="accent-emerald-700"
+                      type="file"
+                      accept={ID_ALLOWED_TYPES.join(',')}
+                      onChange={handleIdFileSelect}
+                      className="block text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-emerald-700 file:bg-emerald-700 file:text-white file:text-xs file:font-bold file:uppercase file:cursor-pointer cursor-pointer max-w-full"
                     />
-                    PWD ID
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="verificationType"
-                      value="senior"
-                      checked={selectedVerificationType === 'senior'}
-                      onChange={() => setSelectedVerificationType('senior')}
-                      className="accent-emerald-700"
-                    />
-                    Snr. Cit. ID (60+)
-                  </label>
-                </div>
+                    {idPreviewUrl && (
+                      <div className="mt-2 w-32 h-20 rounded border border-emerald-300 overflow-hidden bg-slate-900">
+                        <img src={idPreviewUrl} alt="ID Preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    {selectedIdFile && (
+                      <p className="text-xs font-bold text-emerald-700 mt-2 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{selectedIdFile.name} ready to submit</span>
+                      </p>
+                    )}
+                  </div>
 
-                <div className="pt-1">
-                  <input
-                    type="file"
-                    accept={ID_ALLOWED_TYPES.join(',')}
-                    onChange={handleIdFileSelect}
-                    className="block text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-xs file:border file:border-emerald-700 file:bg-emerald-700 file:text-white file:text-xs file:font-bold file:uppercase file:cursor-pointer cursor-pointer max-w-full"
-                  />
-                  {idPreviewUrl && (
-                    <div className="mt-2 w-32 h-20 rounded border border-emerald-300 overflow-hidden bg-slate-900">
-                      <img src={idPreviewUrl} alt="ID Preview" className="w-full h-full object-cover" />
+                  {((selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)) && (
+                    <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 font-semibold flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Your {selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD'} ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
                     </div>
                   )}
-                  {selectedIdFile && (
-                    <p className="text-xs font-bold text-emerald-700 mt-2 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{selectedIdFile.name} ready to submit</span>
-                    </p>
-                  )}
-                </div>
 
-                {((selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)) && (
-                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 font-semibold flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>Your {selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD'} ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
+                  <button
+                    type="button"
+                    onClick={handleSubmitIdForDoctorVerification}
+                    disabled={isSubmittingId || !selectedIdFile || (selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)}
+                    className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white font-bold text-xs uppercase tracking-wider rounded-xs transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {isSubmittingId ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Uploading & Sending to Doctor...
+                      </>
+                    ) : (
+                      'Send ID to Dr. Kyler for Verification'
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+        </section>
+
+        <aside className="lg:col-span-5 lg:sticky lg:top-24 space-y-3">
+            {/* Amount Summary */}
+            <div className="skeuo-card p-4 bg-white border-2 border-slate-300 rounded-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-slate-600" />
+                Payment Breakdown
+              </h3>
+              <div className="space-y-2 text-xs sm:text-sm">
+                {selectedAppointment?.clinic_name && (
+                  <div className="flex justify-between items-center text-slate-700 pb-2 border-b border-slate-200">
+                    <span className="flex items-center gap-1 font-semibold text-xs text-slate-600">
+                      <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                      Billing Clinic:
+                    </span>
+                    <span className="font-bold text-xs text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 truncate max-w-[160px] sm:max-w-none">
+                      {selectedAppointment.clinic_name}
+                    </span>
                   </div>
                 )}
-
-                <button
-                  type="button"
-                  onClick={handleSubmitIdForDoctorVerification}
-                  disabled={isSubmittingId || !selectedIdFile || (selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)}
-                  className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white font-bold text-xs uppercase tracking-wider rounded-xs transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isSubmittingId ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Uploading & Sending to Doctor...
-                    </>
-                  ) : (
-                    'Send ID to Dr. Kyler for Verification'
-                  )}
-                </button>
+                <div className="flex justify-between text-slate-700">
+                  <span>Clinic Procedure Fee:</span>
+                  <span className="font-mono font-bold">₱{amount.toFixed(2)}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span className="font-semibold">Discount Applied ({(discountType || 'none').toUpperCase()}):</span>
+                    <span className="font-mono font-bold">-₱{discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-sm sm:text-base font-black text-slate-900">
+                  <span className="uppercase tracking-wide">Net Settlement:</span>
+                  <span className="font-mono text-emerald-800">₱{finalAmount.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            {/* PayMongo Error */}
+            {paymongoError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-400 rounded-xs text-red-700">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <p className="text-xs font-bold">{paymongoError}</p>
               </div>
             )}
-          </div>
-
-          {/* Payment Gateway - PayMongo Unified Portal */}
-          <div className="skeuo-card p-4 sm:p-5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-3">
-            <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1.5">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-950">
-                  Payment Gateway &bull; PayMongo
+        {/* Action CTA Buttons */}
+        <div className="flex flex-col gap-2">
+          {unpaidAppointments.length === 0 ? (
+            <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>All accounts are settled. No payments pending.</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handlePayment}
+              disabled={isProcessing || !selectedAppointment}
+              className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full py-3"
+            >
+              {isProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  <span>Processing...</span>
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                  <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
+                </span>
+              )}
+            </button>
+          )}
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer w-full"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+            {/* Payment Gateway - PayMongo Unified Portal */}
+            <div className="skeuo-card p-3.5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-3">
+              <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1.5">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-950">
+                    Payment Gateway &bull; PayMongo
+                  </span>
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
+                  All Channels Accepted
                 </span>
               </div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
-                All Channels Accepted
-              </span>
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-              PayMongo processes all clinic settlements securely. You will select your preferred channel (Cards, GCash, Maya, GrabPay, or QR Ph) on the hosted checkout page.
-            </p>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1">
-              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                <CreditCard className="w-3.5 h-3.5 text-blue-700" />
-                Credit / Debit Card
-              </span>
-              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-                GCash
-              </span>
-              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                Maya
-              </span>
-              <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                GrabPay / QR Ph
-              </span>
-            </div>
-          </div>
-
-          {/* Amount Summary */}
-          <div className="skeuo-card p-4 sm:p-5 bg-slate-50 border-2 border-slate-300 rounded-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
-              <Receipt className="w-3.5 h-3.5 text-slate-600" />
-              Payment Breakdown
-            </h3>
-            <div className="space-y-2 text-xs sm:text-sm">
-              {selectedAppointment?.clinic_name && (
-                <div className="flex justify-between items-center text-slate-700 pb-2 border-b border-slate-200">
-                  <span className="flex items-center gap-1 font-semibold text-xs text-slate-600">
-                    <Building2 className="w-3.5 h-3.5 text-emerald-700" />
-                    Billing Clinic:
-                  </span>
-                  <span className="font-bold text-xs text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 truncate max-w-[160px] sm:max-w-none">
-                    {selectedAppointment.clinic_name}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between text-slate-700">
-                <span>Clinic Procedure Fee:</span>
-                <span className="font-mono font-bold">₱{amount.toFixed(2)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-700">
-                  <span className="font-semibold">Discount Applied ({(discountType || 'none').toUpperCase()}):</span>
-                  <span className="font-mono font-bold">-₱{discountAmount.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-sm sm:text-base font-black text-slate-900">
-                <span className="uppercase tracking-wide">Net Settlement:</span>
-                <span className="font-mono text-emerald-800">₱{finalAmount.toFixed(2)}</span>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                You&apos;ll choose how to pay on PayMongo&apos;s secure checkout page.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1">
+                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                  <CreditCard className="w-3.5 h-3.5 text-blue-700" />
+                  Credit / Debit Card
+                </span>
+                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                  <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                  GCash
+                </span>
+                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                  Maya
+                </span>
+                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
+                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  GrabPay / QR Ph
+                </span>
               </div>
             </div>
-          </div>
-
-          {/* PayMongo Error */}
-          {paymongoError && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-400 rounded-xs text-red-700">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-              <p className="text-xs font-bold">{paymongoError}</p>
-            </div>
-          )}
-
-        </div>
+            {/* PayMongo Reference ID Reconcile Box */}
+            <details className="group p-3.5 bg-slate-50 border-2 border-slate-300 rounded-sm space-y-2">
+              <summary className="list-none cursor-pointer flex items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4 text-emerald-700 shrink-0" />
+                  Already paid? Enter your reference ID
+                </span>
+                <span className="text-slate-400 text-xs transition-transform group-open:rotate-180">▾</span>
+              </summary>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                If you settled via GCash, Maya, or Card, enter your PayMongo Reference ID below to immediately link the transaction to your appointment and update your account balance.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <input
+                  type="text"
+                  value={referenceInput}
+                  onChange={(e) => setReferenceInput(e.target.value)}
+                  placeholder="Enter PayMongo Reference ID (e.g. pay_...)"
+                  className="flex-1 p-2 bg-white border border-slate-300 rounded-xs text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleVerifyReference()}
+                  disabled={isVerifyingRef || !referenceInput.trim()}
+                  className="skeuo-btn-primary py-2 px-4 text-xs uppercase tracking-wider font-bold shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isVerifyingRef ? 'Verifying...' : 'Verify & Record ID'}
+                </button>
+              </div>
+              {refVerificationMsg && (
+                <div className={`p-2.5 rounded-xs text-xs font-bold flex items-center gap-2 mt-2 ${
+                  refVerificationMsg.type === 'success' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-red-100 text-red-900 border border-red-300'
+                }`}>
+                  {refVerificationMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />}
+                  <span>{refVerificationMsg.text}</span>
+                </div>
+              )}
+            </details>
+        {/* Security Badge */}
+        <p className="text-[10px] font-semibold text-slate-500 flex items-start gap-1.5 leading-snug">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          Secured by PayMongo (BSP-licensed). Your card and e-wallet details never touch SmileGuard.
+        </p>
+        </aside>
       </div>
 
       {/* Appointment Billing Ledger — mirrors the appointments table */}
@@ -1203,50 +1249,6 @@ export default function BillingPayment({
           </div>
         </div>
       )}
-
-      {/* Action CTA Buttons */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        {unpaidAppointments.length === 0 ? (
-          <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>All accounts are settled. No payments pending.</span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handlePayment}
-            disabled={isProcessing || !selectedAppointment}
-            className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
-          >
-            {isProcessing ? (
-              <span className="flex items-center justify-center gap-2">
-                <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
-                <span>Processing...</span>
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
-              </span>
-            )}
-          </button>
-        )}
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer w-full sm:w-auto"
-          >
-            Cancel
-          </button>
-        )}
-      </div>
-
-      {/* Security Badge */}
-      <p className="text-center text-[10px] sm:text-[11px] font-semibold text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wide px-2">
-        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-        Secured by PayMongo (BSP-Licensed). Card & e-wallet details are handled on PayMongo&apos;s PCI-DSS compliant servers.
-      </p>
     </div>
   );
 }

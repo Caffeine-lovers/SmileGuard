@@ -2,6 +2,7 @@
 
 import { useEffect, createContext, useContext, useState, ReactNode } from 'react';
 import { HeroUIProvider } from '@heroui/react';
+import { DialogHost } from '@/components/ui/AppDialog';
 
 interface AuthContextType {
   initialized: boolean;
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <HeroUIProvider>
       <AuthContext.Provider value={{ initialized }}>
         {children}
+        <DialogHost />
       </AuthContext.Provider>
     </HeroUIProvider>
   );

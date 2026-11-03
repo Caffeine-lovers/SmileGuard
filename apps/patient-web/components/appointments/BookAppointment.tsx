@@ -21,6 +21,7 @@ import type { Appointment } from '@/lib/database';
 
 import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 
+import { showAlert } from '@/components/ui/AppDialog';
 const SERVICES = [
   { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500,  icon: '' },
   { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000,  icon: '' },
@@ -284,7 +285,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   const handleBooking = async () => {
     if (selectedServices.length === 0 || !selectedDate || !selectedTime || !currentUser?.id) {
-      alert('Please select service, date, and time');
+      showAlert('Please select service, date, and time');
       return;
     }
     const userId = currentUser.id;
@@ -296,7 +297,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
-        alert('Appointment request sent! It will appear under Pending until the clinic approves it.');
+        showAlert('Appointment request sent! It will appear under Pending until the clinic approves it.');
         
         if (onSuccess) {
           onSuccess({
@@ -318,11 +319,11 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         setSelectedTime('');
         setNotes('');
       } else {
-        alert(`Booking failed: ${result.message}`);
+        showAlert(`Booking failed: ${result.message}`);
       }
     } catch (error) {
       console.error('Error booking appointment:', error);
-      alert('Failed to book appointment');
+      showAlert('Failed to book appointment');
     } finally {
       setIsBooking(false);
     }
@@ -336,7 +337,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
   // ─── BENTO LAYOUT ──────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-bg-screen p-3 sm:p-4 md:p-6">
+    <div className="w-full">
 
       {/* Page header with Clinic Badge */}
       <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -380,7 +381,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       </div>
 
       {/* Bento grid — 12-column base */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
 
         {/* ━━━━ CELL A: Service picker (col 1–8, row 1) ━━━━━━━━━━━━━━━━━━━━━━ */}
         <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">

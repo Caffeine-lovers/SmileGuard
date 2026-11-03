@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { History, Trash2, X, RefreshCw } from 'lucide-react';
 import { deleteScan, listScans, summarizeFindings, formatCondition, type ScanRecord } from '@/lib/scanHistory';
 
+import { showAlert, showConfirm } from '@/components/ui/AppDialog';
 export default function ScanHistory({ patientId, refreshKey = 0 }: { patientId?: string; refreshKey?: number }) {
   const [scans, setScans] = useState<ScanRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,13 +29,13 @@ export default function ScanHistory({ patientId, refreshKey = 0 }: { patientId?:
   }, [load, refreshKey]);
 
   const handleDelete = async (scan: ScanRecord) => {
-    if (!confirm('Delete this scan from your history? This cannot be undone.')) return;
+    if (!(await showConfirm('Delete this scan from your history? This cannot be undone.'))) return;
     try {
       await deleteScan(scan);
       setOpen(null);
       setScans((prev) => prev.filter((s) => s.id !== scan.id));
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not delete scan.');
+      showAlert(e instanceof Error ? e.message : 'Could not delete scan.');
     }
   };
 
