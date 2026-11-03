@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@smileguard/shared-hooks';
 import { 
   bookSlot, 
+  getOpenPendingRequest,
   getAllBlockedSlots, 
   getBlockoutDates,
   isSlotTaken, 
@@ -291,6 +292,22 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
     const userId = currentUser.id;
     setIsBooking(true);
     try {
+      // Only one unscheduled request at a time — check fresh from the database on every confirm
+      const pending = await getOpenPendingRequest(userId);
+      if (pending) {
+        const when = new Date(`${pending.appointment_date}T00:00:00`).toLocaleDateString(undefined, {
+          weekday: 'short', month: 'long', day: 'numeric', year: 'numeric',
+        });
+        showAlert(
+          `You already have a pending appointment that hasn't been scheduled yet:\n\n` +
+          `${pending.service}\n${when} at ${pending.appointment_time}\n\n` +
+          `You can book another appointment once the clinic schedules or declines this one. ` +
+          `To change it, cancel or reschedule it from your Dashboard.`,
+          { title: 'Booking is restricted', tone: 'warning' }
+        );
+        return;
+      }
+
       // Book the appointment with the clinic's doctor user_id
       const dentistIdToBook = clinicDetails?.user_id || '';
       const result = await bookSlot(userId, dentistIdToBook, combinedServiceName, selectedDate, selectedTime);
