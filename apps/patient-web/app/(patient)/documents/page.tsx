@@ -27,7 +27,6 @@ import { getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { getIdCredentialUrl } from '@/lib/idCredentials';
 import { listScans, summarizeFindings, formatCondition, type ScanRecord } from '@/lib/scanHistory';
-import { showAlert, showConfirm } from '@/components/ui/AppDialog';
 import {
   ALLOWED_DOCUMENT_TYPES,
   DOCUMENT_CATEGORY_LABELS,
@@ -239,7 +238,7 @@ export default function DocumentsPage() {
       try {
         setPreviewUrl(await getDocumentUrl(item.upload));
       } catch (e) {
-        showAlert(e instanceof Error ? e.message : 'Could not open document.');
+        alert(e instanceof Error ? e.message : 'Could not open document.');
       }
     } else if (item.kind === 'scan') {
       setPreviewUrl(item.scan?.imageUrl || null);
@@ -247,7 +246,7 @@ export default function DocumentsPage() {
       try {
         setPreviewUrl(await getIdCredentialUrl(item.idCredential));
       } catch (e) {
-        showAlert(e instanceof Error ? e.message : 'Could not open your ID.');
+        alert(e instanceof Error ? e.message : 'Could not open your ID.');
       }
     }
   };
@@ -275,18 +274,18 @@ export default function DocumentsPage() {
         if (url) window.open(url, '_blank', 'noopener');
       }
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : 'Could not export this record.');
+      alert(e instanceof Error ? e.message : 'Could not export this record.');
     }
   };
 
   const handleDelete = async (item: DocItem) => {
-    if (!item.upload || !(await showConfirm(`Delete "${item.title}"? This cannot be undone.`))) return;
+    if (!item.upload || !confirm(`Delete "${item.title}"? This cannot be undone.`)) return;
     try {
       await deletePatientDocument(item.upload);
       setSelected(null);
       setItems((prev) => prev.filter((i) => i.key !== item.key));
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : 'Could not delete document.');
+      alert(e instanceof Error ? e.message : 'Could not delete document.');
     }
   };
 
@@ -320,7 +319,7 @@ export default function DocumentsPage() {
   const FILTERS: ('all' | Kind)[] = ['all', 'upload', 'scan', 'receipt', 'intake', 'id'];
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
+    <div className="min-h-screen p-3 sm:p-4 md:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-6">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
         <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">

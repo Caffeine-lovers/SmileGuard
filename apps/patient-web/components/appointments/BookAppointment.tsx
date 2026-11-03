@@ -109,8 +109,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [isBooking, setIsBooking]                     = useState(false);
   const [blockedSlots, setBlockedSlots]               = useState<any[]>([]);
   const [loadingBlockedSlots, setLoadingBlockedSlots] = useState(true);
-  const [userAppointments, setUserAppointments]       = useState<Appointment[]>([]);
-  const [loadingUserData, setLoadingUserData]         = useState(true);
+  const [, setUserAppointments]                       = useState<Appointment[]>([]);
+  const [, setLoadingUserData]                         = useState(true);
   const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
   const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
   const [clinicDetails, setClinicDetails]             = useState<ClinicDetails | null>(null);
@@ -543,18 +543,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             </div>
           </div>
 
-          {/* Prior bookings pill */}
-          {!loadingUserData && userAppointments.length > 0 && (
-            <div className="bg-bg-surface rounded-2xl border border-border-card p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
-              <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-sm flex-shrink-0">
-                {userAppointments.length}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-text-primary">Existing bookings</p>
-                <p className="text-xs text-text-secondary">Already on your schedule</p>
-              </div>
-            </div>
-          )}
         </div>
 
        {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -694,123 +682,118 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           </div>
         </div>
 
-         {/* ━━━━ CELL D: Time picker (col 6–12, row 2) ━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-7 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
-          {!step2Complete && <LockedOverlay message="Pick a date first" />}
-          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
-            <StepBadge n={3} done={step3Complete} />
-            Select a Time
-          </p>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5 sm:gap-2">
-            {timeSlots.length > 0 ? (
-              timeSlots.map((time) => {
-                const disabled = isSlotDisabled(selectedDate, time);
-                const active   = selectedTime === time;
-                console.log(`⏰ Time ${time} for ${selectedDate}: disabled=${disabled}`);
-                return (
-                  <button
-                    type="button"
-                    key={time}
-                    onClick={() => setSelectedTime(time)}
-                    disabled={!step2Complete || disabled}
-                    className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all duration-150 ${
-                      active
-                        ? 'bg-brand-primary text-white shadow-sm'
-                        : disabled
-                          ? 'bg-border-card text-text-secondary cursor-not-allowed line-through opacity-50'
-                          : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'
-                    }`}
-                  >
-                    {time}
-                  </button>
-                );
-              })
-            ) : (
-              <p className="col-span-full text-center text-text-secondary text-xs py-4">
-                {selectedDate ? 'No available time slots for this date' : 'Select a date first'}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ━━━━ CELL E: Notes (col 1–8, row 3) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-8 relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
-          {!step3Complete && <LockedOverlay message="Complete steps 1–3 first" />}
-          <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
-            <StepBadge n={4} done={step3Complete && notes.length > 0} />
-            Notes{' '}
-            <span className="text-text-secondary font-normal normal-case tracking-normal ml-1">(optional)</span>
-          </p>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            disabled={!step3Complete}
-            placeholder="Any special requests, medical concerns, or conditions we should know about…"
-            rows={4}
-            className="w-full p-3 sm:p-4 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
-          />
-        </div>
-
-        {/* ━━━━ CELL F: Confirm CTA (col 9–12, row 3) ━━━━━━━━━━━━━━━━━━━━━━━ */}
-        <div className="md:col-span-4 flex flex-col gap-2.5">
-          <button
-            type="button"
-            onClick={handleBooking}
-            disabled={isBooking || !step3Complete}
-            className={`w-full py-2.5 px-5 text-xs uppercase tracking-wider transition-all duration-200 ${
-              step3Complete
-                ? 'skeuo-btn-primary'
-                : 'skeuo-btn-secondary !bg-slate-100 !border-slate-300 !text-slate-400 !shadow-none cursor-not-allowed'
-            }`}
-          >
-            {isBooking ? (
-              <span className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
-                <span>Confirming Booking...</span>
-              </span>
-            ) : step3Complete ? (
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Confirm Appointment</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <ArrowUp className="w-3.5 h-3.5 shrink-0" />
-                <span>Complete All Steps</span>
-              </span>
-            )}
-          </button>
-
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="skeuo-btn-secondary w-full py-2.5 px-4 text-xs uppercase tracking-wider"
-            >
-              Cancel
-            </button>
-          )}
-
-          {/* Progress tracker — shown while steps are incomplete */}
-          {!step3Complete && (
-            <div className="bg-bg-notes rounded-2xl border border-border-card p-4">
-              <p className="text-xs text-text-secondary font-medium mb-2">Progress</p>
-              <div className="space-y-1.5">
-                {[
-                  { label: 'Service', done: step1Complete },
-                  { label: 'Date',    done: step2Complete },
-                  { label: 'Time',    done: step3Complete },
-                ].map((s) => (
-                  <div key={s.label} className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${s.done ? 'bg-brand-primary' : 'bg-border-card'}`} />
-                    <p className={`text-xs ${s.done ? 'text-brand-primary font-semibold' : 'text-text-secondary'}`}>
-                      {s.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
+        {/* ━━━━ CELL D: Time → Notes → Confirm, stacked beside the calendar (col 6–12, row 2) ━━━━ */}
+        <div className="md:col-span-7 flex flex-col gap-3 sm:gap-4">
+          {/* Time picker */}
+          <div className="relative bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-5">
+            {!step2Complete && <LockedOverlay message="Pick a date first" />}
+            <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">
+              <StepBadge n={3} done={step3Complete} />
+              Select a Time
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
+              {timeSlots.length > 0 ? (
+                timeSlots.map((time) => {
+                  const disabled = isSlotDisabled(selectedDate, time);
+                  const active   = selectedTime === time;
+                  return (
+                    <button
+                      type="button"
+                      key={time}
+                      onClick={() => setSelectedTime(time)}
+                      disabled={!step2Complete || disabled}
+                      className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                        active
+                          ? 'bg-brand-primary text-white shadow-sm'
+                          : disabled
+                            ? 'bg-border-card text-text-secondary cursor-not-allowed line-through opacity-50'
+                            : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'
+                      }`}
+                    >
+                      {time}
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="col-span-full text-center text-text-secondary text-xs py-4">
+                  {selectedDate ? 'No available time slots for this date' : 'Select a date first'}
+                </p>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Notes */}
+          <div className="relative flex-1 flex flex-col bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-5">
+            {!step3Complete && <LockedOverlay message="Complete steps 1–3 first" />}
+            <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">
+              <StepBadge n={4} done={step3Complete && notes.length > 0} />
+              Notes{' '}
+              <span className="text-text-secondary font-normal normal-case tracking-normal ml-1">(optional)</span>
+            </p>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              disabled={!step3Complete}
+              placeholder="Any special requests, medical concerns, or conditions we should know about…"
+              rows={3}
+              className="w-full flex-1 min-h-[84px] p-3 border border-border-card rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary bg-bg-notes text-text-primary text-sm resize-none"
+            />
+          </div>
+
+          {/* ━━━━ CELL F: Confirm bar — progress on the left, actions on the right ━━━━ */}
+          <div className="bg-bg-surface rounded-2xl border border-border-card shadow-sm p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              {[
+                { label: 'Service', done: step1Complete },
+                { label: 'Date',    done: step2Complete },
+                { label: 'Time',    done: step3Complete },
+              ].map((st) => (
+                <div key={st.label} className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${st.done ? 'bg-brand-primary' : 'bg-border-card'}`} />
+                  <p className={`text-xs ${st.done ? 'text-brand-primary font-semibold' : 'text-text-secondary'}`}>{st.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 sm:shrink-0">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="skeuo-btn-secondary flex-1 sm:flex-none py-2.5 px-4 text-xs uppercase tracking-wider"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleBooking}
+                disabled={isBooking || !step3Complete}
+                className={`flex-1 sm:flex-none py-2.5 px-5 text-xs uppercase tracking-wider transition-all duration-200 ${
+                  step3Complete
+                    ? 'skeuo-btn-primary'
+                    : 'skeuo-btn-secondary !bg-slate-100 !border-slate-300 !text-slate-400 !shadow-none cursor-not-allowed'
+                }`}
+              >
+                {isBooking ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span>Confirming...</span>
+                  </span>
+                ) : step3Complete ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Confirm Appointment</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <ArrowUp className="w-3.5 h-3.5 shrink-0" />
+                    <span>Complete All Steps</span>
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
 
       </div>

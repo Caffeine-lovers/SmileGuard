@@ -6,6 +6,7 @@ import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 import { setPatientUserCookie } from '@/lib/auth-cookie';
 
+import LegalModal, { type LegalDoc } from '@/components/legal/LegalModal';
 import { 
   normalizePregnancyStatus, 
   formatPregnancyStatus, 
@@ -24,10 +25,16 @@ export default function SignupConfirmPage() {
 
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    if (!agreedToTerms) {
+      setLocalError('Please read and agree to the Terms and Conditions and Privacy Policy to continue.');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -238,6 +245,29 @@ export default function SignupConfirmPage() {
           </div>
         </div>
 
+        <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-lg p-4">
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border-card text-brand-primary focus:ring-brand-primary cursor-pointer"
+              required
+            />
+            <span className="text-sm text-text-primary leading-relaxed">
+              I have read and agree to the{' '}
+              <button type="button" onClick={() => setLegalDoc('terms')} className="font-semibold text-brand-primary underline cursor-pointer">
+                Terms and Conditions
+              </button>{' '}
+              and{' '}
+              <button type="button" onClick={() => setLegalDoc('privacy')} className="font-semibold text-brand-primary underline cursor-pointer">
+                Privacy Policy
+              </button>
+              , and I consent to SmileGuard and my clinic processing my personal and medical information as described.
+            </span>
+          </label>
+        </div>
+
         <div className="flex gap-3">
           <button
             type="button"
@@ -248,13 +278,14 @@ export default function SignupConfirmPage() {
           </button>
           <button
             type="submit"
-            disabled={loading}
-            className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-white font-medium py-2 px-4 rounded-lg transition"
+            disabled={loading || !agreedToTerms}
+            className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition"
           >
             {loading ? 'Processing...' : isOAuthFlow ? 'Complete Profile' : 'Create Account'}
           </button>
         </div>
       </form>
+      <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />
     </div>
   );
 }
