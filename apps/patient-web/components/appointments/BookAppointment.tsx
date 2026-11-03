@@ -88,8 +88,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   const [isBooking, setIsBooking]                     = useState(false);
   const [blockedSlots, setBlockedSlots]               = useState<any[]>([]);
   const [loadingBlockedSlots, setLoadingBlockedSlots] = useState(true);
-  const [userAppointments, setUserAppointments]       = useState<Appointment[]>([]);
-  const [loadingUserData, setLoadingUserData]         = useState(true);
+  const [, setUserAppointments]                       = useState<Appointment[]>([]);
+  const [, setLoadingUserData]                         = useState(true);
   const [currentMonthView, setCurrentMonthView]       = useState(() => new Date());
   const [clinicSchedule, setClinicSchedule]           = useState<ClinicSchedule | null>(null);
   const [clinicDetails, setClinicDetails]             = useState<ClinicDetails | null>(null);
@@ -471,18 +471,6 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
             </div>
           </div>
 
-          {/* Prior bookings pill */}
-          {!loadingUserData && userAppointments.length > 0 && (
-            <div className="bg-bg-surface rounded-2xl border border-border-card p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4">
-              <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-sm flex-shrink-0">
-                {userAppointments.length}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-text-primary">Existing bookings</p>
-                <p className="text-xs text-text-secondary">Already on your schedule</p>
-              </div>
-            </div>
-          )}
         </div>
 
        {/* ━━━━ CELL C: Date picker (col 1–5, row 2) ━━━━━━━━━━━━━━━━━━━━━━━━ */}

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import NotificationSettingsModal from '@/components/notifications/NotificationSettingsModal';
+import LegalFooter from '@/components/legal/LegalFooter';
 
 export default function AuthWrapper({ children }: { children: ReactNode }) {
   const { currentUser, loading, logout } = useAuth();
@@ -265,6 +266,14 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                     )}
                   </button>
                   <div className="border-t border-slate-100 mt-1 pt-1">
+                    <Link href="/terms" role="menuitem" className="flex items-center gap-2.5 px-4 py-1.5 text-xs text-slate-500 hover:bg-slate-50">
+                      <FileText className="w-3.5 h-3.5" /> Terms and Conditions
+                    </Link>
+                    <Link href="/privacy" role="menuitem" className="flex items-center gap-2.5 px-4 py-1.5 text-xs text-slate-500 hover:bg-slate-50">
+                      <FileText className="w-3.5 h-3.5" /> Privacy Policy
+                    </Link>
+                  </div>
+                  <div className="border-t border-slate-100 mt-1 pt-1">
                     <button
                       type="button"
                       role="menuitem"
@@ -360,6 +369,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
       {/* Main Content */}
       <main className="flex-1 w-full overflow-x-hidden pb-28 md:pb-8">
         <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6">{children}</div>
+        <LegalFooter className="pt-6 pb-2" />
       </main>
 
       {/* Mobile Sticky Bottom Navigation Bar - Always visible */}
