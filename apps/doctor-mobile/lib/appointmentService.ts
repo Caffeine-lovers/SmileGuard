@@ -40,9 +40,14 @@ export interface DoctorAppointment {
   appointment_time: string;
   status: 'pending' | 'PENDING' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
+  doctor_note?: string;
   created_at?: string;
   updated_at?: string;
   patient_name?: string; // Patient name from profiles table
+  patient_avatar?: string | null;
+  imageUrl?: string | number;
+  profiles?: any;
+  patient_profile?: any;
 }
 
 // ─────────────────────────────────────────
@@ -53,7 +58,7 @@ export async function getDoctorAppointments(
 ): Promise<DoctorAppointment[]> {
   try {
     // IMPORTANT: Use RPC function to bypass RLS policy that filters out cancelled appointments
-    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
+    const { data: rpcAppointmentsData, error: rpcError } = await supabase.rpc('get_appointments_range', {
       p_start_date: startDate || null,
       p_end_date: endDate || null,
       p_dentist_id: dentistId || null
@@ -64,11 +69,38 @@ export async function getDoctorAppointments(
       return fallbackGetDoctorAppointments(dentistId, startDate, endDate);
     }
 
-    if (!appointmentsData) {
-      return [];
+    let appointmentsData: any[] = rpcAppointmentsData ? [...rpcAppointmentsData] : [];
+
+    // Supplement pending appointments (since RPC get_appointments_range excludes pending)
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      if (dentistId) {
+        pendingQuery = pendingQuery.or(`dentist_id.eq.${dentistId},dentist_id.is.null`);
+      }
+      if (startDate) {
+        pendingQuery = pendingQuery.gte('appointment_date', startDate);
+      }
+      if (endDate) {
+        pendingQuery = pendingQuery.lte('appointment_date', endDate);
+      }
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(appointmentsData.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            appointmentsData.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
     }
 
-    if (appointmentsData.length === 0) {
+    if (!appointmentsData || appointmentsData.length === 0) {
       return [];
     }
 
@@ -93,8 +125,6 @@ export async function getDoctorAppointments(
         profilesData = data || [];
       }
     }
-
-
 
     // Step 3c: Fetch medical intake data for all patients
     let medicalIntakeData: any[] = [];
@@ -124,7 +154,7 @@ export async function getDoctorAppointments(
 
     // Step 5: Don't filter by current user's dentist_id - the RPC already filters to show
     // all appointments with dentist_id IS NOT NULL
-    const filteredAppointments = (appointmentsData as any[]).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
+    const filteredAppointments = appointmentsData as any[];
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
@@ -169,8 +199,8 @@ async function fallbackGetDoctorAppointments(
       .from('appointments')
       .select('*');
 
-    // Show only assigned, approved appointments (pending requests live in the Requests tab)
-    query = query.not('dentist_id', 'is', null).neq('status', 'pending').neq('status', 'PENDING');
+    // Show only assigned appointments
+    query = query.not('dentist_id', 'is', null);
 
     if (startDate) {
       query = query.gte('appointment_date', startDate);
@@ -187,15 +217,43 @@ async function fallbackGetDoctorAppointments(
       return [];
     }
 
-    if (!appointmentsData || appointmentsData.length === 0) {
+    let allAppointments = appointmentsData ? [...appointmentsData] : [];
+
+    // Supplement pending appointments (including those without dentist_id)
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      if (startDate) {
+        pendingQuery = pendingQuery.gte('appointment_date', startDate);
+      }
+      if (endDate) {
+        pendingQuery = pendingQuery.lte('appointment_date', endDate);
+      }
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(allAppointments.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            allAppointments.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
+    }
+
+    if (!allAppointments || allAppointments.length === 0) {
       return [];
     }
 
     // Separate patients
-    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const patientIds = [...new Set(allAppointments.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
 
     console.log('❗ [fallbackGetDoctorAppointments] RPC failed, using fallback:');
-    console.log('  Total appointments:', appointmentsData.length);
+    console.log('  Total appointments:', allAppointments.length);
     console.log('  Patient IDs:', patientIds);
 
     // Fetch profiles for real patients
@@ -208,30 +266,48 @@ async function fallbackGetDoctorAppointments(
       profilesData = data || [];
     }
 
-
+    // Fetch medical intake data for all patients
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
 
     const profileMap = new Map();
     profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
-
+    const medicalIntakeMap = new Map();
+    medicalIntakeData.forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
+    });
 
     // Transform and return
-    return appointmentsData.map((apt: any) => {
+    return allAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
+      let profile = null;
 
       if (apt.patient_id) {
-        const profile = profileMap.get(apt.patient_id);
+        profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
+
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
 
       return {
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
   } catch (err: any) {
@@ -248,7 +324,7 @@ export async function getDoctorAppointmentsByDate(
 ): Promise<DoctorAppointment[]> {
   try {
     // IMPORTANT: Use RPC function to bypass RLS policy that filters out cancelled appointments
-    const { data: appointmentsData, error: rpcError } = await supabase.rpc('get_appointments_by_date', {
+    const { data: rpcAppointmentsData, error: rpcError } = await supabase.rpc('get_appointments_by_date', {
       p_date: date,
       p_dentist_id: dentistId || null
     });
@@ -258,11 +334,33 @@ export async function getDoctorAppointmentsByDate(
       return fallbackGetAppointmentsByDate(dentistId, date);
     }
 
-    if (!appointmentsData) {
-      return [];
+    let appointmentsData: any[] = rpcAppointmentsData ? [...rpcAppointmentsData] : [];
+
+    // Supplement pending appointments for this date (since RPC get_appointments_by_date excludes pending)
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .eq('appointment_date', date)
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      if (dentistId) {
+        pendingQuery = pendingQuery.or(`dentist_id.eq.${dentistId},dentist_id.is.null`);
+      }
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(appointmentsData.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            appointmentsData.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
     }
 
-    if (appointmentsData.length === 0) {
+    if (!appointmentsData || appointmentsData.length === 0) {
       return [];
     }
 
@@ -279,29 +377,50 @@ export async function getDoctorAppointmentsByDate(
       profilesData = data || [];
     }
 
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
+
     const profileMap = new Map();
     profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
+    const medicalIntakeMap = new Map();
+    medicalIntakeData.forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
+    });
+
     // Step 5: Show all appointments for this date (don't filter by dentist_id)
-    const filteredAppointments = (appointmentsData as any[]).filter((apt: any) => (apt.status || '').toLowerCase() !== 'pending');
+    const filteredAppointments = appointmentsData as any[];
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
+      let profile = null;
 
       if (apt.patient_id) {
-        const profile = profileMap.get(apt.patient_id);
+        profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
+
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
 
       return {
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
 
@@ -324,8 +443,8 @@ async function fallbackGetAppointmentsByDate(
       .select('*')
       .eq('appointment_date', date);
 
-    // Show only assigned, approved appointments (pending requests live in the Requests tab)
-    query = query.not('dentist_id', 'is', null).neq('status', 'pending').neq('status', 'PENDING');
+    // Show only assigned appointments
+    query = query.not('dentist_id', 'is', null);
 
     const { data: appointmentsData, error } = await query
       .order('appointment_time', { ascending: true });
@@ -334,12 +453,35 @@ async function fallbackGetAppointmentsByDate(
       return [];
     }
 
-    if (!appointmentsData || appointmentsData.length === 0) {
+    let allAppointments = appointmentsData ? [...appointmentsData] : [];
+
+    // Supplement pending appointments for this date
+    try {
+      let pendingQuery = supabase
+        .from('appointments')
+        .select('*')
+        .eq('appointment_date', date)
+        .or('status.ilike.pending,status.eq.pending,status.eq.PENDING');
+      const { data: directPending } = await pendingQuery;
+      if (directPending && directPending.length > 0) {
+        const existingIds = new Set(allAppointments.map((a: any) => a.id));
+        for (const row of directPending) {
+          if (!existingIds.has(row.id)) {
+            allAppointments.push(row);
+            existingIds.add(row.id);
+          }
+        }
+      }
+    } catch (err) {
+      // Safe fallback
+    }
+
+    if (!allAppointments || allAppointments.length === 0) {
       return [];
     }
 
     // Separate patients
-    const patientIds = [...new Set(appointmentsData.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
+    const patientIds = [...new Set(allAppointments.filter((apt: any) => apt.patient_id).map((apt: any) => apt.patient_id))];
 
     // Fetch profiles for real patients
     let profilesData: any[] = [];
@@ -351,30 +493,46 @@ async function fallbackGetAppointmentsByDate(
       profilesData = data || [];
     }
 
+    let medicalIntakeData: any[] = [];
+    if (patientIds.length > 0) {
+      const { data, error: medicalIntakeError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .in('patient_id', patientIds);
+      if (!medicalIntakeError) {
+        medicalIntakeData = data || [];
+      }
+    }
+
     const profileMap = new Map();
     profilesData.forEach(profile => {
       profileMap.set(profile.id, profile);
     });
 
-    // Filter to show ONLY assigned appointments (dentist_id IS NOT NULL)
-    const filteredAppointments = appointmentsData.filter((apt: any) => {
-      return apt.dentist_id !== null && apt.dentist_id !== undefined;
+    const medicalIntakeMap = new Map();
+    medicalIntakeData.forEach(intake => {
+      medicalIntakeMap.set(intake.patient_id, intake);
     });
 
-    return filteredAppointments.map((apt: any) => {
+    return allAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
+      let profile = null;
 
       if (apt.patient_id) {
-        const profile = profileMap.get(apt.patient_id);
+        profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
+
+      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
 
       return {
         ...apt,
         patient_name: patientName,
         patient_avatar: patientAvatar,
+        profiles: profile || null,
+        patient_profile: medicalIntake || null,
       };
     });
   } catch (err: any) {
@@ -389,7 +547,7 @@ export async function updateDoctorAppointmentStatus(
   appointmentId: string,
   status: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined',
   doctorId: string,
-  additionalUpdates?: { dentist_id?: string }
+  additionalUpdates?: { dentist_id?: string; doctor_note?: string }
 ): Promise<{ success: boolean; message: string }> {
   try {
     // Resolve which doctor ID to assign to the appointment
@@ -402,14 +560,46 @@ export async function updateDoctorAppointmentStatus(
       appointmentId,
       status,
       dentist_id: currentUserId,
+      doctor_note: additionalUpdates?.doctor_note,
     });
 
     // Use SECURITY DEFINER RPC — bypasses RLS so it can update unassigned rows
-    const { data, error } = await supabase.rpc('update_appointment_status_with_dentist', {
+    let data: any = null;
+    let error: any = null;
+
+    // Try RPC with p_doctor_note parameter first (migration 039)
+    const rpcResultWithNote = await supabase.rpc('update_appointment_status_with_dentist', {
       p_appointment_id: appointmentId,
       p_new_status: status,
       p_dentist_id: currentUserId,
+      p_doctor_note: additionalUpdates?.doctor_note || null,
     });
+
+    if (rpcResultWithNote.error && rpcResultWithNote.error.message?.includes('p_doctor_note')) {
+      // Fallback to 3-parameter RPC if migration 039 is not yet run
+      const fallbackResult = await supabase.rpc('update_appointment_status_with_dentist', {
+        p_appointment_id: appointmentId,
+        p_new_status: status,
+        p_dentist_id: currentUserId,
+      });
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+
+      // Also try direct update to set doctor_note if column exists
+      if (!error && additionalUpdates?.doctor_note) {
+        try {
+          await supabase
+            .from('appointments')
+            .update({ doctor_note: additionalUpdates.doctor_note })
+            .eq('id', appointmentId);
+        } catch {
+          // ignore if column not present yet
+        }
+      }
+    } else {
+      data = rpcResultWithNote.data;
+      error = rpcResultWithNote.error;
+    }
 
     console.log('📥 [updateDoctorAppointmentStatus] RPC raw response:', { data, error });
 
@@ -571,5 +761,70 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
   } catch (err: any) {
     console.error('❌ Exception fetching appointment requests:', err);
     return [];
+  }
+}
+
+// ─────────────────────────────────────────
+// GET APPOINTMENT BY ID (WITH PATIENT & MEDICAL INTAKE)
+// ─────────────────────────────────────────
+export async function getAppointmentById(
+  appointmentId: string
+): Promise<DoctorAppointment | null> {
+  try {
+    const { data: apt, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (error || !apt) {
+      console.warn('[getAppointmentById] Could not fetch appointment:', appointmentId, error);
+      return null;
+    }
+
+    let profile: any = null;
+    if (apt.patient_id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', apt.patient_id)
+        .maybeSingle();
+      profile = prof;
+    }
+
+    let medicalIntake: any = null;
+    if (apt.patient_id) {
+      const { data: intake } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .eq('patient_id', apt.patient_id)
+        .maybeSingle();
+      medicalIntake = intake;
+    }
+
+    const patientName =
+      profile?.full_name ||
+      profile?.name ||
+      profile?.user_name ||
+      [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+      'Patient';
+
+    const patientAvatar =
+      profile?.avatar_url ||
+      profile?.avatar ||
+      profile?.profile_picture ||
+      profile?.image_url ||
+      null;
+
+    return {
+      ...apt,
+      patient_name: patientName,
+      patient_avatar: patientAvatar,
+      profiles: profile || null,
+      patient_profile: medicalIntake || null,
+    };
+  } catch (err) {
+    console.error('[getAppointmentById] Exception fetching appointment:', err);
+    return null;
   }
 }

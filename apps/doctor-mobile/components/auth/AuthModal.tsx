@@ -11,9 +11,11 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
+  Alert,
+  BackHandler,
+  ToastAndroid,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Alert } from "react-native";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -38,19 +40,53 @@ const VALID_DOCTOR_CODES = [
 
 export interface AuthModalProps {
   visible: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   onSuccess: (user: CurrentUser) => void;
+  showCloseButton?: boolean;
 }
 
 export default function AuthModal({
   visible,
   onClose,
   onSuccess,
+  showCloseButton = false,
 }: AuthModalProps) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [doctorAccessCode, setDoctorAccessCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
+
+  const lastBackPressRef = React.useRef<number>(0);
+
+  const handleBackPress = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastBackPressRef.current < 2000) {
+      BackHandler.exitApp();
+      return true;
+    }
+    lastBackPressRef.current = now;
+    if (Platform.OS === "android") {
+      ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
+    } else {
+      Alert.alert("Exit App", "Are you sure you want to exit SmileGuard?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Exit", onPress: () => BackHandler.exitApp() },
+      ]);
+    }
+    return true;
+  }, []);
+
+  // Intercept Android hardware back button
+  React.useEffect(() => {
+    if (!visible) return;
+
+    const backSubscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      handleBackPress
+    );
+
+    return () => backSubscription.remove();
+  }, [visible, handleBackPress]);
 
   // Reset state when modal re-opens
   React.useEffect(() => {
@@ -70,7 +106,7 @@ export default function AuthModal({
         console.log("[AuthModal] SIGNED_IN detected for", session.user.email);
         setLoading(false);
         // Important: Close modal automatically when sign-in completes via deep link
-        onClose();
+        onClose?.();
       }
     });
 
@@ -209,7 +245,7 @@ export default function AuthModal({
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
           if (exchangeError) throw exchangeError;
           console.log("[GoogleOAuth] Code exchanged successfully");
-          onClose();
+          onClose?.();
         } else if (params.access_token && params.refresh_token) {
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: params.access_token,
@@ -220,12 +256,12 @@ export default function AuthModal({
 
           console.log("[GoogleOAuth] Session set successfully");
           // Close the modal - let the file-based routing handle directing to setup-profile or dashboard
-          onClose();
+          onClose?.();
         } else {
           // If no parameters in result.url, check if session already exists
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
-            onClose();
+            onClose?.();
           } else {
             throw new Error("No tokens or auth code returned from Google");
           }
@@ -244,7 +280,7 @@ export default function AuthModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={handleBackPress}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -257,11 +293,13 @@ export default function AuthModal({
           >
 
             <View style={styles.stepContent}>
-              <View style={styles.topBar}>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close modal">
-                  <Text style={styles.closeBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
+              {showCloseButton && (
+                <View style={styles.topBar}>
+                  <TouchableOpacity onPress={onClose || handleBackPress} style={styles.closeBtn} accessibilityLabel="Close modal">
+                    <Text style={styles.closeBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {step === 1 && (
                 <View style={{ alignItems: "center", width: "100%" }}>
                   <Text style={styles.appName}>SmileGuard</Text>

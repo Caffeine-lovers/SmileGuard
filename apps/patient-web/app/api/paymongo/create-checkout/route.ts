@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '@/lib/paymongo';
 import { getAuthedUserId, getServiceClient, getUserClient } from '@/lib/serverSupabase';
-import { computeCheckoutTotal, resolveBaseAmount, type ClinicService } from '@/lib/pricing';
+import { computeCheckoutTotal, resolveBaseAmount, getServicePrice, type ClinicService } from '@/lib/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,12 +53,30 @@ export async function POST(request: NextRequest) {
     const { data: clinicData } = await clinicQuery.maybeSingle();
     if (clinicData) {
       if (clinicData.clinic_name) clinicName = clinicData.clinic_name;
-      if (Array.isArray(clinicData.services)) clinicServices = clinicData.services;
+      let rawServices = [];
+      if (Array.isArray(clinicData.services)) rawServices = clinicData.services;
       else if (typeof clinicData.services === 'string') {
         try {
-          clinicServices = JSON.parse(clinicData.services);
+          rawServices = JSON.parse(clinicData.services);
         } catch {}
       }
+      clinicServices = Array.isArray(rawServices)
+        ? rawServices.map((s, idx) => {
+            if (typeof s === 'string') return { id: `s_${idx}`, name: s, price: getServicePrice(s) };
+            const parsedPrice =
+              typeof s.price === 'number'
+                ? s.price
+                : parseFloat(s.price) >= 0
+                ? parseFloat(s.price)
+                : getServicePrice(s.name);
+            return {
+              id: s.id || `s_${idx}`,
+              name: s.name || 'Dental Service',
+              price: parsedPrice,
+              description: s.description || '',
+            };
+          })
+        : [];
     }
 
     // The billing row is the source of truth for what is owed (same as the billing page shows)

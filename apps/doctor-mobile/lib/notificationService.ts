@@ -1,10 +1,16 @@
 /**
  * Notification Service - Doctor Mobile
- * Handles real-time Supabase subscriptions for table updates
+ * Handles real-time Supabase subscriptions for:
+ * 1. New patient registrations (profiles table INSERT)
+ * 2. Paid bills (billings table when payment_status === 'paid')
+ * 3. New appointment bookings (appointments table INSERT)
+ *
+ * Removes unnecessary noise and database update notifications.
  */
 
 import { supabase } from '@smileguard/supabase-client';
 import { Notification, NotificationType } from '../types/notifications';
+import { formatAppointmentDate, formatAppointmentTime } from './dateFormatters';
 
 let notificationId = 0;
 
@@ -13,152 +19,174 @@ const generateNotificationId = (): string => {
 };
 
 /**
- * Generate notification based on event type and table
+ * Generate targeted notification for key events only:
+ * - New appointment bookings
+ * - Paid bills
+ * - New patient registrations
  */
-function generateNotification(
+async function generateNotification(
   tableName: string,
   action: 'INSERT' | 'UPDATE' | 'DELETE',
   newRecord: any,
   oldRecord: any,
   doctorId?: string
-): Notification | null {
+): Promise<Notification | null> {
   const baseNotification = {
     id: generateNotificationId(),
     timestamp: new Date(),
     read: false,
   };
 
-  // Helper function to get changed fields
-  const getChangedFields = (): string[] => {
-    if (action === 'DELETE') return ['record deleted'];
-    if (action === 'INSERT') return ['new record'];
-    if (action === 'UPDATE' && oldRecord && newRecord) {
-      return Object.keys(newRecord).filter(key => newRecord[key] !== oldRecord[key]);
-    }
-    return [];
-  };
-
   switch (tableName) {
     case 'appointments': {
-      const record = newRecord || oldRecord || {};
-      // Filter out appointments assigned to other doctors
-      if (doctorId && record.dentist_id && record.dentist_id !== doctorId) {
+      // ONLY notify on NEW appointment booking requests (INSERT)
+      if (action !== 'INSERT' || !newRecord) {
         return null;
       }
+
+      let patientName = newRecord.patient_name || newRecord.name;
+      if (!patientName && newRecord.patient_id) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', newRecord.patient_id)
+            .maybeSingle();
+          if (profile?.name) {
+            patientName = profile.name;
+          }
+        } catch {
+          // Fallback if network or auth error
+        }
+      }
+
+      const displayPatient = patientName || 'A patient';
+      const service = newRecord.service || 'Dental Consultation';
+      const formattedDate = formatAppointmentDate(newRecord.appointment_date, 'long');
+      const formattedTime = formatAppointmentTime(newRecord.appointment_time);
+      const timeSuffix = formattedTime && formattedTime !== 'Not specified' ? ` at ${formattedTime}` : '';
+
       return {
         ...baseNotification,
-        type: getAppointmentNotificationType(action, record),
-        title: `Appointment ${action === 'INSERT' ? 'Request Received' : action === 'DELETE' ? 'Cancelled' : 'Updated'}`,
-        message: `${record.patient_name || 'Patient'} - ${record.service || 'Service'} on ${record.appointment_date || 'scheduled date'} at ${record.appointment_time || 'TBD'}`,
+        type: 'appointment-created',
+        title: 'New Appointment Request',
+        message: `${displayPatient} booked an appointment for ${service} on ${formattedDate}${timeSuffix}.`,
         data: {
-          appointmentId: record.id,
-          patientId: record.patient_id,
-          doctorId: record.dentist_id,
+          appointmentId: newRecord.id,
+          patientId: newRecord.patient_id,
+          patientName: displayPatient,
+          service,
+          appointmentDate: formattedDate,
+          appointmentTime: formattedTime,
+          doctorId: newRecord.dentist_id,
           tableName,
-          recordId: record.id,
+          recordId: newRecord.id,
           action,
         },
       };
     }
 
-    case 'medical_intake':
+    case 'billings': {
+      if (!newRecord) return null;
+
+      const isPaidNow =
+        newRecord.payment_status === 'paid' ||
+        newRecord.status === 'paid';
+
+      const wasAlreadyPaid =
+        oldRecord &&
+        (oldRecord.payment_status === 'paid' || oldRecord.status === 'paid');
+
+      // ONLY notify when a bill is paid (either INSERT as paid, or UPDATE transitioning to paid)
+      if (!isPaidNow || wasAlreadyPaid) {
+        return null;
+      }
+
+      let patientName = newRecord.patient_name;
+      if (!patientName && newRecord.patient_id) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', newRecord.patient_id)
+            .maybeSingle();
+          if (profile?.name) {
+            patientName = profile.name;
+          }
+        } catch {
+          // Fallback
+        }
+      }
+
+      const amount = Number(newRecord.final_amount ?? newRecord.amount ?? 0);
+      const formattedAmount = `₱${amount.toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+
+      const rawMethod = newRecord.payment_method || 'Online';
+      const cleanMethod = String(rawMethod)
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      const invoiceCode = newRecord.id ? String(newRecord.id).substring(0, 8).toUpperCase() : '';
+
       return {
         ...baseNotification,
-        type: 'medical-intake-updated',
-        title: 'Medical Intake Updated',
-        message: `Patient medical records have been updated: ${getChangedFields().join(', ')}`,
+        type: 'bill-paid',
+        title: 'Bill Paid',
+        message: `Payment of ${formattedAmount} received${
+          patientName ? ` from ${patientName}` : ''
+        } via ${cleanMethod}${invoiceCode ? ` for invoice #${invoiceCode}` : ''}.`,
         data: {
           patientId: newRecord.patient_id,
+          patientName,
+          amount,
+          paymentMethod: cleanMethod,
           tableName,
           recordId: newRecord.id,
           action,
         },
       };
+    }
 
-    case 'treatments':
-      if (action === 'INSERT') {
-        return {
-          ...baseNotification,
-          type: 'treatment-added',
-          title: 'New Treatment Added',
-          message: `${newRecord.treatment_name || 'Treatment'} added to patient records`,
-          data: {
-            patientId: newRecord.patient_id,
-            tableName,
-            recordId: newRecord.id,
-            action,
-          },
-        };
+    case 'profiles': {
+      // ONLY notify on NEW patient registrations (INSERT into profiles)
+      if (action !== 'INSERT' || !newRecord) {
+        return null;
       }
-      return null;
 
-    case 'billings':
+      // Check role: ignore doctor registrations or non-patient roles
+      if (newRecord.role && newRecord.role !== 'patient') {
+        return null;
+      }
+      if (newRecord.license_number) {
+        return null; // Doctor record
+      }
+
+      const name = newRecord.name || 'New Patient';
+      const email = newRecord.email || '';
+
       return {
         ...baseNotification,
-        type: 'billing-updated',
-        title: 'Billing Updated',
-        message: `Invoice #${newRecord.id?.substring(0, 8) || 'N/A'} - Amount: $${newRecord.amount || 0}`,
+        type: 'patient-registered',
+        title: 'New Patient Registered',
+        message: `${name}${email ? ` (${email})` : ''} has registered as a new patient.`,
         data: {
+          patientId: newRecord.id,
+          patientName: name,
+          email,
+          service: newRecord.service,
           tableName,
           recordId: newRecord.id,
           action,
         },
       };
-
-    case 'doctors':
-      if (action === 'UPDATE') {
-        return {
-          ...baseNotification,
-          type: 'doctor-profile-updated',
-          title: 'Your Profile Updated',
-          message: `Profile changes: ${getChangedFields().join(', ')}`,
-          data: {
-            doctorId: newRecord.id,
-            tableName,
-            recordId: newRecord.id,
-            action,
-          },
-        };
-      }
-      return null;
-
-    case 'profiles':
-      if (newRecord.role === 'patient') {
-        return {
-          ...baseNotification,
-          type: 'patient-updated',
-          title: 'Patient Profile Updated',
-          message: `${newRecord.name || 'Patient'} profile information updated`,
-          data: {
-            patientId: newRecord.id,
-            tableName,
-            recordId: newRecord.id,
-            action,
-          },
-        };
-      }
-      return null;
+    }
 
     default:
+      // Remove all other unnecessary table updates (medical_intake, treatments, doctors, etc.)
       return null;
   }
-}
-
-/**
- * Determine appointment notification type
- */
-function getAppointmentNotificationType(
-  action: 'INSERT' | 'UPDATE' | 'DELETE',
-  record: any
-): NotificationType {
-  if (action === 'INSERT') return 'appointment-created';
-  if (action === 'DELETE') return 'appointment-cancelled';
-  if (action === 'UPDATE') {
-    if (record.status === 'completed') return 'appointment-completed';
-    if (record.status === 'cancelled') return 'appointment-cancelled';
-    return 'appointment-updated';
-  }
-  return 'appointment-updated';
 }
 
 /**
@@ -173,14 +201,10 @@ export function subscribeToTableChanges(
   try {
     console.log(`📡 Subscribing to ${tableName} real-time updates for doctor ${doctorId}`);
 
-    const filter = getSubscriptionFilter(tableName, doctorId);
-    console.log(`📍 Subscription filter: ${filter || 'none (all events)'}`);
-    console.log(`🆔 Doctor ID: ${doctorId}`);
-
     const channel = supabase
       .channel(`${tableName}-${doctorId}-${Date.now()}`, {
         config: {
-          broadcast: { self: true }, // Enable self-broadcast to catch own changes
+          broadcast: { self: true },
         },
       })
       .on<any>(
@@ -189,38 +213,32 @@ export function subscribeToTableChanges(
           event: '*',
           schema: 'public',
           table: tableName,
-          ...(filter && { filter }),
         },
-        (payload: any) => {
-          console.log(`🔔 Change detected in ${tableName}:`, {
-            eventType: payload.eventType,
-            recordId: payload.new?.id,
-            newRecord: payload.new,
-            oldRecord: payload.old,
-            changeCount: Object.keys(payload.new || {}).length,
-          });
+        async (payload: any) => {
+          try {
+            const notification = await generateNotification(
+              tableName,
+              payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
+              payload.new,
+              payload.old,
+              doctorId
+            );
 
-          const notification = generateNotification(
-            tableName,
-            payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
-            payload.new,
-            payload.old,
-            doctorId
-          );
-
-          if (notification) {
-            console.log(`[NotificationService] Emitting notification:`, notification.type, notification.title);
-            onNotification(notification);
-          } else {
-            console.log(`⏭️ Skipped notification for ${tableName} (generateNotification returned null)`);
+            if (notification) {
+              console.log(
+                `[NotificationService] Emitting notification:`,
+                notification.type,
+                notification.title
+              );
+              onNotification(notification);
+            }
+          } catch (err) {
+            console.error(`[NotificationService] Error generating notification:`, err);
           }
         }
       )
-      .subscribe(async (status) => {
-        console.log(`🔄 Subscription status for ${tableName}: ${status}`);
-        if (status === 'CLOSED') {
-          console.warn(`⚠️ Subscription to ${tableName} closed`);
-        } else if (status === 'CHANNEL_ERROR') {
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
           console.error(`❌ Subscription error for ${tableName}`);
           onError(`Failed to subscribe to ${tableName} updates`);
         } else if (status === 'SUBSCRIBED') {
@@ -228,7 +246,6 @@ export function subscribeToTableChanges(
         }
       });
 
-    // Return unsubscribe function
     return () => {
       supabase.removeChannel(channel);
       console.log(`🛑 Unsubscribed from ${tableName}`);
@@ -242,40 +259,16 @@ export function subscribeToTableChanges(
 }
 
 /**
- * Get filter string based on table and doctor ID
- */
-function getSubscriptionFilter(tableName: string, doctorId: string): string | null {
-  switch (tableName) {
-    case 'appointments':
-      // Supabase Realtime does NOT support or(...) syntax in postgres_changes filters.
-      // We subscribe without an invalid filter; Supabase RLS and generateNotification filter by doctorId.
-      return null;
-    case 'medical_intake':
-      return null;
-    case 'doctors':
-      return `id=eq.${doctorId}`;
-    case 'profiles':
-      return null;
-    default:
-      return null;
-  }
-}
-
-/**
- * Subscribe to multiple Supabase tables for doctor
+ * Subscribe to essential tables for doctor notifications:
+ * - appointments (New appointment requests)
+ * - billings (Paid bills)
+ * - profiles (New patient registrations)
  */
 export function subscribeToDoctorNotifications(
   doctorId: string,
   onNotification: (notification: Notification) => void,
   onError: (error: string) => void,
-  tables: string[] = [
-    'doctors',
-    'appointments',
-    'medical_intake',
-    'treatments',
-    'billings',
-    'profiles',
-  ]
+  tables: string[] = ['appointments', 'billings', 'profiles']
 ): (() => void) {
   const unsubscribers: Array<() => void> = [];
 
@@ -285,19 +278,16 @@ export function subscribeToDoctorNotifications(
       doctorId,
       onNotification,
       (errorMsg: string) => {
-        // Only report non-subscription errors to user
         if (!errorMsg.includes('subscribe')) {
           onError(errorMsg);
         } else {
-          // Log subscription errors but don't show to user
-          console.warn('📻 Background subscription error (not shown to user):', errorMsg);
+          console.warn('📻 Background subscription notice:', errorMsg);
         }
       }
     );
     unsubscribers.push(unsubscribe);
   });
 
-  // Return function to unsubscribe from all tables
   return () => {
     unsubscribers.forEach((unsub) => unsub());
   };
@@ -351,15 +341,14 @@ export function filterNotificationsByType(
  */
 export function clearOldNotifications(
   notifications: Notification[],
-  hoursOld: number = 24
+  hoursOld: number = 72
 ): Notification[] {
   const cutoffTime = Date.now() - hoursOld * 60 * 60 * 1000;
   return notifications.filter((n) => n.timestamp.getTime() > cutoffTime);
 }
 
 /**
- * Manually trigger a notification
- * Use when you make changes in the app that need immediate feedback
+ * Manually create a notification
  */
 export function createManualNotification(
   type: NotificationType,
@@ -387,15 +376,20 @@ export function notifyAppointmentCreated(
   time: string,
   appointmentId: string,
   patientId: string,
-  doctorId: string
+  doctorId: string,
+  appointmentDate?: string
 ): Notification {
   return createManualNotification(
     'appointment-created',
-    'Appointment Created',
-    `${patientName} - ${service} at ${time}`,
+    'New Appointment Request',
+    `${patientName} booked an appointment for ${service}${appointmentDate ? ` on ${appointmentDate}` : ''}${time ? ` at ${time}` : ''}.`,
     {
       appointmentId,
       patientId,
+      patientName,
+      service,
+      appointmentDate,
+      appointmentTime: time,
       doctorId,
       tableName: 'appointments',
       recordId: appointmentId,
@@ -405,34 +399,67 @@ export function notifyAppointmentCreated(
 }
 
 /**
- * Trigger appointment updated notification
+ * Trigger paid bill notification
  */
-export function notifyAppointmentUpdated(
+export function notifyBillPaid(
   patientName: string,
-  service: string,
-  time: string,
-  appointmentId: string,
-  patientId: string,
-  doctorId: string
+  amount: number,
+  paymentMethod: string = 'Cash',
+  billId?: string,
+  patientId?: string
 ): Notification {
+  const formattedAmount = `₱${amount.toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+  const code = billId ? billId.substring(0, 8).toUpperCase() : '';
+
   return createManualNotification(
-    'appointment-updated',
-    'Appointment Updated',
-    `${patientName} - ${service} at ${time} has been updated`,
+    'bill-paid',
+    'Bill Paid',
+    `Payment of ${formattedAmount} received${patientName ? ` from ${patientName}` : ''} via ${paymentMethod}${code ? ` for invoice #${code}` : ''}.`,
     {
-      appointmentId,
       patientId,
-      doctorId,
-      tableName: 'appointments',
-      recordId: appointmentId,
+      patientName,
+      amount,
+      paymentMethod,
+      tableName: 'billings',
+      recordId: billId,
       action: 'UPDATE',
     }
   );
 }
 
 /**
- * Trigger appointment status changed notification
+ * Trigger new patient registered notification
  */
+export function notifyPatientRegistered(
+  patientName: string,
+  email?: string,
+  patientId?: string
+): Notification {
+  return createManualNotification(
+    'patient-registered',
+    'New Patient Registered',
+    `${patientName}${email ? ` (${email})` : ''} has registered as a new patient.`,
+    {
+      patientId,
+      patientName,
+      email,
+      tableName: 'profiles',
+      recordId: patientId,
+      action: 'INSERT',
+    }
+  );
+}
+
+/**
+ * Backward compatibility stubs for legacy callers
+ */
+export function notifyAppointmentUpdated(): Notification {
+  return createManualNotification('appointment-updated', 'Appointment Updated', '');
+}
+
 export function notifyAppointmentStatusChanged(
   status: 'completed' | 'cancelled' | 'no-show',
   patientName: string,
@@ -440,64 +467,18 @@ export function notifyAppointmentStatusChanged(
   patientId: string,
   doctorId: string
 ): Notification {
-  const statusTitles = {
-    completed: 'Appointment Completed',
-    cancelled: 'Appointment Cancelled',
-    'no-show': 'Appointment No-Show',
-  };
-
   return createManualNotification(
     status === 'completed' ? 'appointment-completed' : 'appointment-cancelled',
-    statusTitles[status],
-    `${patientName} appointment - ${status.toUpperCase()}`,
-    {
-      appointmentId,
-      patientId,
-      doctorId,
-      tableName: 'appointments',
-      recordId: appointmentId,
-      action: 'UPDATE',
-    }
+    `Appointment ${status}`,
+    `${patientName}'s appointment marked as ${status}`,
+    { appointmentId, patientId, doctorId }
   );
 }
 
-/**
- * Trigger medical intake updated notification
- */
-export function notifyMedicalIntakeUpdated(
-  patientName: string,
-  recordId: string,
-  patientId: string
-): Notification {
-  return createManualNotification(
-    'medical-intake-updated',
-    'Medical Records Updated',
-    `${patientName} medical records have been updated`,
-    {
-      patientId,
-      tableName: 'medical_intake',
-      recordId,
-      action: 'UPDATE',
-    }
-  );
+export function notifyMedicalIntakeUpdated(): Notification {
+  return createManualNotification('medical-intake-updated', 'Medical Records Updated', '');
 }
 
-/**
- * Trigger doctor profile updated notification
- */
-export function notifyDoctorProfileUpdated(
-  doctorName: string,
-  doctorId: string
-): Notification {
-  return createManualNotification(
-    'doctor-profile-updated',
-    'Your Profile Updated',
-    `${doctorName} profile information has been updated`,
-    {
-      doctorId,
-      tableName: 'doctors',
-      recordId: doctorId,
-      action: 'UPDATE',
-    }
-  );
+export function notifyDoctorProfileUpdated(): Notification {
+  return createManualNotification('doctor-profile-updated', 'Profile Updated', '');
 }

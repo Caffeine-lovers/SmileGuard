@@ -133,7 +133,7 @@ export default function PatientDashboard() {
       setIsRescheduleModalOpen(false);
       setActiveTab('pending');
       setRescheduleFeedback(
-        `Your visit for ${appointmentToReschedule.service} was updated to ${rescheduleDate} at ${rescheduleTime}. Status is now Pending clinic approval from Dr. Kyler.`
+        `Your visit for ${appointmentToReschedule.service} was updated to ${rescheduleDate} at ${rescheduleTime}. Status is now Pending clinic approval.`
       );
     } catch (err: any) {
       console.error('Error submitting reschedule:', err);
@@ -230,6 +230,7 @@ export default function PatientDashboard() {
         // Fetch doctor names and pictures with fast timeout
         const doctorIds = Array.from(new Set(
           (appts || [])
+            .filter((apt) => !isPendingAppointment(apt))
             .map(a => a.dentist_id)
             .filter((id): id is string => Boolean(id))
         ));
@@ -493,20 +494,23 @@ export default function PatientDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {scheduledAppointments.map((apt) => (
-                <AppointmentCard
-                  key={apt.id}
-                  name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : (apt.clinic_name || "Kyler's Clinic")}
-                  avatarUrl={apt.dentist_id ? doctorPictures[apt.dentist_id] : undefined}
-                  service={apt.service}
-                  date={apt.appointment_date}
-                  time={apt.appointment_time}
-                  status={apt.status}
-                  clinicName={apt.clinic_name}
-                  onClick={() => setSelectedAppointment(apt)}
-                  onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
-                />
-              ))}
+              {scheduledAppointments.map((apt) => {
+                const hasDoctor = Boolean(apt.dentist_id && doctorNames[apt.dentist_id]);
+                return (
+                  <AppointmentCard
+                    key={apt.id}
+                    name={hasDoctor ? doctorNames[apt.dentist_id!] : (apt.clinic_name || "SmileGuard Clinic")}
+                    avatarUrl={hasDoctor ? doctorPictures[apt.dentist_id!] : undefined}
+                    service={apt.service}
+                    date={apt.appointment_date}
+                    time={apt.appointment_time}
+                    status={apt.status}
+                    clinicName={apt.clinic_name}
+                    onClick={() => setSelectedAppointment(apt)}
+                    onDoctorClick={hasDoctor ? () => setSelectedDoctorId(apt.dentist_id!) : undefined}
+                  />
+                );
+              })}
             </div>
           )
         ) : activeTab === 'pending' ? (
@@ -521,15 +525,15 @@ export default function PatientDashboard() {
               {pendingAppointments.map((apt) => (
                 <AppointmentCard
                   key={apt.id}
-                  name={apt.dentist_id ? doctorNames[apt.dentist_id] || 'Attending Dentist' : (apt.clinic_name || "Kyler's Clinic")}
-                  avatarUrl={apt.dentist_id ? doctorPictures[apt.dentist_id] : undefined}
+                  name={apt.clinic_name || "SmileGuard Clinic"}
+                  avatarUrl={undefined}
                   service={apt.service}
                   date={apt.appointment_date}
                   time={apt.appointment_time}
                   status="pending"
                   clinicName={apt.clinic_name}
                   onClick={() => setSelectedAppointment(apt)}
-                  onDoctorClick={apt.dentist_id ? () => setSelectedDoctorId(apt.dentist_id) : undefined}
+                  onDoctorClick={undefined}
                 />
               ))}
             </div>
@@ -663,12 +667,19 @@ export default function PatientDashboard() {
                 <span className="text-slate-500">Scheduled Time:</span>
                 <span className="font-bold text-slate-900">{selectedAppointment.appointment_time}</span>
               </div>
-              {selectedAppointment.dentist_id && doctorNames[selectedAppointment.dentist_id] && (
+              {!isPendingAppointment(selectedAppointment) && selectedAppointment.dentist_id && doctorNames[selectedAppointment.dentist_id] ? (
                 <div className="flex justify-between">
                   <span className="text-slate-500">Attending Specialist:</span>
                   <span className="font-bold text-slate-900">{doctorNames[selectedAppointment.dentist_id]}</span>
                 </div>
-              )}
+              ) : isPendingAppointment(selectedAppointment) ? (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Doctor Assignment:</span>
+                  <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[11px]">
+                    Awaiting doctor acceptance
+                  </span>
+                </div>
+              ) : null}
               {selectedAppointment.notes && (
                 <div className="pt-2 border-t border-slate-200 text-slate-600 italic">
                   &quot;{selectedAppointment.notes}&quot;
@@ -744,7 +755,7 @@ export default function PatientDashboard() {
 
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-amber-900 text-xs mb-4">
               <p className="font-bold uppercase tracking-wider text-[10px] text-amber-800 mb-0.5">Approval Policy</p>
-              Rescheduling reverts your visit to <strong>Pending Clinic Review</strong>. Dr. Kyler will be notified to review and approve your requested slot.
+              Rescheduling reverts your visit to <strong>Pending Clinic Review</strong>. The clinic will be notified to review and approve your requested slot.
             </div>
 
             <form onSubmit={handleRescheduleSubmit} className="space-y-4">
