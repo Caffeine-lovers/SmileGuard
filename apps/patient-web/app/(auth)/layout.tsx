@@ -1,5 +1,7 @@
 'use client';
 
+import LegalFooter from '@/components/legal/LegalFooter';
+
 export default function AuthLayout({
   children,
 }: {
@@ -18,8 +20,9 @@ export default function AuthLayout({
       </div>
 
       {/* Right Panel - Auth Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 gap-6">
         <div className="w-full max-w-md">{children}</div>
+        <LegalFooter />
       </div>
     </div>
   );

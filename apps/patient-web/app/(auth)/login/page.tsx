@@ -6,7 +6,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { clearPatientUserCookie } from '@/lib/auth-cookie';
-import { Lock, Mail, LogIn, ArrowRight } from 'lucide-react';
+import { Lock, Mail, LogIn, ArrowRight, ShieldCheck } from 'lucide-react';
+import LegalModal, { type LegalDoc } from '@/components/legal/LegalModal';
+import { LEGAL_EFFECTIVE_DATE } from '@/components/legal/LegalContent';
+
+// Versioned by effective date so users are asked again whenever the documents change
+const TERMS_ACCEPTED_KEY = `smileguard_terms_accepted_${LEGAL_EFFECTIVE_DATE}`;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +21,30 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
+
+  // Remember the user's agreement on this device for the current version of the documents
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(TERMS_ACCEPTED_KEY)) setAgreedToTerms(true);
+    } catch {}
+  }, []);
+
+  const handleAgreeChange = (checked: boolean) => {
+    setAgreedToTerms(checked);
+    if (checked) setLocalError(null);
+    try {
+      if (checked) localStorage.setItem(TERMS_ACCEPTED_KEY, new Date().toISOString());
+      else localStorage.removeItem(TERMS_ACCEPTED_KEY);
+    } catch {}
+  };
+
+  const requireAgreement = () => {
+    if (agreedToTerms) return true;
+    setLocalError('Please check the box to agree to the Terms and Conditions and Privacy Policy before continuing.');
+    return false;
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.hash.includes('error='))) {
@@ -44,6 +73,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    if (!requireAgreement()) return;
     setSubmitting(true);
 
     try {
@@ -58,6 +88,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!requireAgreement()) return;
     setOauthLoading(true);
     setLocalError(null);
     try {
@@ -98,11 +129,46 @@ export default function LoginPage() {
         </div>
       )}
 
+      {/* Terms & Privacy attestation — required before any sign-in or registration */}
+      <div
+        className={`mb-5 p-3.5 rounded-sm border-2 transition ${
+          agreedToTerms ? 'border-emerald-300 bg-emerald-50/60' : 'border-amber-300 bg-amber-50/70'
+        }`}
+      >
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+          Terms &amp; Privacy
+        </p>
+        <p className="text-xs text-slate-600 leading-relaxed mb-2.5">
+          SmileGuard stores your personal and medical information under the Data Privacy Act of 2012 (RA 10173).
+          Please read our{' '}
+          <button type="button" onClick={() => setLegalDoc('terms')} className="font-semibold text-emerald-700 underline cursor-pointer">
+            Terms and Conditions
+          </button>{' '}
+          and{' '}
+          <button type="button" onClick={() => setLegalDoc('privacy')} className="font-semibold text-emerald-700 underline cursor-pointer">
+            Privacy Policy
+          </button>
+          .
+        </p>
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => handleAgreeChange(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+          />
+          <span className="text-xs font-semibold text-slate-800 leading-relaxed">
+            I have read and agree to the Terms and Conditions and Privacy Policy.
+          </span>
+        </label>
+      </div>
+
       {/* OAuth Sign-in Option */}
       <button
         type="button"
         onClick={handleGoogleSignIn}
-        disabled={submitting || oauthLoading}
+        disabled={submitting || oauthLoading || !agreedToTerms}
         className="skeuo-btn-secondary w-full py-2.5 px-4 mb-5 text-sm"
       >
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -154,7 +220,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={submitting || oauthLoading}
+          disabled={submitting || oauthLoading || !agreedToTerms}
           className="skeuo-btn-primary w-full py-3 text-sm tracking-wide mt-2"
         >
           <LogIn className="w-4 h-4" />
@@ -172,13 +238,20 @@ export default function LoginPage() {
           <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">New Clinic Patient?</p>
           <Link
             href="/signup"
-            className="skeuo-btn-secondary w-full py-2.5 text-xs tracking-wider uppercase text-emerald-800"
+            onClick={(e) => {
+              if (!requireAgreement()) e.preventDefault();
+            }}
+            aria-disabled={!agreedToTerms}
+            className={`skeuo-btn-secondary w-full py-2.5 text-xs tracking-wider uppercase text-emerald-800 ${
+              agreedToTerms ? '' : 'opacity-50'
+            }`}
           >
             <span>Register New Patient Account</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
+      <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />
     </div>
   );
 }
