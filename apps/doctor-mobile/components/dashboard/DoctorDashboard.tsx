@@ -96,6 +96,7 @@ export interface DashboardAppointment {
   dentist_id?: string | null;
   medicalIntake?: any;
   doctor_note?: string;
+  created_at?: string;
 }
 
 interface DoctorDashboardProps {
@@ -399,7 +400,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
         const yOffset = (dashboardColumnsLayoutY.current || 280) + (patientDetailsLayoutY.current || 180) - 12;
         try {
           dashboardScrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset), animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
       delay: 350,
     },
@@ -415,7 +416,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
         setSidebarOpen(false);
         try {
           dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
     {
@@ -428,7 +429,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
         setSidebarOpen(false);
         try {
           dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
     },
   ];
@@ -470,7 +471,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     setSidebarOpen(false);
     try {
       dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-    } catch (e) {}
+    } catch (e) { }
     if (user?.id) {
       await markDoctorGuideCompleted(user.id, "dashboard");
     }
@@ -481,7 +482,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     setSidebarOpen(false);
     try {
       dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-    } catch (e) {}
+    } catch (e) { }
     if (user?.id) {
       await markDoctorGuideCompleted(user.id, "dashboard");
     }
@@ -799,14 +800,15 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       const { success: patSuccess, data: patientData } = await dashboardService.fetchDoctorPatients(user.id!);
 
       if (patSuccess && patientData.length > 0) {
-        const transformedPatients = patientData.map((patient: any) => ({
+        const transformedPatients: DashboardAppointment[] = patientData.map((patient: any) => ({
           id: patient.id,
           name: patient.name || 'Unknown',
           email: patient.email || '',
           contact: patient.phone || '',
           service: patient.service || '',
           time: '',
-          date: today,
+          date: patient.created_at || today,
+          created_at: patient.created_at,
           age: 0,
           gender: '',
           notes: '',
@@ -814,6 +816,12 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           status: 'scheduled' as const,
           patient_id: patient.id,
         }));
+        // Sort orderly by account creation date (newest first)
+        transformedPatients.sort((a, b) => {
+          const timeA = a.created_at || a.date ? new Date(a.created_at || a.date).getTime() : 0;
+          const timeB = b.created_at || b.date ? new Date(b.created_at || b.date).getTime() : 0;
+          return timeB - timeA;
+        });
         setPatients(transformedPatients);
 
       } else {
@@ -878,20 +886,20 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           doctor_note: apt.doctor_note || '',
           medicalIntake: medicalData
             ? {
-                gender: medicalData.gender || '',
-                phone: medicalData.phone || '',
-                address: medicalData.address || '',
-                dateOfBirth: medicalData.date_of_birth || '',
-                emergencyContactName: medicalData.emergency_contact_name || '',
-                emergencyContactPhone: medicalData.emergency_contact_phone || '',
-                allergies: medicalData.alergies || medicalData.allergies || '',
-                currentMedications: medicalData.current_medications || '',
-                medicalConditions: medicalData.medical_conditions || '',
-                pastSurgeries: medicalData.past_surgeries || '',
-                smokingStatus: medicalData.smoking_status || '',
-                pregnancyStatus: medicalData.pregnancy_status || '',
-                notes: medicalData.notes || '',
-              }
+              gender: medicalData.gender || '',
+              phone: medicalData.phone || '',
+              address: medicalData.address || '',
+              dateOfBirth: medicalData.date_of_birth || '',
+              emergencyContactName: medicalData.emergency_contact_name || '',
+              emergencyContactPhone: medicalData.emergency_contact_phone || '',
+              allergies: medicalData.alergies || medicalData.allergies || '',
+              currentMedications: medicalData.current_medications || '',
+              medicalConditions: medicalData.medical_conditions || '',
+              pastSurgeries: medicalData.past_surgeries || '',
+              smokingStatus: medicalData.smoking_status || '',
+              pregnancyStatus: medicalData.pregnancy_status || '',
+              notes: medicalData.notes || '',
+            }
             : null,
         };
 
@@ -1044,6 +1052,13 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       sorted.reverse();
     }
     return sorted;
+  };
+
+  const formatAccountCreatedDate = (rawDate?: string) => {
+    if (!rawDate) return null;
+    const parsed = new Date(rawDate);
+    if (isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
 
@@ -1280,7 +1295,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   <View ref={tour.register("today-appointments")} collapsable={false} style={styles.column}>
                     <View style={styles.sectionHeaderRow}>
                       <View style={styles.sectionTitleGroup}>
-                        <Text style={styles.sectionHeaderTitle}>Today's Appointments</Text>
+                        <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
                         <View style={styles.pillCountBadge}>
                           <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
                         </View>
@@ -1317,167 +1332,167 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   {/* Right Column: Patient Details */}
                   <View style={styles.column}>
                     <View ref={tour.register("patient-details")} collapsable={false} onLayout={(e) => { patientDetailsLayoutY.current = e.nativeEvent.layout.y; }}>
-                    <View style={styles.sectionHeaderRow}>
-                      <Text style={styles.sectionHeaderTitle}>Patient Details</Text>
-                    </View>
-                    {!selectedPatient ? (
-                      <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 140, paddingVertical: 24, backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}>
-                        <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: '#EDF2F7', borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                          <Users size={22} color="#047857" />
-                        </View>
-                        <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>No Patient Selected</Text>
-                        <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', textAlign: 'center', marginTop: 4, maxWidth: 220 }}>
-                          Select an appointment from Today's Schedule or Requests to inspect clinical records.
-                        </Text>
+                      <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionHeaderTitle}>PATIENT DETAILS</Text>
                       </View>
-                    ) : (
-                      <View style={[styles.detailsCard, styles.shadow, {
-                        position: 'relative',
-                      }]}>
-                        {/* Status Badge - Top Right Corner */}
-                        <View
-                          style={{
-                            position: 'absolute',
-                            top: 12,
-                            right: 12,
-                            paddingHorizontal: 8,
-                            paddingVertical: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 4 : 3.5,
-                            borderRadius: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 10 : 4,
-                            borderWidth: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 1,
-                            borderColor: '#6EE7B7',
-                            backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#65A30D' : '#D1FAE5',
-                            zIndex: 10,
-                          }}
-                        >
-                          <Text style={{
-                            fontWeight: 'bold',
-                            color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FFFFFF' : '#065F46',
-                            fontSize: 10,
-                            letterSpacing: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 0.6,
-                          }}>
-                            {(selectedPatient.status || 'scheduled').toUpperCase()}
-                          </Text>
-                        </View>
-
-                        {/* Patient Header */}
-                        <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
-                          <Image
-                            source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                            style={{ width: 62, height: 62, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 8 }}
-                          />
-                          <Text style={{ fontWeight: "900", fontSize: 17, color: '#0F172A', letterSpacing: -0.3 }}>
-                            {selectedPatient.name}
-                          </Text>
-                          {(selectedPatient.email || selectedPatient.contact) && (
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', letterSpacing: 0.5, marginTop: 2 }}>
-                              {selectedPatient.email || selectedPatient.contact}
-                            </Text>
-                          )}
-                          {((selectedPatient as any).pwd_status === 'approved' || (selectedPatient as any).medicalIntake?.pwd_status === 'approved') && (
-                            <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 4, borderWidth: 1, borderColor: '#10B981' }}>
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>
-                                ✓ Verified {(selectedPatient as any).pwd_type === 'senior' ? 'Senior' : 'PWD'}
-                              </Text>
-                            </View>
-                          )}
-                          {((selectedPatient as any).pwd_status === 'pending' || (selectedPatient as any).medicalIntake?.pwd_status === 'pending') && (
-                            <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFBEB', borderRadius: 4, borderWidth: 1, borderColor: '#F59E0B' }}>
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>
-                                ⚠️ PWD/Senior Review Pending
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-
-                        {/* Appointment Details Box */}
-                        <View style={{
-                          marginBottom: 14,
-                          backgroundColor: '#F8FAFC',
-                          borderRadius: 6,
-                          borderWidth: 1,
-                          borderColor: '#E2E8F0',
-                          padding: 10,
-                        }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                            <Calendar size={13} color="#047857" />
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>APPOINTMENT DETAILS</Text>
+                      {!selectedPatient ? (
+                        <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 140, paddingVertical: 24, backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}>
+                          <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: '#EDF2F7', borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                            <Users size={22} color="#047857" />
                           </View>
-                          <DetailRow label="Service" value={selectedPatient.service || "General Dental"} />
-                          <DetailRow label="Time" value={selectedPatient.time ? formatAppointmentTime(selectedPatient.time) : "Not specified"} isHighlight={true} />
-                          <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
+                          <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>No Patient Selected</Text>
+                          <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', textAlign: 'center', marginTop: 4, maxWidth: 220 }}>
+                            Select an appointment from Today's Schedule or Requests to inspect clinical records.
+                          </Text>
                         </View>
-
-                        {/* Action Buttons: Full Record & Update Status (Side by Side) */}
-                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                          {/* Action: Open Full Medical Record */}
-                          <TouchableOpacity
+                      ) : (
+                        <View style={[styles.detailsCard, styles.shadow, {
+                          position: 'relative',
+                        }]}>
+                          {/* Status Badge - Top Right Corner */}
+                          <View
                             style={{
-                              flex: 1,
-                              paddingVertical: 10,
+                              position: 'absolute',
+                              top: 12,
+                              right: 12,
                               paddingHorizontal: 8,
-                              backgroundColor: '#047857',
-                              borderRadius: 6,
-                              borderWidth: 1,
-                              borderColor: '#064E3B',
-                              borderBottomWidth: 2.5,
-                              borderBottomColor: '#022C22',
-                              flexDirection: 'row',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              gap: 6,
+                              paddingVertical: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 4 : 3.5,
+                              borderRadius: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 10 : 4,
+                              borderWidth: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 1,
+                              borderColor: '#6EE7B7',
+                              backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#65A30D' : '#D1FAE5',
+                              zIndex: 10,
                             }}
-                            onPress={() => {
-                              if (selectedPatient) {
-                                handleOpenPatientDetails(selectedPatient);
-                              }
-                            }}
-                            activeOpacity={0.8}
                           >
-                            <FileText size={13} color="#FFFFFF" />
-                            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>
-                              FULL RECORD
+                            <Text style={{
+                              fontWeight: 'bold',
+                              color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FFFFFF' : '#065F46',
+                              fontSize: 10,
+                              letterSpacing: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 0.6,
+                            }}>
+                              {(selectedPatient.status || 'scheduled').toUpperCase()}
                             </Text>
-                          </TouchableOpacity>
+                          </View>
 
-                          {/* Action: Update Appointment Status */}
-                          <TouchableOpacity
-                            style={{
-                              flex: 1,
-                              paddingVertical: 10,
-                              paddingHorizontal: 8,
-                              backgroundColor: '#F8FAFC',
-                              borderRadius: 6,
-                              borderWidth: 1.5,
-                              borderColor: '#CBD5E1',
-                              borderBottomWidth: 2.5,
-                              borderBottomColor: '#94A3B8',
-                              flexDirection: 'row',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              gap: 6,
-                            }}
-                            onPress={() => {
-                              if (selectedPatient) {
-                                handleOpenStatusModal(selectedPatient);
-                              }
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <Clock size={13} color="#475569" />
-                            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#1E293B', letterSpacing: 0.4 }}>
-                              UPDATE STATUS
+                          {/* Patient Header */}
+                          <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+                            <Image
+                              source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
+                              style={{ width: 62, height: 62, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 8 }}
+                            />
+                            <Text style={{ fontWeight: "900", fontSize: 17, color: '#0F172A', letterSpacing: -0.3 }}>
+                              {selectedPatient.name}
                             </Text>
-                          </TouchableOpacity>
+                            {(selectedPatient.email || selectedPatient.contact) && (
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', letterSpacing: 0.5, marginTop: 2 }}>
+                                {selectedPatient.email || selectedPatient.contact}
+                              </Text>
+                            )}
+                            {((selectedPatient as any).pwd_status === 'approved' || (selectedPatient as any).medicalIntake?.pwd_status === 'approved') && (
+                              <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 4, borderWidth: 1, borderColor: '#10B981' }}>
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>
+                                  ✓ Verified {(selectedPatient as any).pwd_type === 'senior' ? 'Senior' : 'PWD'}
+                                </Text>
+                              </View>
+                            )}
+                            {((selectedPatient as any).pwd_status === 'pending' || (selectedPatient as any).medicalIntake?.pwd_status === 'pending') && (
+                              <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFBEB', borderRadius: 4, borderWidth: 1, borderColor: '#F59E0B' }}>
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>
+                                  ⚠️ PWD/Senior Review Pending
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Appointment Details Box */}
+                          <View style={{
+                            marginBottom: 14,
+                            backgroundColor: '#F8FAFC',
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            padding: 10,
+                          }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                              <Calendar size={13} color="#047857" />
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>APPOINTMENT DETAILS</Text>
+                            </View>
+                            <DetailRow label="Service" value={selectedPatient.service || "General Dental"} />
+                            <DetailRow label="Time" value={selectedPatient.time ? formatAppointmentTime(selectedPatient.time) : "Not specified"} isHighlight={true} />
+                            <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
+                          </View>
+
+                          {/* Action Buttons: Full Record & Update Status (Side by Side) */}
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                            {/* Action: Open Full Medical Record */}
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                paddingVertical: 10,
+                                paddingHorizontal: 8,
+                                backgroundColor: '#047857',
+                                borderRadius: 6,
+                                borderWidth: 1,
+                                borderColor: '#064E3B',
+                                borderBottomWidth: 2.5,
+                                borderBottomColor: '#022C22',
+                                flexDirection: 'row',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                              onPress={() => {
+                                if (selectedPatient) {
+                                  handleOpenPatientDetails(selectedPatient);
+                                }
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <FileText size={13} color="#FFFFFF" />
+                              <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>
+                                FULL RECORD
+                              </Text>
+                            </TouchableOpacity>
+
+                            {/* Action: Update Appointment Status */}
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                paddingVertical: 10,
+                                paddingHorizontal: 8,
+                                backgroundColor: '#F8FAFC',
+                                borderRadius: 6,
+                                borderWidth: 1.5,
+                                borderColor: '#CBD5E1',
+                                borderBottomWidth: 2.5,
+                                borderBottomColor: '#94A3B8',
+                                flexDirection: 'row',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                              onPress={() => {
+                                if (selectedPatient) {
+                                  handleOpenStatusModal(selectedPatient);
+                                }
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Clock size={13} color="#475569" />
+                              <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#1E293B', letterSpacing: 0.4 }}>
+                                UPDATE STATUS
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                    )}
+                      )}
 
                     </View>
 
                     {/* Patients List */}
                     <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
                       <View style={styles.sectionTitleGroup}>
-                        <Text style={styles.sectionHeaderTitle}>Patients</Text>
+                        <Text style={styles.sectionHeaderTitle}>PATIENTS</Text>
                         <View style={styles.pillCountBadge}>
                           <Text style={styles.pillCountText}>{patients.length}</Text>
                         </View>
@@ -1494,26 +1509,41 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                       )}
                     </View>
                     {patients.length > 0 ? (
-                      patients.slice(0, 3).map((patient) => (
-                        <TouchableOpacity
-                          key={patient.id}
-                          onPress={() => {
-                            handleOpenPatientDetails(patient);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
-                            <Image
-                              source={typeof patient.imageUrl === "string" && patient.imageUrl.length > 0 ? { uri: patient.imageUrl } : (typeof patient.imageUrl === "number" ? patient.imageUrl : require('../../assets/images/user.png'))}
-                              style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
-                            />
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#333' }}>{patient.name}</Text>
-                              <Text style={{ fontSize: 12, color: '#555' }}>{patient.email}</Text>
+                      patients
+                        .slice()
+                        .sort((a, b) => {
+                          const timeA = a.created_at || a.date ? new Date(a.created_at || a.date).getTime() : 0;
+                          const timeB = b.created_at || b.date ? new Date(b.created_at || b.date).getTime() : 0;
+                          return timeB - timeA;
+                        })
+                        .slice(0, 3)
+                        .map((patient) => (
+                          <TouchableOpacity
+                            key={patient.id}
+                            onPress={() => {
+                              handleOpenPatientDetails(patient);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
+                              <Image
+                                source={typeof patient.imageUrl === "string" && patient.imageUrl.length > 0 ? { uri: patient.imageUrl } : (typeof patient.imageUrl === "number" ? patient.imageUrl : require('../../assets/images/user.png'))}
+                                style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#0F172A' }}>{patient.name}</Text>
+                                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>{patient.email || patient.contact || 'No email provided'}</Text>
+                                {formatAccountCreatedDate(patient.created_at || patient.date) ? (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                                    <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }}>
+                                      Account created: <Text style={{ color: '#047857', fontWeight: '700' }}>{formatAccountCreatedDate(patient.created_at || patient.date)}</Text>
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
                             </View>
-                          </View>
-                        </TouchableOpacity>
-                      ))
+                          </TouchableOpacity>
+                        ))
                     ) : (
                       <Text style={{ fontSize: 12, color: '#999', marginVertical: 10 }}>No patients yet</Text>
                     )}
@@ -1766,72 +1796,72 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
 
           <View style={styles.navItems}>
             <View ref={tour.register("sidebar-nav")} collapsable={false} style={styles.navItemsList}>
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
-              onPress={() => {
-                setActiveTab('dashboard');
-                setTabHistory([]);
-                setSidebarOpen(false);
-              }}
-            >
-              <LayoutDashboard size={20} color={activeTab === 'dashboard' ? '#A7F3D0' : '#FFFFFF'} />
-              <Text style={styles.navLabel}>Dashboard</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
+                onPress={() => {
+                  setActiveTab('dashboard');
+                  setTabHistory([]);
+                  setSidebarOpen(false);
+                }}
+              >
+                <LayoutDashboard size={20} color={activeTab === 'dashboard' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Dashboard</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === 'records' && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab('records');
-                setSidebarOpen(false);
-              }}
-            >
-              <Users size={20} color={activeTab === 'records' ? '#A7F3D0' : '#FFFFFF'} />
-              <Text style={styles.navLabel}>Records</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'records' && styles.navItemActive]}
+                onPress={() => {
+                  navigateToTab('records');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Users size={20} color={activeTab === 'records' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Records</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === 'appointments' && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab('appointments');
-                setSidebarOpen(false);
-              }}
-            >
-              <Calendar size={20} color={activeTab === 'appointments' ? '#A7F3D0' : '#FFFFFF'} />
-              <Text style={styles.navLabel}>Appointments</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'appointments' && styles.navItemActive]}
+                onPress={() => {
+                  navigateToTab('appointments');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Calendar size={20} color={activeTab === 'appointments' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Appointments</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === 'appointment-requests' && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab('appointment-requests');
-                setSidebarOpen(false);
-              }}
-            >
-              <Clock size={20} color={activeTab === 'appointment-requests' ? '#A7F3D0' : '#FFFFFF'} />
-              <Text style={styles.navLabel}>Requests</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'appointment-requests' && styles.navItemActive]}
+                onPress={() => {
+                  navigateToTab('appointment-requests');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Clock size={20} color={activeTab === 'appointment-requests' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Requests</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab('billing');
-                setSidebarOpen(false);
-              }}
-            >
-              <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
-              <Text style={styles.navLabel}>Billing</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
+                onPress={() => {
+                  navigateToTab('billing');
+                  setSidebarOpen(false);
+                }}
+              >
+                <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Billing</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab('settings');
-                setSidebarOpen(false);
-              }}
-            >
-              <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
-              <Text style={styles.navLabel}>Settings</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
+                onPress={() => {
+                  navigateToTab('settings');
+                  setSidebarOpen(false);
+                }}
+              >
+                <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
+                <Text style={styles.navLabel}>Settings</Text>
+              </TouchableOpacity>
             </View>
           </View>
 

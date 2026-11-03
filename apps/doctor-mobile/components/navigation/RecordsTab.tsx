@@ -22,6 +22,8 @@ import {
   ChevronLeft,
   Search,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   FileText,
   Users,
   Sparkles,
@@ -500,12 +502,21 @@ export default function RecordsTab({
 
             <TouchableOpacity
               onPress={() => setPatientSortOrder(patientSortOrder === 'asc' ? 'desc' : 'asc')}
-              style={[localStyles.sortBtn, localStyles.sortBtnInactive, { flexDirection: 'row', alignItems: 'center' }]}
+              style={[
+                localStyles.sortBtn,
+                localStyles.sortBtnInactive,
+                localStyles.sortOrderBtn,
+              ]}
               activeOpacity={0.7}
+              accessibilityLabel={patientSortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}
             >
-              <ArrowUpDown size={12} color="#047857" style={{ marginRight: 4 }} />
+              {patientSortOrder === 'asc' ? (
+                <ArrowUp size={12} color="#047857" style={{ marginRight: 4 }} />
+              ) : (
+                <ArrowDown size={12} color="#047857" style={{ marginRight: 4 }} />
+              )}
               <Text style={[localStyles.sortBtnText, localStyles.sortBtnTextInactive]}>
-                {patientSortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                {patientSortOrder === 'asc' ? 'Asc' : 'Desc'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -831,6 +842,13 @@ const localStyles = StyleSheet.create({
     borderLeftColor: '#E2E8F0',
     borderRightColor: '#CBD5E1',
     borderBottomColor: '#CBD5E1',
+  },
+  sortOrderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 64,
+    paddingHorizontal: 8,
   },
   sortBtnText: {
     fontSize: 11.5,

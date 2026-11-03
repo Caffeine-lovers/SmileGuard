@@ -220,7 +220,7 @@ export async function fetchDoctorPatients(doctorId: string): Promise<{
       .from('profiles')
       .select('*')
       .eq('role', 'patient')
-      .order('name', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (patError) {
       console.error('❌ Error fetching patients:', patError);

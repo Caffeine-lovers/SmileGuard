@@ -483,7 +483,8 @@ async function getAllPatientsFromProfiles(): Promise<
   const { data: profilesData, error: profilesError } = await supabase
     .from('profiles')
     .select('*')
-    .eq('role', 'patient');
+    .eq('role', 'patient')
+    .order('created_at', { ascending: false });
 
   if (profilesError || !profilesData) {
     return [];
