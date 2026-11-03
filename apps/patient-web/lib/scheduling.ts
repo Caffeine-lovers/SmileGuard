@@ -1,0 +1,108 @@
+/**
+ * Pure, duration-aware scheduling helpers shared by the booking UI and bookSlot().
+ * No Supabase / browser imports, so this can run anywhere (including tests).
+ *
+ * Every appointment occupies [start, start + duration). Duration comes from the
+ * services booked (a comma-separated list such as "Cleaning, X-Ray").
+ */
+
+export const SERVICE_DURATIONS: Record<string, number> = {
+  Cleaning: 30,
+  Whitening: 60,
+  Fillings: 45,
+  Filling: 45,
+  'Root Canal': 90,
+  Extraction: 30,
+  'Braces Consultation': 60,
+  Braces: 60,
+  'Implants Consultation': 60,
+  Implants: 60,
+  'X-Ray': 15,
+  'Check-up': 20,
+  Checkup: 20,
+  Consultation: 30,
+};
+
+/** Used for appointments whose service name we don't recognize (e.g. created elsewhere). */
+export const DEFAULT_APPOINTMENT_MINUTES = 60;
+
+function durationOfOne(name: string): number {
+  const n = name.trim().toLowerCase();
+  if (!n) return 0;
+  for (const [key, mins] of Object.entries(SERVICE_DURATIONS)) {
+    if (key.toLowerCase() === n) return mins;
+  }
+  for (const [key, mins] of Object.entries(SERVICE_DURATIONS)) {
+    const k = key.toLowerCase();
+    if (n.includes(k) || k.includes(n)) return mins;
+  }
+  return DEFAULT_APPOINTMENT_MINUTES;
+}
+
+/** Total minutes for a booked service string, e.g. "Cleaning, X-Ray" → 45. */
+export function getServiceDuration(service?: string | null): number {
+  if (!service) return DEFAULT_APPOINTMENT_MINUTES;
+  const total = service.split(',').reduce((sum, part) => sum + durationOfOne(part), 0);
+  return total > 0 ? total : DEFAULT_APPOINTMENT_MINUTES;
+}
+
+/** "09:30", "09:30:00" or "9:30 AM" → minutes since midnight. Returns NaN if unparseable. */
+export function toMinutes(time: string): number {
+  const m = time.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!m) return NaN;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const period = m[3]?.toUpperCase();
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+/** Minutes since midnight → "1:30 PM". */
+export function formatMinutes(total: number): string {
+  const h24 = Math.floor(total / 60) % 24;
+  const min = total % 60;
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(min).padStart(2, '0')} ${period}`;
+}
+
+export interface Interval {
+  start: number;
+  end: number;
+}
+
+/** Busy intervals on a date from booked appointments ({ date, time, service }). */
+export function busyIntervalsForDate(
+  booked: { date: string; time: string; service?: string | null }[],
+  date: string
+): Interval[] {
+  return booked
+    .filter((b) => b.date === date && b.service !== 'blocked' && b.time !== 'ALL_DAY')
+    .map((b) => {
+      const start = toMinutes(b.time);
+      return { start, end: start + getServiceDuration(b.service) };
+    })
+    .filter((i) => Number.isFinite(i.start))
+    .sort((a, b) => a.start - b.start);
+}
+
+/**
+ * The latest minute an appointment starting at `start` may run until without overlapping
+ * another booking or running past closing. Returns null if `start` itself is inside a booking.
+ */
+export function freeUntil(start: number, busy: Interval[], closing: number): number | null {
+  if (start >= closing) return null;
+  let limit = closing;
+  for (const b of busy) {
+    if (start >= b.start && start < b.end) return null; // starts inside an existing booking
+    if (b.start > start && b.start < limit) limit = b.start;
+  }
+  return limit;
+}
+
+/** True when [start, start+duration) fits before closing and overlaps no booking. */
+export function fits(start: number, duration: number, busy: Interval[], closing: number): boolean {
+  const limit = freeUntil(start, busy, closing);
+  return limit !== null && start + Math.max(duration, 0) <= limit;
+}
