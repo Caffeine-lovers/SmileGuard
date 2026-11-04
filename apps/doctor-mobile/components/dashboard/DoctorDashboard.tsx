@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import AssistantDashboard from "./AssistantDashboard";
 import {
   View,
   Text,
@@ -42,6 +43,7 @@ import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
+import { Notification, NotificationType } from "../../types/notifications";
 import { CurrentUser, Appointment as SupabaseAppointment } from "@smileguard/shared-types";
 import {
   Stethoscope,
@@ -52,6 +54,7 @@ import {
   Menu,
   RefreshCw,
   Calendar,
+  CalendarDays,
   Users,
   CreditCard,
   Settings as SettingsIcon,
@@ -97,6 +100,9 @@ export interface DashboardAppointment {
   medicalIntake?: any;
   doctor_note?: string;
   created_at?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
+  reschedule_at?: string | null;
 }
 
 interface DoctorDashboardProps {
@@ -106,6 +112,16 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout, promptAppointmentId }: DoctorDashboardProps) {
+  if (user?.role === "assistant") {
+    return (
+      <AssistantDashboard
+        user={user}
+        onLogout={onLogout}
+        promptAppointmentId={promptAppointmentId}
+      />
+    );
+  }
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clinic, loading: clinicLoading } = useClinic();
@@ -154,6 +170,79 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
+
+  // Track read/deleted status for synthesized request notifications
+  const [readRequestIds, setReadRequestIds] = useState<Set<string>>(new Set());
+  const [deletedRequestIds, setDeletedRequestIds] = useState<Set<string>>(new Set());
+
+  const mergedNotifications = useMemo(() => {
+    const list: Notification[] = [...notificationState.notifications];
+    const existingIds = new Set(
+      list.map((n: Notification) => n.data?.appointmentId || n.id).filter(Boolean)
+    );
+
+    appointmentRequests.forEach((req) => {
+      const syntheticId = `req-${req.id}`;
+      if (
+        !existingIds.has(req.id) &&
+        !existingIds.has(syntheticId) &&
+        !deletedRequestIds.has(syntheticId)
+      ) {
+        list.push({
+          id: syntheticId,
+          type: 'appointment-created' as NotificationType,
+          title: 'New Appointment Request',
+          message: `${req.name} requested an appointment for ${req.service || 'Dental Care'}.`,
+          timestamp: req.created_at ? new Date(req.created_at) : new Date(),
+          read: readRequestIds.has(syntheticId),
+          data: {
+            appointmentId: req.id,
+            patientName: req.name,
+            service: req.service,
+            appointmentDate: formatAppointmentDate(req.date),
+            appointmentTime: formatAppointmentTime(req.time),
+          },
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [notificationState.notifications, appointmentRequests, readRequestIds, deletedRequestIds]);
+
+  const totalUnreadCount = useMemo(() => {
+    return mergedNotifications.filter((n: Notification) => !n.read).length;
+  }, [mergedNotifications]);
+
+  const handleMarkAsRead = useCallback((id: string) => {
+    if (id.startsWith('req-')) {
+      setReadRequestIds((prev) => new Set([...prev, id]));
+    } else {
+      notificationState.actions.markAsRead(id);
+    }
+  }, [notificationState.actions]);
+
+  const handleMarkAllAsRead = useCallback(() => {
+    setReadRequestIds(new Set(mergedNotifications.map((n: Notification) => n.id)));
+    notificationState.actions.markAllAsRead();
+  }, [mergedNotifications, notificationState.actions]);
+
+  const handleDeleteNotification = useCallback((id: string) => {
+    if (id.startsWith('req-')) {
+      setDeletedRequestIds((prev) => new Set([...prev, id]));
+    } else {
+      notificationState.actions.deleteNotification(id);
+    }
+  }, [notificationState.actions]);
+
+  const handleClearAll = useCallback(() => {
+    setDeletedRequestIds(new Set(mergedNotifications.map((n: Notification) => n.id)));
+    notificationState.actions.clearAll();
+  }, [mergedNotifications, notificationState.actions]);
+
+  // Reschedule confirmation modal state
+  const [confirmingReschedule, setConfirmingReschedule] = useState<DashboardAppointment | null>(null);
+  const [showRescheduleConfirmModal, setShowRescheduleConfirmModal] = useState(false);
+  const [confirmingLoading, setConfirmingLoading] = useState(false);
 
   // Push notification prompt modal state
   const [promptAppointment, setPromptAppointment] = useState<DashboardAppointment | null>(null);
@@ -947,7 +1036,52 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   // ─────────────────────────────────────────
   // Clinic data is now loaded from ClinicContext and updates in real-time
 
-  const handleOpenStatusModal = (appointment: DashboardAppointment) => {
+  // Reschedule requests filter
+  const rescheduleRequests = useMemo(() => {
+    const combined = [...appointments, ...appointmentRequests];
+    const map = new Map<string, DashboardAppointment>();
+
+    combined.forEach((apt: DashboardAppointment) => {
+      const isReschedule = Boolean(
+        apt.rescheduled_by ||
+        apt.rescheduled_at ||
+        apt.reschedule_at ||
+        (apt.notes && apt.notes.toLowerCase().includes('reschedule'))
+      );
+      const isActive = !['completed', 'cancelled', 'declined'].includes((apt.status || '').toLowerCase());
+      if (isReschedule && isActive && !map.has(apt.id)) {
+        map.set(apt.id, apt);
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const tA = a.rescheduled_at || a.date ? new Date(a.rescheduled_at || a.date).getTime() : 0;
+      const tB = b.rescheduled_at || b.date ? new Date(b.rescheduled_at || b.date).getTime() : 0;
+      return tB - tA;
+    });
+  }, [appointments, appointmentRequests]);
+
+  const handleConfirmReschedule = async (request: DashboardAppointment) => {
+    try {
+      const result = await updateDoctorAppointmentStatus(
+        request.id,
+        'scheduled',
+        user?.id || '',
+        { doctor_note: 'Reschedule request confirmed by doctor' }
+      );
+
+      if (result.success) {
+        Alert.alert('Confirmed', `New appointment time for ${request.name} is confirmed.`);
+        await refreshDashboardData();
+      } else {
+        Alert.alert('Notice', result.message || 'Failed to confirm reschedule.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to confirm reschedule');
+    }
+  };
+
+    const handleOpenStatusModal = (appointment: DashboardAppointment) => {
     setEditingAppointment({
       ...appointment,
       appointment_date: appointment.date,
@@ -1134,7 +1268,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
             </View>
             <View ref={tour.register("notifications-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
               <NotificationBell
-                unreadCount={notificationState.unreadCount}
+                unreadCount={totalUnreadCount}
                 onPress={() => setShowNotificationCenter(true)}
                 animateOnNewNotification={true}
               />
@@ -1263,13 +1397,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
 
                 {/* Stats Panel - from Supabase with Iconic Lucide Icons */}
                 <View ref={tour.register("stats-panel")} collapsable={false} style={styles.firstPanel}>
-                  <StatCard
-                    number={patients.length}
-                    label="Patients"
-                    icon={<Users size={20} color="#047857" />}
-                    accentColor="#047857"
-                    bgTint="#ECFDF5"
-                  />
+
                   <StatCard
                     number={stats.total}
                     label="Appointments"
@@ -1489,6 +1617,95 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
 
                     </View>
 
+                    {/* Reschedule Requests Section */}
+                    <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
+                      <View style={styles.sectionTitleGroup}>
+                        <CalendarDays size={15} color="#D97706" />
+                        <Text style={styles.sectionHeaderTitle}>RESCHEDULE REQUESTS</Text>
+                        <View style={[styles.pillCountBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                          <Text style={[styles.pillCountText, { color: '#B45309' }]}>{rescheduleRequests.length}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {rescheduleRequests.length > 0 ? (
+                      rescheduleRequests.map((req) => (
+                        <View key={req.id} style={styles.rescheduleCard}>
+                          {/* Card Top: Patient & Rescheduled By */}
+                          <View style={styles.rescheduleCardTop}>
+                            <Image
+                              source={
+                                typeof req.imageUrl === 'string' && req.imageUrl.length > 0
+                                  ? { uri: req.imageUrl }
+                                  : require('../../assets/images/user.png')
+                              }
+                              style={styles.rescheduleAvatar}
+                            />
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.reschedulePatientName}>{req.name}</Text>
+                              <Text style={styles.rescheduleService}>{req.service || 'Dental Consultation'}</Text>
+                              <View style={styles.rescheduleSlotRow}>
+                                <Calendar size={12} color="#047857" style={{ marginRight: 4 }} />
+                                <Text style={styles.rescheduleSlotText}>
+                                  {formatAppointmentDate(req.date)} • {formatAppointmentTime(req.time)}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={styles.rescheduledByBadge}>
+                              <Text style={styles.rescheduledByBadgeText}>
+                                {req.rescheduled_by ? `By ${req.rescheduled_by}` : 'Requested'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Reason / Notes */}
+                          {req.notes ? (
+                            <View style={styles.rescheduleNotesBox}>
+                              <Text style={styles.rescheduleNotesLabel}>Reason for Rescheduling:</Text>
+                              <Text style={styles.rescheduleNotesText} numberOfLines={3}>
+                                "{req.notes}"
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {/* Request timestamp if available */}
+                          {(req.rescheduled_at || req.reschedule_at) && (
+                            <Text style={styles.rescheduleTimestampText}>
+                              Requested on: {formatAppointmentDate(req.rescheduled_at || req.reschedule_at || "")}
+                            </Text>
+                          )}
+
+                          {/* Actions */}
+                          <View style={styles.rescheduleActionRow}>
+                            <TouchableOpacity
+                              style={styles.rescheduleConfirmBtn}
+                              onPress={() => {
+                                setConfirmingReschedule(req);
+                                setShowRescheduleConfirmModal(true);
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                              <Text style={styles.rescheduleConfirmBtnText}>Confirm Time</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.rescheduleReviewBtn}
+                              onPress={() => handleOpenStatusModal(req)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.rescheduleReviewBtnText}>Change Status</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.emptyRescheduleCard}>
+                        <Clock size={16} color="#94A3B8" style={{ marginBottom: 4 }} />
+                        <Text style={styles.emptyRescheduleText}>No pending reschedule requests</Text>
+                      </View>
+                    )}
+
                     {/* Patients List */}
                     <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
                       <View style={styles.sectionTitleGroup}>
@@ -1550,101 +1767,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   </View>
                 </View>
 
-                {/* Appointment Requests Section - Aligned with Patient Web skeuo design */}
-                {appointmentRequests.length > 0 && (
-                  <View style={styles.requestsSection}>
-                    <View style={styles.requestsHeaderRow}>
-                      <View style={styles.requestsHeaderTitleGroup}>
-                        <Text style={styles.requestsHeaderTitle}>APPOINTMENT REQUESTS</Text>
-                        <View style={styles.pillCountBadge}>
-                          <Text style={styles.pillCountText}>{appointmentRequests.length}</Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => navigateToTab('appointment-requests')}
-                        style={styles.seeAllBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.seeAllBtnText}>View all</Text>
-                        <ChevronRight size={14} color="#047857" />
-                      </TouchableOpacity>
-                    </View>
-
-                    {appointmentRequests.slice(0, 3).map((request) => (
-                      <View key={request.id} style={styles.requestCard}>
-                        {/* Top row: Avatar, Info, and Status Badge */}
-                        <View style={styles.requestCardTop}>
-                          <Image
-                            source={typeof request.imageUrl === 'string' ? { uri: request.imageUrl } : request.imageUrl}
-                            style={styles.requestAvatar}
-                          />
-                          <View style={{ flex: 1, marginRight: 8 }}>
-                            <Text style={styles.requestPatientName}>{request.name}</Text>
-                            <Text style={styles.requestService}>{request.service}</Text>
-                            <View style={styles.requestTimeRow}>
-                              <Clock size={12} color="#047857" style={{ marginRight: 4 }} />
-                              <Text style={styles.requestTimeText}>
-                                {formatAppointmentDate(request.date)} • {formatAppointmentTime(request.time)}
-                              </Text>
-                            </View>
-                          </View>
-                          <View style={styles.requestPendingBadge}>
-                            <Text style={styles.requestPendingBadgeText}>PENDING</Text>
-                          </View>
-                        </View>
-
-                        {/* Notes preview if available */}
-                        {request.notes ? (
-                          <View style={styles.requestNotesBox}>
-                            <Text style={styles.requestNotesText} numberOfLines={2}>
-                              "{request.notes}"
-                            </Text>
-                          </View>
-                        ) : null}
-
-                        {/* Action buttons with tactile 3D skeuo style */}
-                        <View style={styles.requestActionRow}>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setPromptAppointment(request);
-                              setShowPromptModal(true);
-                            }}
-                            style={styles.requestAcceptBtn}
-                            activeOpacity={0.8}
-                          >
-                            <Check size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                            <Text style={styles.requestAcceptBtnText}>Review</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setPromptAppointment(request);
-                              setShowPromptModal(true);
-                            }}
-                            style={styles.requestDeclineBtn}
-                            activeOpacity={0.8}
-                          >
-                            <X size={14} color="#475569" style={{ marginRight: 6 }} />
-                            <Text style={styles.requestDeclineBtnText}>Decline</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-
-                    {appointmentRequests.length > 3 && (
-                      <TouchableOpacity
-                        onPress={() => navigateToTab('appointment-requests')}
-                        style={styles.seeMoreRequestsBtn}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.seeMoreRequestsBtnText}>
-                          See more requests ({appointmentRequests.length - 3} more)
-                        </Text>
-                        <ChevronRight size={16} color="#B45309" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-              </View>
+                              </View>
             </ScrollView>
           ) : activeTab === 'records' ? (
             <RecordsTab
@@ -1781,7 +1904,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   {clinic?.clinic_name || 'SmileGuard'}
                 </Text>
                 <Text style={styles.sidebarSubtitle} numberOfLines={1}>
-                  {user.role === 'assistant' ? 'Assistant Portal' : 'Doctor Portal'}
+                  Doctor Portal
                 </Text>
               </View>
               <TouchableOpacity
@@ -1842,7 +1965,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                 <Text style={styles.navLabel}>Requests</Text>
               </TouchableOpacity>
 
-              {user.role !== 'assistant' && (
+              
                 <TouchableOpacity
                   style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
                   onPress={() => {
@@ -1853,9 +1976,8 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
                   <Text style={styles.navLabel}>Billing</Text>
                 </TouchableOpacity>
-              )}
 
-              {user.role !== 'assistant' && (
+              
                 <TouchableOpacity
                   style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
                   onPress={() => {
@@ -1866,7 +1988,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
                   <Text style={styles.navLabel}>Settings</Text>
                 </TouchableOpacity>
-              )}
             </View>
           </View>
 
@@ -1926,14 +2047,14 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <View style={{ flex: 1 }}>
               <NotificationCenter
-                notifications={notificationState.notifications}
-                unreadCount={notificationState.unreadCount}
+                notifications={mergedNotifications}
+                unreadCount={totalUnreadCount}
                 isLoading={notificationState.isLoading}
                 error={notificationState.error}
-                onMarkAsRead={notificationState.actions.markAsRead}
-                onMarkAllAsRead={notificationState.actions.markAllAsRead}
-                onDeleteNotification={notificationState.actions.deleteNotification}
-                onClearAll={notificationState.actions.clearAll}
+                onMarkAsRead={handleMarkAsRead}
+                onMarkAllAsRead={handleMarkAllAsRead}
+                onDeleteNotification={handleDeleteNotification}
+                onClearAll={handleClearAll}
                 onClose={() => setShowNotificationCenter(false)}
                 onNavigateToTab={(tab) => {
                   setShowNotificationCenter(false);
@@ -1942,6 +2063,164 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               />
             </View>
           </SafeAreaView>
+        </Modal>
+
+        {/* Reschedule Confirmation Modal Screen */}
+        <Modal
+          visible={showRescheduleConfirmModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            if (!confirmingLoading) setShowRescheduleConfirmModal(false);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.confirmModalCard}>
+              {/* Header */}
+              <View style={styles.confirmModalHeader}>
+                <View style={styles.confirmModalTitleGroup}>
+                  <View style={styles.confirmModalIconWrap}>
+                    <CalendarDays size={18} color="#047857" />
+                  </View>
+                  <View>
+                    <Text style={styles.confirmModalTitle}>Confirm Reschedule</Text>
+                    <Text style={styles.confirmModalSubtitle}>Review requested schedule changes</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setShowRescheduleConfirmModal(false)}
+                  disabled={confirmingLoading}
+                  style={styles.confirmModalCloseBtn}
+                >
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {confirmingReschedule && (
+                <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                  {/* Patient Overview */}
+                  <View style={styles.confirmPatientRow}>
+                    <Image
+                      source={
+                        typeof confirmingReschedule.imageUrl === "string" && confirmingReschedule.imageUrl.length > 0
+                          ? { uri: confirmingReschedule.imageUrl }
+                          : require("../../assets/images/user.png")
+                      }
+                      style={styles.confirmPatientAvatar}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.confirmPatientName}>{confirmingReschedule.name}</Text>
+                      <Text style={styles.confirmServiceText}>
+                        {confirmingReschedule.service || "General Dental Consultation"}
+                      </Text>
+                      {confirmingReschedule.contact ? (
+                        <Text style={styles.confirmContactText}>{confirmingReschedule.contact}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Requested Schedule Changes Box */}
+                  <View style={styles.scheduleChangesBox}>
+                    <Text style={styles.scheduleChangesBoxTitle}>NEW REQUESTED APPOINTMENT TIME</Text>
+
+                    <View style={styles.scheduleNewSlotCard}>
+                      <View style={styles.slotDetailRow}>
+                        <Calendar size={15} color="#047857" style={{ marginRight: 6 }} />
+                        <Text style={styles.slotDetailLabel}>Date:</Text>
+                        <Text style={styles.slotDetailValue}>
+                          {formatAppointmentDate(confirmingReschedule.date)}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.slotDetailRow, { marginTop: 6 }]}>
+                        <Clock size={15} color="#047857" style={{ marginRight: 6 }} />
+                        <Text style={styles.slotDetailLabel}>Time:</Text>
+                        <Text style={styles.slotDetailValue}>
+                          {confirmingReschedule.time ? formatAppointmentTime(confirmingReschedule.time) : "Not specified"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Rescheduling Meta: Who requested and when */}
+                    <View style={styles.rescheduleMetaBlock}>
+                      <View style={styles.metaRowItem}>
+                        <Text style={styles.metaRowLabel}>Requested by:</Text>
+                        <View style={styles.requestedByPill}>
+                          <Text style={styles.requestedByPillText}>
+                            {confirmingReschedule.rescheduled_by ? confirmingReschedule.rescheduled_by.toUpperCase() : "PATIENT"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {(confirmingReschedule.rescheduled_at || confirmingReschedule.reschedule_at) && (
+                        <View style={[styles.metaRowItem, { marginTop: 6 }]}>
+                          <Text style={styles.metaRowLabel}>Request submitted:</Text>
+                          <Text style={styles.metaRowTimestamp}>
+                            {formatAppointmentDate(confirmingReschedule.rescheduled_at || confirmingReschedule.reschedule_at || "")}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Reason for Rescheduling ("notes" column) */}
+                    <View style={styles.reasonCard}>
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                        <FileText size={13} color="#C2410C" style={{ marginRight: 4 }} />
+                        <Text style={styles.reasonTitle}>REASON FOR RESCHEDULING</Text>
+                      </View>
+                      <Text style={styles.reasonText}>
+                        "{confirmingReschedule.notes || "No specific reason provided by patient."}"
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Prompt/Notice text */}
+                  <Text style={styles.confirmNoticeText}>
+                    Confirming will lock this new appointment schedule on the clinic calendar and update the patient's record.
+                  </Text>
+                </ScrollView>
+              )}
+
+              {/* Modal Actions */}
+              <View style={styles.confirmModalActionRow}>
+                <TouchableOpacity
+                  style={styles.confirmModalCancelBtn}
+                  onPress={() => setShowRescheduleConfirmModal(false)}
+                  disabled={confirmingLoading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.confirmModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.confirmModalSubmitBtn}
+                  onPress={async () => {
+                    if (!confirmingReschedule) return;
+                    try {
+                      setConfirmingLoading(true);
+                      await handleConfirmReschedule(confirmingReschedule);
+                      setShowRescheduleConfirmModal(false);
+                      setConfirmingReschedule(null);
+                    } finally {
+                      setConfirmingLoading(false);
+                    }
+                  }}
+                  disabled={confirmingLoading}
+                  activeOpacity={0.8}
+                >
+                  {confirmingLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Check size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.confirmModalSubmitText}>Confirm & Lock Time</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </Modal>
 
         {/* Appointment Status Edit Modal */}
@@ -2696,6 +2975,370 @@ const styles = StyleSheet.create({
   editButtonCancelText: {
     color: "#475569",
     fontWeight: "700",
+  },
+  // Reschedule Requests Section
+  rescheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  rescheduleCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  rescheduleAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  reschedulePatientName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  rescheduleService: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 1,
+  },
+  rescheduleSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  rescheduleSlotText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  rescheduledByBadge: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  rescheduledByBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#C2410C',
+    textTransform: 'uppercase',
+  },
+  rescheduleNotesBox: {
+    backgroundColor: '#FFF7ED',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F97316',
+    padding: 8,
+    borderRadius: 6,
+    marginVertical: 6,
+  },
+  rescheduleNotesLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9A3412',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  rescheduleNotesText: {
+    fontSize: 12,
+    color: '#7C2D12',
+    fontStyle: 'italic',
+  },
+  rescheduleTimestampText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  rescheduleActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  rescheduleConfirmBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#047857',
+    paddingVertical: 8,
+    borderRadius: 7,
+    borderBottomWidth: 2,
+    borderBottomColor: '#065F46',
+  },
+  rescheduleConfirmBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  rescheduleReviewBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 7,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rescheduleReviewBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  emptyRescheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  emptyRescheduleText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  // Reschedule Confirmation Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  confirmModalCard: {
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  confirmModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 12,
+  },
+  confirmModalTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  confirmModalIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmModalTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  confirmModalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  confirmModalCloseBtn: {
+    padding: 6,
+  },
+  confirmPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  confirmPatientAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  confirmPatientName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  confirmServiceText: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 1,
+  },
+  confirmContactText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  scheduleChangesBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    padding: 12,
+    marginBottom: 12,
+  },
+  scheduleChangesBoxTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#C2410C',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  scheduleNewSlotCard: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: 10,
+    marginBottom: 10,
+  },
+  slotDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  slotDetailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
+    marginRight: 6,
+  },
+  slotDetailValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  rescheduleMetaBlock: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  metaRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  metaRowLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  requestedByPill: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  requestedByPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#C2410C',
+  },
+  metaRowTimestamp: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  reasonCard: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 8,
+    padding: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F97316',
+  },
+  reasonTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9A3412',
+    letterSpacing: 0.4,
+  },
+  reasonText: {
+    fontSize: 12,
+    color: '#7C2D12',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  confirmNoticeText: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 16,
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  confirmModalActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  confirmModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmModalCancelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  confirmModalSubmitBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#047857',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#064E3B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmModalSubmitText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });
 
