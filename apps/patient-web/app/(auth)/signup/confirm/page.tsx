@@ -10,9 +10,7 @@ import LegalModal, { type LegalDoc } from '@/components/legal/LegalModal';
 import { 
   normalizePregnancyStatus, 
   formatPregnancyStatus, 
-  normalizeSmokingStatus, 
-  formatSmokingStatus 
-} from '@/lib/medical-helpers';
+  normalizeSmokingStatus} from '@/lib/medical-helpers';
 
 export default function SignupConfirmPage() {
   const router = useRouter();
@@ -170,8 +168,15 @@ export default function SignupConfirmPage() {
         console.log('[SignupConfirm] Medical intake created/updated');
         
         localStorage.removeItem('oauth_signup_flow');
-        clearSignupData();
-        router.push('/dashboard');
+        setPatientUserCookie({
+          id: authUser.id,
+          name: formData.name,
+          email: formData.email || authUser.email || '',
+          role: 'patient',
+          hasMedicalIntake: true,
+        });
+        await clearSignupData();
+        router.replace('/dashboard');
       }
     } catch (err) {
       console.error('[SignupConfirm] Error details:', err);
@@ -211,9 +216,11 @@ export default function SignupConfirmPage() {
           <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Medical Summary</h3>
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
             <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
+            <ReviewField label="Gender" value={formData.medicalIntake.gender ? (formData.medicalIntake.gender.charAt(0).toUpperCase() + formData.medicalIntake.gender.slice(1).toLowerCase()) : 'Not provided'} />
             <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
-            <ReviewField label="Smoking Status" value={formatSmokingStatus(formData.medicalIntake.smoking_status)} />
-            <ReviewField label="Pregnancy Status" value={formatPregnancyStatus(formData.medicalIntake.pregnancy_status)} />
+            {formData.medicalIntake.gender === 'female' && (
+              <ReviewField label="Pregnancy Status" value={formatPregnancyStatus(formData.medicalIntake.pregnancy_status)} />
+            )}
             <ReviewField 
               label="Emergency Contact" 
               value={formData.medicalIntake.emergency_contact_name 
@@ -225,7 +232,7 @@ export default function SignupConfirmPage() {
               <p className="text-text-secondary text-xs mb-2 text-[11px] uppercase font-bold tracking-wider">Health Details</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div className="bg-white/60 border border-border-card/60 p-2 rounded">
-                  <span className="font-bold text-text-primary block text-[10px] uppercase">Allergies</span>
+                  <span className="font-bold text-text-primary block text-[10px] uppercase">Medicinal Allergies</span>
                   <span className="text-text-secondary">{formData.medicalIntake.allergies && formData.medicalIntake.allergies !== 'None' ? formData.medicalIntake.allergies : 'None reported'}</span>
                 </div>
                 <div className="bg-white/60 border border-border-card/60 p-2 rounded">

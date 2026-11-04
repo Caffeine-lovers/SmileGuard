@@ -19,6 +19,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Hide browser default password reveal and clear icons (Edge / Windows) */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+}
+
 button {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }

@@ -213,7 +213,7 @@ export default function SignupRegisterPage() {
               value={formData.password}
               onChange={(e) => handlePasswordChange(e.target.value)}
               required
-              className="skeuo-input w-full text-sm pr-10"
+              className="skeuo-input w-full text-sm pr-10 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
               placeholder="••••••••"
             />
             <button
@@ -237,7 +237,7 @@ export default function SignupRegisterPage() {
               value={formData.confirmPassword}
               onChange={(e) => updateFormField('confirmPassword', e.target.value)}
               required
-              className="skeuo-input w-full text-sm pr-10"
+              className="skeuo-input w-full text-sm pr-10 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
               placeholder="••••••••"
             />
             <button

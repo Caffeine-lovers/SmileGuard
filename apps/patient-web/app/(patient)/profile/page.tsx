@@ -279,18 +279,17 @@ export default function ProfilePage() {
                 </label>
                 {isEditing ? (
                   <select
-                    value={medicalData.gender || ''}
+                    value={medicalData.gender?.toLowerCase() || ''}
                     onChange={(e) => handleInputChange('gender', e.target.value || null)}
                     className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
                   >
                     <option value="">Select...</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
                   </select>
                 ) : (
-                  <p className="text-text-secondary py-1 text-sm">
-                    {medicalData.gender || 'Not provided'}
+                  <p className="text-text-secondary py-1 text-sm capitalize">
+                    {medicalData.gender ? (medicalData.gender.toLowerCase() === 'female' ? 'Female' : medicalData.gender.toLowerCase() === 'male' ? 'Male' : medicalData.gender) : 'Not provided'}
                   </p>
                 )}
               </div>
