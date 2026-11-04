@@ -8,6 +8,7 @@ import type { Billing, Appointment, AppointmentBillingRow, AppointmentBillingSta
 import { calculateDiscount, isPendingAppointment } from '@/lib/database';
 import { ID_ALLOWED_TYPES, ID_BUCKET, uploadIdCredential, validateIdFile } from '@/lib/idCredentials';
 import { fetchBillingDataForDashboard, getServicePrice } from '@/lib/outstandingBalanceService';
+import { formatAppointmentTime } from '@/lib/scheduling';
 import { showAlert } from '@/components/ui/AppDialog';
 import {
   CreditCard,
@@ -709,7 +710,7 @@ export default function BillingPayment({
                               </span>
                             </div>
                             <p className="text-xs font-mono text-slate-500 mt-0.5">
-                              {new Date(apt.appointment_date).toLocaleDateString()} @ {apt.appointment_time}
+                              {new Date(apt.appointment_date).toLocaleDateString()} @ {formatAppointmentTime(apt.appointment_time)}
                             </p>
                           </div>
                         </div>
@@ -1133,7 +1134,7 @@ export default function BillingPayment({
                           <p className="text-[10px] text-slate-500 font-medium truncate">{row.clinic_name}</p>
                         )}
                         <p className="text-[10px] font-mono text-slate-500 mt-0.5">
-                          {new Date(row.appointment_date).toLocaleDateString()} @ {row.appointment_time}
+                          {new Date(row.appointment_date).toLocaleDateString()} @ {formatAppointmentTime(row.appointment_time)}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -1202,7 +1203,7 @@ export default function BillingPayment({
                     return (
                       <tr key={row.id} className="hover:bg-slate-50">
                         <td className="p-2.5 text-slate-700 font-mono whitespace-nowrap">
-                          {new Date(row.appointment_date).toLocaleDateString()} @ {row.appointment_time}
+                          {new Date(row.appointment_date).toLocaleDateString()} @ {formatAppointmentTime(row.appointment_time)}
                         </td>
                         <td className="p-2.5 text-slate-900 font-bold">
                           {row.service}

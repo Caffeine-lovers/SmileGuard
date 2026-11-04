@@ -306,9 +306,11 @@ export async function bookSlot(
   service: string,
   appointmentDate: string,
   appointmentTime: string,
-  durationMinutes?: number
+  durationMinutes?: number,
+  notes?: string
 ): Promise<{ success: boolean; message: string; appointmentId?: string }> {
-  console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime });
+  const trimmedNotes = notes?.trim() || null;
+  console.log('bookSlot called:', { patientId, dentistId, service, appointmentDate, appointmentTime, notes: trimmedNotes });
 
   // Rule: only one unscheduled (pending) request at a time
   try {
@@ -364,6 +366,7 @@ export async function bookSlot(
       service,
       appointment_date: appointmentDate,
       appointment_time: appointmentTime,
+      notes: trimmedNotes,
       status: 'pending', // awaits clinic approval; doctor app sets 'scheduled' on accept
     })
     .select('id');
@@ -382,7 +385,8 @@ export async function bookSlot(
         service,
         appointment_date: appointmentDate,
         appointment_time: appointmentTime,
-        status: 'PENDING',
+      notes: trimmedNotes,
+      status: 'PENDING',
       })
       .select('id');
 
@@ -399,6 +403,7 @@ export async function bookSlot(
           service,
           appointment_date: appointmentDate,
           appointment_time: appointmentTime,
+          notes: trimmedNotes,
           status: 'scheduled',
         })
         .select('id');

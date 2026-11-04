@@ -4,32 +4,33 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
-
 import { showAlert } from '@/components/ui/AppDialog';
+
 export default function SignupVerifyPage() {
   const router = useRouter();
   const {
-    verificationMethod,
     verificationEmail,
     setVerificationEmail,
-    verificationPhone,
-    setVerificationPhone,
     verificationCode,
     setVerificationCode,
-    countryCode,
-    setCountryCode,
     otpSentAt,
     setOtpSentAt,
     resendAttempts,
     setResendAttempts,
     resendCooldownEnd,
     setResendCooldownEnd,
+    setVerificationMethod,
   } = useSignup();
 
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
+
+  // Enforce email verification method
+  useEffect(() => {
+    setVerificationMethod('email');
+  }, [setVerificationMethod]);
 
   // Handle cooldown timer
   useEffect(() => {
@@ -54,44 +55,26 @@ export default function SignupVerifyPage() {
     setLocalError(null);
     setVerificationLoading(true);
 
+    const normalizedEmail = verificationEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setLocalError('Please enter your email address.');
+      setVerificationLoading(false);
+      return;
+    }
+
     try {
-      if (verificationMethod === 'email') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: verificationEmail,
-          options: {
-            shouldCreateUser: true,
-          },
-        });
+      setVerificationEmail(normalizedEmail);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
 
-        if (error) {
-          setLocalError(`Failed to send verification code: ${error.message}`);
-        } else {
-          setOtpSentAt(Date.now());
-        }
-      } else if (verificationMethod === 'phone') {
-        const cleanedPhone = verificationPhone.replace(/\D/g, '');
-
-        if (cleanedPhone.length < 7) {
-          setLocalError('Phone number must be at least 7 digits');
-          setVerificationLoading(false);
-          return;
-        }
-
-        const fullPhone = `${countryCode}${cleanedPhone}`;
-
-        const { error } = await supabase.auth.signInWithOtp({
-          phone: fullPhone,
-        });
-
-        if (error) {
-          if (error.message?.includes('SMS')) {
-            setLocalError('SMS not configured. Please use email instead.');
-          } else {
-            setLocalError(`Failed to send SMS code: ${error.message}`);
-          }
-        } else {
-          setOtpSentAt(Date.now());
-        }
+      if (error) {
+        setLocalError(`Failed to send verification code: ${error.message}`);
+      } else {
+        setOtpSentAt(Date.now());
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -106,40 +89,22 @@ export default function SignupVerifyPage() {
     setLocalError(null);
     setVerificationLoading(true);
 
+    const normalizedEmail = verificationEmail.trim().toLowerCase();
+
     try {
-      if (verificationMethod === 'email') {
-        const { error } = await supabase.auth.verifyOtp({
-          email: verificationEmail,
-          token: verificationCode.toString(),
-          type: 'email',
-        });
+      const { error } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: verificationCode.toString(),
+        type: 'email',
+      });
 
-        if (error) {
-          setLocalError(`Verification failed: ${error.message}`);
-        } else {
-          setVerificationSuccess(true);
-          setTimeout(() => {
-            router.push('/signup/register');
-          }, 1500);
-        }
-      } else if (verificationMethod === 'phone') {
-        const cleanedPhone = verificationPhone.replace(/\D/g, '');
-        const fullPhone = `${countryCode}${cleanedPhone}`;
-
-        const { error } = await supabase.auth.verifyOtp({
-          phone: fullPhone,
-          token: verificationCode.toString(),
-          type: 'sms',
-        });
-
-        if (error) {
-          setLocalError(`Verification failed: ${error.message}`);
-        } else {
-          setVerificationSuccess(true);
-          setTimeout(() => {
-            router.push('/signup/register');
-          }, 1500);
-        }
+      if (error) {
+        setLocalError(`Verification failed: ${error.message}`);
+      } else {
+        setVerificationSuccess(true);
+        setTimeout(() => {
+          router.push('/signup/register');
+        }, 1500);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -177,21 +142,20 @@ export default function SignupVerifyPage() {
     setVerificationLoading(true);
 
     try {
-      if (verificationMethod === 'email') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: verificationEmail,
-          options: {
-            shouldCreateUser: true,
-          },
-        });
+      const normalizedEmail = verificationEmail.trim().toLowerCase();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
 
-        if (error) {
-          setLocalError(`Failed to resend code: ${error.message}`);
-        } else {
-          setOtpSentAt(Date.now());
-          setVerificationCode('');
-          showAlert('Verification code resent to your email!');
-        }
+      if (error) {
+        setLocalError(`Failed to resend code: ${error.message}`);
+      } else {
+        setOtpSentAt(Date.now());
+        setVerificationCode('');
+        showAlert('Verification code resent to your email!');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -207,15 +171,15 @@ export default function SignupVerifyPage() {
   return (
     <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
       <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
-        {otpSent ? 'Verify Code' : 'Enter ' + (verificationMethod === 'email' ? 'Email' : 'Phone')}
+        {otpSent ? 'Verify Code' : 'Enter Email'}
       </h2>
       <p className="text-center text-text-secondary mb-4">
         {otpSent
-          ? `Enter the 6 to 8-digit code sent to your ${verificationMethod}`
-          : `We'll send a verification code to your ${verificationMethod}`}
+          ? 'Enter the 6 to 8-digit code sent to your email'
+          : "We'll send a verification code to your email"}
       </p>
 
-      {otpSent && verificationMethod === 'email' && (
+      {otpSent && (
         <div className="bg-amber-50 border border-amber-300 text-amber-900 px-3.5 py-2.5 rounded-md mb-6 text-xs flex items-start gap-2">
           <span className="font-bold shrink-0">Delivery Note:</span>
           <span>Verification emails are frequently flagged by email providers. If you do not see the email in your inbox, please check your <strong>Spam or Junk folder</strong> and mark it as &quot;Not Spam&quot; or &quot;Looks Safe&quot;.</span>
@@ -239,7 +203,7 @@ export default function SignupVerifyPage() {
               </div>
             </div>
             <h3 className="text-xl font-bold text-text-primary">Verification Confirmed</h3>
-            <p className="text-text-secondary">Your {verificationMethod} has been verified.</p>
+            <p className="text-text-secondary">Your email has been verified.</p>
             <p className="text-sm text-text-secondary">Proceeding to registration...</p>
           </div>
         </div>
@@ -247,43 +211,17 @@ export default function SignupVerifyPage() {
 
       {!otpSent ? (
         <form onSubmit={handleRequestOTP} className="space-y-4">
-          {verificationMethod === 'email' ? (
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">Email Address</label>
-              <input
-                type="email"
-                value={verificationEmail}
-                onChange={(e) => setVerificationEmail(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                placeholder="you@example.com"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">Phone Number</label>
-              <div className="flex gap-2">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="px-2 py-2 border border-border-card rounded-md bg-white text-xs w-20"
-                >
-                  <option value="+63">+63 (PH)</option>
-                  <option value="+1">+1 (US)</option>
-                  <option value="+44">+44 (UK)</option>
-                  <option value="+91">+91 (IN)</option>
-                </select>
-                <input
-                  type="tel"
-                  value={verificationPhone}
-                  onChange={(e) => setVerificationPhone(e.target.value)}
-                  required
-                  className="flex-1 px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  placeholder="(555) 000-0000"
-                />
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">Email Address</label>
+            <input
+              type="email"
+              value={verificationEmail}
+              onChange={(e) => setVerificationEmail(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+              placeholder="you@example.com"
+            />
+          </div>
 
           <div className="flex gap-3">
             <button
@@ -341,7 +279,7 @@ export default function SignupVerifyPage() {
             </p>
 
             <div className="mt-4 pt-4 border-t border-border-card">
-              <p className="text-xs text-text-secondary mb-2">Didn't receive the code?</p>
+              <p className="text-xs text-text-secondary mb-2">Didn&apos;t receive the code?</p>
               <button
                 type="button"
                 onClick={handleResendOTP}

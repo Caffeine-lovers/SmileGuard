@@ -19,7 +19,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import { getServicePrice } from '@/lib/pricing';
-import { formatMinutes, getServiceDuration, toMinutes } from '@/lib/scheduling';
+import { formatAppointmentTime, formatDuration, formatMinutes, getServiceDuration, toMinutes } from '@/lib/scheduling';
 
 export default function TreatmentsPage() {
   const { currentUser } = useAuth();
@@ -137,7 +137,7 @@ export default function TreatmentsPage() {
                       <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-slate-500 font-mono mt-0.5">
                         <span>{new Date(appointment.appointment_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                         <span>•</span>
-                        <span>{appointment.appointment_time || 'General slot'}</span>
+                        <span>{formatAppointmentTime(appointment.appointment_time) || 'General slot'}</span>
                       </div>
                     </div>
                   </div>
@@ -161,12 +161,12 @@ export default function TreatmentsPage() {
                   const start = appointment.appointment_time ? toMinutes(appointment.appointment_time) : NaN;
                   const timeRange = Number.isFinite(start)
                     ? `${formatMinutes(start)} – ${formatMinutes(start + duration)}`
-                    : appointment.appointment_time || '—';
+                    : appointment.appointment_time ? formatAppointmentTime(appointment.appointment_time) : '—';
                   const fee = appointment.price ?? services.reduce((sum, name) => sum + getServicePrice(name), 0);
                   const rows: [string, string][] = [
                     ['Date', new Date(appointment.appointment_date).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })],
                     ['Time', timeRange],
-                    ['Duration', `${duration} min`],
+                    ['Duration', formatDuration(duration)],
                     ['Clinic', appointment.clinic_name || "Kyler's Clinic"],
                     ['Fee', `₱${fee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`],
                     ['Requested on', appointment.created_at ? new Date(appointment.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'],

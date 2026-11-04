@@ -13,7 +13,6 @@ export interface SignupFormData {
   phone: string;
   password: string;
   confirmPassword: string;
-  service: string;
   medicalIntake: MedicalIntakeData; // Using local interface or MedicalIntake from shared-types
 }
 
@@ -84,7 +83,6 @@ const INITIAL_FORM_STATE: SignupFormData = {
   phone: '',
   password: '',
   confirmPassword: '',
-  service: 'General',
   medicalIntake: INITIAL_MEDICAL_STATE,
 };
 
@@ -192,8 +190,29 @@ export function SignupProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearSignupData = useCallback(async () => {
-    await purgeIncompleteRegistration();
-  }, [purgeIncompleteRegistration]);
+    // 1. Reset in-memory form state
+    setFormData(INITIAL_FORM_STATE);
+    setVerificationMethod(null);
+    setVerificationEmail('');
+    setVerificationPhone('');
+    setVerificationCode('');
+    setCountryCode('+63');
+    setOtpSentAt(null);
+    setResendAttempts(0);
+    setResendCooldownEnd(null);
+    setIsOAuthFlow(false);
+    setCurrentAuthUser(null);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+
+    // 2. Clear signup form caches only — DO NOT sign out or clear patient cookie
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('oauth_signup_flow');
+    } catch (e) {
+      console.warn('Error clearing signup cache:', e);
+    }
+  }, []);
 
   const value: SignupContextType = useMemo(() => ({
     formData,

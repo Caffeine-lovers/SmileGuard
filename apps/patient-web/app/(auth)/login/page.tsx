@@ -24,6 +24,20 @@ export default function LoginPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
 
+  // Reset loading states when mounting or restored from BFCache (e.g. browser Back button)
+  useEffect(() => {
+    setOauthLoading(false);
+    setSubmitting(false);
+
+    const handlePageShow = () => {
+      setOauthLoading(false);
+      setSubmitting(false);
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
+
   // Remember the user's agreement on this device for the current version of the documents
   useEffect(() => {
     try {
@@ -47,9 +61,28 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.hash.includes('error='))) {
-      router.replace(`/auth/callback${window.location.hash}`);
-      return;
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+
+      // If an OAuth error is present, display it on /login instead of bouncing to /auth/callback (which causes infinite loop)
+      if (hash.includes('error=') || search.includes('error=')) {
+        const params = new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : search);
+        const errDesc = params.get('error_description') || params.get('error') || 'Google sign-in was cancelled or encountered an error.';
+        const cleanMsg = decodeURIComponent(errDesc.replace(/\+/g, ' '));
+        setLocalError(`Google sign-in: ${cleanMsg}`);
+        setOauthLoading(false);
+        // Clear error fragments from address bar so Back/Forward does not re-trigger
+        window.history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+
+      if (hash.includes('access_token')) {
+        // Forward token to /auth/callback and clear hash from /login
+        window.history.replaceState(null, '', window.location.pathname);
+        router.replace(`/auth/callback${hash}`);
+        return;
+      }
     }
 
     // Always purge any abandoned signup cache when arriving on the login page
@@ -91,6 +124,12 @@ export default function LoginPage() {
     if (!requireAgreement()) return;
     setOauthLoading(true);
     setLocalError(null);
+
+    // Defensive timeout to reset button if browser navigation is cancelled or abandoned
+    const safetyTimer = setTimeout(() => {
+      setOauthLoading(false);
+    }, 15000);
+
     try {
       localStorage.setItem('oauth_signup_flow', 'true');
 
@@ -101,10 +140,12 @@ export default function LoginPage() {
         },
       });
       if (oauthError) {
+        clearTimeout(safetyTimer);
         setLocalError(`Google sign-in failed: ${oauthError.message}`);
         setOauthLoading(false);
       }
     } catch (err) {
+      clearTimeout(safetyTimer);
       const msg = err instanceof Error ? err.message : 'An error occurred';
       setLocalError(`Error: ${msg}`);
       setOauthLoading(false);

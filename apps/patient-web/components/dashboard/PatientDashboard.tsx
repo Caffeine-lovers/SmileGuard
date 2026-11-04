@@ -8,6 +8,7 @@ import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
 import { getPatientAppointments, getDoctorDetails, withTimeout } from '@/lib/appointmentService';
+import { formatAppointmentTime } from '@/lib/scheduling';
 import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
@@ -23,6 +24,7 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Stethoscope, 
+  ChevronLeft,
   ChevronRight,
   Building2,
   Sparkles,
@@ -39,6 +41,13 @@ export default function PatientDashboard() {
   const [outstandingBalance, setOutstandingBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
+  const ITEMS_PER_PAGE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const handleTabChange = (tab: 'scheduled' | 'pending' | 'cancelled') => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
   const [doctorNames, setDoctorNames] = useState<Record<string, string>>({});
   const [doctorPictures, setDoctorPictures] = useState<Record<string, string>>({});
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
@@ -275,6 +284,22 @@ export default function PatientDashboard() {
     (apt) => !isPendingAppointment(apt) && !isCancelledAppointment(apt)
   );
 
+  const activeAppointments = activeTab === 'scheduled'
+    ? scheduledAppointments
+    : activeTab === 'pending'
+    ? pendingAppointments
+    : cancelledAppointments;
+
+  const totalPages = Math.max(1, Math.ceil(activeAppointments.length / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedAppointments = activeAppointments.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const todayStr = new Date().toISOString().split('T')[0];
   const nextVisit = scheduledAppointments
     .filter(apt => apt.status === 'scheduled' && apt.appointment_date >= todayStr)
@@ -440,7 +465,7 @@ export default function PatientDashboard() {
 
           <div className="w-full sm:w-auto flex overflow-x-auto no-scrollbar gap-1 sm:gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm">
             <button
-              onClick={() => setActiveTab('scheduled')}
+              onClick={() => handleTabChange('scheduled')}
               className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'scheduled'
                   ? 'bg-emerald-700 text-white shadow-sm'
@@ -450,7 +475,7 @@ export default function PatientDashboard() {
               Scheduled ({scheduledAppointments.length})
             </button>
             <button
-              onClick={() => setActiveTab('pending')}
+              onClick={() => handleTabChange('pending')}
               className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'pending'
                   ? 'bg-amber-600 text-white shadow-sm'
@@ -460,7 +485,7 @@ export default function PatientDashboard() {
               Pending ({pendingAppointments.length})
             </button>
             <button
-              onClick={() => setActiveTab('cancelled')}
+              onClick={() => handleTabChange('cancelled')}
               className={`flex-1 sm:flex-none text-center px-2.5 sm:px-3.5 py-1.5 rounded-sm text-[11px] sm:text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${
                 activeTab === 'cancelled'
                   ? 'bg-slate-700 text-white shadow-sm'
@@ -494,7 +519,7 @@ export default function PatientDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {scheduledAppointments.map((apt) => {
+              {paginatedAppointments.map((apt) => {
                 const hasDoctor = Boolean(apt.dentist_id && doctorNames[apt.dentist_id]);
                 return (
                   <AppointmentCard
@@ -522,7 +547,7 @@ export default function PatientDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {pendingAppointments.map((apt) => (
+              {paginatedAppointments.map((apt) => (
                 <AppointmentCard
                   key={apt.id}
                   name={apt.clinic_name || "SmileGuard Clinic"}
@@ -547,7 +572,7 @@ export default function PatientDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {cancelledAppointments.map((apt) => (
+              {paginatedAppointments.map((apt) => (
                 <div key={apt.id} className="skeuo-card p-4 border-2 border-slate-300 bg-slate-50/60 rounded-sm">
                   <div className="flex justify-between items-start">
                     <div>
@@ -563,7 +588,7 @@ export default function PatientDashboard() {
                         )}
                       </div>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
-                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {formatAppointmentTime(apt.appointment_time)}</p>
                       {apt.dentist_id && (
                         <div className="flex items-center gap-1.5 mt-1">
                           {doctorPictures[apt.dentist_id] && (
@@ -592,6 +617,58 @@ export default function PatientDashboard() {
               ))}
             </div>
           )
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && activeAppointments.length > ITEMS_PER_PAGE && (
+          <div className="mt-5 pt-4 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-slate-500">
+              Showing <span className="font-bold text-slate-800">{startIndex + 1}</span> to{' '}
+              <span className="font-bold text-slate-800">
+                {Math.min(startIndex + ITEMS_PER_PAGE, activeAppointments.length)}
+              </span>{' '}
+              of <span className="font-bold text-slate-800">{activeAppointments.length}</span> {activeTab} visits
+            </p>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="skeuo-btn-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </button>
+
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-7 h-7 text-xs font-bold rounded-xs transition flex items-center justify-center ${
+                      currentPage === page
+                        ? 'bg-emerald-700 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-200/80 bg-white/70 border border-slate-300'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="skeuo-btn-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -665,7 +742,7 @@ export default function PatientDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Scheduled Time:</span>
-                <span className="font-bold text-slate-900">{selectedAppointment.appointment_time}</span>
+                <span className="font-bold text-slate-900">{formatAppointmentTime(selectedAppointment.appointment_time)}</span>
               </div>
               {!isPendingAppointment(selectedAppointment) && selectedAppointment.dentist_id && doctorNames[selectedAppointment.dentist_id] ? (
                 <div className="flex justify-between">
@@ -706,7 +783,7 @@ export default function PatientDashboard() {
                       setSelectedAppointment(null);
                       setAppointmentToReschedule(apt);
                       setRescheduleDate(apt.appointment_date || '');
-                      setRescheduleTime(apt.appointment_time || '10:00 AM');
+                      setRescheduleTime(formatAppointmentTime(apt.appointment_time) || '10:00 AM');
                       setRescheduleReason('');
                       setIsRescheduleModalOpen(true);
                     }}

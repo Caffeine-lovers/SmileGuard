@@ -106,3 +106,64 @@ export function fits(start: number, duration: number, busy: Interval[], closing:
   const limit = freeUntil(start, busy, closing);
   return limit !== null && start + Math.max(duration, 0) <= limit;
 }
+
+/** Converts 24-hour time e.g. "09:00", "13:30" or existing AM/PM strings into clean normal time "9:00 AM", "1:30 PM". */
+export function formatAppointmentTime(timeStr?: string | null): string {
+  if (!timeStr) return '';
+  const trimmed = timeStr.trim();
+  if (!trimmed || trimmed === 'ALL_DAY') return trimmed;
+
+  // If already in AM/PM format (e.g. "9:00 AM" or "09:00 am")
+  if (/am|pm/i.test(trimmed)) {
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)$/i);
+    if (match) {
+      const hour = parseInt(match[1], 10);
+      const min = match[2];
+      const period = match[3].toUpperCase();
+      return `${hour}:${min} ${period}`;
+    }
+    return trimmed;
+  }
+
+  // Parse 24-hour military time e.g. "09:00", "13:30", "14:00:00"
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match24) {
+    let hour = parseInt(match24[1], 10);
+    const min = match24[2];
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    return `${hour}:${min} ${period}`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Formats a duration in minutes into clean hours and minutes, e.g.:
+ *  60  -> "1 hr"
+ *  120 -> "2 hrs"
+ *  30  -> "0.5 hr"
+ *  90  -> "1.5 hrs"
+ *  45  -> "0.75 hr"
+ *  15  -> "0.25 hr"
+ */
+export function formatDuration(minutes?: number | null): string {
+  if (!minutes || minutes <= 0) return '0 hrs';
+  const hrs = minutes / 60;
+  if (minutes % 60 === 0) {
+    return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
+  }
+  if (minutes % 30 === 0) {
+    return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
+  }
+  if (minutes % 15 === 0) {
+    return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
+  }
+  if (hrs >= 1) {
+    const whole = Math.floor(hrs);
+    const rem = minutes % 60;
+    return `${whole} hr${whole > 1 ? 's' : ''} ${rem} min`;
+  }
+  return `${minutes} min`;
+}

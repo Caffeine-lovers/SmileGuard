@@ -15,15 +15,20 @@ export default function ForgotPasswordPage() {
     setErrorLocal(null);
     setMessage('');
 
-    if (!email) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setErrorLocal('Please enter your email address.');
       return;
     }
 
     setLoading(true);
     try {
-      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Route via auth callback so Supabase PKCE and recovery session are established
+      const redirectTo = typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback?next=/reset-password`
+        : undefined;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo,
       });
       if (error) throw error;
@@ -58,9 +63,9 @@ export default function ForgotPasswordPage() {
       {!message ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-sm text-text-secondary mb-4 text-center">
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we&apos;ll send you a link to reset your password.
           </p>
-          
+
           <div>
             <label className="block text-sm font-medium text-text-primary mb-2">
               Email Address
