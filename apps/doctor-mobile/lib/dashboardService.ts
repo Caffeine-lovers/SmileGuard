@@ -215,7 +215,7 @@ export async function fetchDoctorPatients(doctorId: string): Promise<{
   message: string;
 }> {
   try {
-    // Fetch all patients from profiles table
+    // 1. Fetch real patients from profiles table
     const { data: patients, error: patError } = await supabase
       .from('profiles')
       .select('*')
@@ -223,19 +223,39 @@ export async function fetchDoctorPatients(doctorId: string): Promise<{
       .order('created_at', { ascending: false });
 
     if (patError) {
-      console.error('❌ Error fetching patients:', patError);
-      return { success: false, data: [], message: patError.message };
+      console.error('Error fetching patients:', patError);
     }
 
-    if (!patients || patients.length === 0) {
-      console.log('ℹ️ No patients found in the system');
+    // 2. Fetch dummy / walk-in patients from dummy_patients table
+    let dummyPatients: any[] = [];
+    try {
+      const { data: dData, error: dError } = await supabase
+        .from('dummy_patients')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!dError && dData) {
+        dummyPatients = dData.map((d: any) => ({
+          ...d,
+          role: 'patient',
+          dummy: true,
+          full_name: d.name,
+          user_name: d.name,
+        }));
+      }
+    } catch {
+      // Safe fallback if table does not exist
+    }
+
+    const combined = [...(patients || []), ...dummyPatients];
+
+    if (combined.length === 0) {
       return { success: true, data: [], message: 'No patients found' };
     }
 
-    console.log(`✅ Fetched ${patients.length} total patients`);
-    return { success: true, data: patients, message: 'Patients fetched successfully' };
+    return { success: true, data: combined, message: 'Patients fetched successfully' };
   } catch (err) {
-    console.error('❌ Exception fetching patients:', err);
+    console.error('Exception fetching patients:', err);
     return { success: false, data: [], message: 'Failed to fetch patients' };
   }
 }
@@ -244,10 +264,6 @@ export async function fetchDoctorPatients(doctorId: string): Promise<{
 // APPOINTMENT DETAILS
 // ─────────────────────────────────────────
 
-/**
- * Fetch appointment with patient details
- * Combines appointments and profiles tables
- */
 export async function fetchAppointmentWithPatientDetails(appointmentId: string): Promise<{
   success: boolean;
   data: any;

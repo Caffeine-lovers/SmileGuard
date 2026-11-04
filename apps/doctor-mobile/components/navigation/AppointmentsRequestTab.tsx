@@ -497,37 +497,7 @@ export default function AppointmentsRequestTab({
           </View>
         </View>
 
-        <View
-          ref={tour.register("requests-actions")}
-          collapsable={false}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-        >
-          <TouchableOpacity
-            onPress={() => {
-              setIsRefreshing(true);
-              fetchAppointmentRequests();
-            }}
-            disabled={isRefreshing}
-            style={tabStyles.refreshButton}
-            activeOpacity={0.7}
-            accessibilityLabel="Refresh Requests"
-          >
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color={AppColors.primary} />
-            ) : (
-              <RefreshCw size={18} color={AppColors.primaryDark} />
-            )}
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleStartTour}
-            style={tabStyles.tourButton}
-            activeOpacity={0.7}
-            accessibilityLabel="Start Walkthrough"
-          >
-            <Sparkles size={18} color="#047857" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Search Bar Section */}

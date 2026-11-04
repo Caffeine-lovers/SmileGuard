@@ -210,16 +210,7 @@ export default function SettingsTab({
           </View>
         </View>
 
-        <View style={localStyles.headerActionsRow}>
-          <TouchableOpacity
-            onPress={onStartTutorial}
-            style={localStyles.skeuoActionBtn}
-            activeOpacity={0.7}
-            accessibilityLabel="Start App Tour"
-          >
-            <Sparkles size={17} color="#047857" />
-          </TouchableOpacity>
-        </View>
+
       </View>
 
       <ScrollView

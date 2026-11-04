@@ -599,34 +599,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
             </View>
           </View>
 
-          <View
-            ref={tour.register("billing-actions")}
-            collapsable={false}
-            style={localStyles.headerActionsRow}
-          >
-            <TouchableOpacity
-              onPress={handleRefresh}
-              disabled={loading}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Refresh Billing"
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#047857" />
-              ) : (
-                <RefreshCw size={17} color="#047857" />
-              )}
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={handleStartTour}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Start Walkthrough"
-            >
-              <Sparkles size={17} color="#047857" />
-            </TouchableOpacity>
-          </View>
         </View>
 
         <ScrollView

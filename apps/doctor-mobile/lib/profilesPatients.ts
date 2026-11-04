@@ -43,6 +43,30 @@ export async function getPatientProfile(
       return fallbackData;
     }
 
+    if (!data) {
+      try {
+        const { data: dummyData } = await supabase
+          .from('dummy_patients')
+          .select('*')
+          .eq('id', patientId)
+          .maybeSingle();
+
+        if (dummyData) {
+          return {
+            id: dummyData.id,
+            name: dummyData.name,
+            email: dummyData.email || '',
+            role: 'patient',
+            service: dummyData.service || 'General',
+            created_at: dummyData.created_at,
+            updated_at: dummyData.updated_at,
+          };
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+
     return data;
   } catch (err) {
     console.error('Error fetching patient profile:', err);
@@ -103,8 +127,35 @@ export async function getPatientMedicalIntake(
     return null;
   }
 
-  // If no records found, return null
+  // If no records found, check dummy_patients
   if (!data || data.length === 0) {
+    try {
+      const { data: dummyData } = await supabase
+        .from('dummy_patients')
+        .select('*')
+        .eq('id', patientId)
+        .maybeSingle();
+
+      if (dummyData) {
+        return {
+          dateOfBirth: dummyData.date_of_birth || '',
+          gender: dummyData.gender || '',
+          phone: dummyData.phone || '',
+          address: dummyData.address || '',
+          emergencyContactName: dummyData.emergency_contact_name || '',
+          emergencyContactPhone: dummyData.emergency_contact_phone || '',
+          allergies: dummyData.allergies || 'None',
+          currentMedications: 'None',
+          medicalConditions: 'None',
+          pastSurgeries: 'None',
+          smokingStatus: '',
+          pregnancyStatus: '',
+          notes: '',
+        };
+      }
+    } catch {
+      // Safe fallback
+    }
     return null;
   }
 
@@ -662,4 +713,96 @@ export async function getPatientIdPhotoUrl(profile: { pwd_id_path?: string | nul
     return data?.signedUrl ?? null;
   }
   return profile.pwd_id_url || null;
+}
+
+
+// ─────────────────────────────────────────
+// 7. CREATE WALK-IN / KEEPER PATIENT RECORD
+// ─────────────────────────────────────────
+export interface WalkInPatientInput {
+  name: string;
+  email?: string;
+  phone?: string;
+  service?: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  allergies?: string;
+}
+
+export async function fetchWalkInPatients(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from('dummy_patients')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return [];
+    }
+
+    return (data || []).map((d: any) => ({
+      ...d,
+      full_name: d.name,
+      user_name: d.name,
+      dummy: true,
+      role: 'patient',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function createWalkInPatient(
+  input: WalkInPatientInput
+): Promise<{ success: boolean; patient_id?: string; error?: string }> {
+  try {
+    // 1. Try secure RPC first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('create_dummy_patient', {
+      p_name: input.name,
+      p_email: input.email || null,
+      p_phone: input.phone || null,
+      p_service: input.service || 'General',
+      p_date_of_birth: input.date_of_birth || null,
+      p_gender: input.gender || null,
+      p_address: input.address || null,
+      p_emergency_contact_name: input.emergency_contact_name || null,
+      p_emergency_contact_phone: input.emergency_contact_phone || null,
+      p_allergies: input.allergies || 'None',
+    });
+
+    if (!rpcError && rpcData?.success) {
+      return { success: true, patient_id: rpcData.patient_id };
+    }
+
+    // 2. Direct table insert fallback
+    const { data: insertData, error: insertError } = await supabase
+      .from('dummy_patients')
+      .insert({
+        name: input.name,
+        email: input.email || null,
+        phone: input.phone || null,
+        service: input.service || 'General',
+        date_of_birth: input.date_of_birth || null,
+        gender: input.gender || null,
+        address: input.address || null,
+        emergency_contact_name: input.emergency_contact_name || null,
+        emergency_contact_phone: input.emergency_contact_phone || null,
+        allergies: input.allergies || 'None',
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('[createWalkInPatient] dummy_patients insert error:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    return { success: true, patient_id: insertData.id };
+  } catch (err: any) {
+    console.error('[createWalkInPatient] Exception:', err);
+    return { success: false, error: err.message || 'Failed to create patient record' };
+  }
 }

@@ -154,6 +154,18 @@ export async function getDoctorAppointments(
       medicalIntakeMap.set(intake.patient_id, intake);
     });
 
+    // Fetch dummy patients
+    let dummyPatientsData: any[] = [];
+    try {
+      const { data: dData } = await supabase.from('dummy_patients').select('*');
+      if (dData) dummyPatientsData = dData;
+    } catch {}
+
+    const dummyPatientMap = new Map();
+    dummyPatientsData.forEach(d => {
+      dummyPatientMap.set(d.id, d);
+    });
+
     // Step 5: Don't filter by current user's dentist_id - the RPC already filters to show
     // all appointments with dentist_id IS NOT NULL
     const filteredAppointments = appointmentsData as any[];
@@ -164,14 +176,44 @@ export async function getDoctorAppointments(
       let patientAvatar = null;
       let profile = null;
 
-      if (apt.patient_id) {
-        // Fetch from profiles
+      if (apt.dummy_patient_id && dummyPatientMap.has(apt.dummy_patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
+      } else if (apt.patient_id && profileMap.has(apt.patient_id)) {
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      } else if (apt.patient_id && dummyPatientMap.has(apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
       }
 
-      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      let medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      if (!medicalIntake && (apt.dummy_patient_id || apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id || apt.patient_id);
+        if (dummy) {
+          medicalIntake = {
+            allergies: dummy.allergies || 'None',
+            phone: dummy.phone || '',
+            dateOfBirth: dummy.date_of_birth || '',
+            gender: dummy.gender || '',
+          };
+        }
+      }
 
       return {
         ...apt,
@@ -290,19 +332,61 @@ async function fallbackGetDoctorAppointments(
       medicalIntakeMap.set(intake.patient_id, intake);
     });
 
+    let dummyPatientsData: any[] = [];
+    try {
+      const { data: dData } = await supabase.from('dummy_patients').select('*');
+      if (dData) dummyPatientsData = dData;
+    } catch {}
+
+    const dummyPatientMap = new Map();
+    dummyPatientsData.forEach(d => {
+      dummyPatientMap.set(d.id, d);
+    });
+
     // Transform and return
     return allAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
-      if (apt.patient_id) {
+      if (apt.dummy_patient_id && dummyPatientMap.has(apt.dummy_patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
+      } else if (apt.patient_id && profileMap.has(apt.patient_id)) {
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      } else if (apt.patient_id && dummyPatientMap.has(apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
       }
 
-      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      let medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      if (!medicalIntake && (apt.dummy_patient_id || apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id || apt.patient_id);
+        if (dummy) {
+          medicalIntake = {
+            allergies: dummy.allergies || 'None',
+            phone: dummy.phone || '',
+            dateOfBirth: dummy.date_of_birth || '',
+            gender: dummy.gender || '',
+          };
+        }
+      }
 
       return {
         ...apt,
@@ -989,5 +1073,70 @@ export async function getAppointmentById(
   } catch (err) {
     console.error('[getAppointmentById] Exception fetching appointment:', err);
     return null;
+  }
+}
+
+
+// ─────────────────────────────────────────
+// CREATE DIRECT APPOINTMENT (Assistant / Clinic Booking)
+// ─────────────────────────────────────────
+export interface CreateDirectAppointmentInput {
+  patient_id: string;
+  is_dummy?: boolean;
+  dentist_id?: string | null;
+  service: string;
+  appointment_date: string;
+  appointment_time: string;
+  notes?: string;
+  doctor_note?: string;
+  status?: 'scheduled' | 'pending';
+}
+
+export async function createDirectAppointment(
+  input: CreateDirectAppointmentInput
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const payload: any = {
+      dentist_id: input.dentist_id || null,
+      service: input.service || 'General',
+      appointment_date: input.appointment_date,
+      appointment_time: input.appointment_time,
+      status: input.status || 'scheduled',
+      notes: input.notes || '',
+      doctor_note: input.doctor_note || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.is_dummy) {
+      payload.dummy_patient_id = input.patient_id;
+      payload.patient_id = null;
+    } else {
+      payload.patient_id = input.patient_id;
+    }
+
+    let { data, error } = await supabase
+      .from('appointments')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error && (error.message?.includes('dummy_patient_id') || error.message?.includes('null value in column'))) {
+      delete payload.dummy_patient_id;
+      payload.patient_id = input.patient_id;
+      const retry = await supabase.from('appointments').insert(payload).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('[createDirectAppointment] Error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('[createDirectAppointment] Exception:', err);
+    return { success: false, error: err.message || 'Failed to schedule appointment' };
   }
 }

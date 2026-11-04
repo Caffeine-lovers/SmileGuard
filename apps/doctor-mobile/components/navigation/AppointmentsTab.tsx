@@ -33,7 +33,9 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  CalendarPlus,
 } from "lucide-react-native";
+import AddAppointmentModal from "../appointments/AddAppointmentModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
@@ -94,6 +96,7 @@ export default function AppointmentsTab({
   const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [showAddAppointmentModal, setShowAddAppointmentModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [doctorId, setDoctorId] = useState<string>('');
   const [clinicSchedule, setClinicSchedule] = useState<any>(null);
@@ -860,28 +863,17 @@ export default function AppointmentsTab({
           </View>
 
           <View style={localStyles.headerActionsRow}>
-            <TouchableOpacity
-              onPress={handleRefreshAppointments}
-              disabled={loading}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Refresh Appointments"
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#047857" />
-              ) : (
-                <RefreshCw size={17} color="#047857" />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleStartTour}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Appointments Walkthrough"
-            >
-              <Sparkles size={17} color="#047857" />
-            </TouchableOpacity>
+            {userRole === "assistant" && (
+              <TouchableOpacity
+                onPress={() => setShowAddAppointmentModal(true)}
+                style={localStyles.addAppointmentHeaderBtn}
+                activeOpacity={0.8}
+                accessibilityLabel="Add Appointment"
+              >
+                <CalendarPlus size={14} color="#FFFFFF" strokeWidth={2.2} style={{ marginRight: 5 }} />
+                <Text style={localStyles.addAppointmentHeaderBtnText}>Add Appointment</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -1193,7 +1185,7 @@ export default function AppointmentsTab({
                         style={localStyles.editBtn}
                         activeOpacity={0.7}
                       >
-                        <Text style={localStyles.editBtnText}>{userRole === 'assistant' ? 'Reschedule' : 'Edit'}</Text>
+                        <Text style={localStyles.editBtnText}>Edit</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1228,6 +1220,19 @@ export default function AppointmentsTab({
           }}
           onSave={handleSaveAppointment}
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
+        />
+      )}
+
+      {/* Add Appointment Modal (Assistant Only) */}
+      {userRole === "assistant" && (
+        <AddAppointmentModal
+          visible={showAddAppointmentModal}
+          onClose={() => setShowAddAppointmentModal(false)}
+          onAppointmentAdded={async () => {
+            await handleRefreshAppointments();
+          }}
+          initialDate={selectedDate}
+          defaultDoctorId={doctorId}
         />
       )}
     </View>
@@ -1287,6 +1292,25 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  addAppointmentHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  addAppointmentHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
   skeuoActionBtn: {
     width: 38,

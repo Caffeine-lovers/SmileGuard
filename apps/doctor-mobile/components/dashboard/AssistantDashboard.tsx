@@ -571,6 +571,7 @@ export default function AssistantDashboard({
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
+  const [requestsTourTrigger, setRequestsTourTrigger] = useState(0);
 
   // Doctors map for resolving doctor names on appointments
   const [doctorsMap, setDoctorsMap] = useState<Record<string, string>>({});
@@ -1522,8 +1523,18 @@ export default function AssistantDashboard({
         <View style={styles.topAppBarRight}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={handleRestartTour}
-            accessibilityLabel="App Guide"
+            onPress={() => {
+              if (activeTab === "records") {
+                setRecordsTourTrigger((prev) => prev + 1);
+              } else if (activeTab === "appointments") {
+                setAppointmentsTourTrigger((prev) => prev + 1);
+              } else if (activeTab === "appointment-requests") {
+                setRequestsTourTrigger((prev) => prev + 1);
+              } else {
+                handleRestartTour();
+              }
+            }}
+            accessibilityLabel="App Guide & Walkthrough"
             activeOpacity={0.7}
           >
             <Sparkles size={19} color="#047857" />
@@ -2374,6 +2385,7 @@ export default function AssistantDashboard({
             setShowPatientDetails={setShowPatientDetails}
             styles={styles}
             startTourTrigger={recordsTourTrigger}
+            userRole="assistant"
           />
         ) : activeTab === "appointments" ? (
           <AppointmentsTab
@@ -2399,6 +2411,7 @@ export default function AssistantDashboard({
               await refreshDashboardData();
             }}
             styles={styles}
+            startTourTrigger={requestsTourTrigger}
           />
         ) : activeTab === "settings" ? (
           <SettingsTab
