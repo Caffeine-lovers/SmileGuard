@@ -400,7 +400,7 @@ export default function PatientDetailsView({
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel}>TOTAL PAID</Text>
                   <Text style={[styles.metricValue, { color: '#10B981' }]}>
-                    ₱{billingInfo ? billingInfo.paidAmount.toFixed(0) : '0'}
+                    ₱{billingInfo ? billingInfo.paidAmount.toLocaleString('en-US') : '0'}
                   </Text>
                 </View>
               </View>
@@ -717,24 +717,24 @@ export default function PatientDetailsView({
                   <>
                     <DetailRow
                       label="Total Charges"
-                      value={`₱${billingInfo.totalAmount.toFixed(2)}`}
+                      value={`₱${billingInfo.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     />
                     <DetailRow
                       label="Amount Paid"
-                      value={`₱${billingInfo.paidAmount.toFixed(2)}`}
+                      value={`₱${billingInfo.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       isHighlight={true}
                     />
                     {billingInfo.pendingAmount > 0 && (
                       <DetailRow
                         label="Pending Balance"
-                        value={`₱${billingInfo.pendingAmount.toFixed(2)}`}
+                        value={`₱${billingInfo.pendingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                         isAlert={true}
                       />
                     )}
                     {billingInfo.overdueAmount > 0 && (
                       <DetailRow
                         label="Overdue Balance"
-                        value={`₱${billingInfo.overdueAmount.toFixed(2)}`}
+                        value={`₱${billingInfo.overdueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                         isAlert={true}
                       />
                     )}

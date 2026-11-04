@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Modal,
   View,
@@ -8,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Platform,
   StatusBar,
   KeyboardAvoidingView,
@@ -28,11 +27,18 @@ import {
   ShieldCheck,
   ChevronDown,
   CheckCircle2,
+  Mail,
+  ChevronLeft,
+  ChevronRight,
+  Ban,
+  AlertTriangle,
+  CalendarDays,
 } from "lucide-react-native";
 import { supabase } from "@smileguard/supabase-client";
-import { getAllPatients, fetchWalkInPatients } from "../../lib/profilesPatients";
-import { createDirectAppointment } from "../../lib/appointmentService";
+import { fetchWalkInPatients } from "../../lib/profilesPatients";
+import { createDirectAppointment, getDoctorAppointmentsByDate } from "../../lib/appointmentService";
 import AddPatientModal from "../patientrecord/AddPatientModal";
+import { useClinic } from "../../contexts/ClinicContext";
 
 interface AddAppointmentModalProps {
   visible: boolean;
@@ -40,6 +46,9 @@ interface AddAppointmentModalProps {
   onAppointmentAdded?: () => void;
   initialDate?: string;
   defaultDoctorId?: string | null;
+  clinicSchedule?: any;
+  blockoutDates?: any[];
+  existingAppointments?: any[];
 }
 
 const DEFAULT_SERVICES = [
@@ -65,26 +74,135 @@ const STANDARD_TIMES = [
   "05:00 PM",
 ];
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const DAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+function formatDateLong(dateStr: string): string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr || "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!m || m < 1 || m > 12 || !d) return dateStr;
+  return `${MONTH_NAMES[m - 1]} ${d}, ${y}`;
+}
+
+function getTodayStr(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getMaxDate(): { date: Date; dateStr: string } {
+  const max = new Date();
+  max.setMonth(max.getMonth() + 6);
+  const y = max.getFullYear();
+  const m = String(max.getMonth() + 1).padStart(2, "0");
+  const d = String(max.getDate()).padStart(2, "0");
+  return { date: max, dateStr: `${y}-${m}-${d}` };
+}
+
+function getDayName(dateStr: string): typeof DAY_KEYS[number] {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dayIdx = new Date(y, m - 1, d).getDay();
+  return DAY_KEYS[dayIdx];
+}
+
+function parse12HourTime(timeStr: string): { hour: number; minute: number } {
+  if (!timeStr) return { hour: 9, minute: 0 };
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return { hour: 9, minute: 0 };
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const period = match[3]?.toUpperCase();
+  if (period === "PM" && hour < 12) hour += 12;
+  if (period === "AM" && hour === 12) hour = 0;
+  return { hour, minute };
+}
+
+function format12HourTime(hour: number, minute: number): string {
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  const displayMinute = String(minute).padStart(2, "0");
+  return `${String(displayHour).padStart(2, "0")}:${displayMinute} ${period}`;
+}
+
+function normalizeTimeString(t: string): string {
+  if (!t) return "";
+  const cleaned = t.trim().toUpperCase();
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!match) return cleaned;
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const period = match[3];
+  if (period === "PM" && h < 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${m}`;
+}
+
 export default function AddAppointmentModal({
   visible,
   onClose,
   onAppointmentAdded,
   initialDate,
   defaultDoctorId,
+  clinicSchedule: propClinicSchedule,
+  blockoutDates: propBlockoutDates,
+  existingAppointments,
 }: AddAppointmentModalProps) {
   const insets = useSafeAreaInsets();
   const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
 
+  // Clinic Context
+  const { clinic } = useClinic();
+  const clinicSchedule = propClinicSchedule || clinic?.schedule;
+
   // Form Fields
-  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string; contact?: string; dummy?: boolean } | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<{
+    id: string;
+    name: string;
+    email?: string;
+    contact?: string;
+    dummy?: boolean;
+  } | null>(null);
+
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(defaultDoctorId || null);
-  const [service, setService] = useState(DEFAULT_SERVICES[0]);
-  const [customService, setCustomService] = useState("");
-  const [appointmentDate, setAppointmentDate] = useState(initialDate || new Date().toISOString().split("T")[0]);
-  const [appointmentTime, setAppointmentTime] = useState(STANDARD_TIMES[1]);
+  const [service, setService] = useState<string>("");
+  const [appointmentDate, setAppointmentDate] = useState(() => {
+    const today = getTodayStr();
+    if (initialDate && initialDate >= today) {
+      return initialDate;
+    }
+    return today;
+  });
+  const [appointmentTime, setAppointmentTime] = useState<string>("");
   const [notes, setNotes] = useState("");
 
-  // Patients Picker State
+  // Blockout Dates state
+  const [blockoutDates, setBlockoutDates] = useState<any[]>(propBlockoutDates || []);
+
+  // Patients Picker State (ONLY DUMMY PATIENTS)
   const [patientsList, setPatientsList] = useState<any[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
@@ -94,41 +212,101 @@ export default function AddAppointmentModal({
   // Doctors list
   const [doctorsList, setDoctorsList] = useState<any[]>([]);
 
+  // Appointments on selected date
+  const [dayAppointments, setDayAppointments] = useState<any[]>([]);
+  // Sync day appointments from parent if provided
+  useEffect(() => {
+    if (visible && existingAppointments && existingAppointments.length >= 0) {
+      setDayAppointments(existingAppointments);
+    }
+  }, [visible, existingAppointments]);
+
+
+  const [loadingDayAppointments, setLoadingDayAppointments] = useState(false);
+
+  // Date Picker Modal state
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerCalendarMonth, setPickerCalendarMonth] = useState<Date>(() => {
+    const today = getTodayStr();
+    const valid = initialDate && initialDate >= today ? initialDate : today;
+    const [y, m] = valid.split("-").map(Number);
+    return new Date(y, m - 1, 1);
+  });
+  const [monthAppointments, setMonthAppointments] = useState<any[]>([]);
+
   // Submission State
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successCreatedAppointment, setSuccessCreatedAppointment] = useState<{
     patientName: string;
+    patientEmail?: string;
     date: string;
     time: string;
     service: string;
     doctorName?: string;
   } | null>(null);
 
-  // Reset initial date whenever prop updates
+  // Connect Dental Services from Clinic Setup
+  const availableServices = useMemo(() => {
+    if (!clinic?.services) return DEFAULT_SERVICES;
+    let list: any[] = [];
+    if (Array.isArray(clinic.services)) {
+      list = clinic.services;
+    } else if (typeof clinic.services === "string") {
+      try {
+        list = JSON.parse(clinic.services);
+      } catch {
+        list = [];
+      }
+    }
+    const names = list
+      .map((s: any) => {
+        if (typeof s === "string") return s.trim();
+        return (s.name || s.service_name || s.title || "").trim();
+      })
+      .filter(Boolean);
+    return names.length > 0 ? names : DEFAULT_SERVICES;
+  }, [clinic?.services]);
+
+  // Set default service once available services load
+  useEffect(() => {
+    if (!service && availableServices.length > 0) {
+      setService(availableServices[0]);
+    }
+  }, [availableServices, service]);
+
+  // Reset initial date whenever prop updates (ensuring not in the past)
   useEffect(() => {
     if (initialDate) {
-      setAppointmentDate(initialDate);
+      const today = getTodayStr();
+      const valid = initialDate >= today ? initialDate : today;
+      setAppointmentDate(valid);
+      setAppointmentTime("");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(valid)) {
+        const [y, m] = valid.split("-").map(Number);
+        setPickerCalendarMonth(new Date(y, m - 1, 1));
+      }
     }
   }, [initialDate]);
 
-  // Fetch patients and doctors when modal opens
-  useEffect(() => {
-    if (visible) {
-      fetchPatients();
-      fetchDoctors();
+  // Fetch blockout dates from clinic_blockout_dates
+  const fetchBlockoutDates = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("clinic_blockout_dates").select("*");
+      if (!error && data) {
+        setBlockoutDates(data);
+      }
+    } catch (err) {
+      console.error("[AddAppointmentModal] Error fetching blockouts:", err);
     }
-  }, [visible]);
+  }, []);
 
-  const fetchPatients = async () => {
+  // Fetch ONLY Dummy Patients
+  const fetchDummyPatients = useCallback(async () => {
     setLoadingPatients(true);
     try {
-      const [regularPatients, walkInPatients] = await Promise.all([
-        getAllPatients(),
-        fetchWalkInPatients(),
-      ]);
-      const regularList = regularPatients || [];
-      const walkInList = (walkInPatients || []).map((w: any) => ({
+      const walkInPatients = await fetchWalkInPatients();
+      const dummyList = (walkInPatients || []).map((w: any) => ({
         id: w.id,
         name: w.name,
         email: w.email || "",
@@ -136,18 +314,18 @@ export default function AddAppointmentModal({
         allergies: w.allergies || "None",
         dummy: true,
       }));
-      const combined = [...regularList, ...walkInList];
-      setPatientsList(combined);
-      return combined;
+      setPatientsList(dummyList);
+      return dummyList;
     } catch (err) {
-      console.error("[AddAppointmentModal] Error fetching patients:", err);
+      console.error("[AddAppointmentModal] Error fetching dummy patients:", err);
       return [];
     } finally {
       setLoadingPatients(false);
     }
-  };
+  }, []);
 
-  const fetchDoctors = async () => {
+  // Fetch Doctors
+  const fetchDoctors = useCallback(async () => {
     try {
       const { data } = await supabase
         .from("doctors")
@@ -160,17 +338,280 @@ export default function AddAppointmentModal({
     } catch (err) {
       console.error("[AddAppointmentModal] Error fetching doctors:", err);
     }
+  }, [selectedDoctorId]);
+
+  // Fetch Appointments on appointmentDate
+  const fetchDayAppointments = useCallback(async (targetDate: string) => {
+    if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return;
+    setLoadingDayAppointments(true);
+    try {
+      // 1. Try getDoctorAppointmentsByDate (uses SECURITY DEFINER RPC to bypass RLS)
+      try {
+        const docApts = await getDoctorAppointmentsByDate(selectedDoctorId || defaultDoctorId || null, targetDate);
+        if (docApts && Array.isArray(docApts) && docApts.length > 0) {
+          setDayAppointments(docApts);
+          return;
+        }
+      } catch (rpcErr) {
+        // Fall back to direct query
+      }
+
+      // 2. Direct query with select("*") to avoid column mismatch errors
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*")
+        .eq("appointment_date", targetDate);
+
+      if (!error && data) {
+        setDayAppointments(data);
+      }
+    } catch (err) {
+      console.error("[AddAppointmentModal] Error fetching day appointments:", err);
+    } finally {
+      setLoadingDayAppointments(false);
+    }
+  }, [selectedDoctorId, defaultDoctorId]);
+
+  // Fetch Month Appointments for the Calendar Date Picker
+  const fetchMonthAppointments = useCallback(async (calendarMonth: Date) => {
+    const y = calendarMonth.getFullYear();
+    const m = calendarMonth.getMonth() + 1;
+    const startStr = `${y}-${String(m).padStart(2, "0")}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const endStr = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+    try {
+      const { data } = await supabase
+        .from("appointments")
+        .select("*")
+        .gte("appointment_date", startStr)
+        .lte("appointment_date", endStr);
+
+      if (data) {
+        setMonthAppointments(data);
+      }
+    } catch (err) {
+      console.error("[AddAppointmentModal] Error fetching month appointments:", err);
+    }
+  }, []);
+
+  // On modal open
+  useEffect(() => {
+    if (visible) {
+      fetchDummyPatients();
+      fetchDoctors();
+      fetchBlockoutDates();
+      fetchDayAppointments(appointmentDate);
+      fetchMonthAppointments(pickerCalendarMonth);
+    }
+  }, [
+    visible,
+    fetchDummyPatients,
+    fetchDoctors,
+    fetchBlockoutDates,
+    fetchDayAppointments,
+    fetchMonthAppointments,
+    appointmentDate,
+    pickerCalendarMonth,
+  ]);
+
+  // Refresh day appointments when appointmentDate changes
+  useEffect(() => {
+    if (visible && appointmentDate) {
+      fetchDayAppointments(appointmentDate);
+    }
+  }, [visible, appointmentDate, fetchDayAppointments]);
+
+  // Re-fetch month appointments when picker calendar month changes
+  useEffect(() => {
+    if (visible && showDatePicker) {
+      fetchMonthAppointments(pickerCalendarMonth);
+    }
+  }, [visible, showDatePicker, pickerCalendarMonth, fetchMonthAppointments]);
+
+  // Compute Time Slots based on Clinic Setup Operating Hours for the Day
+  const availableTimeSlots = useMemo(() => {
+    if (!appointmentDate || !/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) {
+      return STANDARD_TIMES;
+    }
+    const dayName = getDayName(appointmentDate);
+    const sched = clinicSchedule?.[dayName];
+
+    if (!sched || sched.isOpen === false) {
+      return [];
+    }
+
+    const openTime = parse12HourTime(sched.opening_time || "10:00 AM");
+    const closeTime = parse12HourTime(sched.closing_time || "03:00 PM");
+
+    const slots: string[] = [];
+    let curH = openTime.hour;
+    let curM = openTime.minute;
+
+    // Generate slots in 1-hour increments up to closing hour
+    while (curH < closeTime.hour || (curH === closeTime.hour && curM < closeTime.minute)) {
+      slots.push(format12HourTime(curH, curM));
+      curH += 1;
+    }
+
+    if (slots.length === 0) {
+      return STANDARD_TIMES;
+    }
+    return slots;
+  }, [appointmentDate, clinicSchedule]);
+
+  // When availableTimeSlots change (e.g. date changed), clear appointmentTime if it's no longer valid
+  useEffect(() => {
+    if (appointmentTime && !availableTimeSlots.includes(appointmentTime)) {
+      setAppointmentTime("");
+    }
+  }, [availableTimeSlots, appointmentTime]);
+
+  // ─────────────────────────────────────────
+  // VALIDATION & CLINIC CONNECTIVITY RULES
+  // ─────────────────────────────────────────
+
+  // 1. Check if date is blocked in clinic_blockout_dates
+  const blockoutEntry = useMemo(() => {
+    return blockoutDates.find(
+      (b) => b.blockout_date === appointmentDate && b.is_blocked
+    );
+  }, [blockoutDates, appointmentDate]);
+
+  const isDateBlockedOut = !!blockoutEntry;
+  const blockoutReason = blockoutEntry?.reason || "Clinic blockout date";
+
+  // 2. Check if day of week is closed in weekly clinic schedule
+  const isDayClosed = useMemo(() => {
+    if (!appointmentDate || !clinicSchedule) return false;
+    const dayName = getDayName(appointmentDate);
+    const daySched = clinicSchedule[dayName];
+    return daySched ? daySched.isOpen === false : false;
+  }, [appointmentDate, clinicSchedule]);
+
+  // 3. ONLY 3 SCHEDULED should be counted to blockout that date (FULL)
+  const scheduledCountOnDate = useMemo(() => {
+    return (dayAppointments || []).filter((a) => {
+      const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
+      if (apptDate && appointmentDate && apptDate !== appointmentDate) {
+        return false;
+      }
+      return (a.status || "").toLowerCase().trim() === "scheduled";
+    }).length;
+  }, [dayAppointments, appointmentDate]);
+
+  const isDateFull = scheduledCountOnDate >= 3;
+
+  const isCancelledOrDeclined = (status: string | null | undefined): boolean => {
+    if (!status) return false;
+    const s = String(status).toLowerCase().trim();
+    return (
+      s === "cancelled" ||
+      s === "canceled" ||
+      s === "declined" ||
+      s.includes("cancel") ||
+      s.includes("decline") ||
+      s.includes("reject") ||
+      s === "no-show" ||
+      s === "noshow" ||
+      s === "void"
+    );
   };
+
+  // 4. Block out if dummy patient is already scheduled on this date
+  const patientExistingAppointment = useMemo(() => {
+    if (!selectedPatient || !dayAppointments || dayAppointments.length === 0) return null;
+    return dayAppointments.find((a) => {
+      const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
+      if (apptDate && appointmentDate && apptDate !== appointmentDate) {
+        return false;
+      }
+      const matchId =
+        (selectedPatient.dummy && (a.dummy_patient_id === selectedPatient.id || a.dummy_account_id === selectedPatient.id)) ||
+        a.patient_id === selectedPatient.id;
+      const isActive = !isCancelledOrDeclined(a.status);
+      return matchId && isActive;
+    });
+  }, [selectedPatient, dayAppointments, appointmentDate]);
+
+  const isPatientScheduledOnDate = !!patientExistingAppointment;
+
+  // 5. Booked Time Slots Check (for any appointment or this patient)
+  // Make the time slot available if the status of the appointment is cancelled or declined
+  const bookedSlotTimes = useMemo(() => {
+    const set = new Set<string>();
+    (dayAppointments || []).forEach((a) => {
+      const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
+      if (apptDate && appointmentDate && apptDate !== appointmentDate) {
+        return; // Skip appointments from other dates
+      }
+      // If the appointment is cancelled, declined, or no-show, NEVER book the slot!
+      if (isCancelledOrDeclined(a.status)) {
+        return;
+      }
+      // Only active statuses (scheduled, pending, confirmed) book the slot
+      const status = String(a.status || "").toLowerCase().trim();
+      if (status && status !== "scheduled" && status !== "pending" && status !== "confirmed" && status !== "completed") {
+        return;
+      }
+      const rawTime = a.appointment_time || a.time;
+      if (rawTime) {
+        set.add(normalizeTimeString(rawTime));
+      }
+    });
+    return set;
+  }, [dayAppointments, appointmentDate]);
+
+  const isTimeSlotBooked = useCallback(
+    (slotStr: string) => {
+      return bookedSlotTimes.has(normalizeTimeString(slotStr));
+    },
+    [bookedSlotTimes]
+  );
+
+  const isSelectedTimeBooked = useMemo(() => {
+    if (!appointmentTime) return false;
+    return isTimeSlotBooked(appointmentTime);
+  }, [appointmentTime, isTimeSlotBooked]);
+
+  // 6. Master Validation Rule: Is OK to Schedule Appointment
+  const isOkToSchedule = useMemo(() => {
+    if (!selectedPatient) return false;
+    if (!selectedPatient.dummy) return false;
+    const finalService = service.trim();
+    if (!finalService) return false;
+    if (!appointmentDate || !/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) return false;
+    const today = getTodayStr();
+    const max = getMaxDate().dateStr;
+    if (appointmentDate < today || appointmentDate > max) return false; // No past dates & max 6 months ahead
+    if (isDateBlockedOut) return false;
+    if (isDayClosed) return false;
+    if (isDateFull) return false; // 3 scheduled count reached!
+    if (isPatientScheduledOnDate) return false; // Patient scheduled on date
+    if (!appointmentTime) return false;
+    if (isSelectedTimeBooked) return false; // Time slot taken
+    return true;
+  }, [
+    selectedPatient,
+    service,
+    appointmentDate,
+    isDateBlockedOut,
+    isDayClosed,
+    isDateFull,
+    isPatientScheduledOnDate,
+    appointmentTime,
+    isSelectedTimeBooked,
+  ]);
 
   const resetForm = () => {
     setSelectedPatient(null);
-    setService(DEFAULT_SERVICES[0]);
-    setCustomService("");
+    setService(availableServices[0] || DEFAULT_SERVICES[0]);
     setAppointmentDate(initialDate || new Date().toISOString().split("T")[0]);
-    setAppointmentTime(STANDARD_TIMES[1]);
+    setAppointmentTime("");
     setNotes("");
     setErrorMessage(null);
     setShowPatientPicker(false);
+    setShowDatePicker(false);
   };
 
   const handleClose = () => {
@@ -180,17 +621,50 @@ export default function AddAppointmentModal({
 
   const handleSubmit = async () => {
     if (!selectedPatient) {
-      setErrorMessage("Please select a patient for this appointment.");
+      setErrorMessage("Please select a dummy patient for this appointment.");
       return;
     }
     const finalDate = appointmentDate.trim();
     if (!finalDate || !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
-      setErrorMessage("Please enter a valid appointment date (YYYY-MM-DD).");
+      setErrorMessage("Please choose a valid appointment date.");
       return;
     }
-    const finalService = customService.trim() || service;
+    const today = getTodayStr();
+    const max = getMaxDate().dateStr;
+    if (finalDate < today) {
+      setErrorMessage("Cannot schedule: You cannot book an appointment for previous days.");
+      return;
+    }
+    if (finalDate > max) {
+      setErrorMessage("Cannot schedule: Appointments can only be booked up to 6 months in advance.");
+      return;
+    }
+    if (isDateBlockedOut) {
+      setErrorMessage(`Cannot schedule: This date is blocked out (${blockoutReason}).`);
+      return;
+    }
+    if (isDayClosed) {
+      setErrorMessage("Cannot schedule: The clinic is closed on this day.");
+      return;
+    }
+    if (isDateFull) {
+      setErrorMessage("Cannot schedule: This date is FULL (maximum 3 appointments scheduled).");
+      return;
+    }
+    if (isPatientScheduledOnDate) {
+      setErrorMessage(
+        `Cannot schedule: ${selectedPatient.name} is already scheduled on this date at ${patientExistingAppointment?.appointment_time}.`
+      );
+      return;
+    }
+    if (!appointmentTime || isSelectedTimeBooked) {
+      setErrorMessage("Please choose an available time slot that is not already booked.");
+      return;
+    }
+
+    const finalService = service.trim();
     if (!finalService) {
-      setErrorMessage("Please select or enter a dental service.");
+      setErrorMessage("Please select a dental service.");
       return;
     }
 
@@ -200,7 +674,7 @@ export default function AddAppointmentModal({
     try {
       const result = await createDirectAppointment({
         patient_id: selectedPatient.id,
-        is_dummy: (selectedPatient as any).dummy === true,
+        is_dummy: true,
         dentist_id: selectedDoctorId || null,
         service: finalService,
         appointment_date: finalDate,
@@ -213,29 +687,17 @@ export default function AddAppointmentModal({
         throw new Error(result.error || "Failed to schedule appointment.");
       }
 
-      let displayDate = finalDate;
-      try {
-        const [yr, mo, dy] = finalDate.split("-").map(Number);
-        if (yr && mo && dy) {
-          const dObj = new Date(yr, mo - 1, dy);
-          displayDate = dObj.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          });
-        }
-      } catch {
-        displayDate = finalDate;
-      }
-
-      const assignedDoc = doctorsList.find((d: any) => (d.id === selectedDoctorId || d.user_id === selectedDoctorId));
+      const assignedDoc = doctorsList.find(
+        (d: any) => d.id === selectedDoctorId || d.user_id === selectedDoctorId
+      );
       const doctorDisplayName = assignedDoc
-        ? (assignedDoc.doctor_name || `${assignedDoc.first_name || ''} ${assignedDoc.last_name || ''}`.trim())
+        ? assignedDoc.doctor_name || `${assignedDoc.first_name || ""} ${assignedDoc.last_name || ""}`.trim()
         : undefined;
 
       setSuccessCreatedAppointment({
         patientName: selectedPatient.name,
-        date: displayDate,
+        patientEmail: selectedPatient.email,
+        date: formatDateLong(finalDate),
         time: appointmentTime,
         service: finalService,
         doctorName: doctorDisplayName || "Assigned Clinic Dentist",
@@ -281,7 +743,7 @@ export default function AddAppointmentModal({
                 <Text style={styles.assistantBadgeText}>CLINIC BOOKING</Text>
               </View>
             </View>
-            <Text style={styles.subtitle}>Directly schedule appointments for walk-in or existing patients</Text>
+            <Text style={styles.subtitle}>Directly schedule appointments for walk-in dummy patients</Text>
           </View>
           <TouchableOpacity
             style={styles.closeBtn}
@@ -310,13 +772,15 @@ export default function AddAppointmentModal({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* 1. PATIENT SELECTION */}
+            {/* ───────────────────────────────────────── */}
+            {/* 1. DUMMY PATIENT SELECTION                */}
+            {/* ───────────────────────────────────────── */}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
                 <View style={styles.labelGroup}>
                   <User size={15} color="#047857" />
                   <Text style={styles.label}>
-                    Patient <Text style={styles.required}>*</Text>
+                    Dummy Patient <Text style={styles.required}>*</Text>
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -325,7 +789,7 @@ export default function AddAppointmentModal({
                   activeOpacity={0.7}
                 >
                   <Plus size={13} color="#047857" />
-                  <Text style={styles.quickAddPatientBtnText}>New Patient</Text>
+                  <Text style={styles.quickAddPatientBtnText}>New Dummy</Text>
                 </TouchableOpacity>
               </View>
 
@@ -346,109 +810,259 @@ export default function AddAppointmentModal({
                         <Text style={styles.selectedPatientName} numberOfLines={1}>
                           {selectedPatient.name}
                         </Text>
-                        {selectedPatient.dummy && (
-                          <View style={styles.walkinPill}>
-                            <Text style={styles.walkinPillText}>Walk-in</Text>
-                          </View>
-                        )}
+                        <View style={styles.dummyBadge}>
+                          <Text style={styles.dummyBadgeText}>DUMMY</Text>
+                        </View>
                       </View>
-                      <Text style={styles.selectedPatientContact}>
-                        {selectedPatient.contact || "No phone provided"}
-                      </Text>
+
+                      {/* Display Email Prominently */}
+                      <View style={styles.patientEmailRow}>
+                        <Mail size={12} color="#047857" style={{ marginRight: 4 }} />
+                        <Text style={styles.selectedPatientEmail} numberOfLines={1}>
+                          {selectedPatient.email || "No email registered"}
+                        </Text>
+                      </View>
+
+                      {selectedPatient.contact ? (
+                        <Text style={styles.selectedPatientContact}>
+                          Phone: {selectedPatient.contact}
+                        </Text>
+                      ) : null}
                     </View>
                     <ChevronDown size={18} color="#047857" />
                   </View>
                 ) : (
                   <View style={styles.emptyPatientRow}>
-                    <Text style={styles.emptyPatientText}>Tap to choose a patient...</Text>
+                    <Text style={styles.emptyPatientText}>Tap to choose a dummy patient...</Text>
                     <ChevronDown size={18} color="#94A3B8" />
                   </View>
                 )}
               </TouchableOpacity>
             </View>
 
-            {/* 2. DENTAL SERVICE */}
+            {/* ───────────────────────────────────────── */}
+            {/* 2. DENTAL SERVICES (FROM CLINIC SETUP)    */}
+            {/* ───────────────────────────────────────── */}
             <View style={[styles.card, { marginTop: 14 }]}>
-              <View style={styles.labelGroup}>
-                <Sparkles size={15} color="#047857" />
-                <Text style={styles.label}>
-                  Dental Service <Text style={styles.required}>*</Text>
-                </Text>
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.labelGroup}>
+                  <Sparkles size={15} color="#047857" />
+                  <Text style={styles.label}>
+                    Dental Service <Text style={styles.required}>*</Text>
+                  </Text>
+                </View>
+                <View style={styles.clinicSourceBadge}>
+                  <ShieldCheck size={11} color="#047857" />
+                  <Text style={styles.clinicSourceBadgeText}>CLINIC SETUP</Text>
+                </View>
               </View>
 
-              <View style={styles.pillGroup}>
-                {DEFAULT_SERVICES.map((s) => (
+              <View style={styles.servicesGrid}>
+                {availableServices.map((s) => (
                   <TouchableOpacity
                     key={s}
                     style={[styles.servicePill, service === s && styles.servicePillActive]}
-                    onPress={() => {
-                      setService(s);
-                      setCustomService("");
-                    }}
+                    onPress={() => setService(s)}
                     activeOpacity={0.7}
                   >
                     <Text
                       style={[styles.servicePillText, service === s && styles.servicePillTextActive]}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {s}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
-              <TextInput
-                style={[styles.input, { marginTop: 10 }]}
-                placeholder="Or specify custom service..."
-                placeholderTextColor="#94A3B8"
-                value={customService}
-                onChangeText={(val) => {
-                  setCustomService(val);
-                  if (val) setService("");
-                }}
-              />
             </View>
 
-            {/* 3. SCHEDULE DATE & TIME */}
+            {/* ───────────────────────────────────────── */}
+            {/* 3. SCHEDULE DATE & TIME (CONNECT CLINIC)  */}
+            {/* ───────────────────────────────────────── */}
             <View style={[styles.card, { marginTop: 14 }]}>
-              <View style={styles.labelGroup}>
-                <Calendar size={15} color="#047857" />
-                <Text style={styles.label}>
-                  Appointment Date (YYYY-MM-DD) <Text style={styles.required}>*</Text>
-                </Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#94A3B8"
-                value={appointmentDate}
-                onChangeText={setAppointmentDate}
-              />
-
-              <View style={[styles.labelGroup, { marginTop: 14 }]}>
-                <Clock size={15} color="#047857" />
-                <Text style={styles.label}>
-                  Preferred Time Slot <Text style={styles.required}>*</Text>
-                </Text>
+              {/* Date Header & Trigger */}
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.labelGroup}>
+                  <Calendar size={15} color="#047857" />
+                  <Text style={styles.label}>
+                    Appointment Date <Text style={styles.required}>*</Text>
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={styles.changeDateBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.changeDateBtnText}>Change Date</Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.pillGroup}>
-                {STANDARD_TIMES.map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.timePill, appointmentTime === t && styles.timePillActive]}
-                    onPress={() => setAppointmentTime(t)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.timePillText, appointmentTime === t && styles.timePillTextActive]}>
-                      {t}
+              {/* Formatted Date Hero Display: e.g. November 19, 2003 */}
+              <TouchableOpacity
+                style={[
+                  styles.dateHeroCard,
+                  (isDateFull || isDateBlockedOut || isDayClosed || isPatientScheduledOnDate) &&
+                    styles.dateHeroCardWarning,
+                ]}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dateHeroLabel}>SELECTED DATE</Text>
+                  <Text style={styles.dateHeroValue}>
+                    {formatDateLong(appointmentDate) || "No date selected"}
+                  </Text>
+                  <Text style={styles.dateHeroWeekday}>
+                    {appointmentDate ? getDayName(appointmentDate).toUpperCase() : ""}
+                  </Text>
+                </View>
+
+                {/* Status Badge */}
+                {isDateBlockedOut ? (
+                  <View style={styles.badgeBlocked}>
+                    <Ban size={12} color="#DC2626" />
+                    <Text style={styles.badgeBlockedText}>BLOCKED</Text>
+                  </View>
+                ) : isDayClosed ? (
+                  <View style={styles.badgeClosed}>
+                    <Text style={styles.badgeClosedText}>CLOSED</Text>
+                  </View>
+                ) : isDateFull ? (
+                  <View style={styles.badgeFull}>
+                    <Ban size={12} color="#DC2626" />
+                    <Text style={styles.badgeFullText}>FULL (3/3)</Text>
+                  </View>
+                ) : isPatientScheduledOnDate ? (
+                  <View style={styles.badgeConflict}>
+                    <AlertTriangle size={12} color="#D97706" />
+                    <Text style={styles.badgeConflictText}>PATIENT SCHEDULED</Text>
+                  </View>
+                ) : (
+                  <View style={styles.badgeAvailable}>
+                    <Check size={12} color="#047857" />
+                    <Text style={styles.badgeAvailableText}>
+                      {scheduledCountOnDate}/3 Scheduled
                     </Text>
-                  </TouchableOpacity>
-                ))}
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Conflict / Blockout Alerts */}
+              {isDateBlockedOut && (
+                <View style={styles.dateWarningBox}>
+                  <AlertCircle size={14} color="#DC2626" style={{ marginRight: 6 }} />
+                  <Text style={styles.dateWarningText}>
+                    Date is blocked out in clinic setup: {blockoutReason}
+                  </Text>
+                </View>
+              )}
+
+              {isDayClosed && (
+                <View style={styles.dateWarningBox}>
+                  <AlertCircle size={14} color="#DC2626" style={{ marginRight: 6 }} />
+                  <Text style={styles.dateWarningText}>
+                    The clinic is closed on {getDayName(appointmentDate)}s according to clinic setup.
+                  </Text>
+                </View>
+              )}
+
+              {isDateFull && (
+                <View style={styles.dateWarningBox}>
+                  <AlertCircle size={14} color="#DC2626" style={{ marginRight: 6 }} />
+                  <Text style={styles.dateWarningText}>
+                    This date has reached maximum capacity (3/3 scheduled). Date is FULL.
+                  </Text>
+                </View>
+              )}
+
+              {isPatientScheduledOnDate && (
+                <View style={[styles.dateWarningBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                  <AlertTriangle size={14} color="#D97706" style={{ marginRight: 6 }} />
+                  <Text style={[styles.dateWarningText, { color: "#B45309" }]}>
+                    {selectedPatient?.name} is already scheduled on this date (at {patientExistingAppointment?.appointment_time}).
+                  </Text>
+                </View>
+              )}
+
+              {/* Time Slots (Operating Hours) */}
+              <View style={[styles.cardHeaderRow, { marginTop: 16 }]}>
+                <View style={styles.labelGroup}>
+                  <Clock size={15} color="#047857" />
+                  <Text style={styles.label}>
+                    Time Slot <Text style={styles.required}>*</Text>
+                  </Text>
+                </View>
+                <Text style={styles.timeSlotsHeaderHint}>
+                  {clinicSchedule?.[getDayName(appointmentDate)]
+                    ? `${clinicSchedule[getDayName(appointmentDate)].opening_time} - ${clinicSchedule[getDayName(appointmentDate)].closing_time}`
+                    : "Clinic Hours"}
+                </Text>
               </View>
+
+              {!isDayClosed && availableTimeSlots.length > 0 && !appointmentTime && (
+                <Text style={styles.timeSelectHintText}>
+                  Please tap an available time slot below:
+                </Text>
+              )}
+
+              {isDayClosed ? (
+                <View style={styles.noSlotsBox}>
+                  <Text style={styles.noSlotsText}>Clinic is closed on this day.</Text>
+                </View>
+              ) : availableTimeSlots.length === 0 ? (
+                <View style={styles.noSlotsBox}>
+                  <Text style={styles.noSlotsText}>No operating hours configured for this day.</Text>
+                </View>
+              ) : (
+                <View style={styles.pillGroup}>
+                  {availableTimeSlots.map((t) => {
+                    const isBooked = isTimeSlotBooked(t);
+                    const isSelected = appointmentTime === t;
+                    const isPatientSlot =
+                      isPatientScheduledOnDate &&
+                      normalizeTimeString(patientExistingAppointment?.appointment_time || patientExistingAppointment?.time) ===
+                        normalizeTimeString(t);
+
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        style={[
+                          styles.timePill,
+                          isSelected && styles.timePillActive,
+                          isBooked && !isSelected && styles.timePillBooked,
+                        ]}
+                        onPress={() => {
+                          if (!isBooked) {
+                            setAppointmentTime(t);
+                          }
+                        }}
+                        disabled={isBooked}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.timePillText,
+                            isSelected && styles.timePillTextActive,
+                            isBooked && styles.timePillTextBooked,
+                          ]}
+                        >
+                          {t}
+                        </Text>
+                        {isBooked ? (
+                          <Text style={styles.timePillBookedTag}>
+                            {isPatientSlot ? "Patient" : "Booked"}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
-            {/* 4. DOCTOR / DENTIST SELECTION (Optional) */}
+            {/* ───────────────────────────────────────── */}
+            {/* 4. DOCTOR / DENTIST SELECTION (Optional)  */}
+            {/* ───────────────────────────────────────── */}
             {doctorsList.length > 0 && (
               <View style={[styles.card, { marginTop: 14 }]}>
                 <View style={styles.labelGroup}>
@@ -459,7 +1073,8 @@ export default function AddAppointmentModal({
                 <View style={styles.pillGroup}>
                   {doctorsList.map((doc) => {
                     const docId = doc.id || doc.user_id;
-                    const docName = doc.doctor_name || `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim();
+                    const docName =
+                      doc.doctor_name || `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim();
                     const isSelected = selectedDoctorId === docId;
                     return (
                       <TouchableOpacity
@@ -478,7 +1093,9 @@ export default function AddAppointmentModal({
               </View>
             )}
 
-            {/* 5. NOTES */}
+            {/* ───────────────────────────────────────── */}
+            {/* 5. NOTES                                  */}
+            {/* ───────────────────────────────────────── */}
             <View style={[styles.card, { marginTop: 14 }]}>
               <Text style={styles.label}>Internal Notes / Patient Request Details</Text>
               <TextInput
@@ -494,35 +1111,72 @@ export default function AddAppointmentModal({
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Action Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={handleClose}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
+        {/* ───────────────────────────────────────── */}
+        {/* ACTION FOOTER & ENABLED BUTTON VALIDATION */}
+        {/* ───────────────────────────────────────── */}
+        <View style={styles.footerContainer}>
+          {!isOkToSchedule ? (
+            <View style={styles.validationNoticeBox}>
+              <AlertCircle size={14} color="#D97706" style={{ marginRight: 6 }} />
+              <Text style={styles.validationNoticeText}>
+                {!selectedPatient
+                  ? "Please choose a dummy patient."
+                  : isDateBlockedOut
+                  ? `Cannot schedule: Date is blocked (${blockoutReason}).`
+                  : isDayClosed
+                  ? "Cannot schedule: Clinic is closed on this day."
+                  : isDateFull
+                  ? "Cannot schedule: Date is FULL (3/3 scheduled)."
+                  : isPatientScheduledOnDate
+                  ? "Cannot schedule: Dummy patient already scheduled on this date."
+                  : !appointmentTime || isSelectedTimeBooked
+                  ? "Please select an available time slot."
+                  : "Please complete all required fields."}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.readyNoticeBox}>
+              <CheckCircle2 size={14} color="#059669" style={{ marginRight: 6 }} />
+              <Text style={styles.readyNoticeText}>
+                Ready: {formatDateLong(appointmentDate)} at {appointmentTime}
+              </Text>
+            </View>
+          )}
 
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Check size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                <Text style={styles.submitBtnText}>Schedule Appointment</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={styles.footerBtnRow}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={handleClose}
+              disabled={loading}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.submitBtn,
+                (!isOkToSchedule || loading) && styles.submitBtnDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!isOkToSchedule || loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Check size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.submitBtnText}>Schedule Appointment</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Patient Selection Bottom-Sheet / Overlay Modal */}
+        {/* ───────────────────────────────────────── */}
+        {/* MODAL: CHOOSE DUMMY PATIENT               */}
+        {/* ───────────────────────────────────────── */}
         <Modal
           visible={showPatientPicker}
           animationType="slide"
@@ -532,8 +1186,8 @@ export default function AddAppointmentModal({
           <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }} edges={["top", "bottom"]}>
             <View style={styles.pickerHeader}>
               <View>
-                <Text style={styles.pickerTitle}>CHOOSE PATIENT</Text>
-                <Text style={styles.pickerSubtitle}>Select a registered patient or create a walk-in</Text>
+                <Text style={styles.pickerTitle}>CHOOSE DUMMY PATIENT</Text>
+                <Text style={styles.pickerSubtitle}>Select a dummy patient profile for this appointment</Text>
               </View>
               <TouchableOpacity
                 style={styles.closeBtn}
@@ -547,7 +1201,7 @@ export default function AddAppointmentModal({
               <Search size={16} color="#94A3B8" style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.searchBarInput}
-                placeholder="Search by patient name, phone, or email..."
+                placeholder="Search by name, email, or phone..."
                 placeholderTextColor="#94A3B8"
                 value={patientSearch}
                 onChangeText={setPatientSearch}
@@ -570,23 +1224,23 @@ export default function AddAppointmentModal({
                 activeOpacity={0.8}
               >
                 <Plus size={15} color="#047857" style={{ marginRight: 6 }} />
-                <Text style={styles.newPatientShortcutText}>Register New Walk-in Patient</Text>
+                <Text style={styles.newPatientShortcutText}>Register New Dummy Patient</Text>
               </TouchableOpacity>
             </View>
 
             {loadingPatients ? (
               <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color="#047857" />
-                <Text style={{ marginTop: 10, fontSize: 13, color: "#64748B" }}>Loading patients...</Text>
+                <Text style={{ marginTop: 10, fontSize: 13, color: "#64748B" }}>Loading dummy patients...</Text>
               </View>
             ) : filteredPatients.length === 0 ? (
               <View style={styles.centerContainer}>
                 <User size={36} color="#CBD5E1" />
                 <Text style={{ marginTop: 10, fontSize: 14, fontWeight: "700", color: "#64748B" }}>
-                  No patients found
+                  No dummy patients found
                 </Text>
                 <Text style={{ marginTop: 4, fontSize: 12, color: "#94A3B8" }}>
-                  Try a different search or register a new patient
+                  Try a different search or register a new dummy patient
                 </Text>
               </View>
             ) : (
@@ -600,9 +1254,10 @@ export default function AddAppointmentModal({
                       onPress={() => {
                         setSelectedPatient({
                           id: p.id,
-                          name: p.name || "Patient",
+                          name: p.name || "Dummy Patient",
+                          email: p.email || "",
                           contact: p.phone,
-                          dummy: p.dummy,
+                          dummy: true,
                         });
                         setShowPatientPicker(false);
                       }}
@@ -610,21 +1265,28 @@ export default function AddAppointmentModal({
                     >
                       <View style={styles.patientItemAvatar}>
                         <Text style={styles.patientItemAvatarText}>
-                          {(p.name || "P").charAt(0).toUpperCase()}
+                          {(p.name || "D").charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           <Text style={styles.patientItemName}>{p.name}</Text>
-                          {p.dummy && (
-                            <View style={styles.walkinPill}>
-                              <Text style={styles.walkinPillText}>Walk-in</Text>
-                            </View>
-                          )}
+                          <View style={styles.dummyBadge}>
+                            <Text style={styles.dummyBadgeText}>DUMMY</Text>
+                          </View>
                         </View>
-                        <Text style={styles.patientItemMeta}>
-                          {p.phone || p.email || "No contact info"}
-                        </Text>
+
+                        {/* Display Email Prominently */}
+                        <View style={styles.patientEmailRow}>
+                          <Mail size={12} color="#047857" style={{ marginRight: 4 }} />
+                          <Text style={styles.patientItemEmail} numberOfLines={1}>
+                            {p.email ? p.email : "No email registered"}
+                          </Text>
+                        </View>
+
+                        {p.phone ? (
+                          <Text style={styles.patientItemMeta}>Phone: {p.phone}</Text>
+                        ) : null}
                       </View>
                       {isCurrent ? (
                         <Check size={18} color="#047857" strokeWidth={2.5} />
@@ -637,26 +1299,254 @@ export default function AddAppointmentModal({
           </SafeAreaView>
         </Modal>
 
-        {/* Embedded Add Patient Modal */}
+        {/* ───────────────────────────────────────── */}
+        {/* MODAL: INTERACTIVE DATE PICKER CALENDAR   */}
+        {/* ───────────────────────────────────────── */}
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.datePickerOverlay}>
+            <View style={styles.datePickerModalCard}>
+              {/* Header with Month Navigator (constrained to [Current Month .. +6 Months]) */}
+              {(() => {
+                const now = new Date();
+                const currentMonthIdx = now.getFullYear() * 12 + now.getMonth();
+                const pickerMonthIdx = pickerCalendarMonth.getFullYear() * 12 + pickerCalendarMonth.getMonth();
+                const canGoPrevMonth = pickerMonthIdx > currentMonthIdx;
+                const canGoNextMonth = pickerMonthIdx < currentMonthIdx + 6;
+
+                return (
+                  <View style={styles.datePickerHeader}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (canGoPrevMonth) {
+                          const prev = new Date(
+                            pickerCalendarMonth.getFullYear(),
+                            pickerCalendarMonth.getMonth() - 1,
+                            1
+                          );
+                          setPickerCalendarMonth(prev);
+                        }
+                      }}
+                      disabled={!canGoPrevMonth}
+                      style={[styles.dateNavBtn, !canGoPrevMonth && { opacity: 0.35, backgroundColor: "#F1F5F9" }]}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronLeft size={18} color={canGoPrevMonth ? "#047857" : "#94A3B8"} />
+                    </TouchableOpacity>
+
+                    <View style={{ alignItems: "center" }}>
+                      <Text style={styles.datePickerMonthTitle}>
+                        {MONTH_NAMES[pickerCalendarMonth.getMonth()]}{" "}
+                        {pickerCalendarMonth.getFullYear()}
+                      </Text>
+                      <Text style={styles.datePickerSubtitle}>Available: today up to 6 months ahead</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (canGoNextMonth) {
+                          const next = new Date(
+                            pickerCalendarMonth.getFullYear(),
+                            pickerCalendarMonth.getMonth() + 1,
+                            1
+                          );
+                          setPickerCalendarMonth(next);
+                        }
+                      }}
+                      disabled={!canGoNextMonth}
+                      style={[styles.dateNavBtn, !canGoNextMonth && { opacity: 0.35, backgroundColor: "#F1F5F9" }]}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronRight size={18} color={canGoNextMonth ? "#047857" : "#94A3B8"} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })()}
+
+              {/* Day of week headers */}
+              <View style={styles.weekdaysRow}>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => {
+                  const dayName = DAY_KEYS[idx];
+                  const daySched = clinicSchedule?.[dayName];
+                  const isClosed = daySched ? daySched.isOpen === false : false;
+                  return (
+                    <Text
+                      key={day}
+                      style={[styles.weekdayText, isClosed && { color: "#EF4444", opacity: 0.8 }]}
+                    >
+                      {day}
+                    </Text>
+                  );
+                })}
+              </View>
+
+              {/* Days Grid */}
+              <View style={styles.daysGrid}>
+                {/* Empty slots for starting day of month */}
+                {Array.from({
+                  length: new Date(
+                    pickerCalendarMonth.getFullYear(),
+                    pickerCalendarMonth.getMonth(),
+                    1
+                  ).getDay(),
+                }).map((_, idx) => (
+                  <View key={`empty-${idx}`} style={styles.dayCellEmpty} />
+                ))}
+
+                {/* Day buttons */}
+                {Array.from({
+                  length: new Date(
+                    pickerCalendarMonth.getFullYear(),
+                    pickerCalendarMonth.getMonth() + 1,
+                    0
+                  ).getDate(),
+                }).map((_, idx) => {
+                  const day = idx + 1;
+                  const dateStr = `${pickerCalendarMonth.getFullYear()}-${String(
+                    pickerCalendarMonth.getMonth() + 1
+                  ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+                  const isSelected = appointmentDate === dateStr;
+                  const dayName = getDayName(dateStr);
+                  const daySched = clinicSchedule?.[dayName];
+                  const isClosed = daySched ? daySched.isOpen === false : false;
+
+                  const isBlocked = blockoutDates.some(
+                    (b) => b.blockout_date === dateStr && b.is_blocked
+                  );
+
+                  // Count ONLY scheduled appointments for FULL blockout
+                  const scheduledCount = monthAppointments.filter(
+                    (a) =>
+                      a.appointment_date === dateStr &&
+                      (a.status || "").toLowerCase() === "scheduled"
+                  ).length;
+                  const isFull = scheduledCount >= 3;
+
+                  // Date limits: cannot book previous days and max 6 months ahead
+                  const todayStr = getTodayStr();
+                  const maxDateStr = getMaxDate().dateStr;
+                  const isPast = dateStr < todayStr;
+                  const isBeyondLimit = dateStr > maxDateStr;
+
+                  const isUnavailable = isPast || isBeyondLimit || isClosed || isBlocked || isFull;
+
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.dayCell,
+                        isSelected && styles.dayCellSelected,
+                        isFull && !isSelected && styles.dayCellFull,
+                        isBlocked && !isSelected && styles.dayCellBlocked,
+                        isClosed && !isSelected && styles.dayCellClosed,
+                        (isPast || isBeyondLimit) && !isSelected && styles.dayCellPast,
+                      ]}
+                      onPress={() => {
+                        if (!isUnavailable) {
+                          setAppointmentDate(dateStr);
+                          setAppointmentTime("");
+                          setShowDatePicker(false);
+                        }
+                      }}
+                      disabled={isUnavailable}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.dayText,
+                          isSelected && styles.dayTextSelected,
+                          isFull && styles.dayTextFull,
+                          isBlocked && styles.dayTextBlocked,
+                          isClosed && styles.dayTextClosed,
+                          (isPast || isBeyondLimit) && styles.dayTextPast,
+                        ]}
+                      >
+                        {day}
+                      </Text>
+
+                      {/* Status Badges */}
+                      {isFull ? (
+                        <View style={styles.dayMiniBadgeFull}>
+                          <Text style={styles.dayMiniBadgeFullText}>FULL</Text>
+                        </View>
+                      ) : isBlocked ? (
+                        <View style={styles.dayMiniBadgeBlocked}>
+                          <Text style={styles.dayMiniBadgeBlockedText}>X</Text>
+                        </View>
+                      ) : isClosed ? (
+                        <View style={styles.dayMiniBadgeClosed}>
+                          <Text style={styles.dayMiniBadgeClosedText}>OFF</Text>
+                        </View>
+                      ) : scheduledCount > 0 ? (
+                        <View style={styles.dayMiniBadgeCount}>
+                          <Text style={styles.dayMiniBadgeCountText}>{scheduledCount}</Text>
+                        </View>
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Legend */}
+              <View style={styles.calendarLegendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#EF4444" }]} />
+                  <Text style={styles.legendText}>FULL (3/3)</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#F59E0B" }]} />
+                  <Text style={styles.legendText}>Blocked</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#94A3B8" }]} />
+                  <Text style={styles.legendText}>Closed</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#CBD5E1" }]} />
+                  <Text style={styles.legendText}>Past / Max</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeDatePickerBtn}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.closeDatePickerBtnText}>Close Calendar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ───────────────────────────────────────── */}
+        {/* EMBEDDED ADD PATIENT MODAL (CREATE DUMMY) */}
+        {/* ───────────────────────────────────────── */}
         <AddPatientModal
           visible={showCreatePatientModal}
           onClose={() => setShowCreatePatientModal(false)}
           onPatientAdded={async (newId) => {
             setShowCreatePatientModal(false);
-            const combined = await fetchPatients();
-            const found = combined?.find((p: any) => p.id === newId) as any;
+            const dummyList = await fetchDummyPatients();
+            const found = dummyList?.find((p: any) => p.id === newId) as any;
             if (found) {
               setSelectedPatient({
                 id: found.id,
                 name: found.name,
+                email: found.email || "",
                 contact: found.phone,
-                dummy: found.dummy,
+                dummy: true,
               });
             }
           }}
         />
 
-        {/* Success Modal */}
+        {/* ───────────────────────────────────────── */}
+        {/* SUCCESS CONFIRMATION MODAL                */}
+        {/* ───────────────────────────────────────── */}
         <Modal
           visible={successCreatedAppointment !== null}
           transparent
@@ -679,9 +1569,15 @@ export default function AddAppointmentModal({
 
               <View style={styles.successSummaryCard}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Patient</Text>
+                  <Text style={styles.summaryLabel}>Dummy Patient</Text>
                   <Text style={styles.summaryValue}>{successCreatedAppointment?.patientName}</Text>
                 </View>
+                {successCreatedAppointment?.patientEmail ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Email</Text>
+                    <Text style={styles.summaryValue}>{successCreatedAppointment?.patientEmail}</Text>
+                  </View>
+                ) : null}
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Date & Time</Text>
                   <Text style={styles.summaryValue}>
@@ -825,6 +1721,23 @@ const styles = StyleSheet.create({
   required: {
     color: "#EF4444",
   },
+  clinicSourceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 4,
+  },
+  clinicSourceBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.3,
+  },
   quickAddPatientBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -866,9 +1779,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   patientAvatarBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#047857",
     alignItems: "center",
     justifyContent: "center",
@@ -883,23 +1796,190 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0F172A",
   },
-  selectedPatientContact: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 1,
-  },
-  walkinPill: {
-    backgroundColor: "#EFF6FF",
+  dummyBadge: {
+    backgroundColor: "#F3E8FF",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "#D8B4FE",
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  walkinPillText: {
+  dummyBadgeText: {
     fontSize: 9,
+    fontWeight: "800",
+    color: "#7E22CE",
+    letterSpacing: 0.3,
+  },
+  patientEmailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  selectedPatientEmail: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#047857",
+  },
+  selectedPatientContact: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  changeDateBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#F1F5F9",
+  },
+  changeDateBtnText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#1D4ED8",
+    color: "#047857",
+  },
+  dateHeroCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 12,
+    padding: 14,
+  },
+  dateHeroCardWarning: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  dateHeroLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  dateHeroValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  dateHeroWeekday: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
+    marginTop: 2,
+  },
+  badgeAvailable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeAvailableText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#047857",
+  },
+  badgeFull: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeFullText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#DC2626",
+  },
+  badgeBlocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeBlockedText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#DC2626",
+  },
+  badgeClosed: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeClosedText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#475569",
+  },
+  badgeConflict: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeConflictText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#B45309",
+  },
+  dateWarningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+  },
+  dateWarningText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#DC2626",
+    flex: 1,
+  },
+  timeSlotsHeaderHint: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  timeSelectHintText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#D97706",
+    marginBottom: 8,
+  },
+  noSlotsBox: {
+    padding: 14,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  noSlotsText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
   },
   input: {
     backgroundColor: "#F8FAFC",
@@ -920,25 +2000,43 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  servicesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   servicePill: {
-    paddingHorizontal: 11,
-    paddingVertical: 7,
+    width: "48.5%",
+    minHeight: 52,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderTopColor: "#FFFFFF",
+    borderLeftColor: "#E2E8F0",
+    borderRightColor: "#CBD5E1",
+    borderBottomColor: "#CBD5E1",
+    justifyContent: "center",
+    alignItems: "center",
   },
   servicePillActive: {
     backgroundColor: "#047857",
-    borderColor: "#047857",
+    borderColor: "#064E3B",
+    borderBottomWidth: 3,
+    borderBottomColor: "#022C22",
   },
   servicePillText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#475569",
+    color: "#334155",
+    textAlign: "center",
+    lineHeight: 16,
   },
   servicePillTextActive: {
     color: "#FFFFFF",
+    fontWeight: "800",
   },
   timePill: {
     paddingHorizontal: 12,
@@ -947,10 +2045,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    alignItems: "center",
   },
   timePillActive: {
     backgroundColor: "#047857",
     borderColor: "#047857",
+  },
+  timePillBooked: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FECACA",
+    opacity: 0.6,
   },
   timePillText: {
     fontSize: 12,
@@ -959,6 +2063,17 @@ const styles = StyleSheet.create({
   },
   timePillTextActive: {
     color: "#FFFFFF",
+  },
+  timePillTextBooked: {
+    color: "#DC2626",
+    textDecorationLine: "line-through",
+  },
+  timePillBookedTag: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#DC2626",
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
   pillBtn: {
     paddingHorizontal: 12,
@@ -980,14 +2095,50 @@ const styles = StyleSheet.create({
   pillBtnTextActive: {
     color: "#FFFFFF",
   },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  footerContainer: {
     padding: 16,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
+  },
+  validationNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  validationNoticeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#92400E",
+    flex: 1,
+  },
+  readyNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  readyNoticeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#047857",
+    flex: 1,
+  },
+  footerBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   cancelBtn: {
     flex: 1,
@@ -1020,6 +2171,8 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: {
     backgroundColor: "#94A3B8",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   submitBtnText: {
     fontSize: 13,
@@ -1120,10 +2273,221 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
   },
-  patientItemMeta: {
+  patientItemEmail: {
     fontSize: 12,
+    fontWeight: "600",
+    color: "#047857",
+  },
+  patientItemMeta: {
+    fontSize: 11,
     color: "#64748B",
     marginTop: 2,
+  },
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  datePickerModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  datePickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  dateNavBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  datePickerMonthTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  datePickerSubtitle: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  weekdaysRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    marginBottom: 8,
+  },
+  weekdayText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    width: "14.28%",
+    textAlign: "center",
+  },
+  daysGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCellEmpty: {
+    width: "14.28%",
+    height: 48,
+  },
+  dayCell: {
+    width: "14.28%",
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    marginVertical: 1,
+  },
+  dayCellSelected: {
+    backgroundColor: "#047857",
+  },
+  dayCellFull: {
+    backgroundColor: "#FEF2F2",
+    opacity: 0.7,
+  },
+  dayCellBlocked: {
+    backgroundColor: "#FEF3C7",
+    opacity: 0.7,
+  },
+  dayCellClosed: {
+    backgroundColor: "#F1F5F9",
+    opacity: 0.5,
+  },
+  dayCellPast: {
+    backgroundColor: "#F8FAFC",
+    opacity: 0.35,
+  },
+  dayText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  dayTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  dayTextFull: {
+    color: "#DC2626",
+    textDecorationLine: "line-through",
+  },
+  dayTextBlocked: {
+    color: "#D97706",
+  },
+  dayTextClosed: {
+    color: "#94A3B8",
+  },
+  dayTextPast: {
+    color: "#94A3B8",
+    textDecorationLine: "line-through",
+  },
+  dayMiniBadgeFull: {
+    position: "absolute",
+    bottom: 2,
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 3,
+    borderRadius: 3,
+  },
+  dayMiniBadgeFullText: {
+    fontSize: 7,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  dayMiniBadgeBlocked: {
+    position: "absolute",
+    bottom: 2,
+    backgroundColor: "#F59E0B",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayMiniBadgeBlockedText: {
+    fontSize: 7,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  dayMiniBadgeClosed: {
+    position: "absolute",
+    bottom: 2,
+    backgroundColor: "#94A3B8",
+    paddingHorizontal: 3,
+    borderRadius: 3,
+  },
+  dayMiniBadgeClosedText: {
+    fontSize: 7,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  dayMiniBadgeCount: {
+    position: "absolute",
+    bottom: 2,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 4,
+    borderRadius: 3,
+  },
+  dayMiniBadgeCountText: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#047857",
+  },
+  calendarLegendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 10,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  closeDatePickerBtn: {
+    marginTop: 14,
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  closeDatePickerBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
   },
   successOverlay: {
     flex: 1,
@@ -1215,4 +2579,3 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
-

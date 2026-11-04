@@ -28,6 +28,7 @@ import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
+import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import AppointmentRequestPromptModal from "../appointments/AppointmentRequestPromptModal";
@@ -81,6 +82,7 @@ import {
   AlertCircle,
   HeartPulse,
   Settings as SettingsIcon,
+  CreditCard,
 } from "lucide-react-native";
 import { getToday } from "../../data/dashboardData";
 
@@ -534,10 +536,10 @@ export default function AssistantDashboard({
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "records" | "appointments" | "appointment-requests" | "settings"
+    "dashboard" | "records" | "appointments" | "appointment-requests" | "billing" | "settings"
   >("dashboard");
   const [tabHistory, setTabHistory] = useState<
-    ("dashboard" | "records" | "appointments" | "appointment-requests" | "settings")[]
+    ("dashboard" | "records" | "appointments" | "appointment-requests" | "billing" | "settings")[]
   >([]);
   const lastBackPressRef = useRef<number>(0);
 
@@ -572,13 +574,14 @@ export default function AssistantDashboard({
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
   const [requestsTourTrigger, setRequestsTourTrigger] = useState(0);
+  const [billingTourTrigger, setBillingTourTrigger] = useState(0);
 
   // Doctors map for resolving doctor names on appointments
   const [doctorsMap, setDoctorsMap] = useState<Record<string, string>>({});
 
   // Navigation handlers
   const navigateToTab = useCallback(
-    (nextTab: "dashboard" | "records" | "appointments" | "appointment-requests" | "settings") => {
+    (nextTab: "dashboard" | "records" | "appointments" | "appointment-requests" | "billing" | "settings") => {
       if (nextTab === activeTab) return;
       setTabHistory((prev) => {
         if (nextTab === "dashboard") {
@@ -1531,6 +1534,8 @@ export default function AssistantDashboard({
                 setAppointmentsTourTrigger((prev) => prev + 1);
               } else if (activeTab === "appointment-requests") {
                 setRequestsTourTrigger((prev) => prev + 1);
+              } else if (activeTab === "billing") {
+                setBillingTourTrigger((prev) => prev + 1);
               } else {
                 handleRestartTour();
               }
@@ -2414,6 +2419,13 @@ export default function AssistantDashboard({
             styles={styles}
             startTourTrigger={requestsTourTrigger}
           />
+        ) : activeTab === "billing" ? (
+          <BillingTab
+            doctorId={user?.id || ""}
+            styles={styles}
+            startTourTrigger={billingTourTrigger}
+            userRole="assistant"
+          />
         ) : activeTab === "settings" ? (
           <SettingsTab
             user={assistantProfile}
@@ -2438,6 +2450,10 @@ export default function AssistantDashboard({
             onStartAppointmentsTutorial={() => {
               navigateToTab("appointments");
               setAppointmentsTourTrigger((prev) => prev + 1);
+            }}
+            onStartBillingTutorial={() => {
+              navigateToTab("billing");
+              setBillingTourTrigger((prev) => prev + 1);
             }}
           />
         ) : null}
@@ -2948,6 +2964,20 @@ export default function AssistantDashboard({
                 color={activeTab === "appointment-requests" ? "#A7F3D0" : "#FFFFFF"}
               />
               <Text style={styles.navLabel}>Requests</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === "billing" && styles.navItemActive]}
+              onPress={() => {
+                navigateToTab("billing");
+                setSidebarOpen(false);
+              }}
+            >
+              <CreditCard
+                size={20}
+                color={activeTab === "billing" ? "#A7F3D0" : "#FFFFFF"}
+              />
+              <Text style={styles.navLabel}>Billing</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

@@ -1014,7 +1014,11 @@ export default function AppointmentsTab({
                 const isUnavailable = isUnavailableDay(date);
                 const blockoutEntry = blockoutDates.find(b => b.blockout_date === dateStr && b.is_blocked);
                 const isBlockedSpecific = !!blockoutEntry;
-                const isFull = appointmentCount >= 3;
+                // Only 3 scheduled appointments count to blockout that date (FULL)
+                const scheduledAppointmentsCount = allMonthAppointments.filter(
+                  (apt: any) => apt.date === dateStr && (apt.status || '').toLowerCase() === 'scheduled'
+                ).length;
+                const isFull = scheduledAppointmentsCount >= 3;
 
                 return (
                   <View key={day} style={{ width: '14.28%', height: 52, padding: 1.5 }}>
@@ -1081,8 +1085,22 @@ export default function AppointmentsTab({
               <View style={localStyles.dateSectionHeader}>
                 <Calendar size={14} color="#047857" style={{ marginRight: 6 }} />
                 <Text style={localStyles.dateSectionHeaderText}>
-                  {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  {(() => {
+                    const [yr, mo, dy] = selectedDate.split("-").map(Number);
+                    if (yr && mo && dy) {
+                      const dObj = new Date(yr, mo - 1, dy);
+                      return dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                    }
+                    return selectedDate;
+                  })()}
                 </Text>
+                {allMonthAppointments.filter(apt => apt.date === selectedDate && (apt.status || '').toLowerCase() === 'scheduled').length >= 3 && (
+                  <View style={[localStyles.dateSectionBadge, { backgroundColor: '#FEE2E2', borderColor: '#FECACA', marginRight: 6 }]}>
+                    <Text style={[localStyles.dateSectionBadgeText, { color: '#DC2626' }]}>
+                      FULL (3/3)
+                    </Text>
+                  </View>
+                )}
                 <View style={localStyles.dateSectionBadge}>
                   <Text style={localStyles.dateSectionBadgeText}>
                     {filteredAppointments.length} {filteredAppointments.length === 1 ? 'Booking' : 'Bookings'}
@@ -1233,6 +1251,9 @@ export default function AppointmentsTab({
           }}
           initialDate={selectedDate}
           defaultDoctorId={doctorId}
+          clinicSchedule={clinicSchedule}
+          blockoutDates={blockoutDates}
+          existingAppointments={fetchedAppointments}
         />
       )}
     </View>
