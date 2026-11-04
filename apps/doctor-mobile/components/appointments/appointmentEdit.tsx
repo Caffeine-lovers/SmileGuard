@@ -26,7 +26,8 @@ import {
   User,
   Activity,
 } from "lucide-react-native";
-import { updateDoctorAppointmentStatus } from "../../lib/appointmentService";
+import { updateDoctorAppointmentStatus, rescheduleAppointment } from "../../lib/appointmentService";
+import { CalendarDays, RefreshCw, Sparkles, CheckCircle } from "lucide-react-native";
 import { getStatusColor, getStatusBgColor, getStatusLabel } from "../../lib/statusHelpers";
 import { formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 
@@ -34,6 +35,7 @@ interface AppointmentEditProps {
   visible: boolean;
   appointment: any;
   doctorId: string;
+  userRole?: 'doctor' | 'assistant' | string;
   onClose: () => void;
   onSave: () => void;
   onAppointmentStatusUpdated?: (
@@ -113,15 +115,23 @@ export default function AppointmentEdit({
   visible,
   appointment,
   doctorId,
+  userRole = 'doctor',
   onClose,
   onSave,
   onAppointmentStatusUpdated,
 }: AppointmentEditProps) {
+  const isAssistant = userRole === 'assistant';
   const [selectedStatus, setSelectedStatus] = useState<
     'scheduled' | 'completed' | 'no-show' | 'cancelled' | 'declined'
   >('scheduled');
   const [doctorNote, setDoctorNote] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Rescheduling state
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(true);
 
   useEffect(() => {
     if (visible && appointment) {
@@ -133,6 +143,13 @@ export default function AppointmentEdit({
         setSelectedStatus('scheduled');
       }
       setDoctorNote(appointment.doctor_note || '');
+
+      const origDate = appointment.appointment_date || appointment.date || '';
+      const origTime = appointment.appointment_time || appointment.time || '';
+      setRescheduleDate(origDate ? origDate.split('T')[0] : '');
+      setRescheduleTime(origTime || '');
+      setRescheduleNotes(appointment.notes || '');
+      setIsRescheduleOpen(true);
     }
   }, [visible, appointment]);
 
@@ -158,36 +175,72 @@ export default function AppointmentEdit({
       ? appointment.imageUrl
       : null;
 
+  const origDate = (dateValue || '').split('T')[0];
+  const isDateChanged = (rescheduleDate || '').trim() !== origDate.trim();
+  const isTimeChanged = (rescheduleTime || '').trim() !== (timeValue || '').trim();
+  const isRescheduleNotesChanged = (rescheduleNotes || '').trim() !== (appointment.notes || '').trim();
+  const isRescheduled = isDateChanged || isTimeChanged || isRescheduleNotesChanged;
+
   const isNoteChanged = (doctorNote || '').trim() !== (appointment.doctor_note || '').trim();
   const isStatusChanged = selectedStatus !== currentStatus || (selectedStatus === 'declined' && isNoteChanged);
+  const hasChanges = isRescheduled || isStatusChanged || isNoteChanged;
+
   const activeMeta = STATUS_META[selectedStatus] || STATUS_META.scheduled;
   const ActiveIcon = activeMeta.icon;
+
+  // Quick date helper (+N days)
+  const applyDateOffset = (days: number) => {
+    const base = new Date();
+    base.setDate(base.getDate() + days);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
+    setRescheduleDate(`${y}-${m}-${d}`);
+  };
 
   const handleSave = async () => {
     if (!appointment) return;
 
-    if (!isStatusChanged && !isNoteChanged) {
-      Alert.alert('No Changes', 'Please select a different status or update notes to save.');
+    if (!hasChanges) {
+      Alert.alert('No Changes', 'Please select a new date, time, notes, or status to save.');
       return;
     }
 
     try {
       setLoading(true);
       const appointmentId = appointment.id;
+      let rescheduleSuccess = true;
+      let statusSuccess = true;
 
-      const result = await updateDoctorAppointmentStatus(
-        appointmentId,
-        selectedStatus,
-        doctorId,
-        { doctor_note: doctorNote.trim() || undefined }
-      );
+      // 1. If date/time/notes changed, execute rescheduling
+      if (isRescheduled) {
+        const resResult = await rescheduleAppointment(
+          appointmentId,
+          rescheduleDate.trim() || origDate,
+          rescheduleTime.trim() || timeValue,
+          rescheduleNotes.trim() || undefined,
+          userRole || 'assistant'
+        );
 
-      if (result.success) {
-        // Trigger notification callback if status changed and callback is provided
-        if (
-          selectedStatus !== 'scheduled' &&
-          onAppointmentStatusUpdated
-        ) {
+        if (!resResult.success) {
+          rescheduleSuccess = false;
+          Alert.alert('Reschedule Notice', resResult.message);
+        }
+      }
+
+      // 2. If status or doctor note changed, execute status update
+      if (isStatusChanged || isNoteChanged) {
+        const statusResult = await updateDoctorAppointmentStatus(
+          appointmentId,
+          selectedStatus,
+          doctorId,
+          { doctor_note: doctorNote.trim() || undefined }
+        );
+
+        if (!statusResult.success) {
+          statusSuccess = false;
+          Alert.alert('Status Update Notice', statusResult.message);
+        } else if (selectedStatus !== 'scheduled' && onAppointmentStatusUpdated) {
           onAppointmentStatusUpdated(
             selectedStatus,
             patientName,
@@ -196,19 +249,20 @@ export default function AppointmentEdit({
             doctorId
           );
         }
+      }
 
-        Alert.alert(
-          'Status Updated',
-          `${patientName}'s appointment status has been updated to "${getStatusLabel(selectedStatus)}".`
-        );
+      if (rescheduleSuccess && statusSuccess) {
+        let msg = `${patientName}'s appointment has been updated.`;
+        if (isRescheduled) {
+          msg = `Appointment successfully rescheduled to ${formatAppointmentDate(rescheduleDate)} at ${formatAppointmentTime(rescheduleTime)}.`;
+        }
+        Alert.alert('Saved Successfully', msg);
         onSave();
         onClose();
-      } else {
-        Alert.alert('Error', result.message || 'Failed to update appointment status.');
       }
     } catch (error) {
       console.error('[AppointmentEdit] Exception updating appointment:', error);
-      Alert.alert('Error', 'An unexpected error occurred while updating status.');
+      Alert.alert('Error', 'An unexpected error occurred while updating the appointment.');
     } finally {
       setLoading(false);
     }
@@ -230,8 +284,8 @@ export default function AppointmentEdit({
           </TouchableOpacity>
 
           <View style={styles.topAppBarCenter}>
-            <Text style={styles.topAppBarTitle}>UPDATE APPOINTMENT</Text>
-            <Text style={styles.topAppBarSubtitle}>Clinical Status & Schedule</Text>
+            <Text style={styles.topAppBarTitle}>{isAssistant ? 'ASSISTANT APPOINTMENT DESK' : 'UPDATE APPOINTMENT'}</Text>
+            <Text style={styles.topAppBarSubtitle}>{isAssistant ? 'Schedule Viewing & Rescheduling' : 'Clinical Status & Schedule'}</Text>
           </View>
 
           <View style={styles.topAppBarSpacer} />
@@ -331,6 +385,144 @@ export default function AppointmentEdit({
                   <Text style={styles.notesText}>{appointment.notes}</Text>
                 </View>
               ) : null}
+            </View>
+          </View>
+
+          {/* Past Reschedule Notice (if appointment was previously rescheduled) */}
+          {appointment.rescheduled_at ? (
+            <View style={styles.rescheduledHistoryBanner}>
+              <View style={styles.rescheduledHistoryHeader}>
+                <Clock size={14} color="#0284C7" />
+                <Text style={styles.rescheduledHistoryTitle}>PREVIOUSLY RESCHEDULED</Text>
+              </View>
+              <Text style={styles.rescheduledHistoryText}>
+                Rescheduled by <Text style={{ fontWeight: '700' }}>{appointment.rescheduled_by || 'Clinic'}</Text> on{' '}
+                {formatAppointmentDate(appointment.rescheduled_at)}.
+              </Text>
+              {appointment.notes ? (
+                <Text style={styles.rescheduledHistoryNotes}>
+                  Notes: "{appointment.notes}"
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* ══════════════════════════════════════════════════════════ */}
+          {/* RESCHEDULE APPOINTMENT SECTION */}
+          {/* ══════════════════════════════════════════════════════════ */}
+          <View style={styles.rescheduleSectionCard}>
+            <View style={styles.rescheduleSectionHeader}>
+              <View style={styles.rescheduleHeaderLeft}>
+                <CalendarDays size={18} color="#047857" />
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.rescheduleSectionTitle}>RESCHEDULE APPOINTMENT</Text>
+                  <Text style={styles.rescheduleSectionSubtitle}>Update date, time slot, and reason</Text>
+                </View>
+              </View>
+              {isRescheduled && (
+                <View style={styles.rescheduledBadge}>
+                  <Text style={styles.rescheduledBadgeText}>MODIFIED</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Date Input & Quick Buttons */}
+            <View style={styles.rescheduleFieldGroup}>
+              <Text style={styles.rescheduleFieldLabel}>NEW APPOINTMENT DATE (YYYY-MM-DD)</Text>
+              <View style={styles.rescheduleDateInputRow}>
+                <TextInput
+                  style={[styles.rescheduleInput, isDateChanged && styles.rescheduleInputChanged]}
+                  value={rescheduleDate}
+                  onChangeText={setRescheduleDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#94A3B8"
+                  maxLength={10}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  style={styles.resetDateBtn}
+                  onPress={() => setRescheduleDate(origDate)}
+                  activeOpacity={0.7}
+                >
+                  <RefreshCw size={13} color="#047857" />
+                  <Text style={styles.resetDateBtnText}>Reset</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick Date Pills */}
+              <View style={styles.quickDateRow}>
+                <TouchableOpacity style={styles.quickDatePill} onPress={() => applyDateOffset(1)}>
+                  <Text style={styles.quickDatePillText}>+1 Day</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.quickDatePill} onPress={() => applyDateOffset(2)}>
+                  <Text style={styles.quickDatePillText}>+2 Days</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.quickDatePill} onPress={() => applyDateOffset(3)}>
+                  <Text style={styles.quickDatePillText}>+3 Days</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.quickDatePill} onPress={() => applyDateOffset(7)}>
+                  <Text style={styles.quickDatePillText}>+1 Week</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.quickDatePill} onPress={() => applyDateOffset(14)}>
+                  <Text style={styles.quickDatePillText}>+2 Weeks</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Time Slot Picker */}
+            <View style={styles.rescheduleFieldGroup}>
+              <Text style={styles.rescheduleFieldLabel}>NEW APPOINTMENT TIME</Text>
+              <TextInput
+                style={[styles.rescheduleInput, isTimeChanged && styles.rescheduleInputChanged]}
+                value={rescheduleTime}
+                onChangeText={setRescheduleTime}
+                placeholder="HH:MM (e.g. 10:00)"
+                placeholderTextColor="#94A3B8"
+                editable={!loading}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timePillsScroll}>
+                {['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00'].map((slot) => (
+                  <TouchableOpacity
+                    key={slot}
+                    style={[
+                      styles.timeSlotPill,
+                      rescheduleTime === slot && styles.timeSlotPillActive,
+                    ]}
+                    onPress={() => setRescheduleTime(slot)}
+                  >
+                    <Text
+                      style={[
+                        styles.timeSlotPillText,
+                        rescheduleTime === slot && styles.timeSlotPillTextActive,
+                      ]}
+                    >
+                      {formatAppointmentTime(slot)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Rescheduling Notes Input ("notes" column) */}
+            <View style={styles.rescheduleFieldGroup}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <FileText size={13} color="#047857" style={{ marginRight: 4 }} />
+                <Text style={styles.rescheduleFieldLabel}>RESCHEDULING NOTES / REASON (notes column)</Text>
+              </View>
+              <TextInput
+                style={styles.rescheduleNotesInput}
+                value={rescheduleNotes}
+                onChangeText={setRescheduleNotes}
+                placeholder="e.g., Patient requested rescheduling due to work conflict, doctor unavailable..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                editable={!loading}
+              />
+              <Text style={styles.rescheduleHelperText}>
+                This note will be saved in the appointment "notes" column and logged with your staff identity.
+              </Text>
             </View>
           </View>
 
@@ -557,10 +749,10 @@ export default function AppointmentEdit({
           <TouchableOpacity
             style={[
               styles.saveButton,
-              !isStatusChanged && styles.saveButtonDisabled,
+              !hasChanges && styles.saveButtonDisabled,
             ]}
             onPress={handleSave}
-            disabled={loading || !isStatusChanged}
+            disabled={loading || !hasChanges}
             activeOpacity={0.8}
           >
             {loading ? (
@@ -569,7 +761,7 @@ export default function AppointmentEdit({
               <>
                 <Check size={14} color="#FFFFFF" strokeWidth={2.5} />
                 <Text style={styles.saveButtonText}>
-                  {isStatusChanged ? "CONFIRM STATUS" : "NO CHANGES"}
+                  {isRescheduled ? "CONFIRM RESCHEDULE" : (isStatusChanged ? "CONFIRM STATUS" : (hasChanges ? "SAVE CHANGES" : "NO CHANGES"))}
                 </Text>
               </>
             )}
@@ -1024,6 +1216,196 @@ const styles = StyleSheet.create({
   },
 
   // Footer Actions
+  // Reschedule Section
+  rescheduledHistoryBanner: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    borderWidth: 1.5,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  rescheduledHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  rescheduledHistoryTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0369A1',
+    marginLeft: 6,
+    letterSpacing: 0.5,
+  },
+  rescheduledHistoryText: {
+    fontSize: 13,
+    color: '#0C4A6E',
+    lineHeight: 18,
+  },
+  rescheduledHistoryNotes: {
+    fontSize: 12,
+    color: '#0284C7',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  rescheduleSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#A7F3D0',
+    borderWidth: 1.5,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  rescheduleSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingBottom: 10,
+  },
+  rescheduleHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rescheduleSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.3,
+  },
+  rescheduleSectionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  rescheduledBadge: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  rescheduledBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  rescheduleFieldGroup: {
+    marginBottom: 14,
+  },
+  rescheduleFieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  rescheduleDateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rescheduleInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  rescheduleInputChanged: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  resetDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderRadius: 6,
+    gap: 4,
+  },
+  resetDateBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  quickDateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  quickDatePill: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  quickDatePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  timePillsScroll: {
+    marginTop: 8,
+    flexDirection: 'row',
+  },
+  timeSlotPill: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 6,
+  },
+  timeSlotPillActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#059669',
+  },
+  timeSlotPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  timeSlotPillTextActive: {
+    color: '#FFFFFF',
+  },
+  rescheduleNotesInput: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#0F172A',
+    minHeight: 65,
+  },
+  rescheduleHelperText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   footerContainer: {
     flexDirection: "row",
     alignItems: "center",

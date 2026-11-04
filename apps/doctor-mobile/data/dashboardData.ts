@@ -23,6 +23,8 @@ export interface Appointment {
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
   status?: AppointmentStatus;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
 }
 
 export interface Patient extends Appointment {

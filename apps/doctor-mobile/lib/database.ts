@@ -11,6 +11,8 @@ export interface Appointment {
   appointment_time: string;
   status: "pending" | "PENDING" | "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
   notes?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

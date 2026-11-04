@@ -1668,6 +1668,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               styles={styles}
               doctorId={user.id}
+              userRole={user.role}
               onAppointmentStatusUpdated={() => {
                 // Handled in AppointmentsTab
               }}
@@ -1780,7 +1781,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   {clinic?.clinic_name || 'SmileGuard'}
                 </Text>
                 <Text style={styles.sidebarSubtitle} numberOfLines={1}>
-                  Doctor Portal
+                  {user.role === 'assistant' ? 'Assistant Portal' : 'Doctor Portal'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -1841,27 +1842,31 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                 <Text style={styles.navLabel}>Requests</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
-                onPress={() => {
-                  navigateToTab('billing');
-                  setSidebarOpen(false);
-                }}
-              >
-                <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
-                <Text style={styles.navLabel}>Billing</Text>
-              </TouchableOpacity>
+              {user.role !== 'assistant' && (
+                <TouchableOpacity
+                  style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
+                  onPress={() => {
+                    navigateToTab('billing');
+                    setSidebarOpen(false);
+                  }}
+                >
+                  <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
+                  <Text style={styles.navLabel}>Billing</Text>
+                </TouchableOpacity>
+              )}
 
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
-                onPress={() => {
-                  navigateToTab('settings');
-                  setSidebarOpen(false);
-                }}
-              >
-                <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
-                <Text style={styles.navLabel}>Settings</Text>
-              </TouchableOpacity>
+              {user.role !== 'assistant' && (
+                <TouchableOpacity
+                  style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
+                  onPress={() => {
+                    navigateToTab('settings');
+                    setSidebarOpen(false);
+                  }}
+                >
+                  <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
+                  <Text style={styles.navLabel}>Settings</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -1945,6 +1950,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
             visible={showEditModal}
             appointment={editingAppointment}
             doctorId={user.id || ''}
+            userRole={user.role}
             onClose={() => {
               setShowEditModal(false);
               setEditingAppointment(null);

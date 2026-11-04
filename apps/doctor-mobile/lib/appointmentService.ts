@@ -41,6 +41,8 @@ export interface DoctorAppointment {
   status: 'pending' | 'PENDING' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
   doctor_note?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
   created_at?: string;
   updated_at?: string;
   patient_name?: string; // Patient name from profiles table
@@ -626,6 +628,83 @@ export async function updateDoctorAppointmentStatus(
   }
 }
 
+
+
+/**
+ * Reschedule an appointment by updating its appointment_date, appointment_time, notes, and reschedule metadata.
+ * Can be performed by an assistant or a doctor.
+ */
+export async function rescheduleAppointment(
+  appointmentId: string,
+  newDate: string,
+  newTime?: string,
+  notes?: string,
+  rescheduledBy: 'assistant' | 'doctor' | string = 'assistant'
+): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log('🔄 [rescheduleAppointment] Rescheduling:', {
+      appointmentId,
+      newDate,
+      newTime,
+      rescheduledBy,
+      notes,
+    });
+
+    // 1. Try secure RPC first
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('reschedule_appointment', {
+        p_appointment_id: appointmentId,
+        p_new_date: newDate,
+        p_new_time: newTime || null,
+        p_rescheduled_by: rescheduledBy,
+        p_notes: notes || null,
+      });
+
+      if (!rpcError) {
+        const result = Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : rpcData;
+        if (result?.success) {
+          return { success: true, message: result.message || 'Appointment rescheduled successfully.' };
+        }
+      } else {
+        console.warn('⚠️ [rescheduleAppointment] RPC warning, falling back to direct update:', rpcError.message);
+      }
+    } catch (rpcEx) {
+      console.warn('⚠️ [rescheduleAppointment] RPC exception, falling back to direct update:', rpcEx);
+    }
+
+    // 2. Direct fallback update
+    const updatePayload: Record<string, any> = {
+      appointment_date: newDate,
+      rescheduled_by: rescheduledBy,
+      rescheduled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'scheduled',
+    };
+
+    if (newTime && newTime.trim()) {
+      updatePayload.appointment_time = newTime.trim();
+    }
+
+    if (notes !== undefined && notes !== null) {
+      updatePayload.notes = notes.trim();
+    }
+
+    const { error: directError } = await supabase
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId);
+
+    if (directError) {
+      console.error('❌ [rescheduleAppointment] Direct update error:', directError);
+      return { success: false, message: directError.message || 'Failed to reschedule appointment.' };
+    }
+
+    return { success: true, message: 'Appointment rescheduled successfully.' };
+  } catch (err) {
+    console.error('❌ [rescheduleAppointment] Exception:', err);
+    return { success: false, message: err instanceof Error ? err.message : 'Failed to reschedule appointment.' };
+  }
+}
 
 // ─────────────────────────────────────────
 // GET APPOINTMENT REQUESTS (PENDING APPROVAL)

@@ -52,6 +52,7 @@ interface AppointmentsTabProps {
   onUpdateAppointmentStatus: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard?: boolean) => Promise<void>;
   styles: any;
   doctorId?: string;
+  userRole?: 'doctor' | 'assistant' | string;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
   startTourTrigger?: number;
 }
@@ -61,6 +62,7 @@ export default function AppointmentsTab({
   onUpdateAppointmentStatus,
   styles,
   doctorId: providedDoctorId,
+  userRole = 'doctor',
   onAppointmentStatusUpdated,
   startTourTrigger,
 }: AppointmentsTabProps) {
@@ -1156,16 +1158,23 @@ export default function AppointmentsTab({
                       <View style={{ flex: 1, marginRight: 8 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                           <Text style={localStyles.patientName} numberOfLines={1}>{appointment.name}</Text>
-                          {/* Status Badge */}
-                          <View
-                            style={[
-                              localStyles.statusBadge,
-                              { backgroundColor: statusBgColor, borderColor: statusColor },
-                            ]}
-                          >
-                            <Text style={[localStyles.statusBadgeText, { color: statusColor }]}>
-                              {statusLabel.toUpperCase()}
-                            </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {appointment.rescheduled_at ? (
+                              <View style={localStyles.rescheduledTag}>
+                                <Text style={localStyles.rescheduledTagText}>Rescheduled</Text>
+                              </View>
+                            ) : null}
+                            {/* Status Badge */}
+                            <View
+                              style={[
+                                localStyles.statusBadge,
+                                { backgroundColor: statusBgColor, borderColor: statusColor },
+                              ]}
+                            >
+                              <Text style={[localStyles.statusBadgeText, { color: statusColor }]}>
+                                {statusLabel.toUpperCase()}
+                              </Text>
+                            </View>
                           </View>
                         </View>
 
@@ -1184,7 +1193,7 @@ export default function AppointmentsTab({
                         style={localStyles.editBtn}
                         activeOpacity={0.7}
                       >
-                        <Text style={localStyles.editBtnText}>Edit</Text>
+                        <Text style={localStyles.editBtnText}>{userRole === 'assistant' ? 'Reschedule' : 'Edit'}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1212,6 +1221,7 @@ export default function AppointmentsTab({
           visible={showEditModal}
           appointment={editingAppointment}
           doctorId={doctorId}
+          userRole={userRole}
           onClose={() => {
             setShowEditModal(false);
             setEditingAppointment(null);
@@ -1225,6 +1235,20 @@ export default function AppointmentsTab({
 }
 
 const localStyles = StyleSheet.create({
+  rescheduledTag: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#7DD3FC',
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rescheduledTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0369A1',
+    letterSpacing: 0.3,
+  },
   topHeader: {
     paddingHorizontal: 16,
     paddingVertical: 14,

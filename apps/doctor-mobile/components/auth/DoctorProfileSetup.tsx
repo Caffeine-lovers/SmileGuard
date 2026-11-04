@@ -113,9 +113,13 @@ export default function DoctorProfileSetup({
 
   // Pre-fill access code if stored during welcome screen
   useEffect(() => {
-    AsyncStorage.getItem("@pending_doctor_access_code").then((savedCode) => {
+    AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]).then((stores) => {
+      const savedCode = stores[0]?.[1];
+      const savedRole = stores[1]?.[1];
       if (savedCode) {
         setAccessCode(savedCode.trim().toUpperCase());
+      } else if (savedRole === "assistant") {
+        setAccessCode("SMILEGUARD-STAFF");
       } else {
         // Fallback default dev code if none set
         setAccessCode("SMILE-DOC-2026");
@@ -363,21 +367,33 @@ export default function DoctorProfileSetup({
         return;
       }
 
+      const isAssistantRole = accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF";
+      const assignedRole: "doctor" | "assistant" = isAssistantRole ? "assistant" : "doctor";
+
       // Pre-seed profile in public.profiles to guarantee existence for doctor_user_id_fkey
       try {
-        const constructedName = `${(doctorData.first_name || "").trim()} ${(doctorData.last_name || "").trim()}`.trim() || data.user.email?.split("@")[0] || "Doctor";
+        const defaultTitle = isAssistantRole ? "Assistant Doctor" : "Doctor";
+        const constructedName = `${(doctorData.first_name || "").trim()} ${(doctorData.last_name || "").trim()}`.trim() || data.user.email?.split("@")[0] || defaultTitle;
         await supabase.from("profiles").upsert(
           [
             {
               id: data.user.id,
               name: constructedName,
               email: data.user.email || "",
-              role: "doctor",
+              role: assignedRole,
               updated_at: new Date().toISOString(),
             },
           ],
           { onConflict: "id" }
         );
+
+        // Sync auth metadata role
+        await supabase.auth.updateUser({
+          data: {
+            role: assignedRole,
+            name: constructedName,
+          },
+        });
       } catch (profPreErr) {
         console.warn("[DoctorProfileSetup] Pre-seed profiles warning:", profPreErr);
       }
@@ -399,6 +415,7 @@ export default function DoctorProfileSetup({
         middle_name: (doctorData.middle_name || "").trim(),
         last_name: (doctorData.last_name || "").trim(),
         doctor_phone: fullPhoneNumber,
+        role: assignedRole,
         years_of_experience: Number(yearsOfExperienceStr) || 0,
         license_number: paddedLicense,
         profile_picture_url: profileImageUrl || undefined,
@@ -445,7 +462,7 @@ export default function DoctorProfileSetup({
         )}
 
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.topHeaderTitle}>DOCTOR REGISTRATION</Text>
+          <Text style={styles.topHeaderTitle}>{accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" ? "ASSISTANT REGISTRATION" : "DOCTOR REGISTRATION"}</Text>
         </View>
 
         <View style={styles.headerStepPill}>
@@ -466,9 +483,11 @@ export default function DoctorProfileSetup({
               <Stethoscope size={18} color="#047857" strokeWidth={2.3} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>Doctor Profile & License</Text>
+              <Text style={styles.heroTitle}>{accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" ? "Assistant Profile & License" : "Doctor Profile & License"}</Text>
               <Text style={styles.heroSubtitle}>
-                Complete your registration to activate your SmileGuard clinic account.
+                {accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF"
+                  ? "Complete your assistant registration to activate your SmileGuard staff account."
+                  : "Complete your registration to activate your SmileGuard clinic account."}
               </Text>
             </View>
           </View>

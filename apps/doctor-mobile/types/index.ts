@@ -4,7 +4,7 @@ export interface User {
   name: string;
   email: string;
   password: string;
-  role: "doctor";
+  role: "doctor" | "assistant";
   service?: string;
   specialty?: string;
 }
@@ -13,7 +13,7 @@ export interface CurrentUser {
   id: string;        // Supabase auth UUID — used as patient_id / dentist_id in DB
   name: string;
   email: string;
-  role: "doctor" | "patient";
+  role: "doctor" | "patient" | "assistant";
 }
 
 // Medical intake — biography & medical history for patient registration

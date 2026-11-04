@@ -132,7 +132,7 @@ VALUES
   ('SMILE-DOC-2026', 'Primary Dentist (Standard Clinical CRUD)', 'doctor', true),
   ('SMILEGUARD-STAFF', 'Clinic Staff / Assistant (Read & Limited Update)', 'staff', true)
 ON CONFLICT (code) DO UPDATE
-SET 
+SET
   label = EXCLUDED.label,
   tier = EXCLUDED.tier,
   is_active = EXCLUDED.is_active;

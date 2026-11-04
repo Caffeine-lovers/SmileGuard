@@ -218,14 +218,18 @@ export async function createDoctorProfile(
     // (prevents PostgreSQL foreign key constraint violation: doctor_user_id_fkey)
     if (doctor.user_id) {
       try {
+        const isAssistant = (accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant";
+        const assignedRole: "doctor" | "assistant" = isAssistant ? "assistant" : "doctor";
+        const defaultName = isAssistant ? "Assistant Doctor" : "Doctor";
+
         const { error: profileSyncError } = await supabase
           .from("profiles")
           .upsert(
             [
               {
                 id: doctor.user_id,
-                name: fullName || "Doctor",
-                role: "doctor",
+                name: fullName || defaultName,
+                role: assignedRole,
                 phone_number: doctor.doctor_phone || null,
                 updated_at: new Date().toISOString(),
               },
@@ -323,8 +327,10 @@ export async function createDoctorProfile(
 
         // Crucial: Update doctor_phone, gender, years_of_experience, and office_hours
         // which may not be set by older complete_doctor_registration RPCs
+        const isAssistant = (accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant";
         const postRegUpdates: Record<string, any> = {
           updated_at: new Date().toISOString(),
+          role: isAssistant ? "assistant" : "doctor",
         };
 
         if (doctor.gender !== undefined && doctor.gender !== null) {

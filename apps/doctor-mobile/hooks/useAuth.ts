@@ -85,7 +85,7 @@ export function useAuth() {
               id:    userId,
               name:  userName,
               email: userEmail,
-              role:  userRole as "patient" | "doctor",
+              role:  userRole as "patient" | "doctor" | "assistant",
             });
           } else {
             console.log("[useAuth] ✅ Profile created successfully:", createdProfile);
@@ -93,7 +93,7 @@ export function useAuth() {
               id:    userId,
               name:  createdProfile?.name  || userName,
               email: createdProfile?.email || userEmail,
-              role:  (createdProfile?.role as "patient" | "doctor") || userRole,
+              role:  (createdProfile?.role as "patient" | "doctor" | "assistant") || userRole,
             });
           }
         } else {
@@ -128,7 +128,7 @@ export function useAuth() {
   const login = async (
     email: string,
     password: string,
-    role: "doctor"
+    role: "doctor" | "assistant" = "doctor"
   ): Promise<CurrentUser> => {
     setError(null);
     console.log(" Starting login for:", email, "as", role);
@@ -169,7 +169,7 @@ export function useAuth() {
         id:    data.user.id,                    // ← UUID always set
         name:  insertedProfile?.name  || userName,
         email: insertedProfile?.email || data.user.email || email,
-        role:  (insertedProfile?.role as "doctor") || userRole,
+        role:  (insertedProfile?.role as "doctor" | "assistant") || userRole,
       };
     }
 
@@ -178,7 +178,7 @@ export function useAuth() {
 
     let actualRole = profile.role || "doctor";
 
-    if (actualRole !== role) {
+    if (actualRole !== "doctor" && actualRole !== "assistant") {
       const { data: doctorRecord } = await supabase
         .from("doctors")
         .select("id")
@@ -190,10 +190,10 @@ export function useAuth() {
       }
     }
 
-    if (actualRole !== role) {
+    if (actualRole !== "doctor" && actualRole !== "assistant") {
       await supabase.auth.signOut();
       throw new Error(
-        `This account is registered as a ${actualRole}, not a ${role}.`
+        `This account is registered as a ${actualRole}, not a clinic staff member.`
       );
     }
 
@@ -207,7 +207,7 @@ export function useAuth() {
 
   const register = async (
     formData: FormData,
-    role: "doctor"
+    role: "doctor" | "assistant" = "doctor"
   ): Promise<CurrentUser> => {
     console.log("[useAuth] Starting registration for:", formData.email);
     
