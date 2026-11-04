@@ -4,270 +4,189 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
-import { Lock, Eye, EyeOff, Check, X, ShieldCheck, ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [errorLocal, setErrorLocal] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // 1. Check for PKCE query parameter ?code= (standard Supabase email link)
+    console.log(' Reset password component mounted');
+    
+    // Check for PKCE query parameter ?code= (standard Supabase email link)
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       if (code) {
+        console.log(' Found PKCE auth code in query parameters, exchanging for session...');
         supabase.auth.exchangeCodeForSession(code)
-          .then(({ error }) => {
+          .then(({ data, error }) => {
             if (error) {
-              setErrorLocal(`Recovery verification error: ${error.message}`);
+              console.error(' Error exchanging recovery code:', error);
+              setMessage(`Recovery error: ${error.message}`);
               setReady(true);
-            } else {
+            } else if (data.session) {
+              console.log(' Successfully exchanged code for session');
               verifySession();
             }
           })
           .catch((err) => {
-            setErrorLocal(`Unexpected recovery error: ${err.message}`);
+            console.error(' Unexpected error exchanging code:', err);
+            setMessage(`Recovery error: ${err.message}`);
             setReady(true);
           });
         return;
       }
     }
 
-    // 2. Try to get hash parameters from URL (for legacy hash recovery links)
-    const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+    // Try to get hash parameters from URL (for email recovery link)
+    const hash = typeof globalThis !== 'undefined' && 'location' in globalThis 
+      ? (globalThis as unknown as { location: { hash: string } }).location.hash 
+      : '';
+    console.log(' Current hash:', hash);
+    
     if (hash && hash.includes('access_token')) {
-      const params = new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : hash);
+      console.log(' Found access_token in hash, parsing...');
+      const params = new URLSearchParams(hash.substring(1));
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
-
+      const type = params.get('type');
+      
+      console.log(' Parsed recovery params:', { hasAccessToken: !!accessToken, type, hasRefreshToken: !!refreshToken });
+      
       if (accessToken) {
+        console.log(' Setting session from recovery token...');
         supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken || '',
         }).then(() => {
+          console.log(' Session set, verifying...');
           verifySession();
         }).catch((error) => {
-          setErrorLocal(`Error setting recovery session: ${error.message}`);
+          console.error(' Error setting session:', error);
+          setMessage(`Error: ${error.message}`);
           setReady(true);
         });
         return;
       }
     }
 
-    // 3. If session was already established by /auth/callback gateway, verify it directly
+    // If no hash found, just verify existing session
     verifySession();
   }, []);
 
   const verifySession = async () => {
+    console.log(' Verifying session...');
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        setErrorLocal(error.message);
-        setReady(true);
-        return;
-      }
+      
+      console.log(' Session status:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        error: error?.message,
+      });
+      
       if (session?.user) {
+        console.log(' Valid session found, ready to reset password');
         setReady(true);
       } else {
-        setErrorLocal('This password reset link is invalid, expired, or has already been used.');
+        console.warn(' No session found!');
+        setMessage('This reset link is invalid or has expired. Please request a new one.');
         setReady(true);
       }
-    } catch {
-      setErrorLocal('Error retrieving authenticated session. Please request a new reset link.');
+    } catch (error) {
+      console.error(' Error verifying session:', error);
+      setMessage('Error retrieving session. Please try again.');
       setReady(true);
     }
   };
 
-  const passwordCheck = {
-    length: newPassword.length >= 8,
-    hasUpperCase: /[A-Z]/.test(newPassword),
-    hasLowerCase: /[a-z]/.test(newPassword),
-    hasNumber: /[0-9]/.test(newPassword),
-    hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword),
-  };
-
-  const isPasswordValid = Object.values(passwordCheck).every(Boolean);
-
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorLocal(null);
-
-    if (!isPasswordValid) {
-      setErrorLocal('Please satisfy all password complexity requirements before proceeding.');
+    if (newPassword.length < 8) {
+      setMessage('Password must be at least 8 characters.');
       return;
     }
-
-    if (newPassword !== confirmPassword) {
-      setErrorLocal('Passwords do not match. Please verify and re-enter.');
-      return;
-    }
-
     setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        setErrorLocal(error.message);
-      } else {
-        setMessage('Password successfully updated! Redirecting to sign in...');
-        setTimeout(() => {
-          router.replace('/login');
-        }, 1600);
-      }
-    } catch (err) {
-      setErrorLocal(err instanceof Error ? err.message : 'Failed to update password.');
-    } finally {
-      setLoading(false);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage(' Password updated! Redirecting...');
+      setTimeout(() => router.replace('/login'), 1500);
     }
+    setLoading(false);
   };
 
   if (!ready) {
     return (
-      <div className="skeuo-panel p-8 text-center max-w-md mx-auto border-2 border-slate-300">
-        <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-200 border-b-emerald-600 mx-auto mb-4"></div>
-        <span className="skeuo-badge skeuo-badge-mint mb-2">Security Handshake</span>
-        <p className="text-slate-800 font-bold text-sm tracking-wide mt-2">Verifying authorized recovery session...</p>
+      <div className="bg-bg-surface rounded-lg shadow-lg p-8 text-center border border-border-card">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto"></div>
+        <p className="text-text-secondary mt-4">Verifying reset link...</p>
       </div>
     );
   }
 
   return (
-    <div className="skeuo-panel p-5 sm:p-8 border-2 border-slate-300 max-w-md mx-auto">
-      <div className="text-center mb-6">
-        <span className="skeuo-badge skeuo-badge-mint mb-3 inline-flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-          Credentials Update
-        </span>
-        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">
-          Set New Password
-        </h2>
-        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
-          Create a secure password for your clinical record
+    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card">
+      <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 text-text-primary">
+         Set New Password
+      </h2>
+      <div className="mb-6 p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 leading-relaxed space-y-1">
+        <p className="font-bold flex items-center gap-1.5">
+          <span>⚠️</span> Email Security & Delivery Advisory:
+        </p>
+        <p className="text-[11px] text-amber-800">
+          Password recovery links are occasionally flagged by email filters (&quot;This message might be dangerous&quot;) or routed to Spam/Junk. If a warning appears in your inbox, click &quot;Report not spam&quot; or &quot;Looks safe&quot; to authorize the reset request.
         </p>
       </div>
 
-      {errorLocal && (
-        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-xs sm:text-sm font-semibold flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{errorLocal}</span>
-        </div>
-      )}
 
       {message && (
-        <div className="bg-emerald-50 border-2 border-emerald-500 text-emerald-900 p-4 rounded-sm text-xs space-y-1 mb-6">
-          <div className="flex items-center gap-2 font-bold text-emerald-800 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Success</span>
-          </div>
-          <p className="text-emerald-800">{message}</p>
+        <div className={`px-4 py-3 rounded mb-6 text-center font-medium ${
+          message.includes('') || message.includes('updated')
+            ? 'bg-green-50 border border-green-200 text-green-700'
+            : message.includes('Error') || message.includes('invalid')
+            ? 'bg-brand-danger/10 border border-brand-danger text-brand-danger'
+            : 'bg-brand-primary/10 border border-brand-primary text-brand-primary'
+        }`}>
+          {message}
         </div>
       )}
 
-      {!message && (
+      {!message.includes('') && !message.includes('invalid') && (
         <form onSubmit={handleReset} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               New Password
             </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                className="skeuo-input w-full text-sm pl-10 pr-10"
-                placeholder="••••••••"
-              />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              Confirm New Password
-            </label>
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="skeuo-input w-full text-sm pl-10 pr-10"
-                placeholder="••••••••"
-              />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                tabIndex={-1}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-              >
-                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            {confirmPassword && newPassword !== confirmPassword && (
-              <p className="text-[11px] font-semibold text-red-600 mt-1">Passwords do not match.</p>
-            )}
-          </div>
-
-          {/* Password Requirements Checklist */}
-          <div className="mt-3 p-3 bg-slate-50 border border-slate-300 rounded-sm text-xs space-y-1.5">
-            <p className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1">
-              Password Requirements:
-            </p>
-            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.length ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {passwordCheck.length ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-              <span>At least 8 characters in length</span>
-            </div>
-            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasUpperCase ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {passwordCheck.hasUpperCase ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-              <span>At least one uppercase letter (A-Z)</span>
-            </div>
-            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasLowerCase ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {passwordCheck.hasLowerCase ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-              <span>At least one lowercase letter (a-z)</span>
-            </div>
-            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasNumber ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {passwordCheck.hasNumber ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-              <span>At least one number (0-9)</span>
-            </div>
-            <div className={`flex items-center gap-1.5 font-medium ${passwordCheck.hasSpecialChar ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {passwordCheck.hasSpecialChar ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-              <span>At least one special character (!@#$%...)</span>
-            </div>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent outline-none transition bg-bg-surface text-text-primary"
+              placeholder="••••••••"
+            />
+            <p className="text-xs text-text-secondary mt-1">Must be at least 8 characters</p>
           </div>
 
           <button
             type="submit"
-            disabled={loading || !isPasswordValid || newPassword !== confirmPassword}
-            className="skeuo-btn-primary w-full py-2.5 text-sm uppercase tracking-wider font-bold mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading}
+            className="w-full bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-text-on-avatar font-medium py-2 px-4 rounded-lg transition"
           >
-            {loading ? 'Updating Password...' : 'Save New Password'}
+            {loading ? 'Updating...' : 'Update Password'}
           </button>
         </form>
       )}
 
-      <div className="mt-6 pt-4 border-t-2 border-slate-200 text-center">
-        <Link
-          href="/login"
-          className="text-emerald-700 hover:text-emerald-900 font-bold uppercase tracking-wider text-xs inline-flex items-center gap-1.5 transition"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Return to Clinic Sign In</span>
+      <div className="mt-6 text-center">
+        <Link href="/login" className="text-text-link font-medium hover:underline">
+          Return to Login
         </Link>
       </div>
     </div>
