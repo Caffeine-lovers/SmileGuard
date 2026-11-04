@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
 
   // Reset loading states when mounting or restored from BFCache (e.g. browser Back button)
@@ -73,6 +74,14 @@ export default function LoginPage() {
         setLocalError(`Google sign-in: ${cleanMsg}`);
         setOauthLoading(false);
         // Clear error fragments from address bar so Back/Forward does not re-trigger
+        window.history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+
+      if (search.includes('reset=success')) {
+        setResetSuccess(true);
+        supabase.auth.signOut().catch(() => {});
+        clearPatientUserCookie();
         window.history.replaceState(null, '', window.location.pathname);
         return;
       }
@@ -163,6 +172,13 @@ export default function LoginPage() {
           Access your digital health chart & appointments
         </p>
       </div>
+
+      {resetSuccess && (
+        <div className="bg-emerald-50 border-2 border-emerald-500 text-emerald-800 px-4 py-3 rounded-sm mb-6 text-sm font-semibold flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+          <span>Your password has been reset successfully. Please sign in with your new password.</span>
+        </div>
+      )}
 
       {(error || localError) && (
         <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-sm font-semibold flex items-center gap-2">

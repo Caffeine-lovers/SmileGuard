@@ -116,9 +116,16 @@ export default function AuthCallbackPage() {
         const errorCode = params.get('error') || hashParams.get('error');
         const errorDescription = params.get('error_description') || hashParams.get('error_description');
 
-        const next = params.get('next') || hashParams.get('next');
+                const next = params.get('next') || hashParams.get('next');
         const type = params.get('type') || hashParams.get('type');
         const isPasswordRecovery = next === '/reset-password' || type === 'recovery';
+
+        if (isPasswordRecovery) {
+          addDebug('Direct password recovery detected, forwarding to /reset-password');
+          isHandled = true;
+          router.replace(`/reset-password${window.location.search}${window.location.hash}`);
+          return;
+        }
 
         if (errorCode) {
           addDebug(`OAuth/Auth error detected: ${errorCode}`);

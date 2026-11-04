@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
+import { clearPatientUserCookie } from '@/lib/auth-cookie';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -115,8 +116,10 @@ export default function ResetPasswordPage() {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage(' Password updated! Redirecting...');
-      setTimeout(() => router.replace('/login'), 1500);
+      setMessage('Password updated! Redirecting...');
+      await supabase.auth.signOut().catch(() => {});
+      clearPatientUserCookie();
+      setTimeout(() => router.replace('/login?reset=success'), 1200);
     }
     setLoading(false);
   };

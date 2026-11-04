@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     try {
       // Route via auth callback so Supabase PKCE and recovery session are established
       const redirectTo = typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback?next=/reset-password`
+        ? `${window.location.origin}/reset-password`
         : undefined;
 
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {

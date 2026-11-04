@@ -1,5 +1,7 @@
 'use client';
 
+import { Plus, Trash2 } from 'lucide-react';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@smileguard/shared-hooks';
@@ -32,6 +34,33 @@ import {
   formatSmokingStatus 
 } from '@/lib/medical-helpers';
 
+
+interface EmergencyContactItem {
+  name: string;
+  relationship: string;
+  phone: string;
+}
+
+function parseContactsFromMedical(nameStr?: string | null, phoneStr?: string | null): EmergencyContactItem[] {
+  if (!nameStr && !phoneStr) return [];
+  const rawNames = (nameStr || '').split(';').map(s => s.trim()).filter(Boolean);
+  const rawPhones = (phoneStr || '').split(';').map(s => s.trim()).filter(Boolean);
+  const len = Math.max(rawNames.length, rawPhones.length, 1);
+  const items: EmergencyContactItem[] = [];
+
+  for (let i = 0; i < len; i++) {
+    const rawName = rawNames[i] || '';
+    const phone = rawPhones[i] || '';
+    const match = rawName.match(/^(.*?)\s*\((.*?)\)$/);
+    if (match) {
+      items.push({ name: match[1].trim(), relationship: match[2].trim(), phone });
+    } else {
+      items.push({ name: rawName, relationship: '', phone });
+    }
+  }
+  return items.filter(c => c.name || c.phone);
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const { currentUser, loading: authLoading } = useAuth();
@@ -43,6 +72,7 @@ export default function ProfilePage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContactItem[]>([]);
 
   // Sync state correctly based on useAuth hook's currentUser value and persistent DB record
   useEffect(() => {
@@ -106,6 +136,8 @@ export default function ProfilePage() {
       } else {
         console.log('[BioData] Medical data loaded successfully');
         setMedicalData(data);
+        const parsed = parseContactsFromMedical(data.emergency_contact_name, data.emergency_contact_phone);
+        setEmergencyContacts(parsed.length > 0 ? parsed : [{ name: '', relationship: '', phone: '' }]);
       }
     } catch (err) {
       console.error('[BioData] Error fetching medical data:', err);
@@ -334,45 +366,133 @@ export default function ProfilePage() {
 
           {/* Emergency Contact Section */}
           <div className="bg-bg-surface border border-border-card rounded-lg p-4 sm:p-6">
-            <h2 className="text-xl sm:text-2xl font-semibold text-text-primary mb-4 sm:mb-6">Emergency Contact</h2>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
-                  Name
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={medicalData.emergency_contact_name || ''}
-                    onChange={(e) => handleInputChange('emergency_contact_name', e.target.value || null)}
-                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
-                  />
-                ) : (
-                  <p className="text-text-secondary py-1 text-sm">
-                    {medicalData.emergency_contact_name || 'Not provided'}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">
-                  Phone
-                </label>
-                {isEditing ? (
-                  <input
-                    type="tel"
-                    value={medicalData.emergency_contact_phone || ''}
-                    onChange={(e) => handleInputChange('emergency_contact_phone', e.target.value || null)}
-                    className="w-full px-3.5 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none text-sm"
-                  />
-                ) : (
-                  <p className="text-text-secondary py-1 text-sm">
-                    {medicalData.emergency_contact_phone || 'Not provided'}
-                  </p>
-                )}
-              </div>
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-semibold text-text-primary">
+                Emergency Contact{emergencyContacts.filter(c => c.name.trim() || c.phone.trim()).length > 1 ? 's' : ''}
+              </h2>
+              {isEditing && emergencyContacts.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => setEmergencyContacts(prev => [...prev, { name: '', relationship: '', phone: '' }])}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1 shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Contact</span>
+                </button>
+              )}
             </div>
+
+            {isEditing ? (
+              <div className="space-y-4">
+                {emergencyContacts.map((contact, idx) => (
+                  <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-3 relative">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Contact #{idx + 1} {idx === 0 && '(Primary)'}
+                      </span>
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setEmergencyContacts(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-red-500 hover:text-red-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          value={contact.name}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEmergencyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c));
+                          }}
+                          placeholder="e.g. Juan Dela Cruz"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs focus:ring-2 focus:ring-emerald-600 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Relationship</label>
+                        <select
+                          value={contact.relationship}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEmergencyContacts(prev => prev.map((c, i) => i === idx ? { ...c, relationship: val } : c));
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          <option value="">Select relationship...</option>
+                          <option value="Parent">Parent</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Sibling">Sibling</option>
+                          <option value="Child">Child</option>
+                          <option value="Friend">Friend</option>
+                          <option value="Relative">Relative</option>
+                          <option value="Guardian">Guardian</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Phone Number</label>
+                        <input
+                          type="tel"
+                          value={contact.phone}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEmergencyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c));
+                          }}
+                          placeholder="+639123456789"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md text-xs focus:ring-2 focus:ring-emerald-600 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              (() => {
+                const displayContacts = emergencyContacts.filter(c => c.name.trim() || c.phone.trim());
+                if (displayContacts.length === 0) {
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">Name</label>
+                        <p className="text-text-secondary py-1 text-sm">Not provided</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs sm:text-sm font-medium text-text-primary mb-1.5">Phone</label>
+                        <p className="text-text-secondary py-1 text-sm">Not provided</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {displayContacts.map((c, idx) => (
+                      <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Contact #{idx + 1} {idx === 0 && '(Primary)'}
+                          </span>
+                          {c.relationship && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              {c.relationship}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold text-slate-900">{c.name || 'Not provided'}</p>
+                        <p className="text-xs text-slate-600 font-mono mt-0.5">{c.phone || 'Not provided'}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
           </div>
 
           {/* Medical History Section */}
