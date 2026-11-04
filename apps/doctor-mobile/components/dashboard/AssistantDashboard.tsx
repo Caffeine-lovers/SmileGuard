@@ -1385,14 +1385,14 @@ export default function AssistantDashboard({
       return;
     }
 
-    // 1. Optimistic update
+    // 1. Optimistic update: Guarantee status is newStatus (e.g. 'no-show')
     setAppointments((prev) =>
       prev.map((apt) => (apt.id === targetAppointment.id ? { ...apt, status: newStatus } : apt))
     );
     if (selectedPatient?.id === targetAppointment.id) {
       setSelectedPatient((prev) => (prev ? { ...prev, status: newStatus } : prev));
     }
-    if (newStatus === "completed" || newStatus === "cancelled") {
+    if (newStatus === "completed" || newStatus === "cancelled" || newStatus === "no-show") {
       setConfirmedRescheduleIds((prev) => new Set([...prev, targetAppointment.id]));
     }
 
@@ -1403,20 +1403,41 @@ export default function AssistantDashboard({
         user.id,
         { dentist_id: targetAppointment.dentist_id || undefined }
       );
-      if (result.success) {
-        const friendlyLabel =
-          newStatus === "completed"
-            ? "Done"
-            : newStatus === "no-show"
-              ? "Missed"
-              : newStatus.toUpperCase();
 
+      const friendlyLabel =
+        newStatus === "completed"
+          ? "Done"
+          : newStatus === "no-show"
+            ? "No-Show"
+            : newStatus.toUpperCase();
+
+      if (result.success) {
         if (Platform.OS === "android") {
           ToastAndroid.show(`Marked as ${friendlyLabel}`, ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Status Updated", `Appointment marked as ${friendlyLabel}.`);
         }
         await refreshDashboardData();
       } else {
-        Alert.alert("Error", result.message || "Could not update status");
+        // Direct database update fallback to ensure 'no-show' status is saved unconditionally
+        const { error: directError } = await supabase
+          .from("appointments")
+          .update({
+            status: newStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", targetAppointment.id);
+
+        if (!directError) {
+          if (Platform.OS === "android") {
+            ToastAndroid.show(`Marked as ${friendlyLabel}`, ToastAndroid.SHORT);
+          } else {
+            Alert.alert("Status Updated", `Appointment marked as ${friendlyLabel}.`);
+          }
+          await refreshDashboardData();
+        } else {
+          Alert.alert("Error", result.message || directError.message || "Could not update status");
+        }
       }
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to update appointment status");
@@ -1762,7 +1783,11 @@ export default function AssistantDashboard({
                   {filteredRequests.length > 0 && (
                     <View style={styles.swipeHintRow}>
                       <Text style={styles.swipeHintText}>
-                        Tap to View Details  •  Swipe → to Accept  •  Swipe ← to Decline
+                        Tap to View Details
+                      </Text>
+
+                      <Text style={styles.swipeHintText}>
+                        Swipe RIGHT to Accept  •  Swipe LEFT to Decline
                       </Text>
                     </View>
                   )}
@@ -1903,11 +1928,7 @@ export default function AssistantDashboard({
                               <Text style={styles.queuePatientName} numberOfLines={1}>
                                 {apt.name}
                               </Text>
-                              {isSelected && (
-                                <View style={styles.activePrepDot}>
-                                  <Text style={styles.activePrepDotText}>ACTIVE</Text>
-                                </View>
-                              )}
+
                             </View>
 
                             <Text style={styles.queueService} numberOfLines={1}>
@@ -1944,7 +1965,7 @@ export default function AssistantDashboard({
                               {apt.status === "completed"
                                 ? "DONE"
                                 : apt.status === "no-show"
-                                  ? "MISSED"
+                                  ? "NO-SHOW"
                                   : (apt.status || "SCHEDULED").toUpperCase()}
                             </Text>
                           </View>
@@ -2012,7 +2033,7 @@ export default function AssistantDashboard({
                             {selectedPatient.status === "completed"
                               ? "DONE"
                               : selectedPatient.status === "no-show"
-                                ? "MISSED"
+                                ? "NO-SHOW"
                                 : (selectedPatient.status || "scheduled").toUpperCase()}
                           </Text>
                         </View>
@@ -2242,10 +2263,10 @@ export default function AssistantDashboard({
                   ───────────────────────────────────────────────────────────── */}
                   <View style={[styles.sectionHeaderRow, { marginTop: 22, marginBottom: 10 }]}>
                     <View style={styles.sectionTitleGroup}>
-                      <CalendarDays size={16} color="#D97706" />
+                      <CalendarDays size={16} color="#475569" />
                       <Text style={styles.sectionHeaderTitle}>RESCHEDULE REQUESTS</Text>
-                      <View style={[styles.pillCountBadge, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
-                        <Text style={[styles.pillCountText, { color: "#B45309" }]}>{rescheduleRequests.length}</Text>
+                      <View style={styles.pillCountBadge}>
+                        <Text style={styles.pillCountText}>{rescheduleRequests.length}</Text>
                       </View>
                     </View>
                   </View>
@@ -2267,7 +2288,7 @@ export default function AssistantDashboard({
                             <Text style={styles.reschedulePatientName}>{req.name}</Text>
                             <Text style={styles.rescheduleService}>{req.service || "Dental Visit"}</Text>
                             <View style={styles.rescheduleSlotRow}>
-                              <Calendar size={12} color="#047857" style={{ marginRight: 4 }} />
+                              <Calendar size={12} color="#64748B" style={{ marginRight: 4 }} />
                               <Text style={styles.rescheduleSlotText}>
                                 {formatAppointmentDate(req.date)} • {formatAppointmentTime(req.time)}
                               </Text>
@@ -2499,7 +2520,7 @@ export default function AssistantDashboard({
             <View style={styles.confirmModalHeader}>
               <View style={styles.confirmModalTitleGroup}>
                 <View style={styles.confirmModalIconWrap}>
-                  <CalendarDays size={18} color="#047857" />
+                  <CalendarDays size={18} color="#334155" />
                 </View>
                 <View>
                   <Text style={styles.confirmModalTitle}>Confirm Reschedule</Text>
@@ -2545,7 +2566,7 @@ export default function AssistantDashboard({
 
                   <View style={styles.scheduleNewSlotCard}>
                     <View style={styles.slotDetailRow}>
-                      <Calendar size={15} color="#047857" style={{ marginRight: 6 }} />
+                      <Calendar size={15} color="#64748B" style={{ marginRight: 6 }} />
                       <Text style={styles.slotDetailLabel}>Date:</Text>
                       <Text style={styles.slotDetailValue}>
                         {formatAppointmentDate(confirmingReschedule.date)}
@@ -2553,7 +2574,7 @@ export default function AssistantDashboard({
                     </View>
 
                     <View style={[styles.slotDetailRow, { marginTop: 6 }]}>
-                      <Clock size={15} color="#047857" style={{ marginRight: 6 }} />
+                      <Clock size={15} color="#64748B" style={{ marginRight: 6 }} />
                       <Text style={styles.slotDetailLabel}>Time:</Text>
                       <Text style={styles.slotDetailValue}>
                         {confirmingReschedule.time ? formatAppointmentTime(confirmingReschedule.time) : "Not specified"}
@@ -2585,7 +2606,7 @@ export default function AssistantDashboard({
                   {/* Reason for Rescheduling ("notes" column) */}
                   <View style={styles.reasonCard}>
                     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                      <FileText size={13} color="#C2410C" style={{ marginRight: 4 }} />
+                      <FileText size={13} color="#64748B" style={{ marginRight: 4 }} />
                       <Text style={styles.reasonTitle}>REASON FOR RESCHEDULING</Text>
                     </View>
                     <Text style={styles.reasonText}>
@@ -4060,13 +4081,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: '#E2E8F0',
     padding: 12,
     marginBottom: 10,
-    shadowColor: '#EA580C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
     elevation: 2,
   },
   rescheduleCardTop: {
@@ -4099,27 +4120,27 @@ const styles = StyleSheet.create({
   },
   rescheduleSlotText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#047857',
+    fontWeight: '600',
+    color: '#334155',
   },
   rescheduledByBadge: {
-    backgroundColor: '#FFEDD5',
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: '#E2E8F0',
   },
   rescheduledByBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#C2410C',
+    color: '#475569',
     textTransform: 'uppercase',
   },
   rescheduleNotesBox: {
-    backgroundColor: '#FFF7ED',
-    borderLeftWidth: 3,
-    borderLeftColor: '#F97316',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: 8,
     borderRadius: 6,
     marginVertical: 6,
@@ -4127,13 +4148,13 @@ const styles = StyleSheet.create({
   rescheduleNotesLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#9A3412',
+    color: '#64748B',
     marginBottom: 2,
     textTransform: 'uppercase',
   },
   rescheduleNotesText: {
     fontSize: 12,
-    color: '#7C2D12',
+    color: '#334155',
     fontStyle: 'italic',
   },
   rescheduleTimestampText: {
@@ -4273,7 +4294,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4324,25 +4345,25 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   scheduleChangesBox: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: '#E2E8F0',
     padding: 12,
     marginBottom: 12,
   },
   scheduleChangesBoxTitle: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#C2410C',
+    color: '#475569',
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   scheduleNewSlotCard: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#E2E8F0',
     padding: 10,
     marginBottom: 10,
   },
@@ -4353,16 +4374,16 @@ const styles = StyleSheet.create({
   slotDetailLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#065F46',
+    color: '#64748B',
     marginRight: 6,
   },
   slotDetailValue: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#047857',
+    color: '#0F172A',
   },
   rescheduleMetaBlock: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 8,
     borderWidth: 1,
@@ -4380,17 +4401,17 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   requestedByPill: {
-    backgroundColor: '#FFEDD5',
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: '#E2E8F0',
   },
   requestedByPillText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#C2410C',
+    color: '#334155',
   },
   metaRowTimestamp: {
     fontSize: 11,
@@ -4398,21 +4419,21 @@ const styles = StyleSheet.create({
     color: '#334155',
   },
   reasonCard: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#F97316',
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   reasonTitle: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#9A3412',
+    color: '#475569',
     letterSpacing: 0.4,
   },
   reasonText: {
     fontSize: 12,
-    color: '#7C2D12',
+    color: '#334155',
     fontStyle: 'italic',
     marginTop: 2,
   },
@@ -4732,5 +4753,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#047857',
+    textAlign: 'center'
   },
 });
