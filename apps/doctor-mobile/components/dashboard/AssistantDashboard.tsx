@@ -14,6 +14,7 @@ import {
   Platform,
   ToastAndroid,
   Linking,
+  PanResponder,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
@@ -32,6 +33,7 @@ import {
   updateDoctorAppointmentStatus,
   getDoctorAppointments,
   getAppointmentRequests,
+  confirmAppointmentReschedule,
 } from "../../lib/appointmentService";
 import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
@@ -109,6 +111,244 @@ interface AssistantDashboardProps {
   user: CurrentUser;
   onLogout: () => void;
   promptAppointmentId?: string;
+}
+
+interface SwipeableRequestCardProps {
+  request: DashboardAppointment;
+  isSelected: boolean;
+  onSelect: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+}
+
+function SwipeableRequestCard({
+  request,
+  isSelected,
+  onSelect,
+  onAccept,
+  onDecline,
+}: SwipeableRequestCardProps) {
+  const pan = useRef(new Animated.ValueXY()).current;
+  const [swipeState, setSwipeState] = useState<"idle" | "accept-threshold" | "decline-threshold">("idle");
+  const SWIPE_THRESHOLD = 70;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dy) < 14;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        pan.x.setValue(gestureState.dx);
+        if (gestureState.dx < -SWIPE_THRESHOLD) {
+          setSwipeState("accept-threshold");
+        } else if (gestureState.dx > SWIPE_THRESHOLD) {
+          setSwipeState("decline-threshold");
+        } else {
+          setSwipeState("idle");
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -SWIPE_THRESHOLD) {
+          // Swipe Left -> Accept
+          Animated.timing(pan, {
+            toValue: { x: -500, y: 0 },
+            duration: 180,
+            useNativeDriver: false,
+          }).start(() => {
+            onAccept();
+          });
+        } else if (gestureState.dx > SWIPE_THRESHOLD) {
+          // Swipe Right -> Decline
+          Animated.timing(pan, {
+            toValue: { x: 500, y: 0 },
+            duration: 180,
+            useNativeDriver: false,
+          }).start(() => {
+            onDecline();
+            pan.setValue({ x: 0, y: 0 });
+            setSwipeState("idle");
+          });
+        } else {
+          // Reset position
+          setSwipeState("idle");
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            friction: 6,
+            tension: 40,
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <View style={styles.swipeContainer}>
+      {/* Accept Background (Green, revealed when swiping LEFT: pan.x < 0) */}
+      <Animated.View
+        style={[
+          styles.swipeBackgroundFull,
+          styles.swipeBackgroundAccept,
+          {
+            opacity: pan.x.interpolate({
+              inputRange: [-SWIPE_THRESHOLD, -15, 0, 1],
+              outputRange: [1, 1, 0, 0],
+              extrapolate: "clamp",
+            }),
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.swipeActionIndicatorRight,
+            {
+              transform: [
+                {
+                  scale: pan.x.interpolate({
+                    inputRange: [-SWIPE_THRESHOLD * 2, -SWIPE_THRESHOLD, -20],
+                    outputRange: [1.12, 1.05, 0.9],
+                    extrapolate: "clamp",
+                  }),
+                },
+                {
+                  translateX: pan.x.interpolate({
+                    inputRange: [-SWIPE_THRESHOLD * 2, -SWIPE_THRESHOLD, 0],
+                    outputRange: [0, 0, 12],
+                    extrapolate: "clamp",
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.swipeIconCircleAccept}>
+            <Check size={20} color="#FFFFFF" strokeWidth={3} />
+          </View>
+          <Text style={styles.swipeActionLabel}>
+            {swipeState === "accept-threshold" ? "CONFIRM ACCEPT" : "ACCEPT"}
+          </Text>
+        </Animated.View>
+      </Animated.View>
+
+      {/* Decline Background (Red, revealed when swiping RIGHT: pan.x > 0) */}
+      <Animated.View
+        style={[
+          styles.swipeBackgroundFull,
+          styles.swipeBackgroundDecline,
+          {
+            opacity: pan.x.interpolate({
+              inputRange: [-1, 0, 15, SWIPE_THRESHOLD],
+              outputRange: [0, 0, 1, 1],
+              extrapolate: "clamp",
+            }),
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.swipeActionIndicatorLeft,
+            {
+              transform: [
+                {
+                  scale: pan.x.interpolate({
+                    inputRange: [20, SWIPE_THRESHOLD, SWIPE_THRESHOLD * 2],
+                    outputRange: [0.9, 1.05, 1.12],
+                    extrapolate: "clamp",
+                  }),
+                },
+                {
+                  translateX: pan.x.interpolate({
+                    inputRange: [0, SWIPE_THRESHOLD, SWIPE_THRESHOLD * 2],
+                    outputRange: [-12, 0, 0],
+                    extrapolate: "clamp",
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.swipeIconCircleDecline}>
+            <X size={20} color="#FFFFFF" strokeWidth={3} />
+          </View>
+          <Text style={styles.swipeActionLabel}>
+            {swipeState === "decline-threshold" ? "CONFIRM DECLINE" : "DECLINE"}
+          </Text>
+        </Animated.View>
+      </Animated.View>
+
+      {/* Swipeable Foreground Card */}
+      <Animated.View
+        style={[
+          styles.requestCardContainer,
+          isSelected && styles.requestCardContainerSelected,
+          { transform: [{ translateX: pan.x }] },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={onSelect}
+          style={styles.requestCardTop}
+        >
+          <Image
+            source={
+              typeof request.imageUrl === "string" && request.imageUrl.length > 0
+                ? { uri: request.imageUrl }
+                : require("../../assets/images/user.png")
+            }
+            style={styles.queueAvatar}
+          />
+
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.queuePatientName} numberOfLines={1}>
+                {request.name}
+              </Text>
+              {isSelected && (
+                <View style={styles.activePrepDot}>
+                  <Text style={styles.activePrepDotText}>SELECTED</Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={styles.queueService} numberOfLines={1}>
+              {request.service || "General Dental Consultation"}
+            </Text>
+
+            <View style={styles.queueMetaRow}>
+              <View style={styles.queueMetaItem}>
+                <Calendar size={11} color="#047857" style={{ marginRight: 3 }} />
+                <Text style={styles.queueMetaText}>
+                  {formatAppointmentDate(request.date)}
+                </Text>
+              </View>
+
+              {request.time ? (
+                <View style={styles.queueMetaItem}>
+                  <Clock size={11} color="#0284C7" style={{ marginRight: 3 }} />
+                  <Text style={[styles.queueMetaText, { color: "#0284C7" }]}>
+                    {formatAppointmentTime(request.time)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.queueStatusBadge,
+              { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" },
+            ]}
+          >
+            <Text style={[styles.queueStatusText, { color: "#B45309" }]}>
+              WAITING
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
 }
 
 export default function AssistantDashboard({
@@ -277,6 +517,15 @@ export default function AssistantDashboard({
   const [confirmingReschedule, setConfirmingReschedule] = useState<DashboardAppointment | null>(null);
   const [showRescheduleConfirmModal, setShowRescheduleConfirmModal] = useState(false);
   const [confirmingLoading, setConfirmingLoading] = useState(false);
+  const [confirmedRescheduleIds, setConfirmedRescheduleIds] = useState<Set<string>>(new Set());
+  const [rescheduleSuccessData, setRescheduleSuccessData] = useState<{
+    patientName: string;
+    service: string;
+    date: string;
+    time: string;
+    imageUrl?: string | number;
+  } | null>(null);
+  const [showRescheduleSuccessModal, setShowRescheduleSuccessModal] = useState(false);
 
   // Filter for today's visits list
   const [queueFilter, setQueueFilter] = useState<"all" | "scheduled" | "completed">("all");
@@ -584,20 +833,34 @@ export default function AssistantDashboard({
     return todayAppointments;
   }, [todayAppointments, queueFilter]);
 
-  // Reschedule requests filter
+  // Reschedule requests filter: ONLY pending patient requests that have NOT been confirmed
   const rescheduleRequests = useMemo(() => {
     const combined = [...appointments, ...appointmentRequests];
     const map = new Map<string, DashboardAppointment>();
 
     combined.forEach((apt: DashboardAppointment) => {
-      const isReschedule = Boolean(
-        apt.rescheduled_by ||
-        apt.rescheduled_at ||
-        apt.reschedule_at ||
-        (apt.notes && apt.notes.toLowerCase().includes('reschedule'))
-      );
-      const isActive = !['completed', 'cancelled', 'declined'].includes((apt.status || '').toLowerCase());
-      if (isReschedule && isActive && !map.has(apt.id)) {
+      // 1. If already confirmed in this session, skip
+      if (confirmedRescheduleIds.has(apt.id)) return;
+
+      const rBy = (apt.rescheduled_by || '').toLowerCase().trim();
+      const status = (apt.status || '').toLowerCase().trim();
+
+      // If already finished or cancelled, skip
+      if (['completed', 'cancelled', 'declined'].includes(status)) return;
+
+      // 2. CRITICAL RULE: If rescheduled_by is 'assistant' or 'doctor', IT HAS BEEN CONFIRMED! Skip!
+      if (rBy === 'assistant' || rBy === 'doctor' || rBy === 'clinic') return;
+
+      // 3. If status is already 'scheduled', the appointment is confirmed/locked! Skip!
+      if (status === 'scheduled') return;
+
+      // 4. Only show if it is a pending reschedule request from the patient
+      const isPatientReschedule =
+        rBy === 'patient' ||
+        (Boolean(apt.rescheduled_at || apt.reschedule_at || (apt.notes && apt.notes.toLowerCase().includes('reschedule'))) &&
+         status === 'pending');
+
+      if (isPatientReschedule && !map.has(apt.id)) {
         map.set(apt.id, apt);
       }
     });
@@ -607,24 +870,29 @@ export default function AssistantDashboard({
       const tB = b.rescheduled_at || b.date ? new Date(b.rescheduled_at || b.date).getTime() : 0;
       return tB - tA;
     });
-  }, [appointments, appointmentRequests]);
+  }, [appointments, appointmentRequests, confirmedRescheduleIds]);
 
   // Selected patient
   const [selectedPatient, setSelectedPatient] = useState<DashboardAppointment | null>(null);
 
+  // Focus Patient Details on Today's Appointments
   useEffect(() => {
-    if (appointmentRequests.length > 0) {
-      if (!selectedPatient || !appointmentRequests.some((apt) => apt.id === selectedPatient.id)) {
-        setSelectedPatient(appointmentRequests[0]);
+    if (todayAppointments.length > 0) {
+      if (!selectedPatient || !todayAppointments.some((apt) => apt.id === selectedPatient.id)) {
+        setSelectedPatient(todayAppointments[0]);
       }
     } else if (rescheduleRequests.length > 0) {
       if (!selectedPatient || !rescheduleRequests.some((apt) => apt.id === selectedPatient.id)) {
         setSelectedPatient(rescheduleRequests[0]);
       }
+    } else if (appointmentRequests.length > 0) {
+      if (!selectedPatient || !appointmentRequests.some((apt) => apt.id === selectedPatient.id)) {
+        setSelectedPatient(appointmentRequests[0]);
+      }
     } else {
       setSelectedPatient(null);
     }
-  }, [appointmentRequests, rescheduleRequests, selectedPatient]);
+  }, [todayAppointments, rescheduleRequests, appointmentRequests, selectedPatient]);
 
   // Load patient contact and intake notes
   useEffect(() => {
@@ -679,11 +947,30 @@ export default function AssistantDashboard({
       const q = requestSearchQuery.toLowerCase().trim();
       list = list.filter((r) => r.name.toLowerCase().includes(q));
     }
+
     list.sort((a, b) => {
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return requestSortOrder === "desc" ? timeB - timeA : timeA - timeB;
+      const getTimestamp = (item: DashboardAppointment) => {
+        if (item.created_at) {
+          const parsed = new Date(item.created_at).getTime();
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+        if (item.date) {
+          const dateTimeStr = item.time ? `${item.date}T${item.time}` : item.date;
+          const parsed = new Date(dateTimeStr).getTime();
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+        return 0;
+      };
+
+      const timeA = getTimestamp(a);
+      const timeB = getTimestamp(b);
+
+      if (timeA !== timeB) {
+        return requestSortOrder === "desc" ? timeB - timeA : timeA - timeB;
+      }
+      return requestSortOrder === "desc" ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
     });
+
     return list;
   }, [appointmentRequests, requestSearchQuery, requestSortOrder]);
 
@@ -815,6 +1102,7 @@ export default function AssistantDashboard({
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
             medicalIntake,
+            created_at: apt.created_at || (apt as any).appointment_date || null,
             rescheduled_by: apt.rescheduled_by || (apt as any).reschedule_by || null,
             rescheduled_at: apt.rescheduled_at || (apt as any).reschedule_at || null,
             reschedule_at: (apt as any).reschedule_at || apt.rescheduled_at || null,
@@ -872,6 +1160,7 @@ export default function AssistantDashboard({
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
             medicalIntake,
+            created_at: apt.created_at || (apt as any).appointment_date || null,
             rescheduled_by: apt.rescheduled_by || (apt as any).reschedule_by || null,
             rescheduled_at: apt.rescheduled_at || (apt as any).reschedule_at || null,
             reschedule_at: (apt as any).reschedule_at || apt.rescheduled_at || null,
@@ -938,7 +1227,7 @@ export default function AssistantDashboard({
     refreshDashboardData();
   }, [refreshDashboardData]);
 
-  // Request review accept / decline handlers
+  // Request review accept / decline handlers (Responsive optimistic UI updates)
   const handleAcceptAppointmentRequest = async (request: DashboardAppointment) => {
     try {
       if (!user?.id) {
@@ -946,18 +1235,37 @@ export default function AssistantDashboard({
         return;
       }
 
+      // 1. Optimistic UI update: Immediately remove from requests and add to appointments
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+      setAppointments((prev) => [
+        { ...request, status: "scheduled" as const },
+        ...prev.filter((a) => a.id !== request.id),
+      ]);
+      setConfirmedRescheduleIds((prev) => new Set([...prev, request.id]));
+
+      if (selectedPatient?.id === request.id) {
+        setSelectedPatient((prev) => (prev ? { ...prev, status: "scheduled" as const } : prev));
+      }
+
       const result = await updateDoctorAppointmentStatus(request.id, "scheduled", user.id, {
         dentist_id: request.dentist_id || undefined,
       });
 
       if (!result.success) {
+        // Revert on failure
+        setAppointmentRequests((prev) => [request, ...prev]);
         Alert.alert("Error", result.message);
         return;
       }
 
-      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-      Alert.alert("Success", `Appointment for ${request.name} is now confirmed`);
+      if (Platform.OS === "android") {
+        ToastAndroid.show(`Appointment confirmed for ${request.name}`, ToastAndroid.SHORT);
+      } else {
+        Alert.alert("Success", `Appointment for ${request.name} is now confirmed`);
+      }
+      refreshDashboardData();
     } catch (error) {
+      setAppointmentRequests((prev) => [request, ...prev]);
       Alert.alert("Error", "Could not confirm appointment request");
     }
   };
@@ -972,43 +1280,78 @@ export default function AssistantDashboard({
         return;
       }
 
+      // 1. Optimistic UI update: Immediately disappear from request queue
+      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+      setConfirmedRescheduleIds((prev) => new Set([...prev, request.id]));
+
       const result = await updateDoctorAppointmentStatus(request.id, "declined", user.id, {
         dentist_id: request.dentist_id || undefined,
         doctor_note: doctorNote || undefined,
       });
 
       if (!result?.success) {
+        setAppointmentRequests((prev) => [request, ...prev]);
         Alert.alert("Error", result?.message || "Could not decline appointment");
         return;
       }
-
-      setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+      refreshDashboardData();
     } catch (error) {
+      setAppointmentRequests((prev) => [request, ...prev]);
       Alert.alert("Error", "Could not decline appointment request");
     }
   };
 
   const handleConfirmReschedule = async (request: DashboardAppointment) => {
+    // 1. Optimistic UI update: Immediately mark confirmed and change rescheduled_by to 'assistant'
+    setConfirmedRescheduleIds((prev) => new Set([...prev, request.id]));
+    setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+    setAppointments((prev) => {
+      const exists = prev.some((a) => a.id === request.id);
+      if (exists) {
+        return prev.map((a) =>
+          a.id === request.id
+            ? { ...a, status: "scheduled" as const, rescheduled_by: "assistant" }
+            : a
+        );
+      }
+      return [{ ...request, status: "scheduled" as const, rescheduled_by: "assistant" }, ...prev];
+    });
+
+    if (selectedPatient?.id === request.id) {
+      setSelectedPatient((prev) =>
+        prev ? { ...prev, status: "scheduled" as const, rescheduled_by: "assistant" } : prev
+      );
+    }
+
     try {
-      const result = await updateDoctorAppointmentStatus(
+      // 2. Persist to database: explicitly change rescheduled_by to 'assistant' and status to 'scheduled'
+      await confirmAppointmentReschedule(
         request.id,
-        'scheduled',
-        user?.id || '',
-        { doctor_note: 'Reschedule request confirmed by clinic' }
+        'assistant',
+        request.dentist_id || undefined
       );
 
-      if (result.success) {
-        Alert.alert('Confirmed', `New appointment time for ${request.name} is confirmed.`);
-        await refreshDashboardData();
-      } else {
-        Alert.alert('Notice', result.message || 'Failed to confirm reschedule.');
-      }
+      // 3. Show Success Modal
+      setRescheduleSuccessData({
+        patientName: request.name,
+        service: request.service || 'Dental Consultation',
+        date: request.date,
+        time: request.time,
+        imageUrl: request.imageUrl,
+      });
+      setShowRescheduleSuccessModal(true);
+      await refreshDashboardData();
     } catch (err: any) {
+      setConfirmedRescheduleIds((prev) => {
+        const next = new Set(prev);
+        next.delete(request.id);
+        return next;
+      });
       Alert.alert('Error', err?.message || 'Failed to confirm reschedule');
     }
   };
 
-    // Simple one-tap status update helper
+    // Simple one-tap status update helper (Responsive optimistic update)
   const handleQuickStatusChange = async (
     targetAppointment: DashboardAppointment,
     newStatus: "scheduled" | "completed" | "cancelled" | "no-show"
@@ -1017,6 +1360,18 @@ export default function AssistantDashboard({
       Alert.alert("Error", "User not logged in");
       return;
     }
+
+    // 1. Optimistic update
+    setAppointments((prev) =>
+      prev.map((apt) => (apt.id === targetAppointment.id ? { ...apt, status: newStatus } : apt))
+    );
+    if (selectedPatient?.id === targetAppointment.id) {
+      setSelectedPatient((prev) => (prev ? { ...prev, status: newStatus } : prev));
+    }
+    if (newStatus === "completed" || newStatus === "cancelled") {
+      setConfirmedRescheduleIds((prev) => new Set([...prev, targetAppointment.id]));
+    }
+
     try {
       const result = await updateDoctorAppointmentStatus(
         targetAppointment.id,
@@ -1317,13 +1672,14 @@ export default function AssistantDashboard({
                 }}
               >
                                 {/* ─────────────────────────────────────────────────────────────
-                    LEFT COLUMN: APPOINTMENT REQUESTS
+                    LEFT COLUMN: APPOINTMENT REQUESTS & TODAY'S APPOINTMENTS
                 ───────────────────────────────────────────────────────────── */}
                 <View
                   ref={tour.register("today-queue")}
                   collapsable={false}
                   style={styles.column}
                 >
+                  {/* SECTION 1: APPOINTMENT REQUESTS */}
                   <View style={styles.sectionHeaderRow}>
                     <View style={styles.sectionTitleGroup}>
                       <Inbox size={16} color="#D97706" />
@@ -1336,7 +1692,8 @@ export default function AssistantDashboard({
                     </View>
 
                     <TouchableOpacity
-                          style={styles.seeAllBtn}
+                      onPress={() => navigateToTab("appointment-requests")}
+                      style={styles.seeAllBtn}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.seeAllBtnText}>View all</Text>
@@ -1372,22 +1729,31 @@ export default function AssistantDashboard({
                     >
                       <ArrowUpDown size={12} color="#047857" style={{ marginRight: 4 }} />
                       <Text style={styles.requestSortBtnText}>
-                        {requestSortOrder === "desc" ? "Newest" : "Oldest"}
+                        {requestSortOrder === "desc" ? "Descending (Newest)" : "Ascending (Oldest)"}
                       </Text>
                     </TouchableOpacity>
                   </View>
 
+                  {/* Swipe gesture helper hint */}
+                  {filteredRequests.length > 0 && (
+                    <View style={styles.swipeHintRow}>
+                      <Text style={styles.swipeHintText}>
+                        Swipe ← left to Accept  •  Swipe right → to Decline
+                      </Text>
+                    </View>
+                  )}
+
                   {/* List of Appointment Requests - Scrollable if > 3 */}
                   {filteredRequests.length === 0 ? (
                     <View style={styles.emptyQueueBox}>
-                      <Inbox size={28} color="#94A3B8" style={{ marginBottom: 8 }} />
+                      <Inbox size={26} color="#94A3B8" style={{ marginBottom: 6 }} />
                       <Text style={styles.emptyQueueTitle}>
                         {requestSearchQuery ? "No matching requests" : "No Pending Requests"}
                       </Text>
                       <Text style={styles.emptyQueueSubtitle}>
                         {requestSearchQuery
                           ? `No appointment requests found for "${requestSearchQuery}".`
-                          : "When new patients book online, their appointment requests will appear here for you to review and confirm."}
+                          : "New patient booking requests will appear here for you to accept or decline."}
                       </Text>
                     </View>
                   ) : filteredRequests.length > 3 ? (
@@ -1397,93 +1763,114 @@ export default function AssistantDashboard({
                       contentContainerStyle={{ paddingBottom: 6 }}
                       showsVerticalScrollIndicator={true}
                     >
-                      {filteredRequests.map((req) => {
-                        const isSelected = selectedPatient?.id === req.id;
-                        return (
-                          <TouchableOpacity
-                            key={req.id}
-                            activeOpacity={0.8}
-                            style={[
-                              styles.queueCard,
-                              isSelected && styles.queueCardSelected,
-                            ]}
-                            onPress={() => setSelectedPatient(req)}
-                          >
-                            <Image
-                              source={
-                                typeof req.imageUrl === "string" && req.imageUrl.length > 0
-                                  ? { uri: req.imageUrl }
-                                  : require("../../assets/images/user.png")
-                              }
-                              style={styles.queueAvatar}
-                            />
-
-                            <View style={{ flex: 1, marginRight: 8 }}>
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                <Text style={styles.queuePatientName} numberOfLines={1}>
-                                  {req.name}
-                                </Text>
-                                {isSelected && (
-                                  <View style={styles.activePrepDot}>
-                                    <Text style={styles.activePrepDotText}>SELECTED</Text>
-                                  </View>
-                                )}
-                              </View>
-
-                              <Text style={styles.queueService} numberOfLines={1}>
-                                {req.service || "General Dental Consultation"}
-                              </Text>
-
-                              <View style={styles.queueMetaRow}>
-                                <View style={styles.queueMetaItem}>
-                                  <Calendar size={11} color="#047857" style={{ marginRight: 3 }} />
-                                  <Text style={styles.queueMetaText}>
-                                    {formatAppointmentDate(req.date)}
-                                  </Text>
-                                </View>
-
-                                {req.time ? (
-                                  <View style={styles.queueMetaItem}>
-                                    <Clock size={11} color="#0284C7" style={{ marginRight: 3 }} />
-                                    <Text style={[styles.queueMetaText, { color: "#0284C7" }]}>
-                                      {formatAppointmentTime(req.time)}
-                                    </Text>
-                                  </View>
-                                ) : null}
-                              </View>
-                            </View>
-
-                            <View
-                              style={[
-                                styles.queueStatusBadge,
-                                { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" },
-                              ]}
-                            >
-                              <Text style={[styles.queueStatusText, { color: "#B45309" }]}>
-                                WAITING
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
+                      {filteredRequests.map((req) => (
+                        <SwipeableRequestCard
+                          key={req.id}
+                          request={req}
+                          isSelected={selectedPatient?.id === req.id}
+                          onSelect={() => setSelectedPatient(req)}
+                          onAccept={() => handleAcceptAppointmentRequest(req)}
+                          onDecline={() => {
+                            setPromptAppointment(req);
+                            setShowPromptModal(true);
+                          }}
+                        />
+                      ))}
                     </ScrollView>
                   ) : (
-                    filteredRequests.map((req) => {
-                      const isSelected = selectedPatient?.id === req.id;
+                    filteredRequests.map((req) => (
+                      <SwipeableRequestCard
+                        key={req.id}
+                        request={req}
+                        isSelected={selectedPatient?.id === req.id}
+                        onSelect={() => setSelectedPatient(req)}
+                        onAccept={() => handleAcceptAppointmentRequest(req)}
+                        onDecline={() => {
+                          setPromptAppointment(req);
+                          setShowPromptModal(true);
+                        }}
+                      />
+                    ))
+                  )}
+
+                  {/* ─────────────────────────────────────────────────────────────
+                      SECTION 2: TODAY'S APPOINTMENTS (BELOW APPOINTMENT REQUESTS)
+                  ───────────────────────────────────────────────────────────── */}
+                  <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 8 }]}>
+                    <View style={styles.sectionTitleGroup}>
+                      <Calendar size={16} color="#047857" />
+                      <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
+                      <View style={styles.pillCountBadge}>
+                        <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => navigateToTab("appointments")}
+                      style={styles.seeAllBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.seeAllBtnText}>View all</Text>
+                      <ChevronRight size={14} color="#047857" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Queue Filter Tabs: All, Scheduled, Done */}
+                  <View style={styles.queueFilterRow}>
+                    <TouchableOpacity
+                      style={[styles.queueFilterPill, queueFilter === "all" && styles.queueFilterPillActive]}
+                      onPress={() => setQueueFilter("all")}
+                    >
+                      <Text style={[styles.queueFilterPillText, queueFilter === "all" && styles.queueFilterPillTextActive]}>
+                        All ({todayAppointments.length})
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.queueFilterPill, queueFilter === "scheduled" && styles.queueFilterPillActive]}
+                      onPress={() => setQueueFilter("scheduled")}
+                    >
+                      <Text style={[styles.queueFilterPillText, queueFilter === "scheduled" && styles.queueFilterPillTextActive]}>
+                        Scheduled ({todayScheduledCount})
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.queueFilterPill, queueFilter === "completed" && styles.queueFilterPillActive]}
+                      onPress={() => setQueueFilter("completed")}
+                    >
+                      <Text style={[styles.queueFilterPillText, queueFilter === "completed" && styles.queueFilterPillTextActive]}>
+                        Done ({todayCompletedCount})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Today's Appointments List */}
+                  {filteredQueueAppointments.length === 0 ? (
+                    <View style={styles.emptyQueueBox}>
+                      <Calendar size={26} color="#94A3B8" style={{ marginBottom: 6 }} />
+                      <Text style={styles.emptyQueueTitle}>No visits scheduled for today</Text>
+                      <Text style={styles.emptyQueueSubtitle}>
+                        Today's arriving patients will appear here. Tap any patient to view their record on the right.
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredQueueAppointments.map((apt) => {
+                      const isSelected = selectedPatient?.id === apt.id;
                       return (
                         <TouchableOpacity
-                          key={req.id}
+                          key={apt.id}
                           activeOpacity={0.8}
                           style={[
                             styles.queueCard,
                             isSelected && styles.queueCardSelected,
                           ]}
-                          onPress={() => setSelectedPatient(req)}
+                          onPress={() => setSelectedPatient(apt)}
                         >
                           <Image
                             source={
-                              typeof req.imageUrl === "string" && req.imageUrl.length > 0
-                                ? { uri: req.imageUrl }
+                              typeof apt.imageUrl === "string" && apt.imageUrl.length > 0
+                                ? { uri: apt.imageUrl }
                                 : require("../../assets/images/user.png")
                             }
                             style={styles.queueAvatar}
@@ -1492,32 +1879,25 @@ export default function AssistantDashboard({
                           <View style={{ flex: 1, marginRight: 8 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                               <Text style={styles.queuePatientName} numberOfLines={1}>
-                                {req.name}
+                                {apt.name}
                               </Text>
                               {isSelected && (
                                 <View style={styles.activePrepDot}>
-                                  <Text style={styles.activePrepDotText}>SELECTED</Text>
+                                  <Text style={styles.activePrepDotText}>ACTIVE</Text>
                                 </View>
                               )}
                             </View>
 
                             <Text style={styles.queueService} numberOfLines={1}>
-                              {req.service || "General Dental Consultation"}
+                              {apt.service || "General Dental Consultation"}
                             </Text>
 
                             <View style={styles.queueMetaRow}>
-                              <View style={styles.queueMetaItem}>
-                                <Calendar size={11} color="#047857" style={{ marginRight: 3 }} />
-                                <Text style={styles.queueMetaText}>
-                                  {formatAppointmentDate(req.date)}
-                                </Text>
-                              </View>
-
-                              {req.time ? (
+                              {apt.time ? (
                                 <View style={styles.queueMetaItem}>
-                                  <Clock size={11} color="#0284C7" style={{ marginRight: 3 }} />
-                                  <Text style={[styles.queueMetaText, { color: "#0284C7" }]}>
-                                    {formatAppointmentTime(req.time)}
+                                  <Clock size={11} color="#047857" style={{ marginRight: 3 }} />
+                                  <Text style={[styles.queueMetaText, { color: "#047857", fontWeight: "700" }]}>
+                                    {formatAppointmentTime(apt.time)}
                                   </Text>
                                 </View>
                               ) : null}
@@ -1527,17 +1907,30 @@ export default function AssistantDashboard({
                           <View
                             style={[
                               styles.queueStatusBadge,
-                              { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" },
+                              {
+                                backgroundColor: getStatusBgColor(apt.status || "scheduled"),
+                                borderColor: getStatusColor(apt.status || "scheduled"),
+                              },
                             ]}
                           >
-                            <Text style={[styles.queueStatusText, { color: "#B45309" }]}>
-                              WAITING
+                            <Text
+                              style={[
+                                styles.queueStatusText,
+                                { color: getStatusColor(apt.status || "scheduled") },
+                              ]}
+                            >
+                              {apt.status === "completed"
+                                ? "DONE"
+                                : apt.status === "no-show"
+                                ? "MISSED"
+                                : (apt.status || "SCHEDULED").toUpperCase()}
                             </Text>
                           </View>
                         </TouchableOpacity>
                       );
                     })
-                  )}                </View>
+                  )}
+                </View>
 
                 {/* ─────────────────────────────────────────
                     RIGHT COLUMN: SELECTED PATIENT DETAILS
@@ -1731,42 +2124,44 @@ export default function AssistantDashboard({
                               formatAppointmentDate(selectedPatient.date) || "Not set"
                             }
                           />
-                          <DetailRow
-                            label="Dentist"
-                            value={
-                              selectedPatient.dentist_id
-                                ? doctorsMap[selectedPatient.dentist_id] || "Dentist"
-                                : "Clinic Dentist"
-                            }
-                          />
                           {selectedPatient.notes ? (
                             <DetailRow label="Notes" value={selectedPatient.notes} />
                           ) : null}
                         </View>
 
-                        {/* ACTION BUTTONS */}
+                        {/* ACTION BUTTONS: DEDICATED ACCEPT OR DECLINE SECTION */}
                         {selectedPatient.status === "pending" ? (
-                          <View style={styles.actionButtonRow}>
-                            <TouchableOpacity
-                              style={[styles.fullRecordBtn, { backgroundColor: "#047857", borderColor: "#065F46" }]}
-                              onPress={() => handleAcceptAppointmentRequest(selectedPatient)}
-                              activeOpacity={0.8}
-                            >
-                              <Check size={13} color="#FFFFFF" />
-                              <Text style={styles.fullRecordBtnText}>ACCEPT BOOKING</Text>
-                            </TouchableOpacity>
+                          <View style={styles.decisionSectionCard}>
+                            <View style={styles.decisionHeader}>
+                              <ShieldCheck size={15} color="#047857" style={{ marginRight: 6 }} />
+                              <Text style={styles.decisionTitle}>CONFIRM OR DECLINE REQUEST</Text>
+                            </View>
+                            <Text style={styles.decisionSubtitle}>
+                              Confirm booking for {selectedPatient.name} or decline with a note.
+                            </Text>
 
-                            <TouchableOpacity
-                              style={[styles.updateStatusBtn, { borderColor: "#FECDD3", backgroundColor: "#FFF1F2" }]}
-                              onPress={() => {
-                                setPromptAppointment(selectedPatient);
-                                setShowPromptModal(true);
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <X size={13} color="#E11D48" />
-                              <Text style={[styles.updateStatusBtnText, { color: "#E11D48" }]}>DECLINE</Text>
-                            </TouchableOpacity>
+                            <View style={styles.decisionBtnRow}>
+                              <TouchableOpacity
+                                style={styles.decisionAcceptBtn}
+                                onPress={() => handleAcceptAppointmentRequest(selectedPatient)}
+                                activeOpacity={0.85}
+                              >
+                                <Check size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+                                <Text style={styles.decisionAcceptText}>Accept Booking</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.decisionDeclineBtn}
+                                onPress={() => {
+                                  setPromptAppointment(selectedPatient);
+                                  setShowPromptModal(true);
+                                }}
+                                activeOpacity={0.85}
+                              >
+                                <X size={14} color="#E11D48" style={{ marginRight: 5 }} />
+                                <Text style={styles.decisionDeclineText}>Decline</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         ) : (
                           <>
@@ -1911,75 +2306,7 @@ export default function AssistantDashboard({
                     </View>
                   )}
 
-{/* ─────────────────────────────────────────
-                      ALL PATIENTS LIST
-                  ───────────────────────────────────────── */}
-                  <View style={[styles.sectionHeaderRow, { marginTop: 22, marginBottom: 10 }]}>
-                    <View style={styles.sectionTitleGroup}>
-                      <Text style={styles.sectionHeaderTitle}>ALL PATIENTS</Text>
-                      <View style={styles.pillCountBadge}>
-                        <Text style={styles.pillCountText}>{patients.length}</Text>
-                      </View>
-                    </View>
-                    {patients.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => navigateToTab("records")}
-                        style={styles.seeAllBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.seeAllBtnText}>See all</Text>
-                        <ChevronRight size={14} color="#047857" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
 
-                  {patients.length > 0 ? (
-                    patients
-                      .slice()
-                      .sort((a, b) => {
-                        const timeA = a.created_at || a.date ? new Date(a.created_at || a.date).getTime() : 0;
-                        const timeB = b.created_at || b.date ? new Date(b.created_at || b.date).getTime() : 0;
-                        return timeB - timeA;
-                      })
-                      .slice(0, 3)
-                      .map((patient) => (
-                        <TouchableOpacity
-                          key={patient.id}
-                          onPress={() => handleOpenPatientDetails(patient)}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.patientCard, styles.shadow]}>
-                            <Image
-                              source={
-                                typeof patient.imageUrl === "string" && patient.imageUrl.length > 0
-                                  ? { uri: patient.imageUrl }
-                                  : require("../../assets/images/user.png")
-                              }
-                              style={styles.patientAvatarSmall}
-                            />
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.patientCardName}>{patient.name}</Text>
-                              <Text style={styles.patientCardSub}>
-                                {patient.email || patient.contact || "No email"}
-                              </Text>
-                              {formatAccountCreatedDate(patient.created_at || patient.date) ? (
-                                <Text style={styles.patientCreatedText}>
-                                  Added:{" "}
-                                  <Text style={{ color: "#047857", fontWeight: "700" }}>
-                                    {formatAccountCreatedDate(patient.created_at || patient.date)}
-                                  </Text>
-                                </Text>
-                              ) : null}
-                            </View>
-                            <ChevronRight size={16} color="#94A3B8" />
-                          </View>
-                        </TouchableOpacity>
-                      ))
-                  ) : (
-                    <Text style={{ fontSize: 12, color: "#999", marginVertical: 10 }}>
-                      No patients registered yet
-                    </Text>
-                  )}
                 </View>
               </View>
 
@@ -2065,6 +2392,74 @@ export default function AssistantDashboard({
             />
           </View>
         </SafeAreaView>
+      </Modal>
+
+      {/* Reschedule Confirmation Success Modal */}
+      <Modal
+        visible={showRescheduleSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowRescheduleSuccessModal(false);
+          setRescheduleSuccessData(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.successModalCard}>
+            <View style={styles.successIconOuter}>
+              <View style={styles.successIconInner}>
+                <CheckCircle2 size={36} color="#059669" />
+              </View>
+            </View>
+
+            <Text style={styles.successModalTitle}>Reschedule Confirmed!</Text>
+            <Text style={styles.successModalSubtitle}>
+              The appointment has been successfully updated and locked in the schedule.
+            </Text>
+
+            {rescheduleSuccessData && (
+              <View style={styles.successDetailsBox}>
+                <View style={styles.successPatientRow}>
+                  <Image
+                    source={
+                      typeof rescheduleSuccessData.imageUrl === "string" && rescheduleSuccessData.imageUrl.length > 0
+                        ? { uri: rescheduleSuccessData.imageUrl }
+                        : require("../../assets/images/user.png")
+                    }
+                    style={styles.successPatientAvatar}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.successPatientName}>{rescheduleSuccessData.patientName}</Text>
+                    <Text style={styles.successServiceText}>{rescheduleSuccessData.service}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.successSlotRow}>
+                  <Calendar size={14} color="#047857" style={{ marginRight: 6 }} />
+                  <Text style={styles.successSlotDate}>
+                    {formatAppointmentDate(rescheduleSuccessData.date)}
+                  </Text>
+                  <Text style={styles.successSlotDot}>•</Text>
+                  <Clock size={14} color="#047857" style={{ marginRight: 4 }} />
+                  <Text style={styles.successSlotTime}>
+                    {formatAppointmentTime(rescheduleSuccessData.time)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.successDoneBtn}
+              onPress={() => {
+                setShowRescheduleSuccessModal(false);
+                setRescheduleSuccessData(null);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.successDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Reschedule Confirmation Modal Screen */}
@@ -2199,11 +2594,12 @@ export default function AssistantDashboard({
                 style={styles.confirmModalSubmitBtn}
                 onPress={async () => {
                   if (!confirmingReschedule) return;
+                  const itemToConfirm = confirmingReschedule;
+                  setShowRescheduleConfirmModal(false);
+                  setConfirmingReschedule(null);
                   try {
                     setConfirmingLoading(true);
-                    await handleConfirmReschedule(confirmingReschedule);
-                    setShowRescheduleConfirmModal(false);
-                    setConfirmingReschedule(null);
+                    await handleConfirmReschedule(itemToConfirm);
                   } finally {
                     setConfirmingLoading(false);
                   }
@@ -4042,5 +4438,277 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  // Success Modal Styles
+  successModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 22,
+    width: '88%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  successIconOuter: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#A7F3D0',
+  },
+  successIconInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#065F46',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  successModalSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  successDetailsBox: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 18,
+  },
+  successPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  successPatientAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  successPatientName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  successServiceText: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 1,
+  },
+  successSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  successSlotDate: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  successSlotDot: {
+    marginHorizontal: 6,
+    color: '#047857',
+    fontWeight: '800',
+  },
+  successSlotTime: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  successDoneBtn: {
+    width: '100%',
+    backgroundColor: '#047857',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: '#064E3B',
+  },
+  successDoneBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  // Request Card Styles with Accept/Decline
+  requestCardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  requestCardContainerSelected: {
+    borderColor: '#047857',
+    borderWidth: 1.5,
+    backgroundColor: '#F0FDF4',
+  },
+  // Dedicated Decision Card in Details
+  decisionSectionCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginTop: 12,
+  },
+  decisionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  decisionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.5,
+  },
+  decisionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 10,
+  },
+  decisionBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  decisionAcceptBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#047857',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#064E3B',
+  },
+  decisionAcceptText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  decisionDeclineBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  decisionDeclineText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#E11D48',
+  },
+  // Swipe Actions & Hint Styles
+  swipeContainer: {
+    position: 'relative',
+    marginBottom: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+  },
+  swipeBackgroundFull: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  swipeBackgroundAccept: {
+    backgroundColor: '#059669',
+    alignItems: 'flex-end',
+    paddingRight: 16,
+  },
+  swipeBackgroundDecline: {
+    backgroundColor: '#DC2626',
+    alignItems: 'flex-start',
+    paddingLeft: 16,
+  },
+  swipeActionIndicatorRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  swipeActionIndicatorLeft: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  swipeIconCircleAccept: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  swipeIconCircleDecline: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  swipeActionLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.6,
+  },
+  swipeHintRow: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swipeHintText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#047857',
   },
 });

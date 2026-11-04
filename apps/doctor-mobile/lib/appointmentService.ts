@@ -709,6 +709,90 @@ export async function rescheduleAppointment(
 // ─────────────────────────────────────────
 // GET APPOINTMENT REQUESTS (PENDING APPROVAL)
 // ─────────────────────────────────────────
+/**
+ * Confirm an appointment reschedule request.
+ * Sets status to 'scheduled' and changes rescheduled_by to 'assistant' (or 'doctor').
+ */
+export async function confirmAppointmentReschedule(
+  appointmentId: string,
+  confirmedBy: 'assistant' | 'doctor' | string = 'assistant',
+  dentistId?: string | null
+): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log('🔄 [confirmAppointmentReschedule] Confirming for:', { appointmentId, confirmedBy });
+
+    // 1. Try dedicated confirm_appointment_reschedule RPC
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('confirm_appointment_reschedule', {
+        p_appointment_id: appointmentId,
+        p_confirmed_by: confirmedBy,
+      });
+
+      if (!rpcError) {
+        const result = Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : rpcData;
+        if (result?.success) {
+          console.log('✅ [confirmAppointmentReschedule] RPC confirmed successfully');
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ [confirmAppointmentReschedule] RPC confirm_appointment_reschedule warning:', e);
+    }
+
+    // 2. Try reschedule_appointment RPC
+    try {
+      const { data: aptData } = await supabase
+        .from('appointments')
+        .select('appointment_date, appointment_time, notes')
+        .eq('id', appointmentId)
+        .maybeSingle();
+
+      if (aptData) {
+        await supabase.rpc('reschedule_appointment', {
+          p_appointment_id: appointmentId,
+          p_new_date: aptData.appointment_date,
+          p_new_time: aptData.appointment_time || null,
+          p_rescheduled_by: confirmedBy,
+          p_notes: aptData.notes || null,
+        });
+      }
+    } catch (e) {
+      console.warn('⚠️ [confirmAppointmentReschedule] reschedule_appointment RPC warning:', e);
+    }
+
+    // 3. Fallback direct update to guarantee rescheduled_by is 'assistant'
+    const { error: directError } = await supabase
+      .from('appointments')
+      .update({
+        status: 'scheduled',
+        rescheduled_by: confirmedBy,
+        rescheduled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', appointmentId);
+
+    if (directError) {
+      console.warn('⚠️ [confirmAppointmentReschedule] Direct update notice:', directError.message);
+    }
+
+    // 4. Update status via updateDoctorAppointmentStatus to trigger doctor assignment & alerts
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    await updateDoctorAppointmentStatus(
+      appointmentId,
+      'scheduled',
+      authUser?.id || '',
+      {
+        dentist_id: dentistId || undefined,
+        doctor_note: `Reschedule confirmed by clinic ${confirmedBy}`,
+      }
+    );
+
+    return { success: true, message: 'Reschedule confirmed successfully.' };
+  } catch (err: any) {
+    console.error('❌ [confirmAppointmentReschedule] Exception:', err);
+    return { success: false, message: err?.message || 'Failed to confirm reschedule' };
+  }
+}
+
 export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
   try {
     // Requests = status 'pending' (migration 032) plus legacy rows with no dentist assigned.

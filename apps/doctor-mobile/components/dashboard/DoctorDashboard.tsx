@@ -32,7 +32,7 @@ import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
-import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests, getAppointmentById } from "../../lib/appointmentService";
+import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests, getAppointmentById, confirmAppointmentReschedule } from "../../lib/appointmentService";
 import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile, isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from "../../lib/doctorService";
@@ -68,7 +68,8 @@ import {
   Sparkles,
   FileText,
   Phone,
-  Compass
+  Compass,
+  CheckCircle2
 } from "lucide-react-native";
 import { AppColors } from "../../constants/theme";
 import {
@@ -243,6 +244,15 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const [confirmingReschedule, setConfirmingReschedule] = useState<DashboardAppointment | null>(null);
   const [showRescheduleConfirmModal, setShowRescheduleConfirmModal] = useState(false);
   const [confirmingLoading, setConfirmingLoading] = useState(false);
+  const [confirmedRescheduleIds, setConfirmedRescheduleIds] = useState<Set<string>>(new Set());
+  const [rescheduleSuccessData, setRescheduleSuccessData] = useState<{
+    patientName: string;
+    service: string;
+    date: string;
+    time: string;
+    imageUrl?: string | number;
+  } | null>(null);
+  const [showRescheduleSuccessModal, setShowRescheduleSuccessModal] = useState(false);
 
   // Push notification prompt modal state
   const [promptAppointment, setPromptAppointment] = useState<DashboardAppointment | null>(null);
@@ -788,6 +798,9 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
             medicalIntake: medicalIntake,
+            created_at: apt.created_at || (apt as any).appointment_date || null,
+            rescheduled_by: apt.rescheduled_by || (apt as any).reschedule_by || null,
+            rescheduled_at: apt.rescheduled_at || (apt as any).reschedule_at || null,
           };
         });
         setAppointmentRequests(transformedRequests);
@@ -842,6 +855,9 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
             patient_id: apt.patient_id,
             dentist_id: apt.dentist_id,
             medicalIntake: medicalIntake,
+            created_at: apt.created_at || (apt as any).appointment_date || null,
+            rescheduled_by: apt.rescheduled_by || (apt as any).reschedule_by || null,
+            rescheduled_at: apt.rescheduled_at || (apt as any).reschedule_at || null,
           };
         });
         setAppointments(transformedAppointments);
@@ -1036,20 +1052,34 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   // ─────────────────────────────────────────
   // Clinic data is now loaded from ClinicContext and updates in real-time
 
-  // Reschedule requests filter
+  // Reschedule requests filter: ONLY pending patient requests that have NOT been confirmed
   const rescheduleRequests = useMemo(() => {
     const combined = [...appointments, ...appointmentRequests];
     const map = new Map<string, DashboardAppointment>();
 
     combined.forEach((apt: DashboardAppointment) => {
-      const isReschedule = Boolean(
-        apt.rescheduled_by ||
-        apt.rescheduled_at ||
-        apt.reschedule_at ||
-        (apt.notes && apt.notes.toLowerCase().includes('reschedule'))
-      );
-      const isActive = !['completed', 'cancelled', 'declined'].includes((apt.status || '').toLowerCase());
-      if (isReschedule && isActive && !map.has(apt.id)) {
+      // 1. If already confirmed in this session, skip
+      if (confirmedRescheduleIds.has(apt.id)) return;
+
+      const rBy = (apt.rescheduled_by || '').toLowerCase().trim();
+      const status = (apt.status || '').toLowerCase().trim();
+
+      // If already finished or cancelled, skip
+      if (['completed', 'cancelled', 'declined'].includes(status)) return;
+
+      // 2. CRITICAL RULE: If rescheduled_by is 'assistant' or 'doctor', IT HAS BEEN CONFIRMED! Skip!
+      if (rBy === 'assistant' || rBy === 'doctor' || rBy === 'clinic') return;
+
+      // 3. If status is already 'scheduled', the appointment is confirmed/locked! Skip!
+      if (status === 'scheduled') return;
+
+      // 4. Only show if it is a pending reschedule request from the patient
+      const isPatientReschedule =
+        rBy === 'patient' ||
+        (Boolean(apt.rescheduled_at || apt.reschedule_at || (apt.notes && apt.notes.toLowerCase().includes('reschedule'))) &&
+         status === 'pending');
+
+      if (isPatientReschedule && !map.has(apt.id)) {
         map.set(apt.id, apt);
       }
     });
@@ -1059,29 +1089,59 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       const tB = b.rescheduled_at || b.date ? new Date(b.rescheduled_at || b.date).getTime() : 0;
       return tB - tA;
     });
-  }, [appointments, appointmentRequests]);
+  }, [appointments, appointmentRequests, confirmedRescheduleIds]);
 
   const handleConfirmReschedule = async (request: DashboardAppointment) => {
+    // 1. Optimistic UI update: Immediately mark confirmed and change rescheduled_by to 'doctor'
+    setConfirmedRescheduleIds((prev) => new Set([...prev, request.id]));
+    setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
+    setAppointments((prev) => {
+      const exists = prev.some((a) => a.id === request.id);
+      if (exists) {
+        return prev.map((a) =>
+          a.id === request.id
+            ? { ...a, status: "scheduled" as const, rescheduled_by: "doctor" }
+            : a
+        );
+      }
+      return [{ ...request, status: "scheduled" as const, rescheduled_by: "doctor" }, ...prev];
+    });
+
+    if (selectedPatient?.id === request.id) {
+      setSelectedPatient((prev) =>
+        prev ? { ...prev, status: "scheduled" as const, rescheduled_by: "doctor" } : prev
+      );
+    }
+
     try {
-      const result = await updateDoctorAppointmentStatus(
+      // 2. Persist to database: explicitly change rescheduled_by to 'doctor' and status to 'scheduled'
+      await confirmAppointmentReschedule(
         request.id,
-        'scheduled',
-        user?.id || '',
-        { doctor_note: 'Reschedule request confirmed by doctor' }
+        'doctor',
+        request.dentist_id || undefined
       );
 
-      if (result.success) {
-        Alert.alert('Confirmed', `New appointment time for ${request.name} is confirmed.`);
-        await refreshDashboardData();
-      } else {
-        Alert.alert('Notice', result.message || 'Failed to confirm reschedule.');
-      }
+      // 3. Show Success Modal
+      setRescheduleSuccessData({
+        patientName: request.name,
+        service: request.service || 'Dental Consultation',
+        date: request.date,
+        time: request.time,
+        imageUrl: request.imageUrl,
+      });
+      setShowRescheduleSuccessModal(true);
+      await refreshDashboardData();
     } catch (err: any) {
+      setConfirmedRescheduleIds((prev) => {
+        const next = new Set(prev);
+        next.delete(request.id);
+        return next;
+      });
       Alert.alert('Error', err?.message || 'Failed to confirm reschedule');
     }
   };
 
-    const handleOpenStatusModal = (appointment: DashboardAppointment) => {
+      const handleOpenStatusModal = (appointment: DashboardAppointment) => {
     setEditingAppointment({
       ...appointment,
       appointment_date: appointment.date,
@@ -2065,6 +2125,74 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           </SafeAreaView>
         </Modal>
 
+      {/* Reschedule Confirmation Success Modal */}
+      <Modal
+        visible={showRescheduleSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowRescheduleSuccessModal(false);
+          setRescheduleSuccessData(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.successModalCard}>
+            <View style={styles.successIconOuter}>
+              <View style={styles.successIconInner}>
+                <CheckCircle2 size={36} color="#059669" />
+              </View>
+            </View>
+
+            <Text style={styles.successModalTitle}>Reschedule Confirmed!</Text>
+            <Text style={styles.successModalSubtitle}>
+              The appointment has been successfully updated and locked in the schedule.
+            </Text>
+
+            {rescheduleSuccessData && (
+              <View style={styles.successDetailsBox}>
+                <View style={styles.successPatientRow}>
+                  <Image
+                    source={
+                      typeof rescheduleSuccessData.imageUrl === "string" && rescheduleSuccessData.imageUrl.length > 0
+                        ? { uri: rescheduleSuccessData.imageUrl }
+                        : require("../../assets/images/user.png")
+                    }
+                    style={styles.successPatientAvatar}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.successPatientName}>{rescheduleSuccessData.patientName}</Text>
+                    <Text style={styles.successServiceText}>{rescheduleSuccessData.service}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.successSlotRow}>
+                  <Calendar size={14} color="#047857" style={{ marginRight: 6 }} />
+                  <Text style={styles.successSlotDate}>
+                    {formatAppointmentDate(rescheduleSuccessData.date)}
+                  </Text>
+                  <Text style={styles.successSlotDot}>•</Text>
+                  <Clock size={14} color="#047857" style={{ marginRight: 4 }} />
+                  <Text style={styles.successSlotTime}>
+                    {formatAppointmentTime(rescheduleSuccessData.time)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.successDoneBtn}
+              onPress={() => {
+                setShowRescheduleSuccessModal(false);
+                setRescheduleSuccessData(null);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.successDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
         {/* Reschedule Confirmation Modal Screen */}
         <Modal
           visible={showRescheduleConfirmModal}
@@ -2197,11 +2325,12 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   style={styles.confirmModalSubmitBtn}
                   onPress={async () => {
                     if (!confirmingReschedule) return;
+                    const itemToConfirm = confirmingReschedule;
+                    setShowRescheduleConfirmModal(false);
+                    setConfirmingReschedule(null);
                     try {
                       setConfirmingLoading(true);
-                      await handleConfirmReschedule(confirmingReschedule);
-                      setShowRescheduleConfirmModal(false);
-                      setConfirmingReschedule(null);
+                      await handleConfirmReschedule(itemToConfirm);
                     } finally {
                       setConfirmingLoading(false);
                     }
@@ -3337,6 +3466,125 @@ const styles = StyleSheet.create({
   },
   confirmModalSubmitText: {
     fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  // Success Modal Styles
+  successModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 22,
+    width: '88%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  successIconOuter: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#A7F3D0',
+  },
+  successIconInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#065F46',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  successModalSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  successDetailsBox: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 18,
+  },
+  successPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  successPatientAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  successPatientName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  successServiceText: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 1,
+  },
+  successSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  successSlotDate: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  successSlotDot: {
+    marginHorizontal: 6,
+    color: '#047857',
+    fontWeight: '800',
+  },
+  successSlotTime: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  successDoneBtn: {
+    width: '100%',
+    backgroundColor: '#047857',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: '#064E3B',
+  },
+  successDoneBtnText: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
   },
