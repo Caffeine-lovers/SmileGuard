@@ -8,6 +8,7 @@ import StatCard from '@/components/dashboard/StatCard';
 import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
 import { getPatientAppointments, getDoctorDetails, withTimeout } from '@/lib/appointmentService';
+import { formatAppointmentTime } from '@/lib/scheduling';
 import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
@@ -587,7 +588,7 @@ export default function PatientDashboard() {
                         )}
                       </div>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
-                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {apt.appointment_time}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {formatAppointmentTime(apt.appointment_time)}</p>
                       {apt.dentist_id && (
                         <div className="flex items-center gap-1.5 mt-1">
                           {doctorPictures[apt.dentist_id] && (
@@ -741,7 +742,7 @@ export default function PatientDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Scheduled Time:</span>
-                <span className="font-bold text-slate-900">{selectedAppointment.appointment_time}</span>
+                <span className="font-bold text-slate-900">{formatAppointmentTime(selectedAppointment.appointment_time)}</span>
               </div>
               {!isPendingAppointment(selectedAppointment) && selectedAppointment.dentist_id && doctorNames[selectedAppointment.dentist_id] ? (
                 <div className="flex justify-between">
@@ -782,7 +783,7 @@ export default function PatientDashboard() {
                       setSelectedAppointment(null);
                       setAppointmentToReschedule(apt);
                       setRescheduleDate(apt.appointment_date || '');
-                      setRescheduleTime(apt.appointment_time || '10:00 AM');
+                      setRescheduleTime(formatAppointmentTime(apt.appointment_time) || '10:00 AM');
                       setRescheduleReason('');
                       setIsRescheduleModalOpen(true);
                     }}

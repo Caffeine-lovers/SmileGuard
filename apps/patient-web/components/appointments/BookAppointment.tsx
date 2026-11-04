@@ -25,7 +25,7 @@ import type { Appointment } from '@/lib/database';
 
 import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 import { showAlert } from '@/components/ui/AppDialog';
-import { busyIntervalsForDate, fits, formatMinutes, freeUntil, toMinutes } from '@/lib/scheduling';
+import { busyIntervalsForDate, fits, formatAppointmentTime, formatDuration, formatMinutes, freeUntil, toMinutes } from '@/lib/scheduling';
 
 export interface ServiceOption {
   id: string;
@@ -420,7 +420,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         });
         showAlert(
           `You already have a pending appointment that hasn't been scheduled yet:\n\n` +
-          `${pending.service}\n${when} at ${pending.appointment_time}\n\n` +
+          `${pending.service}\n${when} at ${formatAppointmentTime(pending.appointment_time)}\n\n` +
           `You can book another appointment once the clinic schedules or declines this one. ` +
           `To change it, cancel or reschedule it from your Dashboard.`,
           { title: 'Booking is restricted', tone: 'warning' }
@@ -529,8 +529,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
           {minutesLeftToAdd !== null && (
             <p className={`-mt-2 mb-3 text-xs font-semibold ${minutesLeftToAdd > 0 ? 'text-text-secondary' : 'text-amber-700'}`}>
               {selectedTime
-                ? `Time left in your ${selectedTime} slot: ${Math.max(minutesLeftToAdd, 0)} min`
-                : `Longest opening on this date: ${remainingMinutes} min`}
+                ? `Time left in your ${formatAppointmentTime(selectedTime)} slot: ${formatDuration(Math.max(minutesLeftToAdd, 0))}`
+                : `Longest opening on this date: ${formatDuration(remainingMinutes ?? 0)}`}
               {minutesLeftToAdd <= 0 && ' — pick a different time to add more services'}
             </p>
           )}
@@ -547,7 +547,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                   key={service.id}
                   onClick={() => toggleService(service)}
                   disabled={tooLong}
-                  title={tooLong ? `Needs ${service.duration} min — only ${Math.max(minutesLeftToAdd ?? 0, 0)} min left in this time slot` : undefined}
+                  title={tooLong ? `Needs ${formatDuration(service.duration)} — only ${formatDuration(Math.max(minutesLeftToAdd ?? 0, 0))} left in this time slot` : undefined}
                   className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                     active
                       ? 'border-brand-primary bg-brand-primary/5 shadow-md'
@@ -560,7 +560,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                     {service.name}
                   </p>
                   <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">
-                    {service.duration} min{tooLong && <span className="block text-amber-700 font-semibold">Not enough time left</span>}
+                    {formatDuration(service.duration)}{tooLong && <span className="block text-amber-700 font-semibold">Not enough time left</span>}
                   </p>
                   <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
                     ₱{service.price.toLocaleString()}
@@ -588,7 +588,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
               {[
                 { label: 'Service(s)', value: selectedServices.length > 0 ? combinedServiceName : null },
                 { label: 'Date',    value: formattedDate },
-                { label: 'Time',    value: selectedTime ? (endTimeLabel ? `${formatMinutes(toMinutes(selectedTime))} – ${endTimeLabel}` : selectedTime) : null },
+                { label: 'Time',    value: selectedTime ? (endTimeLabel ? `${formatAppointmentTime(selectedTime)} – ${endTimeLabel}` : formatAppointmentTime(selectedTime)) : null },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <div>
@@ -603,7 +603,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                 <div className="border-t border-white/20 pt-3 space-y-1">
                   <div className="flex justify-between items-center text-xs text-white/70">
                     <span>Time needed:</span>
-                    <span className="font-semibold">{totalDuration} mins</span>
+                    <span className="font-semibold">{formatDuration(totalDuration)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-white/70">Estimated fee</p>
@@ -781,7 +781,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                             : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'
                       }`}
                     >
-                      {time}
+                      {formatAppointmentTime(time)}
                     </button>
                   );
                 })

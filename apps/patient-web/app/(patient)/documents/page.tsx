@@ -23,6 +23,7 @@ import { supabase } from '@smileguard/supabase-client';
 import type { Appointment, Billing } from '@/lib/database';
 import { getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
+import { formatAppointmentTime } from '@/lib/scheduling';
 import { getIdCredentialUrl } from '@/lib/idCredentials';
 import { listScans, summarizeFindings, formatCondition, type ScanRecord } from '@/lib/scanHistory';
 import {
@@ -101,7 +102,7 @@ function receiptRows(r: NonNullable<DocItem['receipt']>): [string, string][] {
   const b = r.billing;
   return [
     ['Service', r.appointment?.service || '—'],
-    ['Appointment date', r.appointment ? `${r.appointment.appointment_date} ${r.appointment.appointment_time || ''}` : '—'],
+    ['Appointment date', r.appointment ? `${r.appointment.appointment_date} ${formatAppointmentTime(r.appointment.appointment_time) || ''}` : '—'],
     ['Clinic', r.appointment?.clinic_name || '—'],
     ['Procedure fee', peso(b.amount)],
     ['Discount', b.discount_amount ? `${peso(b.discount_amount)} (${(b.discount_type || '').toUpperCase()})` : 'None'],

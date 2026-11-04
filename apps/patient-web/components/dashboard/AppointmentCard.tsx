@@ -1,5 +1,7 @@
 'use client';
 
+import { formatAppointmentTime } from '@/lib/scheduling';
+
 import { useState } from 'react';
 
 interface AppointmentCardProps {
@@ -107,7 +109,7 @@ export default function AppointmentCard({
       <div className="text-right flex flex-col items-end shrink-0 pl-1">
         {date && <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">{date}</span>}
         <span className="text-[11px] sm:text-xs font-black text-emerald-700 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-sm border border-emerald-300 whitespace-nowrap">
-          {time}
+          {formatAppointmentTime(time)}
         </span>
       </div>
     </div>
