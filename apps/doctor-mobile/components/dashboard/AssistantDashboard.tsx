@@ -115,59 +115,73 @@ interface AssistantDashboardProps {
 
 interface SwipeableRequestCardProps {
   request: DashboardAppointment;
-  isSelected: boolean;
-  onSelect: () => void;
+  onPress: () => void;
   onAccept: () => void;
   onDecline: () => void;
 }
 
 function SwipeableRequestCard({
   request,
-  isSelected,
-  onSelect,
+  onPress,
   onAccept,
   onDecline,
 }: SwipeableRequestCardProps) {
   const pan = useRef(new Animated.ValueXY()).current;
   const [swipeState, setSwipeState] = useState<"idle" | "accept-threshold" | "decline-threshold">("idle");
+  const isSwiping = useRef(false);
   const SWIPE_THRESHOLD = 70;
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dy) < 14;
+        const isHorizontal =
+          Math.abs(gestureState.dx) > 12 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
+        if (isHorizontal) {
+          isSwiping.current = true;
+        }
+        return isHorizontal;
+      },
+      onPanResponderGrant: () => {
+        isSwiping.current = true;
       },
       onPanResponderMove: (_, gestureState) => {
         pan.x.setValue(gestureState.dx);
         if (gestureState.dx < -SWIPE_THRESHOLD) {
-          setSwipeState("accept-threshold");
-        } else if (gestureState.dx > SWIPE_THRESHOLD) {
           setSwipeState("decline-threshold");
+        } else if (gestureState.dx > SWIPE_THRESHOLD) {
+          setSwipeState("accept-threshold");
         } else {
           setSwipeState("idle");
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dx < -SWIPE_THRESHOLD) {
-          // Swipe Left -> Accept
+          // Swipe Left -> Decline / Delete
           Animated.timing(pan, {
             toValue: { x: -500, y: 0 },
-            duration: 180,
-            useNativeDriver: false,
-          }).start(() => {
-            onAccept();
-          });
-        } else if (gestureState.dx > SWIPE_THRESHOLD) {
-          // Swipe Right -> Decline
-          Animated.timing(pan, {
-            toValue: { x: 500, y: 0 },
             duration: 180,
             useNativeDriver: false,
           }).start(() => {
             onDecline();
             pan.setValue({ x: 0, y: 0 });
             setSwipeState("idle");
+            setTimeout(() => {
+              isSwiping.current = false;
+            }, 300);
+          });
+        } else if (gestureState.dx > SWIPE_THRESHOLD) {
+          // Swipe Right -> Accept
+          Animated.timing(pan, {
+            toValue: { x: 500, y: 0 },
+            duration: 180,
+            useNativeDriver: false,
+          }).start(() => {
+            onAccept();
+            setTimeout(() => {
+              isSwiping.current = false;
+            }, 300);
           });
         } else {
           // Reset position
@@ -177,19 +191,36 @@ function SwipeableRequestCard({
             friction: 6,
             tension: 40,
             useNativeDriver: false,
-          }).start();
+          }).start(() => {
+            setTimeout(() => {
+              isSwiping.current = false;
+            }, 300);
+          });
         }
+      },
+      onPanResponderTerminate: () => {
+        setSwipeState("idle");
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          friction: 6,
+          tension: 40,
+          useNativeDriver: false,
+        }).start(() => {
+          setTimeout(() => {
+            isSwiping.current = false;
+          }, 300);
+        });
       },
     })
   ).current;
 
   return (
     <View style={styles.swipeContainer}>
-      {/* Accept Background (Green, revealed when swiping LEFT: pan.x < 0) */}
+      {/* Decline / Delete Background (Red, revealed on the RIGHT when swiping LEFT: pan.x < 0) */}
       <Animated.View
         style={[
           styles.swipeBackgroundFull,
-          styles.swipeBackgroundAccept,
+          styles.swipeBackgroundDecline,
           {
             opacity: pan.x.interpolate({
               inputRange: [-SWIPE_THRESHOLD, -15, 0, 1],
@@ -222,20 +253,20 @@ function SwipeableRequestCard({
             },
           ]}
         >
-          <View style={styles.swipeIconCircleAccept}>
-            <Check size={20} color="#FFFFFF" strokeWidth={3} />
+          <View style={styles.swipeIconCircleDecline}>
+            <X size={20} color="#FFFFFF" strokeWidth={3} />
           </View>
           <Text style={styles.swipeActionLabel}>
-            {swipeState === "accept-threshold" ? "CONFIRM ACCEPT" : "ACCEPT"}
+            {swipeState === "decline-threshold" ? "QUICK DECLINE" : "DECLINE"}
           </Text>
         </Animated.View>
       </Animated.View>
 
-      {/* Decline Background (Red, revealed when swiping RIGHT: pan.x > 0) */}
+      {/* Accept Background (Green, revealed on the LEFT when swiping RIGHT: pan.x > 0) */}
       <Animated.View
         style={[
           styles.swipeBackgroundFull,
-          styles.swipeBackgroundDecline,
+          styles.swipeBackgroundAccept,
           {
             opacity: pan.x.interpolate({
               inputRange: [-1, 0, 15, SWIPE_THRESHOLD],
@@ -268,11 +299,11 @@ function SwipeableRequestCard({
             },
           ]}
         >
-          <View style={styles.swipeIconCircleDecline}>
-            <X size={20} color="#FFFFFF" strokeWidth={3} />
+          <View style={styles.swipeIconCircleAccept}>
+            <Check size={20} color="#FFFFFF" strokeWidth={3} />
           </View>
           <Text style={styles.swipeActionLabel}>
-            {swipeState === "decline-threshold" ? "CONFIRM DECLINE" : "DECLINE"}
+            {swipeState === "accept-threshold" ? "QUICK ACCEPT" : "ACCEPT"}
           </Text>
         </Animated.View>
       </Animated.View>
@@ -281,14 +312,16 @@ function SwipeableRequestCard({
       <Animated.View
         style={[
           styles.requestCardContainer,
-          isSelected && styles.requestCardContainerSelected,
           { transform: [{ translateX: pan.x }] },
         ]}
         {...panResponder.panHandlers}
       >
         <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onSelect}
+          activeOpacity={0.75}
+          onPress={() => {
+            if (isSwiping.current) return;
+            onPress();
+          }}
           style={styles.requestCardTop}
         >
           <Image
@@ -305,11 +338,6 @@ function SwipeableRequestCard({
               <Text style={styles.queuePatientName} numberOfLines={1}>
                 {request.name}
               </Text>
-              {isSelected && (
-                <View style={styles.activePrepDot}>
-                  <Text style={styles.activePrepDotText}>SELECTED</Text>
-                </View>
-              )}
             </View>
 
             <Text style={styles.queueService} numberOfLines={1}>
@@ -713,7 +741,7 @@ export default function AssistantDashboard({
           (dashboardColumnsLayoutY.current || 280) + (patientDetailsLayoutY.current || 180) - 12;
         try {
           dashboardScrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset), animated: false });
-        } catch (e) {}
+        } catch (e) { }
       },
       delay: 350,
     },
@@ -858,7 +886,7 @@ export default function AssistantDashboard({
       const isPatientReschedule =
         rBy === 'patient' ||
         (Boolean(apt.rescheduled_at || apt.reschedule_at || (apt.notes && apt.notes.toLowerCase().includes('reschedule'))) &&
-         status === 'pending');
+          status === 'pending');
 
       if (isPatientReschedule && !map.has(apt.id)) {
         map.set(apt.id, apt);
@@ -885,14 +913,10 @@ export default function AssistantDashboard({
       if (!selectedPatient || !rescheduleRequests.some((apt) => apt.id === selectedPatient.id)) {
         setSelectedPatient(rescheduleRequests[0]);
       }
-    } else if (appointmentRequests.length > 0) {
-      if (!selectedPatient || !appointmentRequests.some((apt) => apt.id === selectedPatient.id)) {
-        setSelectedPatient(appointmentRequests[0]);
-      }
     } else {
       setSelectedPatient(null);
     }
-  }, [todayAppointments, rescheduleRequests, appointmentRequests, selectedPatient]);
+  }, [todayAppointments, rescheduleRequests, selectedPatient]);
 
   // Load patient contact and intake notes
   useEffect(() => {
@@ -974,7 +998,7 @@ export default function AssistantDashboard({
     return list;
   }, [appointmentRequests, requestSearchQuery, requestSortOrder]);
 
-    // Helper to open full patient chart
+  // Helper to open full patient chart
   const handleOpenPatientDetails = (item: DashboardAppointment) => {
     setViewingPatient({
       ...item,
@@ -1068,20 +1092,20 @@ export default function AssistantDashboard({
           const medicalData = apt.patient_profile;
           const medicalIntake = medicalData
             ? {
-                gender: medicalData.gender || "",
-                phone: medicalData.phone || "",
-                address: medicalData.address || "",
-                dateOfBirth: medicalData.date_of_birth || "",
-                emergencyContactName: medicalData.emergency_contact_name || "",
-                emergencyContactPhone: medicalData.emergency_contact_phone || "",
-                allergies: medicalData.allergies || (medicalData as any).alergies || "",
-                currentMedications: medicalData.current_medications || "",
-                medicalConditions: medicalData.medical_conditions || "",
-                pastSurgeries: medicalData.past_surgeries || "",
-                notes: medicalData.notes || "",
-                pwd_status: (medicalData as any).pwd_status || "",
-                pwd_type: (medicalData as any).pwd_type || "",
-              }
+              gender: medicalData.gender || "",
+              phone: medicalData.phone || "",
+              address: medicalData.address || "",
+              dateOfBirth: medicalData.date_of_birth || "",
+              emergencyContactName: medicalData.emergency_contact_name || "",
+              emergencyContactPhone: medicalData.emergency_contact_phone || "",
+              allergies: medicalData.allergies || (medicalData as any).alergies || "",
+              currentMedications: medicalData.current_medications || "",
+              medicalConditions: medicalData.medical_conditions || "",
+              pastSurgeries: medicalData.past_surgeries || "",
+              notes: medicalData.notes || "",
+              pwd_status: (medicalData as any).pwd_status || "",
+              pwd_type: (medicalData as any).pwd_type || "",
+            }
             : null;
 
           return {
@@ -1124,19 +1148,19 @@ export default function AssistantDashboard({
           const medicalData = apt.patient_profile;
           const medicalIntake = medicalData
             ? {
-                gender: medicalData.gender || "",
-                phone: medicalData.phone || "",
-                address: medicalData.address || "",
-                dateOfBirth: medicalData.date_of_birth || "",
-                emergencyContactName: medicalData.emergency_contact_name || "",
-                emergencyContactPhone: medicalData.emergency_contact_phone || "",
-                allergies: medicalData.allergies || (medicalData as any).alergies || "",
-                currentMedications: medicalData.current_medications || "",
-                medicalConditions: medicalData.medical_conditions || "",
-                notes: medicalData.notes || "",
-                pwd_status: (medicalData as any).pwd_status || "",
-                pwd_type: (medicalData as any).pwd_type || "",
-              }
+              gender: medicalData.gender || "",
+              phone: medicalData.phone || "",
+              address: medicalData.address || "",
+              dateOfBirth: medicalData.date_of_birth || "",
+              emergencyContactName: medicalData.emergency_contact_name || "",
+              emergencyContactPhone: medicalData.emergency_contact_phone || "",
+              allergies: medicalData.allergies || (medicalData as any).alergies || "",
+              currentMedications: medicalData.current_medications || "",
+              medicalConditions: medicalData.medical_conditions || "",
+              notes: medicalData.notes || "",
+              pwd_status: (medicalData as any).pwd_status || "",
+              pwd_type: (medicalData as any).pwd_type || "",
+            }
             : null;
 
           return {
@@ -1351,7 +1375,7 @@ export default function AssistantDashboard({
     }
   };
 
-    // Simple one-tap status update helper (Responsive optimistic update)
+  // Simple one-tap status update helper (Responsive optimistic update)
   const handleQuickStatusChange = async (
     targetAppointment: DashboardAppointment,
     newStatus: "scheduled" | "completed" | "cancelled" | "no-show"
@@ -1384,8 +1408,8 @@ export default function AssistantDashboard({
           newStatus === "completed"
             ? "Done"
             : newStatus === "no-show"
-            ? "Missed"
-            : newStatus.toUpperCase();
+              ? "Missed"
+              : newStatus.toUpperCase();
 
         if (Platform.OS === "android") {
           ToastAndroid.show(`Marked as ${friendlyLabel}`, ToastAndroid.SHORT);
@@ -1555,7 +1579,7 @@ export default function AssistantDashboard({
                 <View style={styles.taskHubGrid}>
                   <TouchableOpacity
                     style={[styles.taskHubCard, { borderColor: "#F59E0B" }]}
-                      activeOpacity={0.8}
+                    activeOpacity={0.8}
                   >
                     <View style={[styles.taskHubIconWrap, { backgroundColor: "#FEF3C7" }]}>
                       <Inbox size={18} color="#D97706" />
@@ -1671,7 +1695,7 @@ export default function AssistantDashboard({
                   dashboardColumnsLayoutY.current = e.nativeEvent.layout.y;
                 }}
               >
-                                {/* ─────────────────────────────────────────────────────────────
+                {/* ─────────────────────────────────────────────────────────────
                     LEFT COLUMN: APPOINTMENT REQUESTS & TODAY'S APPOINTMENTS
                 ───────────────────────────────────────────────────────────── */}
                 <View
@@ -1738,7 +1762,7 @@ export default function AssistantDashboard({
                   {filteredRequests.length > 0 && (
                     <View style={styles.swipeHintRow}>
                       <Text style={styles.swipeHintText}>
-                        Swipe ← left to Accept  •  Swipe right → to Decline
+                        Tap to View Details  •  Swipe → to Accept  •  Swipe ← to Decline
                       </Text>
                     </View>
                   )}
@@ -1767,13 +1791,12 @@ export default function AssistantDashboard({
                         <SwipeableRequestCard
                           key={req.id}
                           request={req}
-                          isSelected={selectedPatient?.id === req.id}
-                          onSelect={() => setSelectedPatient(req)}
-                          onAccept={() => handleAcceptAppointmentRequest(req)}
-                          onDecline={() => {
+                          onPress={() => {
                             setPromptAppointment(req);
                             setShowPromptModal(true);
                           }}
+                          onAccept={() => handleAcceptAppointmentRequest(req)}
+                          onDecline={() => handleDeclineAppointmentRequest(req, "Declined via quick swipe")}
                         />
                       ))}
                     </ScrollView>
@@ -1782,13 +1805,12 @@ export default function AssistantDashboard({
                       <SwipeableRequestCard
                         key={req.id}
                         request={req}
-                        isSelected={selectedPatient?.id === req.id}
-                        onSelect={() => setSelectedPatient(req)}
-                        onAccept={() => handleAcceptAppointmentRequest(req)}
-                        onDecline={() => {
+                        onPress={() => {
                           setPromptAppointment(req);
                           setShowPromptModal(true);
                         }}
+                        onAccept={() => handleAcceptAppointmentRequest(req)}
+                        onDecline={() => handleDeclineAppointmentRequest(req, "Declined via quick swipe")}
                       />
                     ))
                   )}
@@ -1922,8 +1944,8 @@ export default function AssistantDashboard({
                               {apt.status === "completed"
                                 ? "DONE"
                                 : apt.status === "no-show"
-                                ? "MISSED"
-                                : (apt.status || "SCHEDULED").toUpperCase()}
+                                  ? "MISSED"
+                                  : (apt.status || "SCHEDULED").toUpperCase()}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -1990,8 +2012,8 @@ export default function AssistantDashboard({
                             {selectedPatient.status === "completed"
                               ? "DONE"
                               : selectedPatient.status === "no-show"
-                              ? "MISSED"
-                              : (selectedPatient.status || "scheduled").toUpperCase()}
+                                ? "MISSED"
+                                : (selectedPatient.status || "scheduled").toUpperCase()}
                           </Text>
                         </View>
 
@@ -2000,7 +2022,7 @@ export default function AssistantDashboard({
                           <Image
                             source={
                               typeof selectedPatient.imageUrl === "string" &&
-                              selectedPatient.imageUrl.length > 0
+                                selectedPatient.imageUrl.length > 0
                                 ? { uri: selectedPatient.imageUrl }
                                 : require("../../assets/images/user.png")
                             }
@@ -2031,22 +2053,22 @@ export default function AssistantDashboard({
                           {/* Senior / PWD Tag */}
                           {((selectedPatient as any).pwd_status === "approved" ||
                             (selectedPatient as any).medicalIntake?.pwd_status === "approved") && (
-                            <View style={styles.pwdApprovedBadge}>
-                              <Text style={styles.pwdApprovedText}>
-                                ✓ {(selectedPatient as any).pwd_type === "senior"
-                                  ? "Senior Citizen"
-                                  : "PWD"}
-                              </Text>
-                            </View>
-                          )}
+                              <View style={styles.pwdApprovedBadge}>
+                                <Text style={styles.pwdApprovedText}>
+                                  ✓ {(selectedPatient as any).pwd_type === "senior"
+                                    ? "Senior Citizen"
+                                    : "PWD"}
+                                </Text>
+                              </View>
+                            )}
                           {((selectedPatient as any).pwd_status === "pending" ||
                             (selectedPatient as any).medicalIntake?.pwd_status === "pending") && (
-                            <View style={styles.pwdPendingBadge}>
-                              <Text style={styles.pwdPendingText}>
-                                ⚠️ Senior / PWD Under Review
-                              </Text>
-                            </View>
-                          )}
+                              <View style={styles.pwdPendingBadge}>
+                                <Text style={styles.pwdPendingText}>
+                                  ⚠️ Senior / PWD Under Review
+                                </Text>
+                              </View>
+                            )}
                         </View>
 
                         {/* IMPORTANT HEALTH ALERTS */}
@@ -2087,7 +2109,7 @@ export default function AssistantDashboard({
 
                           {/* Emergency Contact */}
                           {selectedPatient.medicalIntake?.emergencyContactName ||
-                          selectedPatient.medicalIntake?.emergencyContactPhone ? (
+                            selectedPatient.medicalIntake?.emergencyContactPhone ? (
                             <View style={styles.emergencyContactRow}>
                               <Text style={styles.emergencyLabel}>Emergency Contact:</Text>
                               <Text style={styles.emergencyValue}>
@@ -2215,7 +2237,7 @@ export default function AssistantDashboard({
                     )}
                   </View>
 
-                                    {/* ─────────────────────────────────────────────────────────────
+                  {/* ─────────────────────────────────────────────────────────────
                       RESCHEDULE REQUESTS SECTION
                   ───────────────────────────────────────────────────────────── */}
                   <View style={[styles.sectionHeaderRow, { marginTop: 22, marginBottom: 10 }]}>
@@ -2310,7 +2332,7 @@ export default function AssistantDashboard({
                 </View>
               </View>
 
-              
+
             </View>
           </ScrollView>
         ) : activeTab === "records" ? (
@@ -4653,13 +4675,13 @@ const styles = StyleSheet.create({
   },
   swipeBackgroundAccept: {
     backgroundColor: '#059669',
-    alignItems: 'flex-end',
-    paddingRight: 16,
+    alignItems: 'flex-start',
+    paddingLeft: 16,
   },
   swipeBackgroundDecline: {
     backgroundColor: '#DC2626',
-    alignItems: 'flex-start',
-    paddingLeft: 16,
+    alignItems: 'flex-end',
+    paddingRight: 16,
   },
   swipeActionIndicatorRight: {
     alignItems: 'center',
