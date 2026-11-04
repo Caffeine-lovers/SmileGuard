@@ -15,6 +15,7 @@ import {
   ToastAndroid,
   Linking,
   PanResponder,
+  StatusBar,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ScrollView } from "react-native-gesture-handler";
@@ -27,6 +28,7 @@ import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
+import SettingsTab from "../navigation/SettingsTab";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import AppointmentRequestPromptModal from "../appointments/AppointmentRequestPromptModal";
 import {
@@ -78,6 +80,7 @@ import {
   CheckCircle2,
   AlertCircle,
   HeartPulse,
+  Settings as SettingsIcon,
 } from "lucide-react-native";
 import { getToday } from "../../data/dashboardData";
 
@@ -386,6 +389,7 @@ export default function AssistantDashboard({
 }: AssistantDashboardProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
   const { clinic } = useClinic();
 
   // ─────────────────────────────────────────
@@ -530,10 +534,10 @@ export default function AssistantDashboard({
   const [showQuickPatientSearch, setShowQuickPatientSearch] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "records" | "appointments" | "appointment-requests"
+    "dashboard" | "records" | "appointments" | "appointment-requests" | "settings"
   >("dashboard");
   const [tabHistory, setTabHistory] = useState<
-    ("dashboard" | "records" | "appointments" | "appointment-requests")[]
+    ("dashboard" | "records" | "appointments" | "appointment-requests" | "settings")[]
   >([]);
   const lastBackPressRef = useRef<number>(0);
 
@@ -573,7 +577,7 @@ export default function AssistantDashboard({
 
   // Navigation handlers
   const navigateToTab = useCallback(
-    (nextTab: "dashboard" | "records" | "appointments" | "appointment-requests") => {
+    (nextTab: "dashboard" | "records" | "appointments" | "appointment-requests" | "settings") => {
       if (nextTab === activeTab) return;
       setTabHistory((prev) => {
         if (nextTab === "dashboard") {
@@ -677,7 +681,7 @@ export default function AssistantDashboard({
       target: "menu-btn",
       title: "Menu",
       description:
-        "Tap here anytime to go to your Dashboard, Patient Records, Appointments, or Booking Requests.",
+        "Tap here anytime to go to your Dashboard, Patient Records, Appointments, Booking Requests, or Settings.",
       icon: Menu,
       padding: 6,
       radius: 12,
@@ -2396,6 +2400,32 @@ export default function AssistantDashboard({
             }}
             styles={styles}
           />
+        ) : activeTab === "settings" ? (
+          <SettingsTab
+            user={assistantProfile}
+            onUpdateProfile={(updatedUser) => {
+              setAssistantProfile((prev) => ({ ...prev, ...updatedUser }));
+            }}
+            styles={styles}
+            onProfileUpdated={() => {
+              refreshDashboardData();
+            }}
+            onStartTutorial={() => {
+              navigateToTab("dashboard");
+              setTimeout(() => {
+                setTourIndex(0);
+                setTourVisible(true);
+              }, 250);
+            }}
+            onStartRecordsTutorial={() => {
+              navigateToTab("records");
+              setRecordsTourTrigger((prev) => prev + 1);
+            }}
+            onStartAppointmentsTutorial={() => {
+              navigateToTab("appointments");
+              setAppointmentsTourTrigger((prev) => prev + 1);
+            }}
+          />
         ) : null}
       </View>
 
@@ -2427,7 +2457,8 @@ export default function AssistantDashboard({
                 if (
                   tab === "appointments" ||
                   tab === "records" ||
-                  tab === "appointment-requests"
+                  tab === "appointment-requests" ||
+                  tab === "settings"
                 ) {
                   navigateToTab(tab);
                 }
@@ -2796,7 +2827,7 @@ export default function AssistantDashboard({
       ───────────────────────────────────────── */}
       {sidebarOpen && (
         <TouchableOpacity
-          style={styles.backdropOverlay}
+          style={[styles.backdropOverlay, { top: statusBarHeight }]}
           onPress={() => setSidebarOpen(false)}
           activeOpacity={1}
         />
@@ -2807,7 +2838,8 @@ export default function AssistantDashboard({
         style={[
           styles.sidebarDrawer,
           {
-            paddingTop: Math.max(insets.top, 16),
+            top: statusBarHeight,
+            paddingTop: 16,
             paddingBottom: Math.max(insets.bottom, 20),
             transform: [{ translateX: sidebarAnimatedValue }],
           },
@@ -2902,6 +2934,20 @@ export default function AssistantDashboard({
                 color={activeTab === "appointment-requests" ? "#A7F3D0" : "#FFFFFF"}
               />
               <Text style={styles.navLabel}>Requests</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === "settings" && styles.navItemActive]}
+              onPress={() => {
+                navigateToTab("settings");
+                setSidebarOpen(false);
+              }}
+            >
+              <SettingsIcon
+                size={20}
+                color={activeTab === "settings" ? "#A7F3D0" : "#FFFFFF"}
+              />
+              <Text style={styles.navLabel}>Settings</Text>
             </TouchableOpacity>
           </View>
         </View>
