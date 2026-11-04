@@ -1,3 +1,4 @@
+import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
 import { useEffect, useState } from "react";
@@ -156,36 +157,85 @@ export default function RootLayout() {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
           try {
-            const [savedCode, savedRole] = await Promise.all([
+            const [savedCodeRaw, savedRole] = await Promise.all([
               AsyncStorage.getItem("@pending_doctor_access_code"),
               AsyncStorage.getItem("@pending_user_role"),
             ]);
+            const savedCode = (savedCodeRaw || "").trim().toUpperCase();
 
-            const isAssistant = savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant";
-            if (isAssistant) {
-              console.log("[RootLayout] Assistant login detected, ensuring assistant role in database for user:", user.id);
-              await Promise.allSettled([
-                supabase.from("profiles").update({ role: "assistant" }).eq("id", user.id),
-                supabase.from("doctors").update({ role: "assistant" }).eq("user_id", user.id),
-                supabase.auth.updateUser({ data: { role: "assistant" } }),
-              ]);
-            }
-
-            const { data, error } = await supabase
+            // 1. Check if doctor record exists in public.doctors
+            const { data: doctorRecord, error: doctorErr } = await supabase
               .from("doctors")
-              .select("id")
+              .select("id, role")
               .eq("user_id", user.id)
-              .single();
+              .maybeSingle();
 
-            if (error?.code === "PGRST116" || !data) {
-              console.log("[RootLayout] No profile found, routing to /setup-profile");
+            // If no profile found in doctors table, proceed to profile setup
+            if (!doctorRecord) {
+              console.log("[RootLayout] No doctor profile found in DB, routing to /setup-profile");
               router.replace("/setup-profile");
-            } else {
-              console.log("[RootLayout] Profile found, routing to /(doctor)/dashboard");
-              router.replace("/(doctor)/dashboard");
+              return;
             }
+
+            // 2. Authoritative check: verify access code entered aligns with doctors.role
+            if (savedCode.length > 0) {
+              const isAssistantCode = savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant";
+              const registeredRole = (doctorRecord.role || "doctor").toLowerCase();
+
+              const handleAccessBlock = (message: string) => {
+                Alert.alert(
+                  "Access Blocked",
+                  message,
+                  [
+                    {
+                      text: "OK",
+                      onPress: async () => {
+                        try {
+                          await supabase.auth.signOut();
+                          await AsyncStorage.multiRemove([
+                            "supabase.auth.token",
+                            "supabase.auth.refreshToken",
+                            "supabase.auth.user",
+                            "@pending_doctor_access_code",
+                            "@pending_user_role",
+                          ]);
+                        } catch (e) {
+                          console.warn("[RootLayout] Sign out error on access block:", e);
+                        } finally {
+                          router.replace("/");
+                        }
+                      },
+                    },
+                  ],
+                  { cancelable: false }
+                );
+              };
+
+              // Case A: User entered Assistant access code (SMILEGUARD-STAFF), but account is a Doctor
+              if (isAssistantCode && registeredRole !== "assistant") {
+                console.warn("[RootLayout] Access Blocked: SMILEGUARD-STAFF entered for Doctor account");
+                handleAccessBlock(
+                  "This account is registered as a Doctor. Please use your Doctor Clinic Access Code (SMILE-DOC-2026) to log in."
+                );
+                return;
+              }
+
+              // Case B: User entered Doctor access code (SMILE-DOC-2026), but account is an Assistant
+              if (!isAssistantCode && registeredRole === "assistant") {
+                console.warn("[RootLayout] Access Blocked: Doctor code entered for Assistant account");
+                handleAccessBlock(
+                  "This account is registered as a Clinic Assistant. Please use the Assistant Access Code (SMILEGUARD-STAFF) to log in."
+                );
+                return;
+              }
+            }
+
+            // 3. Roles align: clear pending code and proceed to dashboard
+            await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+            console.log("[RootLayout] Profile and access code role aligned, routing to /(doctor)/dashboard");
+            router.replace("/(doctor)/dashboard");
           } catch (err) {
-            console.error("[RootLayout] Error checking doctor profile:", err);
+            console.error("[RootLayout] Error verifying doctor profile alignment:", err);
             router.replace("/setup-profile");
           }
         })();
