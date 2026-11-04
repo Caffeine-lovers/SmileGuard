@@ -13,7 +13,6 @@ export interface SignupFormData {
   phone: string;
   password: string;
   confirmPassword: string;
-  service: string;
   medicalIntake: MedicalIntakeData; // Using local interface or MedicalIntake from shared-types
 }
 
@@ -84,7 +83,6 @@ const INITIAL_FORM_STATE: SignupFormData = {
   phone: '',
   password: '',
   confirmPassword: '',
-  service: 'General',
   medicalIntake: INITIAL_MEDICAL_STATE,
 };
 

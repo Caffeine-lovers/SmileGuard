@@ -57,7 +57,6 @@ export default function SignupConfirmPage() {
           .upsert({
             id: effectiveUser.id,        
             name: formData.name,
-            service: formData.service || 'General',
             role: 'patient',
             email: formData.email ?? effectiveUser.email ?? '',
             updated_at: new Date().toISOString(),
@@ -131,7 +130,6 @@ export default function SignupConfirmPage() {
             id: authUser.id,
             name: formData.name,
             email: formData.email || authUser.email,
-            service: formData.service || 'General',
             role: 'patient',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -208,7 +206,6 @@ export default function SignupConfirmPage() {
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
             <ReviewField label="Full Name" value={formData.name} />
             <ReviewField label="Email Address" value={formData.email} />
-            <ReviewField label="Service Interest" value={formData.service} />
           </div>
         </div>
 
