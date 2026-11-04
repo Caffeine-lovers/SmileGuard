@@ -25,13 +25,16 @@ import {
   PhoneCall,
   Calendar as CalendarIcon,
   ChevronDown,
+  Pencil,
 } from "lucide-react-native";
-import { createWalkInPatient } from "../../lib/profilesPatients";
+import { createWalkInPatient, updateWalkInPatient } from "../../lib/profilesPatients";
 
 interface AddPatientModalProps {
   visible: boolean;
   onClose: () => void;
   onPatientAdded?: (patientId: string) => void;
+  patientToEdit?: any;
+  onPatientUpdated?: () => void;
 }
 
 const GENDER_OPTIONS = ["Male", "Female", "Prefer not to say"] as const;
@@ -67,6 +70,8 @@ export default function AddPatientModal({
   visible,
   onClose,
   onPatientAdded,
+  patientToEdit,
+  onPatientUpdated,
 }: AddPatientModalProps) {
   // Personal Details
   const [name, setName] = useState("");
@@ -105,6 +110,7 @@ export default function AddPatientModal({
     dob: string;
     emergencyName: string;
     emergencyRelationship: string;
+    isEdit?: boolean;
   } | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -148,6 +154,43 @@ export default function AddPatientModal({
     if (cleaned.startsWith("0")) cleaned = cleaned.slice(1);
     if (cleaned.length <= 10) setter(cleaned);
   };
+
+  // Populate form in edit mode or reset in create mode
+  React.useEffect(() => {
+    if (visible && patientToEdit) {
+      setName(patientToEdit.name || "");
+
+      const pRaw = patientToEdit.phone || patientToEdit.contact || "";
+      let pClean = pRaw.replace(/\D/g, "");
+      if (pClean.startsWith("63")) pClean = pClean.slice(2);
+      if (pClean.startsWith("0")) pClean = pClean.slice(1);
+      setPhone(pClean.slice(0, 10));
+
+      setEmail(patientToEdit.email || "");
+      setGender(patientToEdit.gender || "");
+      setDob(patientToEdit.date_of_birth || patientToEdit.dateOfBirth || "");
+      setAddress(patientToEdit.address || "");
+
+      setEmergencyName(patientToEdit.emergency_contact_name || patientToEdit.emergencyContactName || "");
+      setEmergencyRelationship(patientToEdit.emergency_contact_relationship || patientToEdit.emergencyContactRelationship || "");
+      let em1 = (patientToEdit.emergency_contact_phone || patientToEdit.emergencyContactPhone || "").replace(/\D/g, "");
+      if (em1.startsWith("63")) em1 = em1.slice(2);
+      if (em1.startsWith("0")) em1 = em1.slice(1);
+      setEmergencyPhone(em1.slice(0, 10));
+
+      setEmergency2Name(patientToEdit.emergency_contact_2_name || patientToEdit.emergencyContact2Name || "");
+      setEmergency2Relationship(patientToEdit.emergency_contact_2_relationship || patientToEdit.emergencyContact2Relationship || "");
+      let em2 = (patientToEdit.emergency_contact_2_phone || patientToEdit.emergencyContact2Phone || "").replace(/\D/g, "");
+      if (em2.startsWith("63")) em2 = em2.slice(2);
+      if (em2.startsWith("0")) em2 = em2.slice(1);
+      setEmergency2Phone(em2.slice(0, 10));
+
+      setAllergies(patientToEdit.allergies && patientToEdit.allergies.toLowerCase() !== "none" ? patientToEdit.allergies : "");
+      setErrorMessage(null);
+    } else if (visible && !patientToEdit) {
+      resetForm();
+    }
+  }, [visible, patientToEdit]);
 
   // Form Validity check
   const isFormValid = useMemo(() => {
@@ -245,34 +288,68 @@ export default function AddPatientModal({
       const formattedEmPhone1 = `+63${emergencyPhone.trim()}`;
       const formattedEmPhone2 = emergency2Phone.trim() ? `+63${emergency2Phone.trim()}` : undefined;
 
-      const result = await createWalkInPatient({
-        name: name.trim(),
-        email: email.trim() || undefined,
-        phone: formattedPhone,
-        date_of_birth: dob.trim(),
-        gender: gender || undefined,
-        address: address.trim(),
-        emergency_contact_name: emergencyName.trim(),
-        emergency_contact_phone: formattedEmPhone1,
-        emergency_contact_relationship: emergencyRelationship.trim(),
-        emergency_contact_2_name: emergency2Name.trim() || undefined,
-        emergency_contact_2_phone: formattedEmPhone2,
-        emergency_contact_2_relationship: emergency2Relationship.trim() || undefined,
-        allergies: allergies.trim() || "None",
-      });
+      if (patientToEdit) {
+        const editId = patientToEdit.id || patientToEdit.patient_id;
+        const result = await updateWalkInPatient(editId, {
+          name: name.trim(),
+          email: email.trim() || undefined,
+          phone: formattedPhone,
+          date_of_birth: dob.trim(),
+          gender: gender || undefined,
+          address: address.trim(),
+          emergency_contact_name: emergencyName.trim(),
+          emergency_contact_phone: formattedEmPhone1,
+          emergency_contact_relationship: emergencyRelationship.trim(),
+          emergency_contact_2_name: emergency2Name.trim() || undefined,
+          emergency_contact_2_phone: formattedEmPhone2,
+          emergency_contact_2_relationship: emergency2Relationship.trim() || undefined,
+          allergies: allergies.trim() || "None",
+        });
 
-      if (!result.success || !result.patient_id) {
-        throw new Error(result.error || "Failed to save patient record");
+        if (!result.success) {
+          throw new Error(result.error || "Failed to update patient record");
+        }
+
+        setSuccessCreatedPatient({
+          id: editId,
+          name: name.trim(),
+          phone: formattedPhone,
+          dob: formattedDisplayDob || dob,
+          emergencyName: emergencyName.trim(),
+          emergencyRelationship: emergencyRelationship.trim(),
+          isEdit: true,
+        });
+      } else {
+        const result = await createWalkInPatient({
+          name: name.trim(),
+          email: email.trim() || undefined,
+          phone: formattedPhone,
+          date_of_birth: dob.trim(),
+          gender: gender || undefined,
+          address: address.trim(),
+          emergency_contact_name: emergencyName.trim(),
+          emergency_contact_phone: formattedEmPhone1,
+          emergency_contact_relationship: emergencyRelationship.trim(),
+          emergency_contact_2_name: emergency2Name.trim() || undefined,
+          emergency_contact_2_phone: formattedEmPhone2,
+          emergency_contact_2_relationship: emergency2Relationship.trim() || undefined,
+          allergies: allergies.trim() || "None",
+        });
+
+        if (!result.success || !result.patient_id) {
+          throw new Error(result.error || "Failed to save patient record");
+        }
+
+        setSuccessCreatedPatient({
+          id: result.patient_id!,
+          name: name.trim(),
+          phone: formattedPhone,
+          dob: formattedDisplayDob || dob,
+          emergencyName: emergencyName.trim(),
+          emergencyRelationship: emergencyRelationship.trim(),
+          isEdit: false,
+        });
       }
-
-      setSuccessCreatedPatient({
-        id: result.patient_id!,
-        name: name.trim(),
-        phone: formattedPhone,
-        dob: formattedDisplayDob || dob,
-        emergencyName: emergencyName.trim(),
-        emergencyRelationship: emergencyRelationship.trim(),
-      });
     } catch (err: any) {
       console.error("[AddPatientModal] Submit error:", err);
       setErrorMessage(err.message || "An unexpected error occurred while saving.");
@@ -310,9 +387,19 @@ export default function AddPatientModal({
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>ADD PATIENT</Text>
+              <Text style={styles.title}>{patientToEdit ? "EDIT PATIENT RECORD" : "ADD PATIENT"}</Text>
+              {patientToEdit && (
+                <View style={styles.editBadge}>
+                  <Pencil size={10} color="#B45309" />
+                  <Text style={styles.editBadgeText}>DUMMY RECORD</Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.subtitle}>Create a record for walk-in patients without an online account</Text>
+            <Text style={styles.subtitle}>
+              {patientToEdit
+                ? "Update patient profile, emergency contacts, and allergies"
+                : "Create a record for walk-in patients without an online account"}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -673,7 +760,9 @@ export default function AddPatientModal({
               ) : (
                 <>
                   <Check size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                  <Text style={styles.submitBtnText}>Save Patient Record</Text>
+                  <Text style={styles.submitBtnText}>
+                    {patientToEdit ? "Save Changes" : "Save Patient Record"}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -883,9 +972,13 @@ export default function AddPatientModal({
                 <CheckCircle2 size={36} color="#059669" strokeWidth={2.5} />
               </View>
 
-              <Text style={styles.successTitle}>Patient Record Created!</Text>
+              <Text style={styles.successTitle}>
+                {successCreatedPatient?.isEdit ? "Patient Record Updated!" : "Patient Record Created!"}
+              </Text>
               <Text style={styles.successSubtitle}>
-                The walk-in patient record has been saved successfully and is ready for appointments.
+                {successCreatedPatient?.isEdit
+                  ? "The walk-in patient record has been updated successfully in clinic records."
+                  : "The walk-in patient record has been saved successfully and is ready for appointments."}
               </Text>
 
               <View style={styles.successSummaryCard}>
@@ -913,9 +1006,14 @@ export default function AddPatientModal({
                 style={styles.successDoneBtn}
                 onPress={() => {
                   const pId = successCreatedPatient?.id;
+                  const isEdit = successCreatedPatient?.isEdit;
                   setSuccessCreatedPatient(null);
                   handleClose();
-                  if (pId) onPatientAdded?.(pId);
+                  if (isEdit) {
+                    onPatientUpdated?.();
+                  } else if (pId) {
+                    onPatientAdded?.(pId);
+                  }
                 }}
                 activeOpacity={0.8}
               >
@@ -976,6 +1074,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#047857",
+    letterSpacing: 0.5,
+  },
+  editBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    gap: 4,
+  },
+  editBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#B45309",
     letterSpacing: 0.5,
   },
   subtitle: {

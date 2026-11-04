@@ -846,3 +846,43 @@ export async function createWalkInPatient(
     return { success: false, error: err.message || 'Failed to create patient record' };
   }
 }
+
+export async function updateWalkInPatient(
+  patientId: string,
+  input: Partial<WalkInPatientInput>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.name !== undefined) updateData.name = input.name.trim();
+    if (input.email !== undefined) updateData.email = input.email ? input.email.trim() : null;
+    if (input.phone !== undefined) updateData.phone = input.phone ? input.phone.trim() : null;
+    if (input.date_of_birth !== undefined) updateData.date_of_birth = input.date_of_birth ? input.date_of_birth.trim() : null;
+    if (input.gender !== undefined) updateData.gender = input.gender ? input.gender.trim() : null;
+    if (input.address !== undefined) updateData.address = input.address ? input.address.trim() : null;
+    if (input.emergency_contact_name !== undefined) updateData.emergency_contact_name = input.emergency_contact_name ? input.emergency_contact_name.trim() : null;
+    if (input.emergency_contact_phone !== undefined) updateData.emergency_contact_phone = input.emergency_contact_phone ? input.emergency_contact_phone.trim() : null;
+    if (input.emergency_contact_relationship !== undefined) updateData.emergency_contact_relationship = input.emergency_contact_relationship ? input.emergency_contact_relationship.trim() : null;
+    if (input.emergency_contact_2_name !== undefined) updateData.emergency_contact_2_name = input.emergency_contact_2_name ? input.emergency_contact_2_name.trim() : null;
+    if (input.emergency_contact_2_phone !== undefined) updateData.emergency_contact_2_phone = input.emergency_contact_2_phone ? input.emergency_contact_2_phone.trim() : null;
+    if (input.emergency_contact_2_relationship !== undefined) updateData.emergency_contact_2_relationship = input.emergency_contact_2_relationship ? input.emergency_contact_2_relationship.trim() : null;
+    if (input.allergies !== undefined) updateData.allergies = input.allergies ? input.allergies.trim() : 'None';
+
+    const { error } = await supabase
+      .from('dummy_patients')
+      .update(updateData)
+      .eq('id', patientId);
+
+    if (error) {
+      console.error('[updateWalkInPatient] dummy_patients update error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateWalkInPatient] Exception:', err);
+    return { success: false, error: err.message || 'Failed to update patient record' };
+  }
+}

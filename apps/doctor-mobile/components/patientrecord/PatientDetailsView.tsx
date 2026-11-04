@@ -28,7 +28,9 @@ import {
   ChevronRight,
   ExternalLink,
   Sparkles,
+  Pencil,
 } from "lucide-react-native";
+import AddPatientModal from "./AddPatientModal";
 import {
   getPatientMedicalInfo,
   getPatientAppointments,
@@ -146,6 +148,7 @@ export default function PatientDetailsView({
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [patientProfile, setPatientProfile] = useState<any>(null);
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
   const [idPhotoUrl, setIdPhotoUrl] = useState<string | null>(null);
@@ -217,8 +220,8 @@ export default function PatientDetailsView({
         Alert.alert(
           'Verification Approved',
           'Patient has been certified as a verified ' +
-            (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') +
-            '. The statutory 20% discount is now active.'
+          (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') +
+          '. The statutory 20% discount is now active.'
         );
       } else {
         Alert.alert('Error', res.error || 'Failed to approve PWD status.');
@@ -273,10 +276,10 @@ export default function PatientDetailsView({
     typeof patientProfile?.avatar_url === 'string' && patientProfile.avatar_url.length > 0
       ? { uri: patientProfile.avatar_url }
       : typeof patient.imageUrl === 'string' && patient.imageUrl.length > 0
-      ? { uri: patient.imageUrl }
-      : typeof patient.imageUrl === 'number'
-      ? patient.imageUrl
-      : null;
+        ? { uri: patient.imageUrl }
+        : typeof patient.imageUrl === 'number'
+          ? patient.imageUrl
+          : null;
 
   const age = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth) ?? (patient.age > 0 ? patient.age : null);
   const gender = medicalIntake?.gender || patient.gender || null;
@@ -286,6 +289,8 @@ export default function PatientDetailsView({
   // Appointment metrics
   const completedCount = appointments.filter((a) => a.status === 'completed').length;
   const totalAppointmentsCount = appointments.length;
+
+  const isDummyPatient = Boolean((patient as any)?.dummy || patientProfile?.dummy);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -308,7 +313,18 @@ export default function PatientDetailsView({
             </Text>
           </View>
 
-          <View style={styles.topAppBarSpacer} />
+          {isDummyPatient ? (
+            <TouchableOpacity
+              style={styles.topAppBarEditBtn}
+              onPress={() => setShowEditPatientModal(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Edit dummy patient record"
+            >
+              <Text style={styles.topAppBarEditBtnText}>Edit</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.topAppBarSpacer} />
+          )}
         </View>
 
         {loading ? (
@@ -334,9 +350,11 @@ export default function PatientDetailsView({
                 )}
 
                 <View style={styles.heroInfoWrap}>
-                  <Text style={styles.heroName} numberOfLines={1}>
-                    {patientName}
-                  </Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={[styles.heroName, { flex: 1 }]} numberOfLines={1}>
+                      {patientName}
+                    </Text>
+                  </View>
 
                   <View style={styles.heroBadgeRow}>
                     {((patient as any).dummy || patientProfile?.dummy) ? (
@@ -796,8 +814,8 @@ export default function PatientDetailsView({
                     patientProfile?.created_at
                       ? formatDate(patientProfile.created_at)
                       : patient.date
-                      ? formatDate(patient.date)
-                      : "Not available"
+                        ? formatDate(patient.date)
+                        : "Not available"
                   }
                   isLast={true}
                 />
@@ -895,6 +913,36 @@ export default function PatientDetailsView({
           </Text>
         </View>
       </Modal>
+
+      {/* Edit Dummy Patient Record Modal */}
+      {isDummyPatient && (
+        <AddPatientModal
+          visible={showEditPatientModal}
+          onClose={() => setShowEditPatientModal(false)}
+          patientToEdit={{
+            ...(patientProfile || {}),
+            ...patient,
+            id: effectivePatientId,
+            patient_id: effectivePatientId,
+            date_of_birth: patientProfile?.date_of_birth || medicalIntake?.dateOfBirth,
+            gender: patientProfile?.gender || medicalIntake?.gender || patient.gender,
+            address: patientProfile?.address || medicalIntake?.address || (patient as any).address,
+            allergies: medicalIntake?.allergies || patientProfile?.allergies,
+            emergency_contact_name: medicalIntake?.emergencyContactName || patientProfile?.emergency_contact_name,
+            emergency_contact_phone: medicalIntake?.emergencyContactPhone || patientProfile?.emergency_contact_phone,
+            emergency_contact_relationship: medicalIntake?.emergencyContactRelationship || patientProfile?.emergency_contact_relationship,
+            emergency_contact_2_name: medicalIntake?.emergencyContact2Name || patientProfile?.emergency_contact_2_name,
+            emergency_contact_2_phone: medicalIntake?.emergencyContact2Phone || patientProfile?.emergency_contact_2_phone,
+            emergency_contact_2_relationship: medicalIntake?.emergencyContact2Relationship || patientProfile?.emergency_contact_2_relationship,
+          }}
+          onPatientUpdated={async () => {
+            setShowEditPatientModal(false);
+            if (effectivePatientId) {
+              await loadPatientData(effectivePatientId);
+            }
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -1057,6 +1105,41 @@ const styles = StyleSheet.create({
   topAppBarSpacer: {
     width: 36,
     height: 36,
+  },
+
+  topAppBarEditBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+
+  topAppBarEditBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#047857",
+  },
+
+  heroEditPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    marginLeft: 8,
+  },
+
+  heroEditPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
   },
 
   // Loading
