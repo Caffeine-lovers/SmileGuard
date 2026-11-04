@@ -45,12 +45,20 @@ export default function SignupRegisterPage() {
     };
   };
 
-  // Initialize password strength feedback from persisted formData on mount
+  // Initialize and persist password strength feedback from formData
   useEffect(() => {
     if (formData.password) {
       setPasswordCheck(checkPasswordStrength(formData.password));
+    } else {
+      setPasswordCheck({
+        hasUpperCase: false,
+        hasLowerCase: false,
+        hasNumber: false,
+        hasSpecialChar: false,
+        length: false,
+      });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [formData.password]);
 
   // Check for OAuth flow on mount ONCE (never overwrite user's edits)
   useEffect(() => {
@@ -97,7 +105,6 @@ export default function SignupRegisterPage() {
 
   const handlePasswordChange = (newPassword: string) => {
     updateFormField('password', newPassword);
-    if (isOAuthFlow) updateFormField('confirmPassword', newPassword);
     setPasswordCheck(checkPasswordStrength(newPassword));
   };
 
@@ -124,15 +131,13 @@ export default function SignupRegisterPage() {
     }
 
     // Strict password match verification
-    if (!isOAuthFlow) {
-      if (!formData.confirmPassword) {
-        setLocalError('Please confirm your password');
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        setLocalError('Passwords do not match. Please verify your confirm password.');
-        return;
-      }
+    if (!formData.confirmPassword) {
+      setLocalError('Please confirm your password');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setLocalError('Passwords do not match. Please verify your confirm password.');
+      return;
     }
 
     router.push('/signup/medical');
@@ -220,6 +225,30 @@ export default function SignupRegisterPage() {
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+            Confirm Password
+          </label>
+          <div className="relative">
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={formData.confirmPassword}
+              onChange={(e) => updateFormField('confirmPassword', e.target.value)}
+              required
+              className="skeuo-input w-full text-sm pr-10"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              tabIndex={-1}
+            >
+              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
 
           <div className="mt-3 p-3 bg-slate-50 border border-slate-300 rounded-sm text-xs space-y-1.5">
             <p className="font-semibold text-slate-700 text-xs mb-1">Password requirements:</p>
@@ -245,32 +274,6 @@ export default function SignupRegisterPage() {
             </div>
           </div>
         </div>
-
-        {!isOAuthFlow && (
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Confirm Password
-            </label>
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={formData.confirmPassword}
-                onChange={(e) => updateFormField('confirmPassword', e.target.value)}
-                required
-                className="skeuo-input w-full text-sm pr-10"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                tabIndex={-1}
-              >
-                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="flex gap-3 pt-4">
           <button
