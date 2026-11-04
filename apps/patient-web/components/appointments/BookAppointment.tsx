@@ -430,7 +430,7 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
 
       // Book the appointment with the clinic's doctor user_id
       const dentistIdToBook = clinicDetails?.user_id || '';
-      const result = await bookSlot(userId, dentistIdToBook, combinedServiceName, selectedDate, selectedTime, totalDuration);
+      const result = await bookSlot(userId, dentistIdToBook, combinedServiceName, selectedDate, selectedTime, totalDuration, notes);
       if (result.success && result.appointmentId) {
         console.log('[handleBooking] Appointment created:', result.appointmentId);
         
