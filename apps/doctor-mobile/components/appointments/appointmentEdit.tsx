@@ -27,6 +27,7 @@ import {
   Activity,
 } from "lucide-react-native";
 import { updateDoctorAppointmentStatus } from "../../lib/appointmentService";
+import { CalendarDays, RefreshCw, Sparkles, CheckCircle } from "lucide-react-native";
 import { getStatusColor, getStatusBgColor, getStatusLabel } from "../../lib/statusHelpers";
 import { formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 
@@ -34,6 +35,7 @@ interface AppointmentEditProps {
   visible: boolean;
   appointment: any;
   doctorId: string;
+  userRole?: 'doctor' | 'assistant' | string;
   onClose: () => void;
   onSave: () => void;
   onAppointmentStatusUpdated?: (
@@ -113,10 +115,12 @@ export default function AppointmentEdit({
   visible,
   appointment,
   doctorId,
+  userRole = 'doctor',
   onClose,
   onSave,
   onAppointmentStatusUpdated,
 }: AppointmentEditProps) {
+  const isAssistant = userRole === 'assistant';
   const [selectedStatus, setSelectedStatus] = useState<
     'scheduled' | 'completed' | 'no-show' | 'cancelled' | 'declined'
   >('scheduled');
@@ -160,14 +164,16 @@ export default function AppointmentEdit({
 
   const isNoteChanged = (doctorNote || '').trim() !== (appointment.doctor_note || '').trim();
   const isStatusChanged = selectedStatus !== currentStatus || (selectedStatus === 'declined' && isNoteChanged);
+  const hasChanges = isStatusChanged || isNoteChanged;
+
   const activeMeta = STATUS_META[selectedStatus] || STATUS_META.scheduled;
   const ActiveIcon = activeMeta.icon;
 
   const handleSave = async () => {
     if (!appointment) return;
 
-    if (!isStatusChanged && !isNoteChanged) {
-      Alert.alert('No Changes', 'Please select a different status or update notes to save.');
+    if (!hasChanges) {
+      Alert.alert('No Changes', 'Please select a new status or add a note to update.');
       return;
     }
 
@@ -175,19 +181,18 @@ export default function AppointmentEdit({
       setLoading(true);
       const appointmentId = appointment.id;
 
-      const result = await updateDoctorAppointmentStatus(
+      // Execute status update
+      const statusResult = await updateDoctorAppointmentStatus(
         appointmentId,
         selectedStatus,
         doctorId,
         { doctor_note: doctorNote.trim() || undefined }
       );
 
-      if (result.success) {
-        // Trigger notification callback if status changed and callback is provided
-        if (
-          selectedStatus !== 'scheduled' &&
-          onAppointmentStatusUpdated
-        ) {
+      if (!statusResult.success) {
+        Alert.alert('Status Update Notice', statusResult.message);
+      } else {
+        if (selectedStatus !== 'scheduled' && onAppointmentStatusUpdated) {
           onAppointmentStatusUpdated(
             selectedStatus,
             patientName,
@@ -196,19 +201,13 @@ export default function AppointmentEdit({
             doctorId
           );
         }
-
-        Alert.alert(
-          'Status Updated',
-          `${patientName}'s appointment status has been updated to "${getStatusLabel(selectedStatus)}".`
-        );
+        Alert.alert('Status Updated', `${patientName}'s status changed to ${getStatusLabel(selectedStatus)}.`);
         onSave();
         onClose();
-      } else {
-        Alert.alert('Error', result.message || 'Failed to update appointment status.');
       }
     } catch (error) {
       console.error('[AppointmentEdit] Exception updating appointment:', error);
-      Alert.alert('Error', 'An unexpected error occurred while updating status.');
+      Alert.alert('Error', 'An unexpected error occurred while updating the appointment.');
     } finally {
       setLoading(false);
     }
@@ -230,8 +229,8 @@ export default function AppointmentEdit({
           </TouchableOpacity>
 
           <View style={styles.topAppBarCenter}>
-            <Text style={styles.topAppBarTitle}>UPDATE APPOINTMENT</Text>
-            <Text style={styles.topAppBarSubtitle}>Clinical Status & Schedule</Text>
+            <Text style={styles.topAppBarTitle}>UPDATE STATUS</Text>
+            <Text style={styles.topAppBarSubtitle}>Select new appointment status</Text>
           </View>
 
           <View style={styles.topAppBarSpacer} />
@@ -333,6 +332,29 @@ export default function AppointmentEdit({
               ) : null}
             </View>
           </View>
+
+          {/* Past Reschedule Notice (if appointment was previously rescheduled) */}
+          {appointment.rescheduled_at ? (
+            <View style={styles.rescheduledHistoryBanner}>
+              <View style={styles.rescheduledHistoryHeader}>
+                <Clock size={14} color="#0284C7" />
+                <Text style={styles.rescheduledHistoryTitle}>PREVIOUSLY RESCHEDULED</Text>
+              </View>
+              <Text style={styles.rescheduledHistoryText}>
+                Rescheduled by <Text style={{ fontWeight: '700' }}>{appointment.rescheduled_by || 'Clinic'}</Text> on{' '}
+                {formatAppointmentDate(appointment.rescheduled_at)}.
+              </Text>
+              {appointment.notes ? (
+                <Text style={styles.rescheduledHistoryNotes}>
+                  Notes: "{appointment.notes}"
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* ══════════════════════════════════════════════════════════ */}
+          {/* RESCHEDULE APPOINTMENT SECTION */}
+          {/* ══════════════════════════════════════════════════════════ */}
 
           {/* Section: Status Selector */}
           <View style={styles.sectionHeaderRow}>
@@ -557,10 +579,10 @@ export default function AppointmentEdit({
           <TouchableOpacity
             style={[
               styles.saveButton,
-              !isStatusChanged && styles.saveButtonDisabled,
+              !hasChanges && styles.saveButtonDisabled,
             ]}
             onPress={handleSave}
-            disabled={loading || !isStatusChanged}
+            disabled={loading || !hasChanges}
             activeOpacity={0.8}
           >
             {loading ? (
@@ -569,7 +591,7 @@ export default function AppointmentEdit({
               <>
                 <Check size={14} color="#FFFFFF" strokeWidth={2.5} />
                 <Text style={styles.saveButtonText}>
-                  {isStatusChanged ? "CONFIRM STATUS" : "NO CHANGES"}
+                  {isStatusChanged ? "CONFIRM STATUS" : (hasChanges ? "SAVE CHANGES" : "NO CHANGES")}
                 </Text>
               </>
             )}
@@ -1024,6 +1046,196 @@ const styles = StyleSheet.create({
   },
 
   // Footer Actions
+  // Reschedule Section
+  rescheduledHistoryBanner: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    borderWidth: 1.5,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  rescheduledHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  rescheduledHistoryTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0369A1',
+    marginLeft: 6,
+    letterSpacing: 0.5,
+  },
+  rescheduledHistoryText: {
+    fontSize: 13,
+    color: '#0C4A6E',
+    lineHeight: 18,
+  },
+  rescheduledHistoryNotes: {
+    fontSize: 12,
+    color: '#0284C7',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  rescheduleSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#A7F3D0',
+    borderWidth: 1.5,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  rescheduleSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingBottom: 10,
+  },
+  rescheduleHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rescheduleSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: 0.3,
+  },
+  rescheduleSectionSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  rescheduledBadge: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  rescheduledBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  rescheduleFieldGroup: {
+    marginBottom: 14,
+  },
+  rescheduleFieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  rescheduleDateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rescheduleInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  rescheduleInputChanged: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  resetDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderRadius: 6,
+    gap: 4,
+  },
+  resetDateBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  quickDateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  quickDatePill: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  quickDatePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  timePillsScroll: {
+    marginTop: 8,
+    flexDirection: 'row',
+  },
+  timeSlotPill: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 6,
+  },
+  timeSlotPillActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#059669',
+  },
+  timeSlotPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  timeSlotPillTextActive: {
+    color: '#FFFFFF',
+  },
+  rescheduleNotesInput: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#0F172A',
+    minHeight: 65,
+  },
+  rescheduleHelperText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   footerContainer: {
     flexDirection: "row",
     alignItems: "center",

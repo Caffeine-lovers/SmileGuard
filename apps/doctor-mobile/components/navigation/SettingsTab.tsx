@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   StyleSheet,
   StatusBar,
+  Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
 import {
@@ -69,6 +71,8 @@ export default function SettingsTab({
   onStartBillingTutorial,
 }: SettingsTabProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
@@ -186,13 +190,6 @@ export default function SettingsTab({
     }
   };
 
-  const toggleNotificationSetting = (setting: 'appointmentReminders' | 'newPatientRequests') => {
-    setAppSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting],
-    }));
-  };
-
   const updateFontSize = (newSize: FontSize) => {
     setAppSettings(prev => ({
       ...prev,
@@ -213,16 +210,7 @@ export default function SettingsTab({
           </View>
         </View>
 
-        <View style={localStyles.headerActionsRow}>
-          <TouchableOpacity
-            onPress={onStartTutorial}
-            style={localStyles.skeuoActionBtn}
-            activeOpacity={0.7}
-            accessibilityLabel="Start App Tour"
-          >
-            <Sparkles size={17} color="#047857" />
-          </TouchableOpacity>
-        </View>
+
       </View>
 
       <ScrollView
@@ -302,38 +290,6 @@ export default function SettingsTab({
               </View>
             </View>
           </TouchableOpacity>
-        </View>
-
-        {/* Notifications Section */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={localStyles.sectionLabel}>NOTIFICATIONS</Text>
-          <View style={localStyles.skeuoGroupCard}>
-            <View style={[localStyles.switchRow, { borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }]}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={localStyles.cardTitle}>Appointment Reminders</Text>
-                <Text style={localStyles.cardSubtitle}>Receive alerts before scheduled patient visits</Text>
-              </View>
-              <Switch
-                value={appSettings.appointmentReminders}
-                onValueChange={() => toggleNotificationSetting('appointmentReminders')}
-                trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
-                thumbColor={appSettings.appointmentReminders ? '#047857' : '#94A3B8'}
-              />
-            </View>
-
-            <View style={localStyles.switchRow}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={localStyles.cardTitle}>New Patient Requests</Text>
-                <Text style={localStyles.cardSubtitle}>Notify when new booking requests arrive</Text>
-              </View>
-              <Switch
-                value={appSettings.newPatientRequests}
-                onValueChange={() => toggleNotificationSetting('newPatientRequests')}
-                trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
-                thumbColor={appSettings.newPatientRequests ? '#047857' : '#94A3B8'}
-              />
-            </View>
-          </View>
         </View>
 
         {/* Text Size Selection */}
@@ -529,24 +485,32 @@ export default function SettingsTab({
         visible={editingProfile}
         animationType="slide"
         presentationStyle="pageSheet"
-        statusBarTranslucent={false}
         onRequestClose={() => setEditingProfile(false)}
       >
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
-        {loadingDoctor ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
-            <ActivityIndicator size="large" color="#047857" />
-            <Text style={{ marginTop: 12, color: '#047857', fontSize: 13, fontWeight: '700' }}>
-              Loading doctor profile...
-            </Text>
-          </View>
-        ) : (
-          <DoctorProfileView
-            doctor={doctorData}
-            onSave={handleSaveProfile}
-            onClose={() => setEditingProfile(false)}
-          />
-        )}
+        <SafeAreaView
+          style={{
+            flex: 1,
+            backgroundColor: '#FFFFFF',
+            paddingTop: Platform.OS === 'android' ? statusBarHeight : 0,
+          }}
+          edges={['bottom', 'left', 'right']}
+        >
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
+          {loadingDoctor ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+              <ActivityIndicator size="large" color="#047857" />
+              <Text style={{ marginTop: 12, color: '#047857', fontSize: 13, fontWeight: '700' }}>
+                Loading doctor profile...
+              </Text>
+            </View>
+          ) : (
+            <DoctorProfileView
+              doctor={doctorData}
+              onSave={handleSaveProfile}
+              onClose={() => setEditingProfile(false)}
+            />
+          )}
+        </SafeAreaView>
       </Modal>
 
       {/* Clinic Setup Modal */}
@@ -554,14 +518,22 @@ export default function SettingsTab({
         visible={editingClinic}
         animationType="slide"
         presentationStyle="pageSheet"
-        statusBarTranslucent={false}
         onRequestClose={() => setEditingClinic(false)}
       >
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
-        <ClinicSetup
-          onSave={handleSaveClinic}
-          onClose={() => setEditingClinic(false)}
-        />
+        <SafeAreaView
+          style={{
+            flex: 1,
+            backgroundColor: '#FFFFFF',
+            paddingTop: Platform.OS === 'android' ? statusBarHeight : 0,
+          }}
+          edges={['bottom', 'left', 'right']}
+        >
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
+          <ClinicSetup
+            onSave={handleSaveClinic}
+            onClose={() => setEditingClinic(false)}
+          />
+        </SafeAreaView>
       </Modal>
 
       {/* PayMongo Doctor Onboarding & Guidelines Modal */}

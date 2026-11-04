@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useState, useEffect } from "react";
 import { CurrentUser, FormData } from "../types/index";
 import { supabase } from "@smileguard/supabase-client";
@@ -59,7 +60,17 @@ export function useAuth() {
           }
 
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
-          const userRole = user.user_metadata?.role || "doctor"; // Default to 'doctor' instead of 'patient'
+          let pendingRole: string | null = null;
+          let pendingCode: string | null = null;
+          try {
+            const stores = await AsyncStorage.multiGet(["@pending_user_role", "@pending_doctor_access_code"]);
+            pendingRole = stores[0]?.[1] || null;
+            pendingCode = stores[1]?.[1] || null;
+          } catch (e) {
+            console.warn("[useAuth] Could not read pending role from AsyncStorage:", e);
+          }
+          const isPendingAssistant = pendingRole === "assistant" || (pendingCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || user.user_metadata?.role === "assistant";
+          const userRole = isPendingAssistant ? "assistant" : (user.user_metadata?.role || "doctor");
           const userEmail = user.email || "";
 
           console.log("[useAuth] Creating profile with metadata:", { userName, userRole, userEmail });
@@ -85,7 +96,7 @@ export function useAuth() {
               id:    userId,
               name:  userName,
               email: userEmail,
-              role:  userRole as "patient" | "doctor",
+              role:  userRole as "patient" | "doctor" | "assistant",
             });
           } else {
             console.log("[useAuth] ✅ Profile created successfully:", createdProfile);
@@ -93,7 +104,7 @@ export function useAuth() {
               id:    userId,
               name:  createdProfile?.name  || userName,
               email: createdProfile?.email || userEmail,
-              role:  (createdProfile?.role as "patient" | "doctor") || userRole,
+              role:  (createdProfile?.role as "patient" | "doctor" | "assistant") || userRole,
             });
           }
         } else {
@@ -128,7 +139,7 @@ export function useAuth() {
   const login = async (
     email: string,
     password: string,
-    role: "doctor"
+    role: "doctor" | "assistant" = "doctor"
   ): Promise<CurrentUser> => {
     setError(null);
     console.log(" Starting login for:", email, "as", role);
@@ -169,7 +180,7 @@ export function useAuth() {
         id:    data.user.id,                    // ← UUID always set
         name:  insertedProfile?.name  || userName,
         email: insertedProfile?.email || data.user.email || email,
-        role:  (insertedProfile?.role as "doctor") || userRole,
+        role:  (insertedProfile?.role as "doctor" | "assistant") || userRole,
       };
     }
 
@@ -178,7 +189,7 @@ export function useAuth() {
 
     let actualRole = profile.role || "doctor";
 
-    if (actualRole !== role) {
+    if (actualRole !== "doctor" && actualRole !== "assistant") {
       const { data: doctorRecord } = await supabase
         .from("doctors")
         .select("id")
@@ -190,10 +201,10 @@ export function useAuth() {
       }
     }
 
-    if (actualRole !== role) {
+    if (actualRole !== "doctor" && actualRole !== "assistant") {
       await supabase.auth.signOut();
       throw new Error(
-        `This account is registered as a ${actualRole}, not a ${role}.`
+        `This account is registered as a ${actualRole}, not a clinic staff member.`
       );
     }
 
@@ -207,7 +218,7 @@ export function useAuth() {
 
   const register = async (
     formData: FormData,
-    role: "doctor"
+    role: "doctor" | "assistant" = "doctor"
   ): Promise<CurrentUser> => {
     console.log("[useAuth] Starting registration for:", formData.email);
     

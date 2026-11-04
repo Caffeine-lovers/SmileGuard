@@ -17,8 +17,19 @@ export default function SetupProfilePage() {
   const router = useRouter();
   const [step, setStep] = useState<"profile" | "clinic">("profile");
 
-  const handleProfileContinue = () => {
-    console.log("[SetupProfile] Profile setup complete, moving to clinic setup");
+  const handleProfileContinue = async () => {
+    console.log("[SetupProfile] Profile setup complete, checking role...");
+    const [savedCode, savedRole] = await Promise.all([
+      AsyncStorage.getItem("@pending_doctor_access_code"),
+      AsyncStorage.getItem("@pending_user_role"),
+    ]);
+
+    if (savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant") {
+      console.log("[SetupProfile] Assistant role detected, bypassing clinic setup directly to onboarding");
+      router.replace("/onboarding");
+      return;
+    }
+
     setStep("clinic");
   };
 

@@ -12,6 +12,19 @@ export async function getPatientProfile(
   email: string;
   role: string;
   service: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  emergency_contact_2_name?: string;
+  emergency_contact_2_phone?: string;
+  emergency_contact_2_relationship?: string;
+  allergies?: string;
+  dummy?: boolean;
+  is_dummy?: boolean;
   pwd_status?: 'none' | 'pending' | 'approved' | 'rejected';
   pwd_type?: 'pwd' | 'senior';
   pwd_id_url?: string;
@@ -41,6 +54,43 @@ export async function getPatientProfile(
         .eq('id', patientId)
         .maybeSingle();
       return fallbackData;
+    }
+
+    if (!data) {
+      try {
+        const { data: dummyData } = await supabase
+          .from('dummy_patients')
+          .select('*')
+          .eq('id', patientId)
+          .maybeSingle();
+
+        if (dummyData) {
+          return {
+            id: dummyData.id,
+            name: dummyData.name,
+            email: dummyData.email || '',
+            role: 'patient',
+            phone: dummyData.phone || '',
+            date_of_birth: dummyData.date_of_birth || '',
+            gender: dummyData.gender || '',
+            address: dummyData.address || '',
+            emergency_contact_name: dummyData.emergency_contact_name || '',
+            emergency_contact_phone: dummyData.emergency_contact_phone || '',
+            emergency_contact_relationship: dummyData.emergency_contact_relationship || '',
+            emergency_contact_2_name: dummyData.emergency_contact_2_name || '',
+            emergency_contact_2_phone: dummyData.emergency_contact_2_phone || '',
+            emergency_contact_2_relationship: dummyData.emergency_contact_2_relationship || '',
+            allergies: dummyData.allergies || 'None',
+            dummy: true,
+            is_dummy: true,
+            service: 'General Dental',
+            created_at: dummyData.created_at,
+            updated_at: dummyData.updated_at,
+          };
+        }
+      } catch {
+        // Safe fallback
+      }
     }
 
     return data;
@@ -103,8 +153,39 @@ export async function getPatientMedicalIntake(
     return null;
   }
 
-  // If no records found, return null
+  // If no records found, check dummy_patients
   if (!data || data.length === 0) {
+    try {
+      const { data: dummyData } = await supabase
+        .from('dummy_patients')
+        .select('*')
+        .eq('id', patientId)
+        .maybeSingle();
+
+      if (dummyData) {
+        return {
+          dateOfBirth: dummyData.date_of_birth || '',
+          gender: dummyData.gender || '',
+          phone: dummyData.phone || '',
+          address: dummyData.address || '',
+          emergencyContactName: dummyData.emergency_contact_name || '',
+          emergencyContactPhone: dummyData.emergency_contact_phone || '',
+          emergencyContactRelationship: dummyData.emergency_contact_relationship || '',
+          emergencyContact2Name: dummyData.emergency_contact_2_name || '',
+          emergencyContact2Phone: dummyData.emergency_contact_2_phone || '',
+          emergencyContact2Relationship: dummyData.emergency_contact_2_relationship || '',
+          allergies: dummyData.allergies || 'None',
+          currentMedications: 'None',
+          medicalConditions: 'None',
+          pastSurgeries: 'None',
+          smokingStatus: '',
+          pregnancyStatus: '',
+          notes: '',
+        };
+      }
+    } catch {
+      // Safe fallback
+    }
     return null;
   }
 
@@ -174,9 +255,9 @@ export async function getPatientAppointments(
     });
 
     if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient
+      // Filter for this specific patient (either patient_id or dummy_patient_id)
       const patientAppointments = appointmentsData.filter((apt: any) => 
-        apt.patient_id === patientId
+        apt.patient_id === patientId || apt.dummy_patient_id === patientId
       );
       
       if (patientAppointments.length > 0) {
@@ -195,8 +276,8 @@ export async function getPatientAppointments(
     console.log('⚠️ RPC returned no data or failed, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
-      .eq('patient_id', patientId)
+      .select('id, patient_id, dummy_patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
+      .or(`patient_id.eq.${patientId},dummy_patient_id.eq.${patientId}`)
       .order('appointment_date', { ascending: false });
 
     if (error) {
@@ -662,4 +743,146 @@ export async function getPatientIdPhotoUrl(profile: { pwd_id_path?: string | nul
     return data?.signedUrl ?? null;
   }
   return profile.pwd_id_url || null;
+}
+
+
+// ─────────────────────────────────────────
+// 7. CREATE WALK-IN / KEEPER PATIENT RECORD
+// ─────────────────────────────────────────
+export interface WalkInPatientInput {
+  name: string;
+  email?: string;
+  phone?: string;
+  service?: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  emergency_contact_2_name?: string;
+  emergency_contact_2_phone?: string;
+  emergency_contact_2_relationship?: string;
+  allergies?: string;
+}
+
+export async function fetchWalkInPatients(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from('dummy_patients')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return [];
+    }
+
+    return (data || []).map((d: any) => ({
+      ...d,
+      full_name: d.name,
+      user_name: d.name,
+      dummy: true,
+      role: 'patient',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function createWalkInPatient(
+  input: WalkInPatientInput
+): Promise<{ success: boolean; patient_id?: string; error?: string }> {
+  try {
+    // 1. Try secure RPC first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('create_dummy_patient', {
+      p_name: input.name,
+      p_email: input.email || null,
+      p_phone: input.phone || null,
+      p_date_of_birth: input.date_of_birth || null,
+      p_gender: input.gender || null,
+      p_address: input.address || null,
+      p_emergency_contact_name: input.emergency_contact_name || null,
+      p_emergency_contact_phone: input.emergency_contact_phone || null,
+      p_emergency_contact_relationship: input.emergency_contact_relationship || null,
+      p_emergency_contact_2_name: input.emergency_contact_2_name || null,
+      p_emergency_contact_2_phone: input.emergency_contact_2_phone || null,
+      p_emergency_contact_2_relationship: input.emergency_contact_2_relationship || null,
+      p_allergies: input.allergies || 'None',
+    });
+
+    if (!rpcError && rpcData?.success) {
+      return { success: true, patient_id: rpcData.patient_id };
+    }
+
+    // 2. Direct table insert fallback (no service column)
+    const { data: insertData, error: insertError } = await supabase
+      .from('dummy_patients')
+      .insert({
+        name: input.name,
+        email: input.email || null,
+        phone: input.phone || null,
+        date_of_birth: input.date_of_birth || null,
+        gender: input.gender || null,
+        address: input.address || null,
+        emergency_contact_name: input.emergency_contact_name || null,
+        emergency_contact_phone: input.emergency_contact_phone || null,
+        emergency_contact_relationship: input.emergency_contact_relationship || null,
+        emergency_contact_2_name: input.emergency_contact_2_name || null,
+        emergency_contact_2_phone: input.emergency_contact_2_phone || null,
+        emergency_contact_2_relationship: input.emergency_contact_2_relationship || null,
+        allergies: input.allergies || 'None',
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('[createWalkInPatient] dummy_patients insert error:', insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    return { success: true, patient_id: insertData.id };
+  } catch (err: any) {
+    console.error('[createWalkInPatient] Exception:', err);
+    return { success: false, error: err.message || 'Failed to create patient record' };
+  }
+}
+
+export async function updateWalkInPatient(
+  patientId: string,
+  input: Partial<WalkInPatientInput>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.name !== undefined) updateData.name = input.name.trim();
+    if (input.email !== undefined) updateData.email = input.email ? input.email.trim() : null;
+    if (input.phone !== undefined) updateData.phone = input.phone ? input.phone.trim() : null;
+    if (input.date_of_birth !== undefined) updateData.date_of_birth = input.date_of_birth ? input.date_of_birth.trim() : null;
+    if (input.gender !== undefined) updateData.gender = input.gender ? input.gender.trim() : null;
+    if (input.address !== undefined) updateData.address = input.address ? input.address.trim() : null;
+    if (input.emergency_contact_name !== undefined) updateData.emergency_contact_name = input.emergency_contact_name ? input.emergency_contact_name.trim() : null;
+    if (input.emergency_contact_phone !== undefined) updateData.emergency_contact_phone = input.emergency_contact_phone ? input.emergency_contact_phone.trim() : null;
+    if (input.emergency_contact_relationship !== undefined) updateData.emergency_contact_relationship = input.emergency_contact_relationship ? input.emergency_contact_relationship.trim() : null;
+    if (input.emergency_contact_2_name !== undefined) updateData.emergency_contact_2_name = input.emergency_contact_2_name ? input.emergency_contact_2_name.trim() : null;
+    if (input.emergency_contact_2_phone !== undefined) updateData.emergency_contact_2_phone = input.emergency_contact_2_phone ? input.emergency_contact_2_phone.trim() : null;
+    if (input.emergency_contact_2_relationship !== undefined) updateData.emergency_contact_2_relationship = input.emergency_contact_2_relationship ? input.emergency_contact_2_relationship.trim() : null;
+    if (input.allergies !== undefined) updateData.allergies = input.allergies ? input.allergies.trim() : 'None';
+
+    const { error } = await supabase
+      .from('dummy_patients')
+      .update(updateData)
+      .eq('id', patientId);
+
+    if (error) {
+      console.error('[updateWalkInPatient] dummy_patients update error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateWalkInPatient] Exception:', err);
+    return { success: false, error: err.message || 'Failed to update patient record' };
+  }
 }

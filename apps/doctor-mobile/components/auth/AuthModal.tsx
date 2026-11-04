@@ -116,18 +116,24 @@ export default function AuthModal({
   /**
    * Helper to verify doctor access code via Edge Function, database, or fallback
    */
-    const verifyDoctorAccessCode = async (code: string): Promise<boolean> => {
+  const verifyDoctorAccessCode = async (code: string): Promise<{ valid: boolean; role: "doctor" | "assistant" }> => {
     const trimmed = code.trim().toUpperCase();
-    if (!trimmed || trimmed.length < 4) return false;
+    if (!trimmed || trimmed.length < 4) return { valid: false, role: "doctor" };
 
     let isValid = false;
+    let role: "doctor" | "assistant" = trimmed === "SMILEGUARD-STAFF" ? "assistant" : "doctor";
 
     // 1. Try Supabase Edge Function
     try {
       const { data, error } = await supabase.functions.invoke("verify-doctor-code", {
         body: { code: trimmed },
       });
-      if (!error && data?.valid) isValid = true;
+      if (!error && data?.valid) {
+        isValid = true;
+        if (data.tier === "assistant" || data.tier === "staff" || trimmed === "SMILEGUARD-STAFF") {
+          role = "assistant";
+        }
+      }
     } catch (e) {
       // fallback
     }
@@ -137,12 +143,17 @@ export default function AuthModal({
       try {
         const { data, error } = await supabase
           .from("doctor_access_codes")
-          .select("id")
+          .select("id, tier")
           .eq("code", trimmed)
           .eq("is_active", true)
           .maybeSingle();
 
-        if (!error && data) isValid = true;
+        if (!error && data) {
+          isValid = true;
+          if (data.tier === "assistant" || data.tier === "staff" || trimmed === "SMILEGUARD-STAFF") {
+            role = "assistant";
+          }
+        }
       } catch (e) {
         // fallback
       }
@@ -151,6 +162,9 @@ export default function AuthModal({
     // 3. Fallback known doctor codes (dev mode)
     if (!isValid) {
       isValid = VALID_DOCTOR_CODES.includes(trimmed);
+      if (trimmed === "SMILEGUARD-STAFF") {
+        role = "assistant";
+      }
     }
 
     // Record the attempt in doctor_code_attempts table
@@ -160,6 +174,7 @@ export default function AuthModal({
           code: trimmed,
           attempted_code: trimmed,
           is_successful: isValid,
+          details: { role },
           created_at: new Date().toISOString(),
         }
       ]);
@@ -167,7 +182,7 @@ export default function AuthModal({
       console.warn("[AuthModal] Note: doctor_code_attempts insert skipped:", attemptErr);
     }
 
-    return isValid;
+    return { valid: isValid, role };
   };
 
   /**
@@ -190,25 +205,26 @@ export default function AuthModal({
       setCodeError(null);
 
       // Verify code before proceeding to Google OAuth
-      const isValid = await verifyDoctorAccessCode(trimmedCode);
+      const { valid: isValid, role } = await verifyDoctorAccessCode(trimmedCode);
       if (!isValid) {
         setLoading(false);
-        setCodeError("Invalid Doctor Access Code. Please contact your clinic administrator.");
+        setCodeError("Invalid Clinic Access Code. Please contact your clinic administrator.");
         Alert.alert(
           "Invalid Access Code",
-          "The Doctor Access Code you entered is not valid. Please contact your clinic administrator."
+          "The Access Code you entered is not valid. Please contact your clinic administrator."
         );
         return;
       }
 
-      // Store valid access code in AsyncStorage for profile setup
+      // Store valid access code and role in AsyncStorage for profile setup
       await AsyncStorage.setItem("@pending_doctor_access_code", trimmedCode);
+      await AsyncStorage.setItem("@pending_user_role", role);
 
       console.log("[GoogleOAuth] Starting Google OAuth...");
 
       const redirectUri = Linking.createURL("oauth-redirect");
       console.log("[AuthModal] Redirect URI:", redirectUri);
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -251,7 +267,7 @@ export default function AuthModal({
             access_token: params.access_token,
             refresh_token: params.refresh_token
           });
-          
+
           if (sessionError) throw sessionError;
 
           console.log("[GoogleOAuth] Session set successfully");
@@ -303,8 +319,8 @@ export default function AuthModal({
               {step === 1 && (
                 <View style={{ alignItems: "center", width: "100%" }}>
                   <Text style={styles.appName}>SmileGuard</Text>
-                  <Text style={[styles.h2, { marginTop: 16, marginBottom: 8 }]}>Doctor Portal</Text>
-                  
+                  <Text style={[styles.h2, { marginTop: 16, marginBottom: 8 }]}>Doctor & Assistant Portal</Text>
+
                   <Text style={[styles.subtitle, { marginBottom: 20 }]}>
                     Enter your clinic access code, then sign in with Google to access your dashboard.
                   </Text>
@@ -313,7 +329,7 @@ export default function AuthModal({
                     <Text style={styles.inputLabel}>Clinic Access Code</Text>
                     <TextInput
                       style={[styles.input, codeError ? styles.inputError : null]}
-                      placeholder="e.g. DOC-2024-SG"
+                      placeholder="e.g. SMILE-ACCESS-CODES"
                       placeholderTextColor="#94A3B8"
                       value={doctorAccessCode}
                       onChangeText={(text) => {
@@ -328,7 +344,7 @@ export default function AuthModal({
                       <Text style={styles.errorText}>{codeError}</Text>
                     ) : (
                       <Text style={styles.helperText}>
-                        Authorized clinic code required for doctor access.
+                        An authorized clinic access code is required to sign in.
                       </Text>
                     )}
                   </View>

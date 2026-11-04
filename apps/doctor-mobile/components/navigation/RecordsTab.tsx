@@ -30,13 +30,15 @@ import {
   ShieldCheck,
   Layers,
   X,
+  UserPlus,
 } from "lucide-react-native";
+import AddPatientModal from "../patientrecord/AddPatientModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
 
 // Type alias for backwards compatibility
-type AppointmentType = Appointment & { patient_id?: string };
+type AppointmentType = Appointment & { patient_id?: string; dummy?: boolean };
 
 interface RecordsTabProps {
   patients: AppointmentType[];
@@ -51,6 +53,7 @@ interface RecordsTabProps {
   setShowPatientDetails: (show: boolean) => void;
   styles: any;
   startTourTrigger?: number;
+  userRole?: string;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -68,13 +71,16 @@ export default function RecordsTab({
   setShowPatientDetails,
   styles,
   startTourTrigger,
+  userRole,
 }: RecordsTabProps) {
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const router = useRouter();
   const currentUser = useCurrentUser();
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [patientTypeFilter, setPatientTypeFilter] = useState<'all' | 'patient' | 'dummy'>('all');
   const scrollViewRef = useRef<any>(null);
 
   // Note: Session restoration is no longer needed!
@@ -94,7 +100,7 @@ export default function RecordsTab({
           patient_id: patient.id,
           name: patient.name || 'Unknown Patient',
           email: patient.email || '',
-          service: patient.service || 'General',
+          service: patient.service || 'General Dental',
           contact: patient.phone || '',
           time: '',
           date: patient.created_at || new Date().toISOString(),
@@ -103,6 +109,7 @@ export default function RecordsTab({
           notes: '',
           imageUrl: patient.avatar_url || patient.avatar || patient.profile_picture || patient.image_url || require('../../assets/images/user.png'),
           status: 'scheduled' as const,
+          dummy: Boolean(patient.dummy),
         }));
 
         console.log('RecordsTab - Mapped profiles patients:', mapped);
@@ -119,14 +126,22 @@ export default function RecordsTab({
     }
   }, [currentUser?.id]);
 
-  // Reset to first page when search query or sort order changes
+  // Reset to first page when search query, type filter, or sort order changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [quickSearchQuery, patientSortBy, patientSortOrder]);
+  }, [quickSearchQuery, patientSortBy, patientSortOrder, patientTypeFilter]);
 
   const basePatients = supabasePatients.length > 0 ? supabasePatients : (patients || []);
 
+  const patientOnlyCount = basePatients.filter((p) => !p.dummy).length;
+  const dummyOnlyCount = basePatients.filter((p) => p.dummy).length;
+
   const filteredPatients = basePatients.filter((patient) => {
+    // 1. Patient Type Filter (all, patient, dummy)
+    if (patientTypeFilter === 'patient' && patient.dummy) return false;
+    if (patientTypeFilter === 'dummy' && !patient.dummy) return false;
+
+    // 2. Search query filter
     const query = quickSearchQuery.trim().toLowerCase();
     if (!query) return true;
     return Boolean(patient.name && patient.name.toLowerCase().includes(query));
@@ -407,28 +422,17 @@ export default function RecordsTab({
           </View>
 
           <View style={localStyles.headerActionsRow}>
-            <TouchableOpacity
-              onPress={handleRefresh}
-              disabled={isRefreshing}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Refresh Records"
-            >
-              {isRefreshing ? (
-                <ActivityIndicator size="small" color="#047857" />
-              ) : (
-                <RefreshCw size={17} color="#047857" />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleStartTour}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Start Walkthrough"
-            >
-              <Sparkles size={17} color="#047857" />
-            </TouchableOpacity>
+            {userRole === "assistant" && (
+              <TouchableOpacity
+                onPress={() => setShowAddPatientModal(true)}
+                style={localStyles.addPatientHeaderBtn}
+                activeOpacity={0.8}
+                accessibilityLabel="Add Patient"
+              >
+                <UserPlus size={14} color="#FFFFFF" strokeWidth={2.2} style={{ marginRight: 5 }} />
+                <Text style={localStyles.addPatientHeaderBtnText}>Add Patient</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -442,7 +446,13 @@ export default function RecordsTab({
             <Search size={16} color="#047857" style={{ marginRight: 8 }} />
             <TextInput
               style={localStyles.searchInput}
-              placeholder="Search by patient name..."
+              placeholder={
+                patientTypeFilter === 'dummy'
+                  ? "Search dummy patients..."
+                  : patientTypeFilter === 'patient'
+                  ? "Search registered patients..."
+                  : "Search by patient name..."
+              }
               placeholderTextColor="#94A3B8"
               value={quickSearchQuery}
               onChangeText={setQuickSearchQuery}
@@ -456,6 +466,106 @@ export default function RecordsTab({
                 <X size={14} color="#64748B" />
               </TouchableOpacity>
             )}
+
+            {/* Quick Type Switcher Toggle directly on Search Bar */}
+            <TouchableOpacity
+              style={[
+                localStyles.searchToggleBtn,
+                patientTypeFilter === 'dummy'
+                  ? localStyles.searchToggleBtnDummy
+                  : patientTypeFilter === 'patient'
+                  ? localStyles.searchToggleBtnPatient
+                  : localStyles.searchToggleBtnAll,
+              ]}
+              onPress={() => {
+                if (patientTypeFilter === 'all') setPatientTypeFilter('patient');
+                else if (patientTypeFilter === 'patient') setPatientTypeFilter('dummy');
+                else setPatientTypeFilter('all');
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel={`Filter: currently ${patientTypeFilter}. Tap to switch between All, Patient, and Dummy`}
+            >
+              <View
+                style={[
+                  localStyles.searchToggleDot,
+                  patientTypeFilter === 'dummy'
+                    ? { backgroundColor: '#D97706' }
+                    : patientTypeFilter === 'patient'
+                    ? { backgroundColor: '#047857' }
+                    : { backgroundColor: '#64748B' },
+                ]}
+              />
+              <Text
+                style={[
+                  localStyles.searchToggleText,
+                  patientTypeFilter === 'dummy'
+                    ? localStyles.searchToggleTextDummy
+                    : patientTypeFilter === 'patient'
+                    ? localStyles.searchToggleTextPatient
+                    : localStyles.searchToggleTextAll,
+                ]}
+              >
+                {patientTypeFilter === 'dummy' ? 'DUMMY' : patientTypeFilter === 'patient' ? 'PATIENT' : 'ALL'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* View Filter Options (All / Patients / Dummy) */}
+          <View style={localStyles.typeFilterRow}>
+            <Text style={localStyles.typeFilterLabel}>VIEW:</Text>
+            <TouchableOpacity
+              onPress={() => setPatientTypeFilter('all')}
+              style={[
+                localStyles.typeTabBtn,
+                patientTypeFilter === 'all' ? localStyles.typeTabBtnActive : localStyles.typeTabBtnInactive,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  localStyles.typeTabBtnText,
+                  patientTypeFilter === 'all' ? localStyles.typeTabBtnTextActive : localStyles.typeTabBtnTextInactive,
+                ]}
+              >
+                All ({basePatients.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setPatientTypeFilter('patient')}
+              style={[
+                localStyles.typeTabBtn,
+                patientTypeFilter === 'patient' ? localStyles.typeTabBtnActive : localStyles.typeTabBtnInactive,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  localStyles.typeTabBtnText,
+                  patientTypeFilter === 'patient' ? localStyles.typeTabBtnTextActive : localStyles.typeTabBtnTextInactive,
+                ]}
+              >
+                Patients ({patientOnlyCount})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setPatientTypeFilter('dummy')}
+              style={[
+                localStyles.typeTabBtn,
+                patientTypeFilter === 'dummy' ? localStyles.typeTabBtnActiveDummy : localStyles.typeTabBtnInactive,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  localStyles.typeTabBtnText,
+                  patientTypeFilter === 'dummy' ? localStyles.typeTabBtnTextActiveDummy : localStyles.typeTabBtnTextInactive,
+                ]}
+              >
+                Dummy ({dummyOnlyCount})
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View
@@ -545,14 +655,21 @@ export default function RecordsTab({
               </View>
               <Text style={localStyles.emptyTitle}>NO MATCHES FOUND</Text>
               <Text style={localStyles.emptySubtitle}>
-                No patient records match "{quickSearchQuery}". Try a different patient name.
+                {patientTypeFilter === 'dummy'
+                  ? `No dummy patient records found${quickSearchQuery ? ` matching "${quickSearchQuery}"` : ""}.`
+                  : patientTypeFilter === 'patient'
+                  ? `No registered patient records found${quickSearchQuery ? ` matching "${quickSearchQuery}"` : ""}.`
+                  : `No patient records match "${quickSearchQuery}". Try a different patient name.`}
               </Text>
               <TouchableOpacity
-                onPress={() => setQuickSearchQuery("")}
+                onPress={() => {
+                  setQuickSearchQuery("");
+                  setPatientTypeFilter("all");
+                }}
                 style={localStyles.clearFilterBtn}
                 activeOpacity={0.7}
               >
-                <Text style={localStyles.clearFilterBtnText}>Clear Search Filter</Text>
+                <Text style={localStyles.clearFilterBtnText}>Reset Search & Filters</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -604,13 +721,16 @@ export default function RecordsTab({
                     <View style={{ flex: 1, marginRight: 8 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                         <Text style={localStyles.patientName} numberOfLines={1}>{patient.name}</Text>
-                        <View style={localStyles.patientBadge}>
-                          <Text style={localStyles.patientBadgeText}>PATIENT</Text>
-                        </View>
+                        {patient.dummy ? (
+                          <View style={localStyles.dummyBadge}>
+                            <Text style={localStyles.dummyBadgeText}>DUMMY</Text>
+                          </View>
+                        ) : (
+                          <View style={localStyles.patientBadge}>
+                            <Text style={localStyles.patientBadgeText}>PATIENT</Text>
+                          </View>
+                        )}
                       </View>
-                      <Text style={localStyles.patientService} numberOfLines={1}>
-                        {patient.service || "General Dental"}
-                      </Text>
                       {(patient.email || patient.contact) ? (
                         <Text style={localStyles.patientContact} numberOfLines={1}>
                           {patient.email || patient.contact}
@@ -708,6 +828,17 @@ export default function RecordsTab({
           onFinish={handleFinishTour}
           onSkip={handleSkipTour}
         />
+
+        {/* Add Patient Modal (Assistant Only) */}
+        {userRole === "assistant" && (
+          <AddPatientModal
+            visible={showAddPatientModal}
+            onClose={() => setShowAddPatientModal(false)}
+            onPatientAdded={async () => {
+              await handleRefresh();
+            }}
+          />
+        )}
       </View>
     </View>
   );
@@ -752,6 +883,25 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  addPatientHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  addPatientHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
   skeuoActionBtn: {
     width: 38,
@@ -809,6 +959,105 @@ const localStyles = StyleSheet.create({
     padding: 3,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
+  },
+  searchToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginLeft: 6,
+    gap: 5,
+  },
+  searchToggleBtnAll: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  searchToggleBtnPatient: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  searchToggleBtnDummy: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  searchToggleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  searchToggleText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  searchToggleTextAll: {
+    color: '#475569',
+  },
+  searchToggleTextPatient: {
+    color: '#047857',
+  },
+  searchToggleTextDummy: {
+    color: '#B45309',
+  },
+  typeFilterRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  typeFilterLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginRight: 2,
+  },
+  typeTabBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  typeTabBtnActive: {
+    backgroundColor: '#047857',
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#022C22',
+  },
+  typeTabBtnActiveDummy: {
+    backgroundColor: '#D97706',
+    borderWidth: 1,
+    borderColor: '#B45309',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#78350F',
+  },
+  typeTabBtnInactive: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+  },
+  typeTabBtnText: {
+    fontSize: 11.5,
+    letterSpacing: 0.2,
+  },
+  typeTabBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  typeTabBtnTextActiveDummy: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  typeTabBtnTextInactive: {
+    color: '#475569',
+    fontWeight: '700',
   },
   sortRow: {
     flexDirection: 'row',
@@ -972,6 +1221,20 @@ const localStyles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '800',
     color: '#047857',
+    letterSpacing: 0.5,
+  },
+  dummyBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+  },
+  dummyBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#B45309',
     letterSpacing: 0.5,
   },
   patientService: {

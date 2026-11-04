@@ -28,7 +28,9 @@ import {
   ChevronRight,
   ExternalLink,
   Sparkles,
+  Pencil,
 } from "lucide-react-native";
+import AddPatientModal from "./AddPatientModal";
 import {
   getPatientMedicalInfo,
   getPatientAppointments,
@@ -65,7 +67,13 @@ export type AppointmentType = {
   address?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
+  emergencyContact2Relationship?: string;
   allergies?: string;
+  dummy?: boolean;
+  is_dummy?: boolean;
   currentMedications?: string;
   medicalConditions?: string;
   pastSurgeries?: string;
@@ -140,6 +148,7 @@ export default function PatientDetailsView({
   const [showAppointmentHistory, setShowAppointmentHistory] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [patientProfile, setPatientProfile] = useState<any>(null);
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
   const [idPhotoUrl, setIdPhotoUrl] = useState<string | null>(null);
@@ -211,8 +220,8 @@ export default function PatientDetailsView({
         Alert.alert(
           'Verification Approved',
           'Patient has been certified as a verified ' +
-            (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') +
-            '. The statutory 20% discount is now active.'
+          (patientProfile?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD') +
+          '. The statutory 20% discount is now active.'
         );
       } else {
         Alert.alert('Error', res.error || 'Failed to approve PWD status.');
@@ -267,10 +276,10 @@ export default function PatientDetailsView({
     typeof patientProfile?.avatar_url === 'string' && patientProfile.avatar_url.length > 0
       ? { uri: patientProfile.avatar_url }
       : typeof patient.imageUrl === 'string' && patient.imageUrl.length > 0
-      ? { uri: patient.imageUrl }
-      : typeof patient.imageUrl === 'number'
-      ? patient.imageUrl
-      : null;
+        ? { uri: patient.imageUrl }
+        : typeof patient.imageUrl === 'number'
+          ? patient.imageUrl
+          : null;
 
   const age = calculateAge(medicalIntake?.dateOfBirth || patient.dateOfBirth) ?? (patient.age > 0 ? patient.age : null);
   const gender = medicalIntake?.gender || patient.gender || null;
@@ -280,6 +289,8 @@ export default function PatientDetailsView({
   // Appointment metrics
   const completedCount = appointments.filter((a) => a.status === 'completed').length;
   const totalAppointmentsCount = appointments.length;
+
+  const isDummyPatient = Boolean((patient as any)?.dummy || patientProfile?.dummy);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -302,7 +313,18 @@ export default function PatientDetailsView({
             </Text>
           </View>
 
-          <View style={styles.topAppBarSpacer} />
+          {isDummyPatient ? (
+            <TouchableOpacity
+              style={styles.topAppBarEditBtn}
+              onPress={() => setShowEditPatientModal(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Edit dummy patient record"
+            >
+              <Text style={styles.topAppBarEditBtnText}>Edit</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.topAppBarSpacer} />
+          )}
         </View>
 
         {loading ? (
@@ -328,11 +350,22 @@ export default function PatientDetailsView({
                 )}
 
                 <View style={styles.heroInfoWrap}>
-                  <Text style={styles.heroName} numberOfLines={1}>
-                    {patientName}
-                  </Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={[styles.heroName, { flex: 1 }]} numberOfLines={1}>
+                      {patientName}
+                    </Text>
+                  </View>
 
                   <View style={styles.heroBadgeRow}>
+                    {((patient as any).dummy || patientProfile?.dummy) ? (
+                      <View style={styles.dummyBadge}>
+                        <Text style={styles.dummyBadgeText}>DUMMY</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.patientBadge}>
+                        <Text style={styles.patientBadgeText}>PATIENT</Text>
+                      </View>
+                    )}
                     {(age || gender) && (
                       <View style={styles.demographicBadge}>
                         <Text style={styles.demographicText}>
@@ -367,7 +400,7 @@ export default function PatientDetailsView({
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel}>TOTAL PAID</Text>
                   <Text style={[styles.metricValue, { color: '#10B981' }]}>
-                    ₱{billingInfo ? billingInfo.paidAmount.toFixed(0) : '0'}
+                    ₱{billingInfo ? billingInfo.paidAmount.toLocaleString('en-US') : '0'}
                   </Text>
                 </View>
               </View>
@@ -506,18 +539,23 @@ export default function PatientDetailsView({
                 <DetailRow label="Gender" value={gender || "Not specified"} />
                 <DetailRow label="Contact Number" value={phone || "Not provided"} />
                 <DetailRow label="Email" value={email || "Not provided"} />
-                <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || "")} />
+                <DetailRow label="Date of Birth" value={formatDateOfBirth(medicalIntake?.dateOfBirth || patientProfile?.date_of_birth || "")} />
                 {age !== null && <DetailRow label="Age" value={`${age} years old`} />}
                 <DetailRow
                   label="Address"
-                  value={medicalIntake?.address || patient.address || "Not provided"}
+                  value={medicalIntake?.address || patientProfile?.address || (patient as any).address || "Not provided"}
                   isLast={true}
                 />
               </View>
             </View>
 
             {/* Emergency Contact */}
-            {medicalIntake?.emergencyContactName || medicalIntake?.emergencyContactPhone ? (
+            {Boolean(
+              medicalIntake?.emergencyContactName ||
+              medicalIntake?.emergencyContactPhone ||
+              patientProfile?.emergency_contact_name ||
+              patientProfile?.emergency_contact_phone
+            ) ? (
               <View style={styles.sectionContainer}>
                 <View style={styles.sectionHeaderRow}>
                   <View style={styles.sectionTitleGroup}>
@@ -527,16 +565,69 @@ export default function PatientDetailsView({
                 </View>
 
                 <View style={[styles.skeuoCard, styles.cardShadow, { paddingHorizontal: 12, paddingVertical: 4 }]}>
+                  {/* Primary Emergency Contact */}
                   <DetailRow
-                    label="Contact Person"
-                    value={medicalIntake.emergencyContactName || "Not provided"}
+                    label="Primary Contact"
+                    value={
+                      medicalIntake?.emergencyContactName ||
+                      patientProfile?.emergency_contact_name ||
+                      "Not provided"
+                    }
                   />
+                  {(medicalIntake?.emergencyContactRelationship || patientProfile?.emergency_contact_relationship) ? (
+                    <DetailRow
+                      label="Relationship"
+                      value={
+                        medicalIntake?.emergencyContactRelationship ||
+                        patientProfile?.emergency_contact_relationship ||
+                        "Not provided"
+                      }
+                    />
+                  ) : null}
                   <DetailRow
-                    label="Emergency Phone"
-                    value={medicalIntake.emergencyContactPhone || "Not provided"}
+                    label="Primary Phone"
+                    value={
+                      medicalIntake?.emergencyContactPhone ||
+                      patientProfile?.emergency_contact_phone ||
+                      "Not provided"
+                    }
                     isHighlight={true}
-                    isLast={true}
+                    isLast={!medicalIntake?.emergencyContact2Name && !patientProfile?.emergency_contact_2_name}
                   />
+
+                  {/* Secondary Emergency Contact */}
+                  {(medicalIntake?.emergencyContact2Name || patientProfile?.emergency_contact_2_name) ? (
+                    <>
+                      <DetailRow
+                        label="Secondary Contact"
+                        value={
+                          medicalIntake?.emergencyContact2Name ||
+                          patientProfile?.emergency_contact_2_name ||
+                          "Not provided"
+                        }
+                      />
+                      {(medicalIntake?.emergencyContact2Relationship || patientProfile?.emergency_contact_2_relationship) ? (
+                        <DetailRow
+                          label="Relationship"
+                          value={
+                            medicalIntake?.emergencyContact2Relationship ||
+                            patientProfile?.emergency_contact_2_relationship ||
+                            "Not provided"
+                          }
+                        />
+                      ) : null}
+                      <DetailRow
+                        label="Secondary Phone"
+                        value={
+                          medicalIntake?.emergencyContact2Phone ||
+                          patientProfile?.emergency_contact_2_phone ||
+                          "Not provided"
+                        }
+                        isHighlight={true}
+                        isLast={true}
+                      />
+                    </>
+                  ) : null}
                 </View>
               </View>
             ) : null}
@@ -557,29 +648,35 @@ export default function PatientDetailsView({
                       label="Allergies"
                       value={medicalIntake.allergies || "None declared"}
                       isAlert={Boolean(medicalIntake.allergies && medicalIntake.allergies.toLowerCase() !== 'none')}
+                      isLast={isDummyPatient}
                     />
-                    <DetailRow
-                      label="Current Medications"
-                      value={medicalIntake.currentMedications || "None"}
-                    />
-                    <DetailRow
-                      label="Medical Conditions"
-                      value={medicalIntake.medicalConditions || "None declared"}
-                      isAlert={Boolean(medicalIntake.medicalConditions && medicalIntake.medicalConditions.toLowerCase() !== 'none')}
-                    />
-                    <DetailRow
-                      label="Past Surgeries"
-                      value={medicalIntake.pastSurgeries || "None"}
-                    />
-                    <DetailRow
-                      label="Smoking Status"
-                      value={medicalIntake.smokingStatus ? medicalIntake.smokingStatus.toUpperCase() : "None"}
-                    />
-                    {medicalIntake.gender?.toLowerCase() !== 'male' && (
-                      <DetailRow
-                        label="Pregnancy Status"
-                        value={medicalIntake.pregnancyStatus || "Not applicable"}
-                      />
+                    {!isDummyPatient && (
+                      <>
+                        <DetailRow
+                          label="Current Medications"
+                          value={medicalIntake.currentMedications || "None"}
+                        />
+                        <DetailRow
+                          label="Medical Conditions"
+                          value={medicalIntake.medicalConditions || "None declared"}
+                          isAlert={Boolean(medicalIntake.medicalConditions && medicalIntake.medicalConditions.toLowerCase() !== 'none')}
+                        />
+                        <DetailRow
+                          label="Past Surgeries"
+                          value={medicalIntake.pastSurgeries || "None"}
+                        />
+                        <DetailRow
+                          label="Smoking Status"
+                          value={medicalIntake.smokingStatus ? medicalIntake.smokingStatus.toUpperCase() : "None"}
+                        />
+                        {medicalIntake.gender?.toLowerCase() !== 'male' && (
+                          <DetailRow
+                            label="Pregnancy Status"
+                            value={medicalIntake.pregnancyStatus || "Not applicable"}
+                            isLast={true}
+                          />
+                        )}
+                      </>
                     )}
                   </>
                 ) : (
@@ -620,24 +717,24 @@ export default function PatientDetailsView({
                   <>
                     <DetailRow
                       label="Total Charges"
-                      value={`₱${billingInfo.totalAmount.toFixed(2)}`}
+                      value={`₱${billingInfo.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     />
                     <DetailRow
                       label="Amount Paid"
-                      value={`₱${billingInfo.paidAmount.toFixed(2)}`}
+                      value={`₱${billingInfo.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       isHighlight={true}
                     />
                     {billingInfo.pendingAmount > 0 && (
                       <DetailRow
                         label="Pending Balance"
-                        value={`₱${billingInfo.pendingAmount.toFixed(2)}`}
+                        value={`₱${billingInfo.pendingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                         isAlert={true}
                       />
                     )}
                     {billingInfo.overdueAmount > 0 && (
                       <DetailRow
                         label="Overdue Balance"
-                        value={`₱${billingInfo.overdueAmount.toFixed(2)}`}
+                        value={`₱${billingInfo.overdueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                         isAlert={true}
                       />
                     )}
@@ -713,8 +810,8 @@ export default function PatientDetailsView({
                     patientProfile?.created_at
                       ? formatDate(patientProfile.created_at)
                       : patient.date
-                      ? formatDate(patient.date)
-                      : "Not available"
+                        ? formatDate(patient.date)
+                        : "Not available"
                   }
                   isLast={true}
                 />
@@ -812,6 +909,36 @@ export default function PatientDetailsView({
           </Text>
         </View>
       </Modal>
+
+      {/* Edit Dummy Patient Record Modal */}
+      {isDummyPatient && (
+        <AddPatientModal
+          visible={showEditPatientModal}
+          onClose={() => setShowEditPatientModal(false)}
+          patientToEdit={{
+            ...(patientProfile || {}),
+            ...patient,
+            id: effectivePatientId,
+            patient_id: effectivePatientId,
+            date_of_birth: patientProfile?.date_of_birth || medicalIntake?.dateOfBirth,
+            gender: patientProfile?.gender || medicalIntake?.gender || patient.gender,
+            address: patientProfile?.address || medicalIntake?.address || (patient as any).address,
+            allergies: medicalIntake?.allergies || patientProfile?.allergies,
+            emergency_contact_name: medicalIntake?.emergencyContactName || patientProfile?.emergency_contact_name,
+            emergency_contact_phone: medicalIntake?.emergencyContactPhone || patientProfile?.emergency_contact_phone,
+            emergency_contact_relationship: medicalIntake?.emergencyContactRelationship || patientProfile?.emergency_contact_relationship,
+            emergency_contact_2_name: medicalIntake?.emergencyContact2Name || patientProfile?.emergency_contact_2_name,
+            emergency_contact_2_phone: medicalIntake?.emergencyContact2Phone || patientProfile?.emergency_contact_2_phone,
+            emergency_contact_2_relationship: medicalIntake?.emergencyContact2Relationship || patientProfile?.emergency_contact_2_relationship,
+          }}
+          onPatientUpdated={async () => {
+            setShowEditPatientModal(false);
+            if (effectivePatientId) {
+              await loadPatientData(effectivePatientId);
+            }
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -976,6 +1103,41 @@ const styles = StyleSheet.create({
     height: 36,
   },
 
+  topAppBarEditBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+
+  topAppBarEditBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#047857",
+  },
+
+  heroEditPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    marginLeft: 8,
+  },
+
+  heroEditPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
+  },
+
   // Loading
   loadingContainer: {
     flex: 1,
@@ -1078,6 +1240,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#475569",
+  },
+
+  dummyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+
+  dummyBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#B45309",
+    letterSpacing: 0.5,
+  },
+
+  patientBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+
+  patientBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.5,
   },
 
   pwdVerifiedBadge: {

@@ -970,7 +970,7 @@ export default function ClinicSetup({
   // Loading State
   if (initialLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#047857" />
@@ -983,7 +983,7 @@ export default function ClinicSetup({
   // First Time Empty State
   if (noClinicRecord && !isEditing) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         <View style={styles.topHeader}>
           {isRegistration && (
@@ -991,7 +991,7 @@ export default function ClinicSetup({
               style={styles.headerBackBtn}
               onPress={handleBackPress}
               activeOpacity={0.7}
-              accessibilityLabel="Back to Step 1"
+              accessibilityLabel="Back to Profile"
             >
               <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
               <Text style={styles.headerBackBtnText}>Back</Text>
@@ -1000,11 +1000,7 @@ export default function ClinicSetup({
           <View style={styles.headerTitleGroup}>
             <Text style={styles.topHeaderTitle}>{isRegistration ? 'CLINIC REGISTRATION' : 'CLINIC SETUP'}</Text>
           </View>
-          {isRegistration && (
-            <View style={styles.headerStepPill}>
-              <Text style={styles.headerStepPillText}>Step 2 of 2</Text>
-            </View>
-          )}
+          {isRegistration && <View style={{ width: 60 }} />}
           {onClose && !isRegistration && (
             <TouchableOpacity style={styles.closeActionBtn} onPress={onClose} activeOpacity={0.7}>
               <X size={17} color="#047857" />
@@ -1039,7 +1035,7 @@ export default function ClinicSetup({
   // VIEW MODE
   if (!isEditing) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated={true} />
         {/* Module Top Header (No Badge) */}
         <View style={styles.topHeader}>
@@ -1049,7 +1045,7 @@ export default function ClinicSetup({
               onPress={handleBackPress}
               disabled={saving || uploadingLogo || uploadingGallery}
               activeOpacity={0.7}
-              accessibilityLabel="Back to Step 1"
+              accessibilityLabel="Back to Profile"
             >
               <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
               <Text style={styles.headerBackBtnText}>Back</Text>
@@ -1061,11 +1057,6 @@ export default function ClinicSetup({
           </View>
 
           <View style={styles.headerActionsRow}>
-            {isRegistration && (
-              <View style={styles.headerStepPill}>
-                <Text style={styles.headerStepPillText}>Step 2 of 2</Text>
-              </View>
-            )}
 
             {isRegistration || Boolean(onSkip) ? (
               <TouchableOpacity style={styles.headerSkipBtn} onPress={handleSkip} activeOpacity={0.75}>
@@ -1417,6 +1408,18 @@ export default function ClinicSetup({
               </View>
             </View>
           )}
+        {isRegistration && (
+            <View style={styles.viewRegistrationFooter}>
+              <TouchableOpacity
+                style={styles.viewRegistrationPrimaryBtn}
+                onPress={handleSkip}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.viewRegistrationPrimaryBtnText}>Continue to Dashboard</Text>
+                <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
 
         {/* Full Screen Photo Viewer Modal for View Mode (Clinic Profile) */}
@@ -1474,7 +1477,7 @@ export default function ClinicSetup({
             onPress={handleBackPress}
             disabled={saving || uploadingLogo || uploadingGallery}
             activeOpacity={0.7}
-            accessibilityLabel="Back to Step 1"
+            accessibilityLabel="Back to Profile"
           >
             <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
             <Text style={styles.headerBackBtnText}>Back</Text>
@@ -1486,11 +1489,6 @@ export default function ClinicSetup({
         </View>
 
         <View style={styles.headerActionsRow}>
-          {isRegistration && (
-            <View style={styles.headerStepPill}>
-              <Text style={styles.headerStepPillText}>Step 2 of 2</Text>
-            </View>
-          )}
 
           {(isRegistration || Boolean(onSkip)) && !hasAnyChanges && (
             <TouchableOpacity style={styles.headerSkipBtn} onPress={handleSkip} activeOpacity={0.75}>
@@ -1976,7 +1974,7 @@ export default function ClinicSetup({
             disabled={saving || uploadingLogo || uploadingGallery}
             activeOpacity={0.7}
           >
-            <Text style={styles.hubSecondaryBtnText}>{isRegistration ? "Back to Step 1" : "Cancel"}</Text>
+            <Text style={styles.hubSecondaryBtnText}>{isRegistration ? "Back" : "Cancel"}</Text>
           </TouchableOpacity>
 
           {isRegistration && !hasAnyChanges ? (
@@ -1986,7 +1984,7 @@ export default function ClinicSetup({
               disabled={saving || uploadingLogo || uploadingGallery}
               activeOpacity={0.8}
             >
-              <Text style={styles.hubSkipBtnText}>Skip Setup</Text>
+              <Text style={styles.hubSkipBtnText}>Continue to Dashboard</Text>
               <ChevronRight size={15} color="#047857" />
             </TouchableOpacity>
           ) : (
@@ -2004,7 +2002,7 @@ export default function ClinicSetup({
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.hubPrimaryBtnText}>Save Changes</Text>
+                  <Text style={styles.hubPrimaryBtnText}>{isRegistration ? "Save & Continue" : "Save Changes"}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -2757,7 +2755,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 48,
+    paddingBottom: 80,
   },
   loadingContainer: {
     flex: 1,
@@ -3809,6 +3807,34 @@ const styles = StyleSheet.create({
   },
 
   // Hub Footer Row
+  viewRegistrationFooter: {
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  viewRegistrationPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#047857',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 3,
+    borderBottomColor: '#022C22',
+    paddingVertical: 14,
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  viewRegistrationPrimaryBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
   hubFooterRow: {
     flexDirection: 'row',
     gap: 10,

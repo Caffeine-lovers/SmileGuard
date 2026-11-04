@@ -218,14 +218,18 @@ export async function createDoctorProfile(
     // (prevents PostgreSQL foreign key constraint violation: doctor_user_id_fkey)
     if (doctor.user_id) {
       try {
+        const isAssistant = (accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant";
+        const assignedRole: "doctor" | "assistant" = isAssistant ? "assistant" : "doctor";
+        const defaultName = isAssistant ? "Assistant Doctor" : "Doctor";
+
         const { error: profileSyncError } = await supabase
           .from("profiles")
           .upsert(
             [
               {
                 id: doctor.user_id,
-                name: fullName || "Doctor",
-                role: "doctor",
+                name: fullName || defaultName,
+                role: assignedRole,
                 phone_number: doctor.doctor_phone || null,
                 updated_at: new Date().toISOString(),
               },
@@ -323,8 +327,10 @@ export async function createDoctorProfile(
 
         // Crucial: Update doctor_phone, gender, years_of_experience, and office_hours
         // which may not be set by older complete_doctor_registration RPCs
+        const isAssistant = (accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant";
         const postRegUpdates: Record<string, any> = {
           updated_at: new Date().toISOString(),
+          role: isAssistant ? "assistant" : "doctor",
         };
 
         if (doctor.gender !== undefined && doctor.gender !== null) {
@@ -341,6 +347,7 @@ export async function createDoctorProfile(
         postRegUpdates.years_of_experience = isNaN(yearsExp) ? 0 : yearsExp;
 
         postRegUpdates.office_hours = doctor.office_hours || EMPTY_DOCTOR.office_hours;
+        postRegUpdates.role = isAssistant ? "assistant" : "doctor";
 
         const targetDoctorId = result.doctor_id || doctor.id;
         console.log("[DoctorService] Updating doctor post-registration fields:", {
@@ -382,7 +389,7 @@ export async function createDoctorProfile(
         // Also synchronize doctor_phone and full name with profiles table
         if (doctor.user_id) {
           try {
-            const profileUpdates: any = { role: "doctor" };
+            const profileUpdates: any = { role: isAssistant ? "assistant" : "doctor" };
             if (fullName) profileUpdates.name = fullName;
             if (postRegUpdates.doctor_phone) profileUpdates.phone_number = postRegUpdates.doctor_phone;
             await supabase
@@ -413,6 +420,7 @@ export async function createDoctorProfile(
     const { is_available, ...rawCleanDoctor } = doctor as any;
     const cleanDoctor = {
       ...rawCleanDoctor,
+      role: ((accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant") ? "assistant" : "doctor",
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
@@ -428,7 +436,7 @@ export async function createDoctorProfile(
       try {
         const profileUpdates: any = {
           id: cleanDoctor.user_id,
-          role: "doctor",
+          role: ((accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant") ? "assistant" : "doctor",
           updated_at: new Date().toISOString(),
         };
         if (fullName) profileUpdates.name = fullName;

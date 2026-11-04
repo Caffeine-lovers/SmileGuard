@@ -10,6 +10,8 @@ import {
   Alert,
   StyleSheet,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -32,6 +34,11 @@ import {
   DollarSign,
   Calendar,
   Search,
+  Pencil,
+  Plus,
+  Tag,
+  AlertCircle,
+  Percent,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
@@ -39,20 +46,34 @@ import { isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideComplet
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
 import { AppColors } from '../../constants/theme';
 
+export function formatCurrency(amount: number | string | null | undefined): string {
+  if (amount === null || amount === undefined || amount === '') return '₱0.00';
+  const num = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/[^0-9.-]/g, ''));
+  if (isNaN(num)) return '₱0.00';
+  return `₱${num.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 interface Patient {
   id: string;
   name: string;
   email: string;
+  is_dummy?: boolean;
 }
 
 interface BillingTabProps {
   doctorId: string;
   styles: any;
   startTourTrigger?: number;
+  userRole?: string;
 }
 
 interface BillingWithPatientName extends Billing {
   patient_name?: string;
+  patient_email?: string;
+  is_dummy?: boolean;
 }
 
 interface AppointmentDetails {
@@ -70,7 +91,7 @@ interface AppointmentDetails {
 
 const ITEMS_PER_PAGE = 4;
 
-export default function BillingTab({ doctorId, styles, startTourTrigger }: BillingTabProps) {
+export default function BillingTab({ doctorId, styles, startTourTrigger, userRole }: BillingTabProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedPatientName, setSelectedPatientName] = useState<string>('');
@@ -87,6 +108,26 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
   const [currentPage, setCurrentPage] = useState(1);
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
   const scrollViewRef = useRef<any>(null);
+
+  // Edit Dummy Billing State
+  const [editingBilling, setEditingBilling] = useState<BillingWithPatientName | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDiscountType, setEditDiscountType] = useState<string>('none');
+  const [editDiscountAmount, setEditDiscountAmount] = useState('');
+  const [editPaymentStatus, setEditPaymentStatus] = useState<string>('not_paid');
+  const [editPaymentMethod, setEditPaymentMethod] = useState('cash');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Create Dummy Billing State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createPatientId, setCreatePatientId] = useState('');
+  const [createAmount, setCreateAmount] = useState('');
+  const [createDiscountType, setCreateDiscountType] = useState<string>('none');
+  const [createDiscountAmount, setCreateDiscountAmount] = useState('');
+  const [createPaymentStatus, setCreatePaymentStatus] = useState<string>('not_paid');
+  const [createPaymentMethod, setCreatePaymentMethod] = useState('cash');
+  const [savingCreate, setSavingCreate] = useState(false);
 
   // Fetch all patients and billings on screen focus
   useFocusEffect(
@@ -201,15 +242,15 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
         {
           id: "billing-first-card",
           target: "billing-first-card",
-          title: "Invoice & Payment Card",
-          description: "Review invoice items, see original and discounted amounts, payment method (Cash, GCash, Card), and tap appointment links to see details.",
+          title: "Invoice Details & Dummy Editing",
+          description: "Inspect invoice items, settlement status, discounts, and edit billing details directly for dummy walk-in patients.",
           icon: Receipt,
           padding: 6,
-          radius: 14,
+          radius: 12,
           placement: "bottom" as const,
           onEnter: () => {
             try {
-              scrollViewRef.current?.scrollTo?.({ y: 240, animated: false });
+              scrollViewRef.current?.scrollTo?.({ y: 280, animated: false });
             } catch (e) { }
           },
         },
@@ -218,11 +259,11 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
         {
           id: "billing-empty-state",
           target: "billing-empty-state",
-          title: "Billing Ledger Records",
-          description: "When treatments and appointments are billed, full invoice summaries will appear here for easy tracking.",
+          title: "Clinic Invoices",
+          description: "Once your clinic records invoices and treatments, they will appear chronologically here.",
           icon: FileText,
           padding: 8,
-          radius: 8,
+          radius: 12,
           placement: "bottom" as const,
           onEnter: () => {
             try {
@@ -237,11 +278,11 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
           id: "billing-pagination",
           target: "billing-pagination",
           title: "Ledger Pagination",
-          description: "Navigate easily through multi-page billing records using numbered buttons or previous/next arrow controls.",
+          description: "Navigate easily through multiple pages of billing and invoice records.",
           icon: ChevronRight,
           padding: 6,
           radius: 12,
-          placement: "auto" as const,
+          placement: "bottom" as const,
           onEnter: () => {
             try {
               scrollViewRef.current?.scrollToEnd?.({ animated: false });
@@ -250,54 +291,40 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
         },
       ]
       : []),
-    {
-      id: "billing-finish",
-      title: "You're All Set, Doctor!",
-      description: "Your billing ledger and financial tracking are ready. Manage clinic payments and patient billing with ease!",
-      icon: ShieldCheck,
-      placement: "center",
-      onEnter: () => {
-        try {
-          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) { }
-      },
-    },
   ];
-
-  const handleStartTour = () => {
-    setTourIndex(0);
-    setTourVisible(true);
-  };
 
   const handleFinishTour = async () => {
     setTourVisible(false);
-    if (doctorId) {
+    try {
       await markDoctorGuideCompleted(doctorId, "billing");
+    } catch (e) {
+      console.warn("Could not mark billing walkthrough as completed:", e);
     }
   };
 
   const handleSkipTour = async () => {
     setTourVisible(false);
-    if (doctorId) {
+    try {
       await markDoctorGuideCompleted(doctorId, "billing");
+    } catch (e) {
+      console.warn("Could not mark billing walkthrough as completed:", e);
     }
   };
 
-  // Auto-prompt walkthrough on first visit to BillingTab
-  useEffect(() => {
-    if (!doctorId) return;
+  const handleRestartTour = () => {
+    setTourIndex(0);
+    setTourVisible(true);
+  };
 
+  useEffect(() => {
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
-        const alreadyDone = await isDoctorGuideCompleted(doctorId, "billing");
-        if (alreadyDone) return;
-
-        const key = `@smileguard_doctor_billing_walkthrough_completed_${doctorId}`;
-        const hasCompleted = await AsyncStorage.getItem(key);
-        if (!hasCompleted && isMounted) {
-          const timer = setTimeout(() => {
-            if (isMounted) {
+        const completed = await isDoctorGuideCompleted(doctorId, "billing");
+        if (!completed && isMounted) {
+          const timer = setTimeout(async () => {
+            const freshCheck = await isDoctorGuideCompleted(doctorId, "billing");
+            if (!freshCheck && isMounted) {
               setTourIndex(0);
               setTourVisible(true);
             }
@@ -338,43 +365,71 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
         ...new Set((billingPatientData || []).map((b: any) => b.patient_id).filter(Boolean)),
       ];
 
-      if (uniquePatientIds.length === 0) {
-        setPatients([]);
-        return [];
-      }
-
-      // 2. Fetch profiles only for patients who have billings
+      // 2. Fetch profiles for patients with billings
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('id, name, email')
-        .in('id', uniquePatientIds);
+        .in('id', uniquePatientIds.length > 0 ? uniquePatientIds : ['00000000-0000-0000-0000-000000000000']);
 
       if (profileError) {
         console.error('Error fetching profiles for billing patients:', profileError);
       }
 
+      // 3. Fetch all dummy patients so they are available in filter and billing creation
+      const { data: dummyPatients, error: dummyError } = await supabase
+        .from('dummy_patients')
+        .select('id, name, email');
+
+      if (dummyError) {
+        console.error('Error fetching dummy patients for billing:', dummyError);
+      }
+
       const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      const dummyMap = new Map((dummyPatients || []).map((d) => [d.id, d]));
 
-      const mappedPatients: Patient[] = uniquePatientIds
-        .map((id) => {
-          const profile = profileMap.get(id);
-          return {
+      const patientList: Patient[] = [];
+
+      // Registered Patients
+      (profiles || []).forEach((p) => {
+        patientList.push({
+          id: p.id,
+          name: p.name || `Patient (${p.id.slice(0, 8)})`,
+          email: p.email || '',
+          is_dummy: false,
+        });
+      });
+
+      // Dummy Patients
+      (dummyPatients || []).forEach((d) => {
+        patientList.push({
+          id: d.id,
+          name: d.name || `Walk-in Patient (${d.id.slice(0, 8)})`,
+          email: d.email || '',
+          is_dummy: true,
+        });
+      });
+
+      // Any remaining IDs from billings
+      uniquePatientIds.forEach((id) => {
+        if (!profileMap.has(id) && !dummyMap.has(id)) {
+          patientList.push({
             id,
-            name: profile?.name || `Patient (${id.slice(0, 8)})`,
-            email: profile?.email || '',
-          };
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
+            name: `Patient (${id.slice(0, 8)})`,
+            email: '',
+            is_dummy: false,
+          });
+        }
+      });
 
-      setPatients(mappedPatients);
-      return mappedPatients;
+      patientList.sort((a, b) => a.name.localeCompare(b.name));
+      setPatients(patientList);
+      return patientList;
     } catch (error) {
-      console.error('Error loading patients with billings:', error);
+      console.error('Error loading patients:', error);
       return [];
     }
   };
 
-  // Load billings for selected patient or all patients
   const loadBillings = async (targetPatientId?: string, currentPatients?: Patient[]) => {
     try {
       setLoading(true);
@@ -399,34 +454,47 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
 
       const records = billingRecords || [];
 
-      // Build patient name lookup map
+      // Build patient lookup map
       const patientPool = currentPatients || patients;
-      const patientMap = new Map<string, string>();
+      const patientInfoMap = new Map<string, { name: string; email: string; is_dummy: boolean }>();
+
       patientPool.forEach((p) => {
-        patientMap.set(p.id, p.name);
+        patientInfoMap.set(p.id, {
+          name: p.name,
+          email: p.email,
+          is_dummy: !!p.is_dummy,
+        });
       });
 
-      // Find any patient_id in billings not yet in map
+      // Check any missing IDs in both profiles and dummy_patients
       const missingIds = records
         .map((b) => b.patient_id)
-        .filter((id) => id && !patientMap.has(id));
+        .filter((id) => id && !patientInfoMap.has(id));
 
       if (missingIds.length > 0) {
         const uniqueMissing = [...new Set(missingIds)];
-        const { data: missingProfiles } = await supabase
-          .from('profiles')
-          .select('id, name')
-          .in('id', uniqueMissing);
+        const [profilesRes, dummiesRes] = await Promise.all([
+          supabase.from('profiles').select('id, name, email').in('id', uniqueMissing),
+          supabase.from('dummy_patients').select('id, name, email').in('id', uniqueMissing),
+        ]);
 
-        (missingProfiles || []).forEach((p) => {
-          patientMap.set(p.id, p.name || 'Unknown Patient');
+        (profilesRes.data || []).forEach((p) => {
+          patientInfoMap.set(p.id, { name: p.name || 'Unknown Patient', email: p.email || '', is_dummy: false });
+        });
+        (dummiesRes.data || []).forEach((d) => {
+          patientInfoMap.set(d.id, { name: d.name || 'Walk-in Patient', email: d.email || '', is_dummy: true });
         });
       }
 
-      const billingsWithNames: BillingWithPatientName[] = records.map((b) => ({
-        ...b,
-        patient_name: patientMap.get(b.patient_id) || (b.patient_id ? `Patient (${b.patient_id.slice(0, 8)})` : 'Unknown Patient'),
-      }));
+      const billingsWithNames: BillingWithPatientName[] = records.map((b) => {
+        const info = patientInfoMap.get(b.patient_id);
+        return {
+          ...b,
+          patient_name: info?.name || (b.patient_id ? `Patient (${b.patient_id.slice(0, 8)})` : 'Unknown Patient'),
+          patient_email: info?.email || '',
+          is_dummy: info?.is_dummy ?? false,
+        };
+      });
 
       setBillings(billingsWithNames);
       calculateTotals(billingsWithNames);
@@ -475,12 +543,11 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
     setSearchQuery('');
   };
 
-  // Refresh button handler - fetches latest patients and billings
+  // Refresh button handler
   const handleRefresh = async () => {
     try {
       setLoading(true);
       setCurrentPage(1);
-      console.log('🔄 Refreshing billing data...');
       const loadedPatients = await loadPatients();
       await loadBillings(selectedPatientId, loadedPatients);
       Alert.alert('Refreshed', 'Billing data updated successfully!');
@@ -549,6 +616,198 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
     }
   };
 
+  // ─────────────────────────────────────────
+  // DUMMY BILLING EDITING LOGIC
+  // ─────────────────────────────────────────
+  const handleOpenEditModal = (item: BillingWithPatientName) => {
+    setEditingBilling(item);
+    setEditAmount(item.amount ? item.amount.toString() : '');
+    setEditDiscountType(item.discount_type || 'none');
+    setEditDiscountAmount(item.discount_amount ? item.discount_amount.toString() : '0');
+    setEditPaymentStatus(item.payment_status || 'not_paid');
+    setEditPaymentMethod(item.payment_method || 'cash');
+    setShowEditModal(true);
+  };
+
+  const handleEditDiscountTypeChange = (type: string) => {
+    setEditDiscountType(type);
+    const numAmount = parseFloat(editAmount) || 0;
+    if (type === 'pwd' || type === 'senior') {
+      const disc = (numAmount * 0.20).toFixed(2);
+      setEditDiscountAmount(disc);
+    } else if (type === 'none') {
+      setEditDiscountAmount('0');
+    }
+  };
+
+  const handleEditAmountChange = (text: string) => {
+    setEditAmount(text);
+    const numAmount = parseFloat(text) || 0;
+    if (editDiscountType === 'pwd' || editDiscountType === 'senior') {
+      const disc = (numAmount * 0.20).toFixed(2);
+      setEditDiscountAmount(disc);
+    }
+  };
+
+  const handleSaveEditDummyBilling = async () => {
+    if (!editingBilling) return;
+    const parsedAmount = parseFloat(editAmount) || 0;
+    const parsedDiscount = parseFloat(editDiscountAmount) || 0;
+
+    if (parsedAmount <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid billing amount greater than 0.');
+      return;
+    }
+
+    const computedFinal = Math.max(0, parsedAmount - parsedDiscount);
+    const paymentDate = editPaymentStatus === 'paid'
+      ? (editingBilling.payment_date || new Date().toISOString())
+      : null;
+
+    try {
+      setSavingEdit(true);
+
+      // Attempt secure RPC first
+      const { error: rpcError } = await supabase.rpc('update_dummy_billing', {
+        p_billing_id: editingBilling.id,
+        p_amount: parsedAmount,
+        p_discount_type: editDiscountType,
+        p_discount_amount: parsedDiscount,
+        p_final_amount: computedFinal,
+        p_payment_status: editPaymentStatus,
+        p_payment_method: editPaymentMethod || null,
+        p_payment_date: paymentDate,
+      });
+
+      if (rpcError) {
+        console.warn('RPC update_dummy_billing failed, attempting direct table update:', rpcError);
+        // Fallback to direct update
+        const { error: directError } = await supabase
+          .from('billings')
+          .update({
+            amount: parsedAmount,
+            discount_type: editDiscountType,
+            discount_amount: parsedDiscount,
+            final_amount: computedFinal,
+            payment_status: editPaymentStatus,
+            payment_method: editPaymentMethod || null,
+            payment_date: paymentDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingBilling.id);
+
+        if (directError) {
+          throw directError;
+        }
+      }
+
+      Alert.alert('Success', 'Dummy patient billing record updated successfully!');
+      setShowEditModal(false);
+      setEditingBilling(null);
+      await loadBillings();
+    } catch (err: any) {
+      console.error('Error saving dummy billing update:', err);
+      Alert.alert('Update Failed', err.message || 'Could not update dummy billing record.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ─────────────────────────────────────────
+  // DUMMY INVOICE CREATION LOGIC
+  // ─────────────────────────────────────────
+  const handleOpenCreateModal = () => {
+    const dummyList = patients.filter((p) => p.is_dummy);
+    setCreatePatientId(dummyList.length > 0 ? dummyList[0].id : '');
+    setCreateAmount('1500');
+    setCreateDiscountType('none');
+    setCreateDiscountAmount('0');
+    setCreatePaymentStatus('not_paid');
+    setCreatePaymentMethod('cash');
+    setShowCreateModal(true);
+  };
+
+  const handleCreateDiscountTypeChange = (type: string) => {
+    setCreateDiscountType(type);
+    const numAmount = parseFloat(createAmount) || 0;
+    if (type === 'pwd' || type === 'senior') {
+      const disc = (numAmount * 0.20).toFixed(2);
+      setCreateDiscountAmount(disc);
+    } else if (type === 'none') {
+      setCreateDiscountAmount('0');
+    }
+  };
+
+  const handleCreateAmountChange = (text: string) => {
+    setCreateAmount(text);
+    const numAmount = parseFloat(text) || 0;
+    if (createDiscountType === 'pwd' || createDiscountType === 'senior') {
+      const disc = (numAmount * 0.20).toFixed(2);
+      setCreateDiscountAmount(disc);
+    }
+  };
+
+  const handleSaveCreateDummyBilling = async () => {
+    if (!createPatientId) {
+      Alert.alert('Selection Error', 'Please select a walk-in / dummy patient.');
+      return;
+    }
+    const parsedAmount = parseFloat(createAmount) || 0;
+    const parsedDiscount = parseFloat(createDiscountAmount) || 0;
+
+    if (parsedAmount <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid billing amount greater than 0.');
+      return;
+    }
+
+    const computedFinal = Math.max(0, parsedAmount - parsedDiscount);
+    const paymentDate = createPaymentStatus === 'paid' ? new Date().toISOString() : null;
+
+    try {
+      setSavingCreate(true);
+
+      const { error: rpcError } = await supabase.rpc('create_dummy_billing', {
+        p_patient_id: createPatientId,
+        p_amount: parsedAmount,
+        p_discount_type: createDiscountType,
+        p_discount_amount: parsedDiscount,
+        p_final_amount: computedFinal,
+        p_payment_status: createPaymentStatus,
+        p_payment_method: createPaymentMethod || null,
+        p_payment_date: paymentDate,
+      });
+
+      if (rpcError) {
+        console.warn('RPC create_dummy_billing failed, attempting direct table insert:', rpcError);
+        const { error: directError } = await supabase
+          .from('billings')
+          .insert({
+            patient_id: createPatientId,
+            amount: parsedAmount,
+            discount_type: createDiscountType,
+            discount_amount: parsedDiscount,
+            final_amount: computedFinal,
+            payment_status: createPaymentStatus,
+            payment_method: createPaymentMethod || null,
+            payment_date: paymentDate,
+          });
+
+        if (directError) {
+          throw directError;
+        }
+      }
+
+      Alert.alert('Invoice Created', 'New walk-in billing invoice created successfully!');
+      setShowCreateModal(false);
+      await loadBillings();
+    } catch (err: any) {
+      console.error('Error creating dummy billing:', err);
+      Alert.alert('Creation Failed', err.message || 'Could not create dummy billing record.');
+    } finally {
+      setSavingCreate(false);
+    }
+  };
+
   // Keep currentPage valid if totalPages shrinks
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -587,6 +846,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
     p.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
+  const dummyPatientsList = patients.filter((p) => p.is_dummy);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
       <View ref={tour.setContainer} collapsable={false} style={{ flex: 1 }}>
@@ -599,33 +860,28 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
             </View>
           </View>
 
-          <View
-            ref={tour.register("billing-actions")}
-            collapsable={false}
-            style={localStyles.headerActionsRow}
-          >
-            <TouchableOpacity
-              onPress={handleRefresh}
-              disabled={loading}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Refresh Billing"
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#047857" />
-              ) : (
-                <RefreshCw size={17} color="#047857" />
-              )}
-            </TouchableOpacity>
+          <View style={localStyles.headerActionsRow}>
+            {dummyPatientsList.length > 0 && (
+              <TouchableOpacity
+                style={localStyles.createInvoiceBtn}
+                onPress={handleOpenCreateModal}
+                activeOpacity={0.8}
+              >
+                <Plus size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={localStyles.createInvoiceBtnText}>Dummy Bill</Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              onPress={handleStartTour}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Start Walkthrough"
-            >
-              <Sparkles size={17} color="#047857" />
-            </TouchableOpacity>
+            <View ref={tour.register("billing-actions")} collapsable={false} style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity
+                onPress={handleRefresh}
+                style={localStyles.skeuoActionBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <RefreshCw size={16} color="#047857" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -709,14 +965,14 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
             </TouchableOpacity>
           </View>
 
-          {/* Summary Cards */}
+          {/* Summary Cards with formatted comma currency */}
           <View ref={tour.register("billing-summary")} collapsable={false} style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {/* Total Card */}
               <View style={[localStyles.summaryCard, { borderTopColor: '#0284C7', borderTopWidth: 3 }]}>
                 <Text style={localStyles.summaryLabel}>TOTAL BILLED</Text>
                 <Text style={[localStyles.summaryValue, { color: '#0284C7' }]} numberOfLines={1} adjustsFontSizeToFit>
-                  ₱{totalAmount.toFixed(2)}
+                  {formatCurrency(totalAmount)}
                 </Text>
               </View>
 
@@ -724,7 +980,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
               <View style={[localStyles.summaryCard, { borderTopColor: '#047857', borderTopWidth: 3 }]}>
                 <Text style={localStyles.summaryLabel}>PAID REVENUE</Text>
                 <Text style={[localStyles.summaryValue, { color: '#047857' }]} numberOfLines={1} adjustsFontSizeToFit>
-                  ₱{paidAmount.toFixed(2)}
+                  {formatCurrency(paidAmount)}
                 </Text>
               </View>
 
@@ -732,7 +988,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
               <View style={[localStyles.summaryCard, { borderTopColor: '#DC2626', borderTopWidth: 3 }]}>
                 <Text style={localStyles.summaryLabel}>PENDING</Text>
                 <Text style={[localStyles.summaryValue, { color: '#DC2626' }]} numberOfLines={1} adjustsFontSizeToFit>
-                  ₱{pendingAmount.toFixed(2)}
+                  {formatCurrency(pendingAmount)}
                 </Text>
               </View>
             </View>
@@ -807,10 +1063,17 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                       >
                         {/* Header Row */}
                         <View style={localStyles.billingCardHeader}>
-                          <View style={localStyles.billIdPill}>
-                            <Text style={localStyles.billIdText}>
-                              BILL #{item.id?.slice(0, 8).toUpperCase()}
-                            </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <View style={localStyles.billIdPill}>
+                              <Text style={localStyles.billIdText}>
+                                BILL #{item.id?.slice(0, 8).toUpperCase()}
+                              </Text>
+                            </View>
+                            {item.is_dummy && (
+                              <View style={localStyles.dummyBadgePill}>
+                                <Text style={localStyles.dummyBadgeText}>WALK-IN</Text>
+                              </View>
+                            )}
                           </View>
                           <View
                             style={[
@@ -829,14 +1092,17 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                           <Text style={localStyles.patientNameText}>
                             {item.patient_name || 'Patient'}
                           </Text>
+                          {item.patient_email ? (
+                            <Text style={localStyles.patientSubEmailText}>{item.patient_email}</Text>
+                          ) : null}
                         </View>
 
-                        {/* Amount Box */}
+                        {/* Amount Box formatted with commas */}
                         <View style={localStyles.amountBox}>
                           <View>
                             <Text style={localStyles.amountLabel}>Original Amount</Text>
                             <Text style={localStyles.amountValue}>
-                              ₱{item.amount.toFixed(2)}
+                              {formatCurrency(item.amount)}
                             </Text>
                           </View>
 
@@ -844,7 +1110,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                             <View style={{ alignItems: 'flex-end' }}>
                               <Text style={localStyles.amountLabel}>Discount ({item.discount_type})</Text>
                               <Text style={[localStyles.amountValue, { color: '#DC2626' }]}>
-                                -₱{item.discount_amount.toFixed(2)}
+                                -{formatCurrency(item.discount_amount)}
                               </Text>
                             </View>
                           ) : null}
@@ -852,7 +1118,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                           <View style={{ alignItems: 'flex-end' }}>
                             <Text style={localStyles.amountLabel}>Final Settled</Text>
                             <Text style={[localStyles.amountValue, { color: '#047857', fontWeight: '900' }]}>
-                              ₱{(item.final_amount || item.amount).toFixed(2)}
+                              {formatCurrency(item.final_amount ?? item.amount)}
                             </Text>
                           </View>
                         </View>
@@ -901,6 +1167,20 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                             </View>
                           )}
                         </View>
+
+                        {/* EDIT BUTTON (ONLY FOR DUMMY PATIENT BILLING) */}
+                        {item.is_dummy && (
+                          <View style={localStyles.cardActionRow}>
+                            <TouchableOpacity
+                              style={localStyles.editCardBtn}
+                              onPress={() => handleOpenEditModal(item)}
+                              activeOpacity={0.8}
+                            >
+                              <Pencil size={13} color="#047857" style={{ marginRight: 6 }} />
+                              <Text style={localStyles.editCardBtnText}>Edit Dummy Billing</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
                     );
                   }}
@@ -1054,7 +1334,14 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                     activeOpacity={0.7}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={localStyles.patientModalItemName}>{item.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={localStyles.patientModalItemName}>{item.name}</Text>
+                        {item.is_dummy && (
+                          <View style={localStyles.dummyBadgePill}>
+                            <Text style={localStyles.dummyBadgeText}>WALK-IN</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={localStyles.patientModalItemEmail}>{item.email || 'No email'}</Text>
                     </View>
                     {isSelected && (
@@ -1065,13 +1352,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
                   </TouchableOpacity>
                 );
               }}
-              ListEmptyComponent={
-                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                  <Text style={{ fontSize: 14, color: '#64748B', fontWeight: '500' }}>
-                    No patients with billing records found
-                  </Text>
-                </View>
-              }
             />
           </SafeAreaView>
         </Modal>
@@ -1088,90 +1368,64 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
         >
           <View style={localStyles.modalOverlay}>
             <SafeAreaView style={localStyles.appointmentModalCard}>
-              <ScrollView
-                contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 20, paddingBottom: 32 }}
-              >
-                {/* Header */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottomWidth: 1.5, borderBottomColor: '#E2E8F0', paddingBottom: 12 }}>
-                  <View>
-                    <Text style={localStyles.modalTitle}>APPOINTMENT DETAILS</Text>
-                    <Text style={localStyles.modalSubtitle}>Clinical booking & schedule info</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowAppointmentModal(false);
-                      setSelectedAppointment(null);
-                    }}
-                    style={localStyles.modalCloseBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <X size={18} color="#047857" />
-                  </TouchableOpacity>
+              <View style={localStyles.modalHeader}>
+                <View>
+                  <Text style={localStyles.modalTitle}>APPOINTMENT DETAILS</Text>
+                  <Text style={localStyles.modalSubtitle}>
+                    {selectedAppointment ? `#${selectedAppointment.id.slice(0, 8).toUpperCase()}` : ''}
+                  </Text>
                 </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAppointmentModal(false);
+                    setSelectedAppointment(null);
+                  }}
+                  style={localStyles.modalCloseBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={18} color="#047857" />
+                </TouchableOpacity>
+              </View>
 
+              <ScrollView contentContainerStyle={{ padding: 16 }}>
                 {loadingAppointment ? (
-                  <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+                  <View style={{ paddingVertical: 40, alignItems: 'center' }}>
                     <ActivityIndicator size="large" color="#047857" />
+                    <Text style={{ marginTop: 12, color: '#047857', fontSize: 13, fontWeight: '600' }}>
+                      Loading appointment data...
+                    </Text>
                   </View>
                 ) : selectedAppointment ? (
                   <>
+                    {/* Status & Service */}
                     <View style={localStyles.skeuoCard}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={localStyles.amountLabel}>APPOINTMENT ID</Text>
-                          <Text style={[localStyles.patientNameText, { marginTop: 2 }]}>
-                            #{selectedAppointment.id.slice(0, 8).toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={localStyles.amountLabel}>STATUS</Text>
-                          <View
-                            style={{
-                              backgroundColor:
-                                selectedAppointment.status === 'completed'
-                                  ? '#ECFDF5'
-                                  : selectedAppointment.status === 'cancelled'
-                                    ? '#FEE2E2'
-                                    : '#FEF3C7',
-                              paddingHorizontal: 8,
-                              paddingVertical: 3,
-                              borderRadius: 4,
-                              marginTop: 4,
-                            }}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <Text style={localStyles.cardSectionHeader}>SERVICE DETAILS</Text>
+                        <View
+                          style={[
+                            localStyles.statusBadge,
+                            {
+                              backgroundColor: selectedAppointment.status === 'completed' ? '#ECFDF5' : '#FEF3C7',
+                              borderColor: selectedAppointment.status === 'completed' ? '#A7F3D0' : '#FDE68A',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              localStyles.statusBadgeText,
+                              { color: selectedAppointment.status === 'completed' ? '#047857' : '#B45309' },
+                            ]}
                           >
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                fontWeight: '800',
-                                color:
-                                  selectedAppointment.status === 'completed'
-                                    ? '#047857'
-                                    : selectedAppointment.status === 'cancelled'
-                                      ? '#DC2626'
-                                      : '#B45309',
-                                textTransform: 'uppercase',
-                              }}
-                            >
-                              {selectedAppointment.status}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
-                        <View>
-                          <Text style={localStyles.amountLabel}>SERVICE</Text>
-                          <Text style={[localStyles.patientNameText, { fontSize: 14, marginTop: 2 }]}>
-                            {selectedAppointment.service || 'General'}
-                          </Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={localStyles.amountLabel}>PATIENT ID</Text>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginTop: 2 }}>
-                            #{selectedAppointment.patient_id.slice(0, 8).toUpperCase()}
+                            {selectedAppointment.status.toUpperCase()}
                           </Text>
                         </View>
                       </View>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 4 }}>
+                        {selectedAppointment.service}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748B' }}>
+                        Registered dental service appointment
+                      </Text>
                     </View>
 
                     {/* Date & Time */}
@@ -1227,6 +1481,491 @@ export default function BillingTab({ doctorId, styles, startTourTrigger }: Billi
               </ScrollView>
             </SafeAreaView>
           </View>
+        </Modal>
+
+        {/* ─────────────────────────────────────────
+            EDIT DUMMY BILLING MODAL
+        ───────────────────────────────────────── */}
+        <Modal
+          visible={showEditModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => {
+            if (!savingEdit) {
+              setShowEditModal(false);
+              setEditingBilling(null);
+            }
+          }}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <View style={localStyles.modalHeader}>
+              <View>
+                <Text style={localStyles.modalTitle}>EDIT DUMMY BILLING</Text>
+                <Text style={localStyles.modalSubtitle}>
+                  {editingBilling ? `BILL #${editingBilling.id?.slice(0, 8).toUpperCase()} • ${editingBilling.patient_name}` : ''}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEditModal(false);
+                  setEditingBilling(null);
+                }}
+                disabled={savingEdit}
+                style={localStyles.modalCloseBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={18} color="#047857" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+              {/* Original Amount Input */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Original Amount (₱)</Text>
+                <View style={localStyles.inputWrapper}>
+                  <Text style={localStyles.inputPrefix}>₱</Text>
+                  <TextInput
+                    style={localStyles.formInputWithPrefix}
+                    keyboardType="numeric"
+                    value={editAmount}
+                    onChangeText={handleEditAmountChange}
+                    placeholder="0.00"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <Text style={localStyles.helperText}>
+                  Formatted: {formatCurrency(editAmount)}
+                </Text>
+              </View>
+
+              {/* Discount Type Selector */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Discount Type</Text>
+                <View style={localStyles.pillSelectorRow}>
+                  {[
+                    { id: 'none', label: 'None (0%)' },
+                    { id: 'pwd', label: 'PWD (20%)' },
+                    { id: 'senior', label: 'Senior (20%)' },
+                    { id: 'custom', label: 'Custom' },
+                  ].map((dt) => {
+                    const isSelected = editDiscountType === dt.id;
+                    return (
+                      <TouchableOpacity
+                        key={dt.id}
+                        style={[
+                          localStyles.pillOption,
+                          isSelected && localStyles.pillOptionActive,
+                        ]}
+                        onPress={() => handleEditDiscountTypeChange(dt.id)}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pillOptionText,
+                            isSelected && localStyles.pillOptionTextActive,
+                          ]}
+                        >
+                          {dt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Discount Amount Input */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Discount Amount (₱)</Text>
+                <View style={localStyles.inputWrapper}>
+                  <Text style={localStyles.inputPrefix}>₱</Text>
+                  <TextInput
+                    style={localStyles.formInputWithPrefix}
+                    keyboardType="numeric"
+                    value={editDiscountAmount}
+                    onChangeText={setEditDiscountAmount}
+                    editable={editDiscountType === 'custom' || editDiscountType === 'insurance'}
+                    placeholder="0.00"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <Text style={localStyles.helperText}>
+                  Discount: -{formatCurrency(editDiscountAmount)}
+                </Text>
+              </View>
+
+              {/* Live Calculation Preview Card */}
+              <View style={localStyles.calcPreviewCard}>
+                <Text style={localStyles.calcPreviewTitle}>SETTLEMENT BREAKDOWN</Text>
+                <View style={localStyles.calcRow}>
+                  <Text style={localStyles.calcLabel}>Subtotal</Text>
+                  <Text style={localStyles.calcValue}>{formatCurrency(editAmount)}</Text>
+                </View>
+                <View style={localStyles.calcRow}>
+                  <Text style={localStyles.calcLabel}>Discount ({editDiscountType.toUpperCase()})</Text>
+                  <Text style={[localStyles.calcValue, { color: '#DC2626' }]}>
+                    -{formatCurrency(editDiscountAmount)}
+                  </Text>
+                </View>
+                <View style={localStyles.calcDivider} />
+                <View style={localStyles.calcRow}>
+                  <Text style={[localStyles.calcLabel, { fontWeight: '800', color: '#0F172A' }]}>Final Settled Amount</Text>
+                  <Text style={[localStyles.calcValue, { fontWeight: '900', color: '#047857', fontSize: 16 }]}>
+                    {formatCurrency(
+                      Math.max(0, (parseFloat(editAmount) || 0) - (parseFloat(editDiscountAmount) || 0))
+                    )}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Payment Status Selector */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Payment Status</Text>
+                <View style={localStyles.pillSelectorRow}>
+                  {[
+                    { id: 'not_paid', label: 'Unpaid' },
+                    { id: 'paid', label: 'Paid' },
+                    { id: 'overdue', label: 'Overdue' },
+                    { id: 'cancelled', label: 'Cancelled' },
+                  ].map((st) => {
+                    const isSelected = editPaymentStatus === st.id;
+                    return (
+                      <TouchableOpacity
+                        key={st.id}
+                        style={[
+                          localStyles.pillOption,
+                          isSelected && localStyles.pillOptionActive,
+                        ]}
+                        onPress={() => setEditPaymentStatus(st.id)}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pillOptionText,
+                            isSelected && localStyles.pillOptionTextActive,
+                          ]}
+                        >
+                          {st.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Payment Method Selector */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Payment Method</Text>
+                <View style={localStyles.pillSelectorRow}>
+                  {[
+                    { id: 'cash', label: 'Cash' },
+                    { id: 'gcash', label: 'GCash' },
+                    { id: 'card', label: 'Card' },
+                    { id: 'paymaya', label: 'Maya' },
+                    { id: 'bank-transfer', label: 'Bank' },
+                  ].map((m) => {
+                    const isSelected = editPaymentMethod === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[
+                          localStyles.pillOption,
+                          isSelected && localStyles.pillOptionActive,
+                        ]}
+                        onPress={() => setEditPaymentMethod(m.id)}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pillOptionText,
+                            isSelected && localStyles.pillOptionTextActive,
+                          ]}
+                        >
+                          {m.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={{ marginTop: 24, gap: 10 }}>
+                <TouchableOpacity
+                  style={[localStyles.modalPrimaryBtn, savingEdit && { opacity: 0.7 }]}
+                  onPress={handleSaveEditDummyBilling}
+                  disabled={savingEdit}
+                  activeOpacity={0.8}
+                >
+                  {savingEdit ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={localStyles.modalPrimaryBtnText}>Save Billing Changes</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={localStyles.modalSecondaryBtn}
+                  onPress={() => {
+                    setShowEditModal(false);
+                    setEditingBilling(null);
+                  }}
+                  disabled={savingEdit}
+                  activeOpacity={0.8}
+                >
+                  <Text style={localStyles.modalSecondaryBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* ─────────────────────────────────────────
+            CREATE DUMMY INVOICE MODAL
+        ───────────────────────────────────────── */}
+        <Modal
+          visible={showCreateModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => {
+            if (!savingCreate) {
+              setShowCreateModal(false);
+            }
+          }}
+        >
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <View style={localStyles.modalHeader}>
+              <View>
+                <Text style={localStyles.modalTitle}>CREATE DUMMY INVOICE</Text>
+                <Text style={localStyles.modalSubtitle}>Issue a ledger invoice for a walk-in patient</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCreateModal(false)}
+                disabled={savingCreate}
+                style={localStyles.modalCloseBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={18} color="#047857" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+              {/* Patient Selection */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Select Walk-in / Dummy Patient</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {dummyPatientsList.map((dp) => {
+                      const isSelected = createPatientId === dp.id;
+                      return (
+                        <TouchableOpacity
+                          key={dp.id}
+                          style={[
+                            localStyles.patientPill,
+                            isSelected && localStyles.patientPillActive,
+                          ]}
+                          onPress={() => setCreatePatientId(dp.id)}
+                        >
+                          <Text
+                            style={[
+                              localStyles.patientPillText,
+                              isSelected && localStyles.patientPillTextActive,
+                            ]}
+                          >
+                            {dp.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* Original Amount Input */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Original Amount (₱)</Text>
+                <View style={localStyles.inputWrapper}>
+                  <Text style={localStyles.inputPrefix}>₱</Text>
+                  <TextInput
+                    style={localStyles.formInputWithPrefix}
+                    keyboardType="numeric"
+                    value={createAmount}
+                    onChangeText={handleCreateAmountChange}
+                    placeholder="0.00"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <Text style={localStyles.helperText}>
+                  Formatted: {formatCurrency(createAmount)}
+                </Text>
+              </View>
+
+              {/* Discount Type Selector */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Discount Type</Text>
+                <View style={localStyles.pillSelectorRow}>
+                  {[
+                    { id: 'none', label: 'None (0%)' },
+                    { id: 'pwd', label: 'PWD (20%)' },
+                    { id: 'senior', label: 'Senior (20%)' },
+                    { id: 'custom', label: 'Custom' },
+                  ].map((dt) => {
+                    const isSelected = createDiscountType === dt.id;
+                    return (
+                      <TouchableOpacity
+                        key={dt.id}
+                        style={[
+                          localStyles.pillOption,
+                          isSelected && localStyles.pillOptionActive,
+                        ]}
+                        onPress={() => handleCreateDiscountTypeChange(dt.id)}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pillOptionText,
+                            isSelected && localStyles.pillOptionTextActive,
+                          ]}
+                        >
+                          {dt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Discount Amount Input */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Discount Amount (₱)</Text>
+                <View style={localStyles.inputWrapper}>
+                  <Text style={localStyles.inputPrefix}>₱</Text>
+                  <TextInput
+                    style={localStyles.formInputWithPrefix}
+                    keyboardType="numeric"
+                    value={createDiscountAmount}
+                    onChangeText={setCreateDiscountAmount}
+                    editable={createDiscountType === 'custom' || createDiscountType === 'insurance'}
+                    placeholder="0.00"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <Text style={localStyles.helperText}>
+                  Discount: -{formatCurrency(createDiscountAmount)}
+                </Text>
+              </View>
+
+              {/* Live Preview Card */}
+              <View style={localStyles.calcPreviewCard}>
+                <Text style={localStyles.calcPreviewTitle}>SETTLEMENT BREAKDOWN</Text>
+                <View style={localStyles.calcRow}>
+                  <Text style={localStyles.calcLabel}>Subtotal</Text>
+                  <Text style={localStyles.calcValue}>{formatCurrency(createAmount)}</Text>
+                </View>
+                <View style={localStyles.calcRow}>
+                  <Text style={localStyles.calcLabel}>Discount ({createDiscountType.toUpperCase()})</Text>
+                  <Text style={[localStyles.calcValue, { color: '#DC2626' }]}>
+                    -{formatCurrency(createDiscountAmount)}
+                  </Text>
+                </View>
+                <View style={localStyles.calcDivider} />
+                <View style={localStyles.calcRow}>
+                  <Text style={[localStyles.calcLabel, { fontWeight: '800', color: '#0F172A' }]}>Final Settled Amount</Text>
+                  <Text style={[localStyles.calcValue, { fontWeight: '900', color: '#047857', fontSize: 16 }]}>
+                    {formatCurrency(
+                      Math.max(0, (parseFloat(createAmount) || 0) - (parseFloat(createDiscountAmount) || 0))
+                    )}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Payment Status Selector */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Payment Status</Text>
+                <View style={localStyles.pillSelectorRow}>
+                  {[
+                    { id: 'not_paid', label: 'Unpaid' },
+                    { id: 'paid', label: 'Paid' },
+                  ].map((st) => {
+                    const isSelected = createPaymentStatus === st.id;
+                    return (
+                      <TouchableOpacity
+                        key={st.id}
+                        style={[
+                          localStyles.pillOption,
+                          isSelected && localStyles.pillOptionActive,
+                        ]}
+                        onPress={() => setCreatePaymentStatus(st.id)}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pillOptionText,
+                            isSelected && localStyles.pillOptionTextActive,
+                          ]}
+                        >
+                          {st.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Payment Method Selector */}
+              <View style={localStyles.formGroup}>
+                <Text style={localStyles.formLabel}>Payment Method</Text>
+                <View style={localStyles.pillSelectorRow}>
+                  {[
+                    { id: 'cash', label: 'Cash' },
+                    { id: 'gcash', label: 'GCash' },
+                    { id: 'card', label: 'Card' },
+                    { id: 'paymaya', label: 'Maya' },
+                  ].map((m) => {
+                    const isSelected = createPaymentMethod === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[
+                          localStyles.pillOption,
+                          isSelected && localStyles.pillOptionActive,
+                        ]}
+                        onPress={() => setCreatePaymentMethod(m.id)}
+                      >
+                        <Text
+                          style={[
+                            localStyles.pillOptionText,
+                            isSelected && localStyles.pillOptionTextActive,
+                          ]}
+                        >
+                          {m.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={{ marginTop: 24, gap: 10 }}>
+                <TouchableOpacity
+                  style={[localStyles.modalPrimaryBtn, savingCreate && { opacity: 0.7 }]}
+                  onPress={handleSaveCreateDummyBilling}
+                  disabled={savingCreate}
+                  activeOpacity={0.8}
+                >
+                  {savingCreate ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={localStyles.modalPrimaryBtnText}>Generate Invoice</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={localStyles.modalSecondaryBtn}
+                  onPress={() => setShowCreateModal(false)}
+                  disabled={savingCreate}
+                  activeOpacity={0.8}
+                >
+                  <Text style={localStyles.modalSecondaryBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
         </Modal>
 
         {/* PayMongo Doctor Onboarding & Guidelines Modal */}
@@ -1291,9 +2030,27 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  createInvoiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 2,
+    borderBottomColor: '#022C22',
+  },
+  createInvoiceBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
   skeuoActionBtn: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 6,
     backgroundColor: '#ECFDF5',
     borderWidth: 1.5,
@@ -1391,41 +2148,41 @@ const localStyles = StyleSheet.create({
   cardSectionHeader: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.6,
+    color: '#047857',
+    letterSpacing: 0.8,
   },
   showAllBtn: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   showAllBtnText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#047857',
+    textDecorationLine: 'underline',
   },
   patientSelectorBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    padding: 10,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   patientSelectorTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#0F172A',
   },
   patientSelectorSubtitle: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
   selectorChevronBox: {
     width: 28,
@@ -1444,25 +2201,23 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 6,
     borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
     borderLeftColor: '#E2E8F0',
     borderRightColor: '#CBD5E1',
     borderBottomColor: '#CBD5E1',
     padding: 10,
   },
   summaryLabel: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '800',
     color: '#64748B',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: -0.3,
   },
-
-  // Filter Pill
   filterActivePill: {
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 8,
@@ -1589,6 +2344,20 @@ const localStyles = StyleSheet.create({
     color: '#475569',
     letterSpacing: 0.5,
   },
+  dummyBadgePill: {
+    backgroundColor: '#DCFCE7',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  dummyBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 0.5,
+  },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2.5,
@@ -1605,6 +2374,11 @@ const localStyles = StyleSheet.create({
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.2,
+  },
+  patientSubEmailText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
   amountBox: {
     flexDirection: 'row',
@@ -1624,7 +2398,7 @@ const localStyles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   amountValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
     marginTop: 2,
@@ -1644,6 +2418,29 @@ const localStyles = StyleSheet.create({
     color: '#047857',
     fontWeight: '800',
     textDecorationLine: 'underline',
+  },
+  cardActionRow: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  editCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  editCardBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
   },
 
   // Pagination
@@ -1826,7 +2623,7 @@ const localStyles = StyleSheet.create({
     maxHeight: '85%',
   },
   modalPrimaryBtn: {
-    marginTop: 20,
+    marginTop: 10,
     backgroundColor: '#047857',
     borderRadius: 6,
     paddingVertical: 12,
@@ -1838,9 +2635,148 @@ const localStyles = StyleSheet.create({
   },
   modalPrimaryBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+  },
+  modalSecondaryBtn: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  modalSecondaryBtnText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+
+  // Form Controls in Edit/Create Modals
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#E2E8F0',
+    borderRightColor: '#CBD5E1',
+    borderBottomColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  inputPrefix: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#047857',
+    marginRight: 6,
+  },
+  formInputWithPrefix: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    padding: 0,
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#047857',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  pillSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  pillOption: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  pillOptionActive: {
+    backgroundColor: '#047857',
+    borderColor: '#064E3B',
+  },
+  pillOptionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  pillOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  calcPreviewCard: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    padding: 12,
+    marginBottom: 16,
+  },
+  calcPreviewTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  calcRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  calcLabel: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  calcValue: {
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  calcDivider: {
+    height: 1,
+    backgroundColor: '#BBF7D0',
+    marginVertical: 6,
+  },
+  patientPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  patientPillActive: {
+    backgroundColor: '#047857',
+    borderColor: '#064E3B',
+  },
+  patientPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  patientPillTextActive: {
+    color: '#FFFFFF',
   },
 });

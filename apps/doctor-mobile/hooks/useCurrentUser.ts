@@ -16,23 +16,37 @@ export function useCurrentUser(): CurrentUser | null {
       let resolvedRole = sessionUser.user_metadata?.role || "doctor";
 
       try {
-        // Authoritative doctor check: verify if doctor record exists in doctors table
+        // Check doctors table record and role FIRST (authoritative source of truth)
         const { data: doctorRecord } = await supabase
           .from("doctors")
-          .select("id")
-          .eq("user_id", sessionUser.id)
+          .select("id, role")
+          .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
           .maybeSingle();
 
-        if (doctorRecord) {
+        const doctorRole = (
+          doctorRecord?.role ||
+          (doctorRecord as any)?.ROLE ||
+          ""
+        ).toString().trim().toLowerCase();
+
+        // Check profiles table as secondary fallback
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, name")
+          .eq("id", sessionUser.id)
+          .maybeSingle();
+
+        if (doctorRole === "assistant") {
+          resolvedRole = "assistant";
+        } else if (doctorRole === "doctor") {
           resolvedRole = "doctor";
-          // If auth metadata was stuck as 'patient' (e.g. from Google OAuth), synchronize it
-          if (sessionUser.user_metadata?.role !== "doctor") {
-            console.log("[useCurrentUser] Synchronizing auth user_metadata role to 'doctor'");
-            supabase.auth.updateUser({ data: { role: "doctor" } }).catch(() => {});
-          }
+        } else if (profile?.role === "assistant" || sessionUser.user_metadata?.role === "assistant") {
+          resolvedRole = "assistant";
+        } else if (profile?.role === "doctor" || doctorRecord) {
+          resolvedRole = "doctor";
         }
       } catch (err) {
-        console.warn("[useCurrentUser] Could not check doctors table:", err);
+        console.warn("[useCurrentUser] Could not check profiles or doctors table:", err);
       }
 
       setUser({

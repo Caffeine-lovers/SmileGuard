@@ -10,7 +10,7 @@ export interface CurrentUser {
   id?: string;
   name: string;
   email: string;
-  role: "patient" | "doctor";
+  role: "patient" | "doctor" | "assistant";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
   gender?: string;
@@ -44,6 +44,8 @@ export interface Appointment {
   appointment_time: string; // HH:MM
   status: "pending" | "PENDING" | "scheduled" | "completed" | "cancelled" | "no-show" | "declined";
   notes?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -81,6 +83,8 @@ export interface MedicalIntakeData {
   smoking_status?: string;
   pregnancy_status?: string;
   notes?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
 }
 
 export type medical_intake = MedicalIntakeData;
@@ -104,6 +108,7 @@ export interface Doctor {
   user_id: string;
   license_number: string;
   specialization: string;
+  role?: "doctor" | "assistant";
   bio?: string;
   first_name?: string;
   middle_name?: string;
@@ -274,6 +279,8 @@ export interface Treatment {
   description?: string;
   status: "pending" | "in-progress" | "completed";
   notes?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

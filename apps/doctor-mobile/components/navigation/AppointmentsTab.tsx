@@ -33,7 +33,9 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  CalendarPlus,
 } from "lucide-react-native";
+import AddAppointmentModal from "../appointments/AddAppointmentModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
@@ -52,6 +54,7 @@ interface AppointmentsTabProps {
   onUpdateAppointmentStatus: (appointmentId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no-show', shouldRemoveFromDashboard?: boolean) => Promise<void>;
   styles: any;
   doctorId?: string;
+  userRole?: 'doctor' | 'assistant' | string;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
   startTourTrigger?: number;
 }
@@ -61,6 +64,7 @@ export default function AppointmentsTab({
   onUpdateAppointmentStatus,
   styles,
   doctorId: providedDoctorId,
+  userRole = 'doctor',
   onAppointmentStatusUpdated,
   startTourTrigger,
 }: AppointmentsTabProps) {
@@ -92,6 +96,7 @@ export default function AppointmentsTab({
   const [fetchedAppointments, setFetchedAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [allMonthAppointments, setAllMonthAppointments] = useState<AppointmentWithAccountType[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [showAddAppointmentModal, setShowAddAppointmentModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [doctorId, setDoctorId] = useState<string>('');
   const [clinicSchedule, setClinicSchedule] = useState<any>(null);
@@ -858,28 +863,17 @@ export default function AppointmentsTab({
           </View>
 
           <View style={localStyles.headerActionsRow}>
-            <TouchableOpacity
-              onPress={handleRefreshAppointments}
-              disabled={loading}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Refresh Appointments"
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#047857" />
-              ) : (
-                <RefreshCw size={17} color="#047857" />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleStartTour}
-              style={localStyles.skeuoActionBtn}
-              activeOpacity={0.7}
-              accessibilityLabel="Appointments Walkthrough"
-            >
-              <Sparkles size={17} color="#047857" />
-            </TouchableOpacity>
+            {userRole === "assistant" && (
+              <TouchableOpacity
+                onPress={() => setShowAddAppointmentModal(true)}
+                style={localStyles.addAppointmentHeaderBtn}
+                activeOpacity={0.8}
+                accessibilityLabel="Add Appointment"
+              >
+                <CalendarPlus size={14} color="#FFFFFF" strokeWidth={2.2} style={{ marginRight: 5 }} />
+                <Text style={localStyles.addAppointmentHeaderBtnText}>Add Appointment</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -1020,7 +1014,11 @@ export default function AppointmentsTab({
                 const isUnavailable = isUnavailableDay(date);
                 const blockoutEntry = blockoutDates.find(b => b.blockout_date === dateStr && b.is_blocked);
                 const isBlockedSpecific = !!blockoutEntry;
-                const isFull = appointmentCount >= 3;
+                // Only 3 scheduled appointments count to blockout that date (FULL)
+                const scheduledAppointmentsCount = allMonthAppointments.filter(
+                  (apt: any) => apt.date === dateStr && (apt.status || '').toLowerCase() === 'scheduled'
+                ).length;
+                const isFull = scheduledAppointmentsCount >= 3;
 
                 return (
                   <View key={day} style={{ width: '14.28%', height: 52, padding: 1.5 }}>
@@ -1087,8 +1085,22 @@ export default function AppointmentsTab({
               <View style={localStyles.dateSectionHeader}>
                 <Calendar size={14} color="#047857" style={{ marginRight: 6 }} />
                 <Text style={localStyles.dateSectionHeaderText}>
-                  {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  {(() => {
+                    const [yr, mo, dy] = selectedDate.split("-").map(Number);
+                    if (yr && mo && dy) {
+                      const dObj = new Date(yr, mo - 1, dy);
+                      return dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                    }
+                    return selectedDate;
+                  })()}
                 </Text>
+                {allMonthAppointments.filter(apt => apt.date === selectedDate && (apt.status || '').toLowerCase() === 'scheduled').length >= 3 && (
+                  <View style={[localStyles.dateSectionBadge, { backgroundColor: '#FEE2E2', borderColor: '#FECACA', marginRight: 6 }]}>
+                    <Text style={[localStyles.dateSectionBadgeText, { color: '#DC2626' }]}>
+                      FULL (3/3)
+                    </Text>
+                  </View>
+                )}
                 <View style={localStyles.dateSectionBadge}>
                   <Text style={localStyles.dateSectionBadgeText}>
                     {filteredAppointments.length} {filteredAppointments.length === 1 ? 'Booking' : 'Bookings'}
@@ -1156,16 +1168,23 @@ export default function AppointmentsTab({
                       <View style={{ flex: 1, marginRight: 8 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                           <Text style={localStyles.patientName} numberOfLines={1}>{appointment.name}</Text>
-                          {/* Status Badge */}
-                          <View
-                            style={[
-                              localStyles.statusBadge,
-                              { backgroundColor: statusBgColor, borderColor: statusColor },
-                            ]}
-                          >
-                            <Text style={[localStyles.statusBadgeText, { color: statusColor }]}>
-                              {statusLabel.toUpperCase()}
-                            </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {appointment.rescheduled_at ? (
+                              <View style={localStyles.rescheduledTag}>
+                                <Text style={localStyles.rescheduledTagText}>Rescheduled</Text>
+                              </View>
+                            ) : null}
+                            {/* Status Badge */}
+                            <View
+                              style={[
+                                localStyles.statusBadge,
+                                { backgroundColor: statusBgColor, borderColor: statusColor },
+                              ]}
+                            >
+                              <Text style={[localStyles.statusBadgeText, { color: statusColor }]}>
+                                {statusLabel.toUpperCase()}
+                              </Text>
+                            </View>
                           </View>
                         </View>
 
@@ -1212,6 +1231,7 @@ export default function AppointmentsTab({
           visible={showEditModal}
           appointment={editingAppointment}
           doctorId={doctorId}
+          userRole={userRole}
           onClose={() => {
             setShowEditModal(false);
             setEditingAppointment(null);
@@ -1220,11 +1240,41 @@ export default function AppointmentsTab({
           onAppointmentStatusUpdated={onAppointmentStatusUpdated}
         />
       )}
+
+      {/* Add Appointment Modal (Assistant Only) */}
+      {userRole === "assistant" && (
+        <AddAppointmentModal
+          visible={showAddAppointmentModal}
+          onClose={() => setShowAddAppointmentModal(false)}
+          onAppointmentAdded={async () => {
+            await handleRefreshAppointments();
+          }}
+          initialDate={selectedDate}
+          defaultDoctorId={doctorId}
+          clinicSchedule={clinicSchedule}
+          blockoutDates={blockoutDates}
+          existingAppointments={fetchedAppointments}
+        />
+      )}
     </View>
   );
 }
 
 const localStyles = StyleSheet.create({
+  rescheduledTag: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#7DD3FC',
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rescheduledTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0369A1',
+    letterSpacing: 0.3,
+  },
   topHeader: {
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -1263,6 +1313,25 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  addAppointmentHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  addAppointmentHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
   skeuoActionBtn: {
     width: 38,

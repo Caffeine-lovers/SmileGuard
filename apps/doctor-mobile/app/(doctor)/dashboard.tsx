@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@smileguard/supabase-client";
 import DoctorDashboard from "../../components/dashboard/DoctorDashboard";
+import AssistantDashboard from "../../components/dashboard/AssistantDashboard";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { clearPushTokenFromProfile } from "../../lib/pushNotificationService";
 
@@ -36,6 +37,17 @@ export default function DoctorDashboardPage() {
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
         <ActivityIndicator size="large" color="#10B981" />
       </View>
+    );
+  }
+
+  // Branch explicitly for Assistant role
+  if (user.role === "assistant") {
+    return (
+      <AssistantDashboard
+        user={user}
+        onLogout={handleLogout}
+        promptAppointmentId={searchParams.promptAppointmentId}
+      />
     );
   }
 

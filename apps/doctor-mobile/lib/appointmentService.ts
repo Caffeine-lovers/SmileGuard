@@ -41,6 +41,8 @@ export interface DoctorAppointment {
   status: 'pending' | 'PENDING' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
   notes?: string;
   doctor_note?: string;
+  rescheduled_by?: string | null;
+  rescheduled_at?: string | null;
   created_at?: string;
   updated_at?: string;
   patient_name?: string; // Patient name from profiles table
@@ -152,6 +154,18 @@ export async function getDoctorAppointments(
       medicalIntakeMap.set(intake.patient_id, intake);
     });
 
+    // Fetch dummy patients
+    let dummyPatientsData: any[] = [];
+    try {
+      const { data: dData } = await supabase.from('dummy_patients').select('*');
+      if (dData) dummyPatientsData = dData;
+    } catch {}
+
+    const dummyPatientMap = new Map();
+    dummyPatientsData.forEach(d => {
+      dummyPatientMap.set(d.id, d);
+    });
+
     // Step 5: Don't filter by current user's dentist_id - the RPC already filters to show
     // all appointments with dentist_id IS NOT NULL
     const filteredAppointments = appointmentsData as any[];
@@ -162,14 +176,44 @@ export async function getDoctorAppointments(
       let patientAvatar = null;
       let profile = null;
 
-      if (apt.patient_id) {
-        // Fetch from profiles
+      if (apt.dummy_patient_id && dummyPatientMap.has(apt.dummy_patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
+      } else if (apt.patient_id && profileMap.has(apt.patient_id)) {
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      } else if (apt.patient_id && dummyPatientMap.has(apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
       }
 
-      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      let medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      if (!medicalIntake && (apt.dummy_patient_id || apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id || apt.patient_id);
+        if (dummy) {
+          medicalIntake = {
+            allergies: dummy.allergies || 'None',
+            phone: dummy.phone || '',
+            dateOfBirth: dummy.date_of_birth || '',
+            gender: dummy.gender || '',
+          };
+        }
+      }
 
       return {
         ...apt,
@@ -288,19 +332,61 @@ async function fallbackGetDoctorAppointments(
       medicalIntakeMap.set(intake.patient_id, intake);
     });
 
+    let dummyPatientsData: any[] = [];
+    try {
+      const { data: dData } = await supabase.from('dummy_patients').select('*');
+      if (dData) dummyPatientsData = dData;
+    } catch {}
+
+    const dummyPatientMap = new Map();
+    dummyPatientsData.forEach(d => {
+      dummyPatientMap.set(d.id, d);
+    });
+
     // Transform and return
     return allAppointments.map((apt: any) => {
       let patientName = 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
-      if (apt.patient_id) {
+      if (apt.dummy_patient_id && dummyPatientMap.has(apt.dummy_patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
+      } else if (apt.patient_id && profileMap.has(apt.patient_id)) {
         profile = profileMap.get(apt.patient_id);
         patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
+      } else if (apt.patient_id && dummyPatientMap.has(apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.patient_id);
+        patientName = dummy.name;
+        profile = {
+          id: dummy.id,
+          name: dummy.name,
+          email: dummy.email || '',
+          phone_number: dummy.phone || '',
+          dummy: true,
+        };
       }
 
-      const medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      let medicalIntake = medicalIntakeMap.get(apt.patient_id);
+      if (!medicalIntake && (apt.dummy_patient_id || apt.patient_id)) {
+        const dummy = dummyPatientMap.get(apt.dummy_patient_id || apt.patient_id);
+        if (dummy) {
+          medicalIntake = {
+            allergies: dummy.allergies || 'None',
+            phone: dummy.phone || '',
+            dateOfBirth: dummy.date_of_birth || '',
+            gender: dummy.gender || '',
+          };
+        }
+      }
 
       return {
         ...apt,
@@ -627,9 +713,170 @@ export async function updateDoctorAppointmentStatus(
 }
 
 
+
+/**
+ * Reschedule an appointment by updating its appointment_date, appointment_time, notes, and reschedule metadata.
+ * Can be performed by an assistant or a doctor.
+ */
+export async function rescheduleAppointment(
+  appointmentId: string,
+  newDate: string,
+  newTime?: string,
+  notes?: string,
+  rescheduledBy: 'assistant' | 'doctor' | string = 'assistant'
+): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log('🔄 [rescheduleAppointment] Rescheduling:', {
+      appointmentId,
+      newDate,
+      newTime,
+      rescheduledBy,
+      notes,
+    });
+
+    // 1. Try secure RPC first
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('reschedule_appointment', {
+        p_appointment_id: appointmentId,
+        p_new_date: newDate,
+        p_new_time: newTime || null,
+        p_rescheduled_by: rescheduledBy,
+        p_notes: notes || null,
+      });
+
+      if (!rpcError) {
+        const result = Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : rpcData;
+        if (result?.success) {
+          return { success: true, message: result.message || 'Appointment rescheduled successfully.' };
+        }
+      } else {
+        console.warn('⚠️ [rescheduleAppointment] RPC warning, falling back to direct update:', rpcError.message);
+      }
+    } catch (rpcEx) {
+      console.warn('⚠️ [rescheduleAppointment] RPC exception, falling back to direct update:', rpcEx);
+    }
+
+    // 2. Direct fallback update
+    const updatePayload: Record<string, any> = {
+      appointment_date: newDate,
+      rescheduled_by: rescheduledBy,
+      rescheduled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'scheduled',
+    };
+
+    if (newTime && newTime.trim()) {
+      updatePayload.appointment_time = newTime.trim();
+    }
+
+    if (notes !== undefined && notes !== null) {
+      updatePayload.notes = notes.trim();
+    }
+
+    const { error: directError } = await supabase
+      .from('appointments')
+      .update(updatePayload)
+      .eq('id', appointmentId);
+
+    if (directError) {
+      console.error('❌ [rescheduleAppointment] Direct update error:', directError);
+      return { success: false, message: directError.message || 'Failed to reschedule appointment.' };
+    }
+
+    return { success: true, message: 'Appointment rescheduled successfully.' };
+  } catch (err) {
+    console.error('❌ [rescheduleAppointment] Exception:', err);
+    return { success: false, message: err instanceof Error ? err.message : 'Failed to reschedule appointment.' };
+  }
+}
+
 // ─────────────────────────────────────────
 // GET APPOINTMENT REQUESTS (PENDING APPROVAL)
 // ─────────────────────────────────────────
+/**
+ * Confirm an appointment reschedule request.
+ * Sets status to 'scheduled' and changes rescheduled_by to 'assistant' (or 'doctor').
+ */
+export async function confirmAppointmentReschedule(
+  appointmentId: string,
+  confirmedBy: 'assistant' | 'doctor' | string = 'assistant',
+  dentistId?: string | null
+): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log('🔄 [confirmAppointmentReschedule] Confirming for:', { appointmentId, confirmedBy });
+
+    // 1. Try dedicated confirm_appointment_reschedule RPC
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('confirm_appointment_reschedule', {
+        p_appointment_id: appointmentId,
+        p_confirmed_by: confirmedBy,
+      });
+
+      if (!rpcError) {
+        const result = Array.isArray(rpcData) && rpcData.length > 0 ? rpcData[0] : rpcData;
+        if (result?.success) {
+          console.log('✅ [confirmAppointmentReschedule] RPC confirmed successfully');
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ [confirmAppointmentReschedule] RPC confirm_appointment_reschedule warning:', e);
+    }
+
+    // 2. Try reschedule_appointment RPC
+    try {
+      const { data: aptData } = await supabase
+        .from('appointments')
+        .select('appointment_date, appointment_time, notes')
+        .eq('id', appointmentId)
+        .maybeSingle();
+
+      if (aptData) {
+        await supabase.rpc('reschedule_appointment', {
+          p_appointment_id: appointmentId,
+          p_new_date: aptData.appointment_date,
+          p_new_time: aptData.appointment_time || null,
+          p_rescheduled_by: confirmedBy,
+          p_notes: aptData.notes || null,
+        });
+      }
+    } catch (e) {
+      console.warn('⚠️ [confirmAppointmentReschedule] reschedule_appointment RPC warning:', e);
+    }
+
+    // 3. Fallback direct update to guarantee rescheduled_by is 'assistant'
+    const { error: directError } = await supabase
+      .from('appointments')
+      .update({
+        status: 'scheduled',
+        rescheduled_by: confirmedBy,
+        rescheduled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', appointmentId);
+
+    if (directError) {
+      console.warn('⚠️ [confirmAppointmentReschedule] Direct update notice:', directError.message);
+    }
+
+    // 4. Update status via updateDoctorAppointmentStatus to trigger doctor assignment & alerts
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    await updateDoctorAppointmentStatus(
+      appointmentId,
+      'scheduled',
+      authUser?.id || '',
+      {
+        dentist_id: dentistId || undefined,
+        doctor_note: `Reschedule confirmed by clinic ${confirmedBy}`,
+      }
+    );
+
+    return { success: true, message: 'Reschedule confirmed successfully.' };
+  } catch (err: any) {
+    console.error('❌ [confirmAppointmentReschedule] Exception:', err);
+    return { success: false, message: err?.message || 'Failed to confirm reschedule' };
+  }
+}
+
 export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
   try {
     // Requests = status 'pending' (migration 032) plus legacy rows with no dentist assigned.
@@ -826,5 +1073,70 @@ export async function getAppointmentById(
   } catch (err) {
     console.error('[getAppointmentById] Exception fetching appointment:', err);
     return null;
+  }
+}
+
+
+// ─────────────────────────────────────────
+// CREATE DIRECT APPOINTMENT (Assistant / Clinic Booking)
+// ─────────────────────────────────────────
+export interface CreateDirectAppointmentInput {
+  patient_id: string;
+  is_dummy?: boolean;
+  dentist_id?: string | null;
+  service: string;
+  appointment_date: string;
+  appointment_time: string;
+  notes?: string;
+  doctor_note?: string;
+  status?: 'scheduled' | 'pending';
+}
+
+export async function createDirectAppointment(
+  input: CreateDirectAppointmentInput
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const payload: any = {
+      dentist_id: input.dentist_id || null,
+      service: input.service || 'General',
+      appointment_date: input.appointment_date,
+      appointment_time: input.appointment_time,
+      status: input.status || 'scheduled',
+      notes: input.notes || '',
+      doctor_note: input.doctor_note || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.is_dummy) {
+      payload.dummy_patient_id = input.patient_id;
+      payload.patient_id = null;
+    } else {
+      payload.patient_id = input.patient_id;
+    }
+
+    let { data, error } = await supabase
+      .from('appointments')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error && (error.message?.includes('dummy_patient_id') || error.message?.includes('null value in column'))) {
+      delete payload.dummy_patient_id;
+      payload.patient_id = input.patient_id;
+      const retry = await supabase.from('appointments').insert(payload).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('[createDirectAppointment] Error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('[createDirectAppointment] Exception:', err);
+    return { success: false, error: err.message || 'Failed to schedule appointment' };
   }
 }
