@@ -4,32 +4,34 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
-
 import { showAlert } from '@/components/ui/AppDialog';
+import { Mail, ShieldCheck, CheckCircle2, AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react';
+
 export default function SignupVerifyPage() {
   const router = useRouter();
   const {
-    verificationMethod,
     verificationEmail,
     setVerificationEmail,
-    verificationPhone,
-    setVerificationPhone,
     verificationCode,
     setVerificationCode,
-    countryCode,
-    setCountryCode,
     otpSentAt,
     setOtpSentAt,
     resendAttempts,
     setResendAttempts,
     resendCooldownEnd,
     setResendCooldownEnd,
+    setVerificationMethod,
   } = useSignup();
 
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
+
+  // Always enforce email verification
+  useEffect(() => {
+    setVerificationMethod('email');
+  }, [setVerificationMethod]);
 
   // Handle cooldown timer
   useEffect(() => {
@@ -52,46 +54,30 @@ export default function SignupVerifyPage() {
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+
+    const normalizedEmail = verificationEmail.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+    if (!normalizedEmail || !emailRegex.test(normalizedEmail)) {
+      setLocalError('Please enter a valid email address (e.g., patient@example.com).');
+      return;
+    }
+
     setVerificationLoading(true);
 
     try {
-      if (verificationMethod === 'email') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: verificationEmail,
-          options: {
-            shouldCreateUser: true,
-          },
-        });
+      setVerificationEmail(normalizedEmail);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
 
-        if (error) {
-          setLocalError(`Failed to send verification code: ${error.message}`);
-        } else {
-          setOtpSentAt(Date.now());
-        }
-      } else if (verificationMethod === 'phone') {
-        const cleanedPhone = verificationPhone.replace(/\D/g, '');
-
-        if (cleanedPhone.length < 7) {
-          setLocalError('Phone number must be at least 7 digits');
-          setVerificationLoading(false);
-          return;
-        }
-
-        const fullPhone = `${countryCode}${cleanedPhone}`;
-
-        const { error } = await supabase.auth.signInWithOtp({
-          phone: fullPhone,
-        });
-
-        if (error) {
-          if (error.message?.includes('SMS')) {
-            setLocalError('SMS not configured. Please use email instead.');
-          } else {
-            setLocalError(`Failed to send SMS code: ${error.message}`);
-          }
-        } else {
-          setOtpSentAt(Date.now());
-        }
+      if (error) {
+        setLocalError(`Failed to send verification code: ${error.message}`);
+      } else {
+        setOtpSentAt(Date.now());
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -106,40 +92,22 @@ export default function SignupVerifyPage() {
     setLocalError(null);
     setVerificationLoading(true);
 
+    const normalizedEmail = verificationEmail.trim().toLowerCase();
+
     try {
-      if (verificationMethod === 'email') {
-        const { error } = await supabase.auth.verifyOtp({
-          email: verificationEmail,
-          token: verificationCode.toString(),
-          type: 'email',
-        });
+      const { error } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: verificationCode.toString().trim(),
+        type: 'email',
+      });
 
-        if (error) {
-          setLocalError(`Verification failed: ${error.message}`);
-        } else {
-          setVerificationSuccess(true);
-          setTimeout(() => {
-            router.push('/signup/register');
-          }, 1500);
-        }
-      } else if (verificationMethod === 'phone') {
-        const cleanedPhone = verificationPhone.replace(/\D/g, '');
-        const fullPhone = `${countryCode}${cleanedPhone}`;
-
-        const { error } = await supabase.auth.verifyOtp({
-          phone: fullPhone,
-          token: verificationCode.toString(),
-          type: 'sms',
-        });
-
-        if (error) {
-          setLocalError(`Verification failed: ${error.message}`);
-        } else {
-          setVerificationSuccess(true);
-          setTimeout(() => {
-            router.push('/signup/register');
-          }, 1500);
-        }
+      if (error) {
+        setLocalError(`Verification failed: ${error.message}`);
+      } else {
+        setVerificationSuccess(true);
+        setTimeout(() => {
+          router.push('/signup/register');
+        }, 1200);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -160,7 +128,7 @@ export default function SignupVerifyPage() {
     }
 
     if (resendCooldownEnd && Date.now() < resendCooldownEnd) {
-      setLocalError(`Please wait ${cooldownRemaining} seconds before resending`);
+      setLocalError(`Please wait ${cooldownRemaining} seconds before resending.`);
       return;
     }
 
@@ -171,27 +139,25 @@ export default function SignupVerifyPage() {
       const cooldownEnd = Date.now() + 60 * 1000;
       setResendCooldownEnd(cooldownEnd);
       setLocalError('Code resent. You can resend again in 60 seconds.');
-      return;
     }
 
     setVerificationLoading(true);
 
     try {
-      if (verificationMethod === 'email') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: verificationEmail,
-          options: {
-            shouldCreateUser: true,
-          },
-        });
+      const normalizedEmail = verificationEmail.trim().toLowerCase();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
 
-        if (error) {
-          setLocalError(`Failed to resend code: ${error.message}`);
-        } else {
-          setOtpSentAt(Date.now());
-          setVerificationCode('');
-          showAlert('Verification code resent to your email!');
-        }
+      if (error) {
+        setLocalError(`Failed to resend code: ${error.message}`);
+      } else {
+        setOtpSentAt(Date.now());
+        setVerificationCode('');
+        showAlert('A new verification code has been dispatched to your email!');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred';
@@ -201,161 +167,155 @@ export default function SignupVerifyPage() {
     }
   };
 
-  // Show input form if not sent yet, otherwise show code entry
   const otpSent = otpSentAt !== null;
 
   return (
-    <div className="bg-bg-surface rounded-lg shadow-lg p-8 border border-border-card max-w-md mx-auto">
-      <h2 className="text-3xl font-bold text-center mb-2 text-text-primary">
-        {otpSent ? 'Verify Code' : 'Enter ' + (verificationMethod === 'email' ? 'Email' : 'Phone')}
-      </h2>
-      <p className="text-center text-text-secondary mb-4">
-        {otpSent
-          ? `Enter the 6 to 8-digit code sent to your ${verificationMethod}`
-          : `We'll send a verification code to your ${verificationMethod}`}
-      </p>
+    <div className="skeuo-panel p-5 sm:p-8 border-2 border-slate-300 max-w-md mx-auto">
+      <div className="text-center mb-6">
+        <span className="skeuo-badge skeuo-badge-mint mb-3 inline-flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+          Clinical Identity Verification
+        </span>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">
+          {otpSent ? 'Enter Security Code' : 'Verify Email Address'}
+        </h2>
+        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
+          {otpSent
+            ? `Enter the verification code sent to ${verificationEmail}`
+            : 'We will send a one-time security code to your email'}
+        </p>
+      </div>
 
-      {otpSent && verificationMethod === 'email' && (
-        <div className="bg-amber-50 border border-amber-300 text-amber-900 px-3.5 py-2.5 rounded-md mb-6 text-xs flex items-start gap-2">
-          <span className="font-bold shrink-0">Delivery Note:</span>
-          <span>Verification emails are frequently flagged by email providers. If you do not see the email in your inbox, please check your <strong>Spam or Junk folder</strong> and mark it as &quot;Not Spam&quot; or &quot;Looks Safe&quot;.</span>
+      {otpSent && (
+        <div className="bg-amber-50 border-2 border-amber-300 text-amber-900 p-3 rounded-sm mb-6 text-xs flex items-start gap-2 leading-relaxed">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div>
+            <strong className="block font-bold uppercase tracking-wider text-[11px] text-amber-950 mb-0.5">
+              Email Delivery & Spam Notice
+            </strong>
+            <span>
+              If you don&apos;t see the message in your Inbox within a minute, check your <strong>Spam or Junk folder</strong> and click <strong>&quot;Report Not Spam&quot;</strong> or <strong>&quot;Looks Safe&quot;</strong>.
+            </span>
+          </div>
         </div>
       )}
 
       {localError && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
-          {localError}
+        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-xs sm:text-sm font-semibold flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{localError}</span>
         </div>
       )}
 
       {verificationSuccess && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-sm mx-4 text-center space-y-4 shadow-xl">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="skeuo-panel p-8 max-w-sm w-full text-center space-y-4 border-2 border-emerald-500 bg-white">
+            <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary">Verification Confirmed</h3>
-            <p className="text-text-secondary">Your {verificationMethod} has been verified.</p>
-            <p className="text-sm text-text-secondary">Proceeding to registration...</p>
+            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Email Verified</h3>
+            <p className="text-xs text-slate-600 font-semibold">Your identity has been authenticated.</p>
+            <p className="text-xs text-emerald-700 font-bold uppercase tracking-wider animate-pulse">Loading registration intake...</p>
           </div>
         </div>
       )}
 
       {!otpSent ? (
         <form onSubmit={handleRequestOTP} className="space-y-4">
-          {verificationMethod === 'email' ? (
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">Email Address</label>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              Email Address
+            </label>
+            <div className="relative">
               <input
                 type="email"
                 value={verificationEmail}
                 onChange={(e) => setVerificationEmail(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                autoComplete="email"
+                spellCheck={false}
+                className="skeuo-input w-full text-sm pl-10"
                 placeholder="you@example.com"
               />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">Phone Number</label>
-              <div className="flex gap-2">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="px-2 py-2 border border-border-card rounded-md bg-white text-xs w-20"
-                >
-                  <option value="+63">+63 (PH)</option>
-                  <option value="+1">+1 (US)</option>
-                  <option value="+44">+44 (UK)</option>
-                  <option value="+91">+91 (IN)</option>
-                </select>
-                <input
-                  type="tel"
-                  value={verificationPhone}
-                  onChange={(e) => setVerificationPhone(e.target.value)}
-                  required
-                  className="flex-1 px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  placeholder="(555) 000-0000"
-                />
-              </div>
-            </div>
-          )}
+            <p className="text-[11px] text-slate-500 mt-1">
+              Supports Gmail, Yahoo, Outlook, iCloud, and custom clinical email domains.
+            </p>
+          </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={() => window.history.back()}
-              className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
+              onClick={() => router.push('/signup')}
+              className="skeuo-btn-secondary flex-1 py-2.5 text-xs uppercase font-bold flex items-center justify-center gap-1.5"
             >
-              Back
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
             </button>
             <button
               type="submit"
               disabled={verificationLoading}
-              className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-white font-medium py-2 px-4 rounded-lg transition"
+              className="skeuo-btn-primary flex-1 py-2.5 text-xs uppercase font-bold"
             >
-              {verificationLoading ? 'Sending...' : 'Send Code'}
+              {verificationLoading ? 'Sending Code...' : 'Send Security Code'}
             </button>
           </div>
         </form>
       ) : (
         <form onSubmit={handleVerifyCode} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">Verification Code</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 text-center">
+              Security Verification Code
+            </label>
             <input
               type="text"
               value={verificationCode}
               onChange={(e) => {
                 const val = e.target.value.replace(/\D/g, '').slice(0, 8);
                 setVerificationCode(val);
-                // Only auto-submit when fully filled to 8 digits
-                if (val.length === 8 && !verificationLoading) {
-                  setTimeout(() => {
-                    const form = e.currentTarget?.closest('form');
-                    if (form) form.requestSubmit();
-                  }, 100);
+                if (val.length >= 6 && !verificationLoading) {
+                  // Let user see 6 or 8 digits
                 }
               }}
               required
-              className={`w-full px-4 py-2 border-2 rounded-lg focus:outline-none text-center text-2xl tracking-widest font-bold transition ${
+              autoFocus
+              className={`skeuo-input w-full text-center text-2xl tracking-[0.3em] font-mono font-bold transition py-3 ${
                 verificationCode.length >= 6 && !verificationLoading
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : 'border-border-card'
+                  ? 'border-emerald-500 bg-emerald-50/50 text-emerald-800'
+                  : ''
               }`}
               placeholder="••••••••"
               maxLength={8}
               inputMode="numeric"
             />
-            <p className="text-xs text-text-secondary mt-2">
+            <p className="text-[11px] text-slate-500 text-center mt-2">
               {verificationCode.length === 0
-                ? 'Enter the 6 to 8-digit verification code'
+                ? 'Enter the 6 to 8-digit code sent to your email'
                 : verificationCode.length < 6
                   ? `${6 - verificationCode.length} more digit${6 - verificationCode.length !== 1 ? 's' : ''} needed (min 6 digits)`
-                  : verificationCode.length === 8
-                  ? '8 digits entered - verifying...'
-                  : `${verificationCode.length} digits entered (click Verify or enter 8 digits)`}
+                  : `${verificationCode.length} digits entered. Click Verify below.`}
             </p>
 
-            <div className="mt-4 pt-4 border-t border-border-card">
-              <p className="text-xs text-text-secondary mb-2">Didn't receive the code?</p>
+            <div className="mt-4 pt-3 border-t border-slate-200 text-center">
+              <p className="text-xs text-slate-500 mb-1.5">Didn&apos;t receive your code?</p>
               <button
                 type="button"
                 onClick={handleResendOTP}
                 disabled={verificationLoading || (resendCooldownEnd !== null && Date.now() < resendCooldownEnd)}
-                className="text-xs text-brand-primary hover:text-brand-primary/80 disabled:text-text-secondary underline font-medium"
+                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold uppercase tracking-wider underline disabled:text-slate-400 inline-flex items-center gap-1"
               >
-                {resendCooldownEnd && Date.now() < resendCooldownEnd
-                  ? `Resend in ${cooldownRemaining}s`
-                  : `Resend code (${resendAttempts}/2)`}
+                <RefreshCw className={`w-3 h-3 ${verificationLoading ? 'animate-spin' : ''}`} />
+                <span>
+                  {resendCooldownEnd && Date.now() < resendCooldownEnd
+                    ? `Resend in ${cooldownRemaining}s`
+                    : `Resend code (${resendAttempts}/2)`}
+                </span>
               </button>
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -364,16 +324,17 @@ export default function SignupVerifyPage() {
                 setResendAttempts(0);
                 setResendCooldownEnd(null);
               }}
-              className="flex-1 bg-border-card hover:bg-border-card/80 text-text-primary font-medium py-2 px-4 rounded-lg transition"
+              className="skeuo-btn-secondary flex-1 py-2.5 text-xs uppercase font-bold flex items-center justify-center gap-1.5"
             >
-              Back
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Change Email</span>
             </button>
             <button
               type="submit"
               disabled={verificationLoading || verificationCode.length < 6}
-              className="flex-1 bg-brand-primary hover:bg-brand-primary/90 disabled:bg-border-card text-white font-medium py-2 px-4 rounded-lg transition"
+              className="skeuo-btn-primary flex-1 py-2.5 text-xs uppercase font-bold disabled:opacity-50"
             >
-              {verificationLoading ? 'Verifying...' : 'Verify'}
+              {verificationLoading ? 'Verifying...' : 'Verify & Continue'}
             </button>
           </div>
         </form>

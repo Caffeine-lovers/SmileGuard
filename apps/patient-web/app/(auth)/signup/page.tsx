@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
-import { Mail, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default function SignupMethodPage() {
   const router = useRouter();
@@ -14,11 +14,24 @@ export default function SignupMethodPage() {
   useEffect(() => {
     purgeIncompleteRegistration();
   }, [purgeIncompleteRegistration]);
+
   const [oauthLoading, setOauthLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleChooseMethod = (method: 'email' | 'phone') => {
-    setVerificationMethod(method);
+  // Reset loading states when mounting or restored from BFCache (e.g. browser Back button)
+  useEffect(() => {
+    setOauthLoading(false);
+
+    const handlePageShow = () => {
+      setOauthLoading(false);
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
+
+  const handleStartEmailVerification = () => {
+    setVerificationMethod('email');
     setOtpSentAt(null);
     setResendAttempts(0);
     setResendCooldownEnd(null);
@@ -28,6 +41,11 @@ export default function SignupMethodPage() {
   const handleGoogleSignUp = async () => {
     setOauthLoading(true);
     setLocalError(null);
+
+    const safetyTimer = setTimeout(() => {
+      setOauthLoading(false);
+    }, 15000);
+
     try {
       setIsOAuthFlow(true);
       localStorage.setItem('oauth_signup_flow', 'true');
@@ -39,12 +57,14 @@ export default function SignupMethodPage() {
         },
       });
       if (oauthError) {
+        clearTimeout(safetyTimer);
         setLocalError(`Google sign-up failed: ${oauthError.message}`);
         setOauthLoading(false);
         setIsOAuthFlow(false);
         localStorage.removeItem('oauth_signup_flow');
       }
     } catch (err) {
+      clearTimeout(safetyTimer);
       const msg = err instanceof Error ? err.message : 'An error occurred';
       setLocalError(`Error: ${msg}`);
       setOauthLoading(false);
@@ -56,7 +76,7 @@ export default function SignupMethodPage() {
   return (
     <div className="skeuo-panel p-5 sm:p-8 border-2 border-slate-300 max-w-md mx-auto">
       <div className="text-center mb-6">
-        <span className="skeuo-badge skeuo-badge-mint mb-3">
+        <span className="skeuo-badge skeuo-badge-mint mb-3 inline-flex items-center gap-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
           Patient Intake
         </span>
@@ -64,7 +84,7 @@ export default function SignupMethodPage() {
           Create Patient Account
         </h2>
         <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
-          Select verification channel for clinical identity
+          Access your digital health chart & appointments
         </p>
       </div>
 
@@ -79,9 +99,9 @@ export default function SignupMethodPage() {
         type="button"
         onClick={handleGoogleSignUp}
         disabled={oauthLoading}
-        className="skeuo-btn-secondary w-full py-2.5 px-4 mb-5 text-sm"
+        className="skeuo-btn-secondary w-full py-2.5 px-4 mb-5 text-sm flex items-center justify-center gap-2"
       >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
           <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
           <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
           <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
@@ -93,27 +113,18 @@ export default function SignupMethodPage() {
       {/* Divider */}
       <div className="flex items-center gap-3 mb-6">
         <div className="flex-1 h-px bg-slate-300"></div>
-        <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">or verify directly</span>
+        <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">or verify with email</span>
         <div className="flex-1 h-px bg-slate-300"></div>
       </div>
 
-      <div className="space-y-3">
+      <div>
         <button
           type="button"
-          onClick={() => handleChooseMethod('email')}
-          className="skeuo-btn-primary w-full py-3 px-4 text-sm"
+          onClick={handleStartEmailVerification}
+          className="skeuo-btn-primary w-full py-3 px-4 text-sm flex items-center justify-center gap-2"
         >
-          <Mail className="w-4 h-4" />
-          <span>Verify with Email Address</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleChooseMethod('phone')}
-          className="skeuo-btn-secondary w-full py-3 px-4 text-sm"
-        >
-          <Phone className="w-4 h-4 text-slate-700" />
-          <span>Verify with Mobile Number</span>
+          <Mail className="w-4 h-4 shrink-0" />
+          <span>Register with Email Address</span>
         </button>
       </div>
 

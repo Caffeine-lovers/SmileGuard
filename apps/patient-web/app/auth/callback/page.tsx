@@ -108,22 +108,40 @@ export default function AuthCallbackPage() {
         addDebug('Callback page loaded');
         addDebug(`URL: ${window.location.href}`);
 
-        // Check for error in URL search params
+        // Check for error or recovery destination in URL search params & hash
         const params = new URLSearchParams(window.location.search);
-        const errorCode = params.get('error');
-        const errorDescription = params.get('error_description');
+        const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+        const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.substring(1) : '');
+
+        const errorCode = params.get('error') || hashParams.get('error');
+        const errorDescription = params.get('error_description') || hashParams.get('error_description');
+
+        const next = params.get('next') || hashParams.get('next');
+        const type = params.get('type') || hashParams.get('type');
+        const isPasswordRecovery = next === '/reset-password' || type === 'recovery';
 
         if (errorCode) {
-          addDebug(`OAuth error detected: ${errorCode}`);
+          addDebug(`OAuth/Auth error detected: ${errorCode}`);
           setError(`Authentication failed: ${errorDescription || errorCode}`);
           setMessage('Authentication failed. Redirecting to login...');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          router.push('/login');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          window.history.replaceState(null, '', '/login');
+          router.replace('/login');
           return;
         }
 
-        // Wait a short delay for Supabase client to parse URL hash session
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Check for PKCE ?code= param in URL and exchange for session
+        const code = params.get('code');
+        if (code) {
+          addDebug('Exchanging PKCE authorization code for session...');
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            addDebug(`Code exchange error: ${exchangeError.message}`);
+          }
+        }
+
+        // Wait a short delay for client session parsing
+        await new Promise(resolve => setTimeout(resolve, 400));
 
         // Check current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -133,6 +151,16 @@ export default function AuthCallbackPage() {
 
         if (session?.user) {
           addDebug(`Session detected for: ${session.user.email}`);
+
+          if (isPasswordRecovery) {
+            addDebug('Recovery session established, routing directly to password reset');
+            isHandled = true;
+            setMessage('Recovery verified! Redirecting to password reset...');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            router.replace('/reset-password');
+            return;
+          }
+
           await checkRegistrationAndRoute(session.user.id, session.user.email);
           return;
         }
@@ -145,7 +173,8 @@ export default function AuthCallbackPage() {
             isHandled = true;
             setError('Session could not be established. Please try again.');
             setMessage('Redirecting to login...');
-            router.push('/login');
+            window.history.replaceState(null, '', '/login');
+            router.replace('/login');
           }
         }, 6000);
 
@@ -154,9 +183,19 @@ export default function AuthCallbackPage() {
             addDebug(`Auth state change: ${event}`);
             if (isHandled) return;
 
-            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && currentSession?.user) {
+            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'PASSWORD_RECOVERY') && currentSession?.user) {
               clearTimeout(timeout);
               subscription?.unsubscribe();
+
+              if (isPasswordRecovery || event === 'PASSWORD_RECOVERY') {
+                addDebug('Password recovery event caught, routing to /reset-password');
+                isHandled = true;
+                setMessage('Recovery verified! Redirecting to set new password...');
+                await new Promise(resolve => setTimeout(resolve, 300));
+                router.replace('/reset-password');
+                return;
+              }
+
               await checkRegistrationAndRoute(currentSession.user.id, currentSession.user.email);
             }
           }
@@ -168,7 +207,8 @@ export default function AuthCallbackPage() {
         setError(errorMsg);
         setMessage('An error occurred. Redirecting to login...');
         await new Promise(resolve => setTimeout(resolve, 1500));
-        router.push('/login');
+        window.history.replaceState(null, '', '/login');
+        router.replace('/login');
       }
     };
 
