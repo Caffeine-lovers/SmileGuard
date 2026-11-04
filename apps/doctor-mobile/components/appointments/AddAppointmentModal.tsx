@@ -27,6 +27,7 @@ import {
   Plus,
   ShieldCheck,
   ChevronDown,
+  CheckCircle2,
 } from "lucide-react-native";
 import { supabase } from "@smileguard/supabase-client";
 import { getAllPatients, fetchWalkInPatients } from "../../lib/profilesPatients";
@@ -96,6 +97,13 @@ export default function AddAppointmentModal({
   // Submission State
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successCreatedAppointment, setSuccessCreatedAppointment] = useState<{
+    patientName: string;
+    date: string;
+    time: string;
+    service: string;
+    doctorName?: string;
+  } | null>(null);
 
   // Reset initial date whenever prop updates
   useEffect(() => {
@@ -128,9 +136,12 @@ export default function AddAppointmentModal({
         allergies: w.allergies || "None",
         dummy: true,
       }));
-      setPatientsList([...regularList, ...walkInList]);
+      const combined = [...regularList, ...walkInList];
+      setPatientsList(combined);
+      return combined;
     } catch (err) {
       console.error("[AddAppointmentModal] Error fetching patients:", err);
+      return [];
     } finally {
       setLoadingPatients(false);
     }
@@ -202,14 +213,33 @@ export default function AddAppointmentModal({
         throw new Error(result.error || "Failed to schedule appointment.");
       }
 
-      Alert.alert(
-        "Appointment Scheduled",
-        `Appointment for ${selectedPatient.name} on ${finalDate} at ${appointmentTime} has been recorded.`,
-        [{ text: "OK", onPress: () => {
-          handleClose();
-          onAppointmentAdded?.();
-        }}]
-      );
+      let displayDate = finalDate;
+      try {
+        const [yr, mo, dy] = finalDate.split("-").map(Number);
+        if (yr && mo && dy) {
+          const dObj = new Date(yr, mo - 1, dy);
+          displayDate = dObj.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
+      } catch {
+        displayDate = finalDate;
+      }
+
+      const assignedDoc = doctorsList.find((d: any) => (d.id === selectedDoctorId || d.user_id === selectedDoctorId));
+      const doctorDisplayName = assignedDoc
+        ? (assignedDoc.doctor_name || `${assignedDoc.first_name || ''} ${assignedDoc.last_name || ''}`.trim())
+        : undefined;
+
+      setSuccessCreatedAppointment({
+        patientName: selectedPatient.name,
+        date: displayDate,
+        time: appointmentTime,
+        service: finalService,
+        doctorName: doctorDisplayName || "Assigned Clinic Dentist",
+      });
     } catch (err: any) {
       console.error("[AddAppointmentModal] Submission error:", err);
       setErrorMessage(err.message || "Failed to schedule appointment.");
@@ -613,19 +643,76 @@ export default function AddAppointmentModal({
           onClose={() => setShowCreatePatientModal(false)}
           onPatientAdded={async (newId) => {
             setShowCreatePatientModal(false);
-            await fetchPatients();
-            // Automatically select the newly created patient
-            const { data } = await supabase.from("profiles").select("*").eq("id", newId).single();
-            if (data) {
+            const combined = await fetchPatients();
+            const found = combined?.find((p: any) => p.id === newId) as any;
+            if (found) {
               setSelectedPatient({
-                id: data.id,
-                name: data.name,
-                contact: data.phone,
-                dummy: data.dummy,
+                id: found.id,
+                name: found.name,
+                contact: found.phone,
+                dummy: found.dummy,
               });
             }
           }}
         />
+
+        {/* Success Modal */}
+        <Modal
+          visible={successCreatedAppointment !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setSuccessCreatedAppointment(null);
+            handleClose();
+            onAppointmentAdded?.();
+          }}
+        >
+          <View style={styles.successOverlay}>
+            <View style={styles.successModalCard}>
+              <View style={styles.successIconBadge}>
+                <CheckCircle2 size={36} color="#059669" strokeWidth={2.5} />
+              </View>
+              <Text style={styles.successTitle}>Appointment Scheduled!</Text>
+              <Text style={styles.successSubtitle}>
+                The appointment has been confirmed and placed on the clinic calendar.
+              </Text>
+
+              <View style={styles.successSummaryCard}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Patient</Text>
+                  <Text style={styles.summaryValue}>{successCreatedAppointment?.patientName}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Date & Time</Text>
+                  <Text style={styles.summaryValue}>
+                    {successCreatedAppointment?.date} at {successCreatedAppointment?.time}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Service</Text>
+                  <Text style={styles.summaryValue}>{successCreatedAppointment?.service}</Text>
+                </View>
+                <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.summaryLabel}>Dentist</Text>
+                  <Text style={styles.summaryValue}>{successCreatedAppointment?.doctorName}</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.successDoneBtn}
+                onPress={() => {
+                  setSuccessCreatedAppointment(null);
+                  handleClose();
+                  onAppointmentAdded?.();
+                }}
+                activeOpacity={0.8}
+              >
+                <Check size={18} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                <Text style={styles.successDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </Modal>
   );
@@ -1037,6 +1124,95 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748B",
     marginTop: 2,
+  },
+  successOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  successModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  successIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 2,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  successTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  successSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  successSummaryCard: {
+    width: "100%",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 20,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  summaryValue: {
+    fontSize: 12,
+    color: "#0F172A",
+    fontWeight: "700",
+    maxWidth: "58%",
+    textAlign: "right",
+  },
+  successDoneBtn: {
+    width: "100%",
+    flexDirection: "row",
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: "#059669",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successDoneBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });
 

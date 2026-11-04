@@ -920,6 +920,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           imageUrl: patient.avatar_url || patient.avatar || patient.profile_picture || patient.image_url || require('../../assets/images/user.png'),
           status: 'scheduled' as const,
           patient_id: patient.id,
+          dummy: Boolean(patient.dummy),
         }));
         // Sort orderly by account creation date (newest first)
         transformedPatients.sort((a, b) => {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Modal,
   View,
@@ -13,7 +13,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   X,
   User,
@@ -21,6 +21,10 @@ import {
   AlertCircle,
   ShieldCheck,
   Check,
+  CheckCircle2,
+  PhoneCall,
+  Calendar as CalendarIcon,
+  ChevronDown,
 } from "lucide-react-native";
 import { createWalkInPatient } from "../../lib/profilesPatients";
 
@@ -30,29 +34,152 @@ interface AddPatientModalProps {
   onPatientAdded?: (patientId: string) => void;
 }
 
+const GENDER_OPTIONS = ["Male", "Female", "Prefer not to say"] as const;
+
+const RELATIONSHIP_OPTIONS = [
+  "Parent",
+  "Spouse",
+  "Partner",
+  "Child",
+  "Sibling",
+  "Grandparent",
+  "Grandchild",
+  "Guardian",
+  "Caregiver",
+  "Relative / Aunt / Uncle / Cousin",
+  "Friend",
+  "Colleague",
+  "Other",
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const MIN_AGE = 10;
+const MAX_AGE = 99;
+const MAX_BIRTH_YEAR = CURRENT_YEAR - MIN_AGE; // e.g. 2016
+const MIN_BIRTH_YEAR = CURRENT_YEAR - MAX_AGE; // e.g. 1927
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 export default function AddPatientModal({
   visible,
   onClose,
   onPatientAdded,
 }: AddPatientModalProps) {
-  const insets = useSafeAreaInsets();
-  const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
-
-  // Personal & Contact State
+  // Personal Details
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(""); // 10 digits after +63
   const [email, setEmail] = useState("");
-  const [gender, setGender] = useState<"Male" | "Female" | "Other" | "">("");
+  const [gender, setGender] = useState<"Male" | "Female" | "Prefer not to say" | "">("");
   const [dob, setDob] = useState("");
   const [address, setAddress] = useState("");
-  const [emergencyName, setEmergencyName] = useState("");
-  const [emergencyPhone, setEmergencyPhone] = useState("");
 
-  // Medical Alerts: ONLY Allergies kept for dummy record
-  const [allergies, setAllergies] = useState("None");
+  // Emergency Contact 1 (Primary)
+  const [emergencyName, setEmergencyName] = useState("");
+  const [emergencyRelationship, setEmergencyRelationship] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState(""); // 10 digits after +63
+
+  // Emergency Contact 2 (Secondary / Backup)
+  const [emergency2Name, setEmergency2Name] = useState("");
+  const [emergency2Relationship, setEmergency2Relationship] = useState("");
+  const [emergency2Phone, setEmergency2Phone] = useState(""); // 10 digits after +63
+
+  // Medical Alerts: ONLY Allergies kept (empty initial, hint text only)
+  const [allergies, setAllergies] = useState("");
+
+  // Picker Modals
+  const [showDobPicker, setShowDobPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState<number | null>(null);
+  const [pickerMonth, setPickerMonth] = useState<number | null>(null); // 1-12
+  const [pickerDay, setPickerDay] = useState<number | null>(null);
+
+  const [showRelationshipPickerFor, setShowRelationshipPickerFor] = useState<1 | 2 | null>(null);
+
+  // Success Created Patient Modal State
+  const [successCreatedPatient, setSuccessCreatedPatient] = useState<{
+    id: string;
+    name: string;
+    phone: string;
+    dob: string;
+    emergencyName: string;
+    emergencyRelationship: string;
+  } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Validation helpers
+  const isDobValid = useMemo(() => {
+    if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return false;
+    const parts = dob.split("-");
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const d = parseInt(parts[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return false;
+    if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+    const age = CURRENT_YEAR - y;
+    return age >= MIN_AGE && age <= MAX_AGE;
+  }, [dob]);
+
+  const calculatedAge = useMemo(() => {
+    if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+    const y = parseInt(dob.split("-")[0], 10);
+    if (isNaN(y)) return null;
+    return CURRENT_YEAR - y;
+  }, [dob]);
+
+  const formattedDisplayDob = useMemo(() => {
+    if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return "";
+    const parts = dob.split("-");
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const d = parseInt(parts[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d) || m < 1 || m > 12) return dob;
+    const monthName = MONTH_NAMES[m - 1];
+    return `${monthName} ${d}, ${y}`;
+  }, [dob]);
+
+  // Clean phone input digits
+  const handlePhoneChange = (val: string, setter: (cleaned: string) => void) => {
+    let cleaned = val.replace(/\D/g, "");
+    if (cleaned.startsWith("63")) cleaned = cleaned.slice(2);
+    if (cleaned.startsWith("0")) cleaned = cleaned.slice(1);
+    if (cleaned.length <= 10) setter(cleaned);
+  };
+
+  // Form Validity check
+  const isFormValid = useMemo(() => {
+    const hasName = name.trim().length > 0;
+    const hasPhone = phone.trim().length === 10;
+    const hasDob = isDobValid;
+    const hasGender = gender !== "";
+    const hasAddress = address.trim().length > 0;
+    const hasEmergency1Name = emergencyName.trim().length > 0;
+    const hasEmergency1Rel = emergencyRelationship.trim().length > 0;
+    const hasEmergency1Phone = emergencyPhone.trim().length === 10;
+
+    return (
+      hasName &&
+      hasPhone &&
+      hasDob &&
+      hasGender &&
+      hasAddress &&
+      hasEmergency1Name &&
+      hasEmergency1Rel &&
+      hasEmergency1Phone
+    );
+  }, [
+    name,
+    phone,
+    isDobValid,
+    gender,
+    address,
+    emergencyName,
+    emergencyRelationship,
+    emergencyPhone,
+  ]);
 
   const resetForm = () => {
     setName("");
@@ -62,9 +189,18 @@ export default function AddPatientModal({
     setDob("");
     setAddress("");
     setEmergencyName("");
+    setEmergencyRelationship("");
     setEmergencyPhone("");
-    setAllergies("None");
+    setEmergency2Name("");
+    setEmergency2Relationship("");
+    setEmergency2Phone("");
+    setAllergies("");
     setErrorMessage(null);
+    setShowDobPicker(false);
+    setPickerYear(null);
+    setPickerMonth(null);
+    setPickerDay(null);
+    setShowRelationshipPickerFor(null);
   };
 
   const handleClose = () => {
@@ -72,10 +208,32 @@ export default function AddPatientModal({
     onClose();
   };
 
+  const handleOpenDobPicker = () => {
+    if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      const parts = dob.split("-");
+      setPickerYear(parseInt(parts[0], 10) || null);
+      setPickerMonth(parseInt(parts[1], 10) || null);
+      setPickerDay(parseInt(parts[2], 10) || null);
+    } else {
+      setPickerYear(null);
+      setPickerMonth(null);
+      setPickerDay(null);
+    }
+    setShowDobPicker(true);
+  };
+
+  const handleConfirmDob = () => {
+    if (!pickerYear || !pickerMonth || !pickerDay) return;
+    const mm = String(pickerMonth).padStart(2, "0");
+    const dd = String(pickerDay).padStart(2, "0");
+    const formatted = `${pickerYear}-${mm}-${dd}`;
+    setDob(formatted);
+    setShowDobPicker(false);
+  };
+
   const handleSubmit = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setErrorMessage("Patient full name is required.");
+    if (!isFormValid) {
+      setErrorMessage("Please complete all required fields with valid details.");
       return;
     }
 
@@ -83,16 +241,23 @@ export default function AddPatientModal({
     setErrorMessage(null);
 
     try {
+      const formattedPhone = `+63${phone.trim()}`;
+      const formattedEmPhone1 = `+63${emergencyPhone.trim()}`;
+      const formattedEmPhone2 = emergency2Phone.trim() ? `+63${emergency2Phone.trim()}` : undefined;
+
       const result = await createWalkInPatient({
-        name: trimmedName,
+        name: name.trim(),
         email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        service: "General",
-        date_of_birth: dob.trim() || undefined,
+        phone: formattedPhone,
+        date_of_birth: dob.trim(),
         gender: gender || undefined,
-        address: address.trim() || undefined,
-        emergency_contact_name: emergencyName.trim() || undefined,
-        emergency_contact_phone: emergencyPhone.trim() || undefined,
+        address: address.trim(),
+        emergency_contact_name: emergencyName.trim(),
+        emergency_contact_phone: formattedEmPhone1,
+        emergency_contact_relationship: emergencyRelationship.trim(),
+        emergency_contact_2_name: emergency2Name.trim() || undefined,
+        emergency_contact_2_phone: formattedEmPhone2,
+        emergency_contact_2_relationship: emergency2Relationship.trim() || undefined,
         allergies: allergies.trim() || "None",
       });
 
@@ -100,14 +265,14 @@ export default function AddPatientModal({
         throw new Error(result.error || "Failed to save patient record");
       }
 
-      Alert.alert(
-        "Patient Added",
-        `${trimmedName} has been recorded successfully.`,
-        [{ text: "OK", onPress: () => {
-          handleClose();
-          onPatientAdded?.(result.patient_id!);
-        }}]
-      );
+      setSuccessCreatedPatient({
+        id: result.patient_id!,
+        name: name.trim(),
+        phone: formattedPhone,
+        dob: formattedDisplayDob || dob,
+        emergencyName: emergencyName.trim(),
+        emergencyRelationship: emergencyRelationship.trim(),
+      });
     } catch (err: any) {
       console.error("[AddPatientModal] Submit error:", err);
       setErrorMessage(err.message || "An unexpected error occurred while saving.");
@@ -116,38 +281,48 @@ export default function AddPatientModal({
     }
   };
 
+  // Generate Year List for DOB (10 to 99 years old)
+  const yearsList = useMemo(() => {
+    const arr = [];
+    for (let y = MAX_BIRTH_YEAR; y >= MIN_BIRTH_YEAR; y--) {
+      arr.push(y);
+    }
+    return arr;
+  }, []);
+
+  // Days count for selected year and month
+  const daysInSelectedMonth = useMemo(() => {
+    if (!pickerYear || !pickerMonth) return 31;
+    return new Date(pickerYear, pickerMonth, 0).getDate();
+  }, [pickerYear, pickerMonth]);
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
       onRequestClose={handleClose}
     >
-      <SafeAreaView
-        style={[styles.container, { paddingTop: Platform.OS === "android" ? statusBarHeight : 0 }]}
-        edges={["bottom", "left", "right"]}
-      >
+      <SafeAreaView style={styles.container} edges={["top", "bottom", "left", "right"]}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" animated />
 
         {/* Modal Header */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerLeft}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>ADD PATIENT</Text>
-              <View style={styles.keeperBadge}>
-                <ShieldCheck size={11} color="#047857" />
-                <Text style={styles.keeperBadgeText}>CLINIC KEEPER</Text>
-              </View>
             </View>
             <Text style={styles.subtitle}>Create a record for walk-in patients without an online account</Text>
           </View>
+
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={handleClose}
             disabled={loading}
+            activeOpacity={0.7}
             accessibilityLabel="Close modal"
           >
-            <X size={18} color="#475569" />
+            <X size={20} color="#0F172A" strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
@@ -168,16 +343,17 @@ export default function AddPatientModal({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* SECTION 1: PERSONAL & CONTACT DETAILS */}
+            {/* SECTION 1: PERSONAL DETAILS */}
             <View style={styles.sectionHeader}>
               <User size={15} color="#047857" />
               <Text style={styles.sectionTitle}>PERSONAL DETAILS</Text>
             </View>
 
             <View style={styles.card}>
+              {/* Full Name */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
-                  Full Name <Text style={styles.required}>*</Text>
+                  Full Name {!name.trim() && <Text style={styles.required}>*</Text>}
                 </Text>
                 <TextInput
                   style={styles.input}
@@ -189,31 +365,73 @@ export default function AddPatientModal({
                 />
               </View>
 
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.label}>Contact Phone</Text>
+              {/* Contact Phone (+63 prefix) */}
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Contact Phone {phone.trim().length !== 10 && <Text style={styles.required}>*</Text>}
+                </Text>
+                <View style={styles.phoneInputContainer}>
+                  <View style={styles.countryCodeBadge}>
+                    <Text style={styles.countryCodeText}>+63</Text>
+                  </View>
                   <TextInput
-                    style={styles.input}
-                    placeholder="0912 345 6789"
+                    style={styles.phoneInput}
+                    placeholder="912 345 6789"
                     placeholderTextColor="#94A3B8"
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(val) => handlePhoneChange(val, setPhone)}
                     keyboardType="phone-pad"
+                    maxLength={10}
                   />
                 </View>
-
-                <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.label}>Date of Birth</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
-                    value={dob}
-                    onChangeText={setDob}
-                  />
-                </View>
+                {phone.length > 0 && phone.length < 10 && (
+                  <Text style={styles.fieldHint}>Must be 10 digits (e.g. 912 345 6789)</Text>
+                )}
               </View>
 
+              {/* Date of Birth Picker + Input */}
+              <View style={styles.formGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>
+                    Date of Birth {!isDobValid && <Text style={styles.required}>*</Text>}
+                  </Text>
+                  {calculatedAge !== null && (
+                    <Text
+                      style={[
+                        styles.ageBadge,
+                        calculatedAge >= MIN_AGE && calculatedAge <= MAX_AGE
+                          ? styles.ageBadgeValid
+                          : styles.ageBadgeInvalid,
+                      ]}
+                    >
+                      {calculatedAge} yrs old
+                    </Text>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.dobSelectorBtn}
+                  onPress={handleOpenDobPicker}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.dobSelectorLeft}>
+                    <CalendarIcon size={16} color="#047857" style={{ marginRight: 8 }} />
+                    <Text
+                      style={[
+                        styles.dobSelectorText,
+                        !dob && styles.dobSelectorPlaceholder,
+                      ]}
+                    >
+                      {formattedDisplayDob || "Select date of birth"}
+                    </Text>
+                  </View>
+                  <View style={styles.dobPickerBadge}>
+                    <Text style={styles.dobPickerBadgeText}>Pick Date</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Email Address */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Email Address (Optional)</Text>
                 <TextInput
@@ -227,10 +445,13 @@ export default function AddPatientModal({
                 />
               </View>
 
+              {/* Gender */}
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Gender</Text>
+                <Text style={styles.label}>
+                  Gender {!gender && <Text style={styles.required}>*</Text>}
+                </Text>
                 <View style={styles.pillGroup}>
-                  {(["Male", "Female", "Other"] as const).map((g) => (
+                  {GENDER_OPTIONS.map((g) => (
                     <TouchableOpacity
                       key={g}
                       style={[styles.pillBtn, gender === g && styles.pillBtnActive]}
@@ -245,44 +466,161 @@ export default function AddPatientModal({
                 </View>
               </View>
 
+              {/* Home Address */}
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Home Address</Text>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>
+                    Home Address {!address.trim() && <Text style={styles.required}>*</Text>}
+                  </Text>
+                  <Text style={styles.charCounter}>
+                    {address.length}/200
+                  </Text>
+                </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Barangay, City, Province"
+                  placeholder="Street, Barangay, City, Province"
                   placeholderTextColor="#94A3B8"
                   value={address}
                   onChangeText={setAddress}
+                  maxLength={200}
+                />
+              </View>
+            </View>
+
+            {/* SECTION 2: EMERGENCY CONTACTS (2 CONTACTS) */}
+            <View style={[styles.sectionHeader, { marginTop: 18 }]}>
+              <PhoneCall size={15} color="#047857" />
+              <Text style={styles.sectionTitle}>EMERGENCY CONTACTS (2 CONTACTS)</Text>
+            </View>
+
+            {/* Emergency Contact 1: Primary */}
+            <View style={styles.card}>
+              <View style={styles.subHeaderRow}>
+                <Text style={styles.subHeaderTitle}>Primary Emergency Contact</Text>
+                <View style={styles.primaryBadge}>
+                  <Text style={styles.primaryBadgeText}>CONTACT 1 (REQUIRED)</Text>
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Contact Full Name {!emergencyName.trim() && <Text style={styles.required}>*</Text>}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Juan Santos"
+                  placeholderTextColor="#94A3B8"
+                  value={emergencyName}
+                  onChangeText={setEmergencyName}
+                  autoCapitalize="words"
                 />
               </View>
 
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.label}>Emergency Contact</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Contact Name"
-                    placeholderTextColor="#94A3B8"
-                    value={emergencyName}
-                    onChangeText={setEmergencyName}
-                  />
-                </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Relationship to Patient {!emergencyRelationship.trim() && <Text style={styles.required}>*</Text>}
+                </Text>
+                <TouchableOpacity
+                  style={styles.dropdownBtn}
+                  onPress={() => setShowRelationshipPickerFor(1)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownBtnText,
+                      !emergencyRelationship && styles.dropdownBtnPlaceholder,
+                    ]}
+                  >
+                    {emergencyRelationship || "Select relationship from list"}
+                  </Text>
+                  <ChevronDown size={17} color="#64748B" />
+                </TouchableOpacity>
+              </View>
 
-                <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.label}>Emergency Phone</Text>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Phone Number {emergencyPhone.trim().length !== 10 && <Text style={styles.required}>*</Text>}
+                </Text>
+                <View style={styles.phoneInputContainer}>
+                  <View style={styles.countryCodeBadge}>
+                    <Text style={styles.countryCodeText}>+63</Text>
+                  </View>
                   <TextInput
-                    style={styles.input}
-                    placeholder="0912 345 6789"
+                    style={styles.phoneInput}
+                    placeholder="912 345 6789"
                     placeholderTextColor="#94A3B8"
                     value={emergencyPhone}
-                    onChangeText={setEmergencyPhone}
+                    onChangeText={(val) => handlePhoneChange(val, setEmergencyPhone)}
                     keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                </View>
+                {emergencyPhone.length > 0 && emergencyPhone.length < 10 && (
+                  <Text style={styles.fieldHint}>Must be 10 digits</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Emergency Contact 2: Secondary / Backup */}
+            <View style={[styles.card, { marginTop: 12 }]}>
+              <View style={styles.subHeaderRow}>
+                <Text style={styles.subHeaderTitle}>Secondary Emergency Contact</Text>
+                <View style={[styles.primaryBadge, { backgroundColor: "#F1F5F9", borderColor: "#CBD5E1" }]}>
+                  <Text style={[styles.primaryBadgeText, { color: "#64748B" }]}>CONTACT 2 (OPTIONAL)</Text>
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Contact Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Elena Santos"
+                  placeholderTextColor="#94A3B8"
+                  value={emergency2Name}
+                  onChangeText={setEmergency2Name}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Relationship to Patient</Text>
+                <TouchableOpacity
+                  style={styles.dropdownBtn}
+                  onPress={() => setShowRelationshipPickerFor(2)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownBtnText,
+                      !emergency2Relationship && styles.dropdownBtnPlaceholder,
+                    ]}
+                  >
+                    {emergency2Relationship || "Select relationship from list"}
+                  </Text>
+                  <ChevronDown size={17} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Phone Number</Text>
+                <View style={styles.phoneInputContainer}>
+                  <View style={styles.countryCodeBadge}>
+                    <Text style={styles.countryCodeText}>+63</Text>
+                  </View>
+                  <TextInput
+                    style={styles.phoneInput}
+                    placeholder="912 345 6789"
+                    placeholderTextColor="#94A3B8"
+                    value={emergency2Phone}
+                    onChangeText={(val) => handlePhoneChange(val, setEmergency2Phone)}
+                    keyboardType="phone-pad"
+                    maxLength={10}
                   />
                 </View>
               </View>
             </View>
 
-            {/* SECTION 2: MEDICAL ALERTS & ALLERGIES */}
+            {/* SECTION 3: MEDICAL ALERTS & ALLERGIES */}
             <View style={[styles.sectionHeader, { marginTop: 18 }]}>
               <HeartPulse size={15} color="#047857" />
               <Text style={styles.sectionTitle}>MEDICAL ALERTS</Text>
@@ -293,7 +631,7 @@ export default function AddPatientModal({
                 <Text style={styles.label}>Known Allergies (Medications / Latex / Anesthesia)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g. Penicillin, Latex, Local Anesthetics (or None)"
+                  placeholder="e.g. Penicillin, Latex, Local Anesthetics (Leave blank if none)"
                   placeholderTextColor="#94A3B8"
                   value={allergies}
                   onChangeText={setAllergies}
@@ -305,31 +643,288 @@ export default function AddPatientModal({
 
         {/* Action Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={handleClose}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
+          {!isFormValid && (
+            <Text style={styles.validationNotice}>
+              Please fill in all required fields (*) with valid details to save.
+            </Text>
+          )}
 
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Check size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                <Text style={styles.submitBtnText}>Save Patient Record</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={styles.footerBtnRow}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={handleClose}
+              disabled={loading}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.submitBtn,
+                (!isFormValid || loading) && styles.submitBtnDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!isFormValid || loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Check size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.submitBtnText}>Save Patient Record</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* ───────────────────────────────────────── */}
+        {/* MODAL 1: DATE OF BIRTH PICKER (10-99 YRS) */}
+        {/* ───────────────────────────────────────── */}
+        <Modal
+          visible={showDobPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDobPicker(false)}
+        >
+          <View style={styles.pickerOverlay}>
+            <View style={styles.pickerModalCard}>
+              <View style={styles.pickerModalHeader}>
+                <View>
+                  <Text style={styles.pickerModalTitle}>Select Date of Birth</Text>
+                  {pickerYear ? (
+                    <Text style={styles.pickerModalSubtitle}>
+                      Age: {CURRENT_YEAR - pickerYear} years old ({pickerYear})
+                    </Text>
+                  ) : (
+                    <Text style={[styles.pickerModalSubtitle, { color: "#64748B" }]}>
+                      Select Year, Month, and Day
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={styles.pickerCloseBtn}
+                  onPress={() => setShowDobPicker(false)}
+                >
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.pickerColumnsContainer}>
+                {/* Year Column */}
+                <View style={styles.pickerCol}>
+                  <Text style={styles.pickerColHeader}>YEAR</Text>
+                  <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                    {yearsList.map((y) => (
+                      <TouchableOpacity
+                        key={y}
+                        style={[styles.pickerItem, pickerYear === y && styles.pickerItemActive]}
+                        onPress={() => setPickerYear(y)}
+                      >
+                        <Text
+                          style={[
+                            styles.pickerItemText,
+                            pickerYear === y && styles.pickerItemTextActive,
+                          ]}
+                        >
+                          {y}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Month Column */}
+                <View style={styles.pickerCol}>
+                  <Text style={styles.pickerColHeader}>MONTH</Text>
+                  <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                    {MONTH_NAMES.map((m, idx) => (
+                      <TouchableOpacity
+                        key={m}
+                        style={[
+                          styles.pickerItem,
+                          pickerMonth === idx + 1 && styles.pickerItemActive,
+                        ]}
+                        onPress={() => setPickerMonth(idx + 1)}
+                      >
+                        <Text
+                          style={[
+                            styles.pickerItemText,
+                            pickerMonth === idx + 1 && styles.pickerItemTextActive,
+                          ]}
+                        >
+                          {m.slice(0, 3)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Day Column */}
+                <View style={styles.pickerCol}>
+                  <Text style={styles.pickerColHeader}>DAY</Text>
+                  <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                    {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map((d) => (
+                      <TouchableOpacity
+                        key={d}
+                        style={[styles.pickerItem, pickerDay === d && styles.pickerItemActive]}
+                        onPress={() => setPickerDay(d)}
+                      >
+                        <Text
+                          style={[
+                            styles.pickerItemText,
+                            pickerDay === d && styles.pickerItemTextActive,
+                          ]}
+                        >
+                          {d}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+
+              <View style={styles.pickerActionRow}>
+                <TouchableOpacity
+                  style={styles.pickerCancelBtn}
+                  onPress={() => setShowDobPicker(false)}
+                >
+                  <Text style={styles.pickerCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.pickerConfirmBtn,
+                    (!pickerYear || !pickerMonth || !pickerDay) && styles.pickerConfirmBtnDisabled,
+                  ]}
+                  onPress={handleConfirmDob}
+                  disabled={!pickerYear || !pickerMonth || !pickerDay}
+                >
+                  <Text style={styles.pickerConfirmBtnText}>Apply Date</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ───────────────────────────────────────── */}
+        {/* MODAL 2: RELATIONSHIP DROPDOWN PICKER     */}
+        {/* ───────────────────────────────────────── */}
+        <Modal
+          visible={showRelationshipPickerFor !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowRelationshipPickerFor(null)}
+        >
+          <View style={styles.pickerOverlay}>
+            <View style={[styles.pickerModalCard, { maxHeight: "65%" }]}>
+              <View style={styles.pickerModalHeader}>
+                <Text style={styles.pickerModalTitle}>Select Relationship</Text>
+                <TouchableOpacity
+                  style={styles.pickerCloseBtn}
+                  onPress={() => setShowRelationshipPickerFor(null)}
+                >
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ paddingHorizontal: 16 }}>
+                {RELATIONSHIP_OPTIONS.map((rel) => {
+                  const currentSelected =
+                    showRelationshipPickerFor === 1
+                      ? emergencyRelationship
+                      : emergency2Relationship;
+                  const isSelected = currentSelected === rel;
+
+                  return (
+                    <TouchableOpacity
+                      key={rel}
+                      style={[styles.relOptionRow, isSelected && styles.relOptionRowActive]}
+                      onPress={() => {
+                        if (showRelationshipPickerFor === 1) {
+                          setEmergencyRelationship(rel);
+                        } else if (showRelationshipPickerFor === 2) {
+                          setEmergency2Relationship(rel);
+                        }
+                        setShowRelationshipPickerFor(null);
+                      }}
+                    >
+                      <Text style={[styles.relOptionText, isSelected && styles.relOptionTextActive]}>
+                        {rel}
+                      </Text>
+                      {isSelected && <Check size={16} color="#047857" strokeWidth={2.5} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ───────────────────────────────────────── */}
+        {/* MODAL 3: PATIENT CREATED SUCCESS MESSAGE  */}
+        {/* ───────────────────────────────────────── */}
+        <Modal
+          visible={successCreatedPatient !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            const pId = successCreatedPatient?.id;
+            setSuccessCreatedPatient(null);
+            handleClose();
+            if (pId) onPatientAdded?.(pId);
+          }}
+        >
+          <View style={styles.successOverlay}>
+            <View style={styles.successModalCard}>
+              <View style={styles.successIconBadge}>
+                <CheckCircle2 size={36} color="#059669" strokeWidth={2.5} />
+              </View>
+
+              <Text style={styles.successTitle}>Patient Record Created!</Text>
+              <Text style={styles.successSubtitle}>
+                The walk-in patient record has been saved successfully and is ready for appointments.
+              </Text>
+
+              <View style={styles.successSummaryCard}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Patient Name</Text>
+                  <Text style={styles.summaryValue}>{successCreatedPatient?.name}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Contact Phone</Text>
+                  <Text style={styles.summaryValue}>{successCreatedPatient?.phone}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Date of Birth</Text>
+                  <Text style={styles.summaryValue}>{successCreatedPatient?.dob}</Text>
+                </View>
+                <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.summaryLabel}>Emergency Contact</Text>
+                  <Text style={styles.summaryValue}>
+                    {successCreatedPatient?.emergencyName} ({successCreatedPatient?.emergencyRelationship})
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.successDoneBtn}
+                onPress={() => {
+                  const pId = successCreatedPatient?.id;
+                  setSuccessCreatedPatient(null);
+                  handleClose();
+                  if (pId) onPatientAdded?.(pId);
+                }}
+                activeOpacity={0.8}
+              >
+                <Check size={18} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                <Text style={styles.successDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </Modal>
   );
@@ -344,11 +939,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
+  },
+  headerLeft: {
+    flex: 1,
+    marginRight: 12,
   },
   titleRow: {
     flexDirection: "row",
@@ -384,10 +984,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -397,7 +999,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
     borderBottomWidth: 1,
     borderBottomColor: "#FECACA",
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 10,
   },
   errorText: {
@@ -410,7 +1012,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 24,
+    paddingBottom: 30,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -425,6 +1027,34 @@ const styles = StyleSheet.create({
     color: "#475569",
     letterSpacing: 0.8,
   },
+  subHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  subHeaderTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  primaryBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  primaryBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.5,
+  },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
@@ -435,8 +1065,11 @@ const styles = StyleSheet.create({
   formGroup: {
     marginBottom: 12,
   },
-  formRow: {
+  labelRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
   },
   label: {
     fontSize: 12,
@@ -446,6 +1079,31 @@ const styles = StyleSheet.create({
   },
   required: {
     color: "#DC2626",
+  },
+  ageBadge: {
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  ageBadgeValid: {
+    backgroundColor: "#ECFDF5",
+    color: "#047857",
+  },
+  ageBadgeInvalid: {
+    backgroundColor: "#FEF2F2",
+    color: "#DC2626",
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 4,
+  },
+  charCounter: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "500",
   },
   input: {
     backgroundColor: "#F8FAFC",
@@ -457,6 +1115,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#0F172A",
   },
+  phoneInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  countryCodeBadge: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRightWidth: 1,
+    borderRightColor: "#CBD5E1",
+  },
+  countryCodeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: "#0F172A",
+  },
+  dobSelectorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dobSelectorLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  dobSelectorText: {
+    fontSize: 13,
+    color: "#0F172A",
+    fontWeight: "500",
+  },
+  dobSelectorPlaceholder: {
+    color: "#94A3B8",
+  },
+  dobPickerBadge: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  dobPickerBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#047857",
+  },
   pillGroup: {
     flexDirection: "row",
     gap: 8,
@@ -464,9 +1187,11 @@ const styles = StyleSheet.create({
   pillBtn: {
     flex: 1,
     paddingVertical: 8,
+    paddingHorizontal: 4,
     borderRadius: 8,
     backgroundColor: "#F1F5F9",
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -475,21 +1200,49 @@ const styles = StyleSheet.create({
     borderColor: "#059669",
   },
   pillBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: "#64748B",
+    textAlign: "center",
   },
   pillBtnTextActive: {
     color: "#047857",
     fontWeight: "700",
   },
-  footer: {
+  dropdownBtn: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownBtnText: {
+    fontSize: 13,
+    color: "#0F172A",
+    fontWeight: "500",
+  },
+  dropdownBtnPlaceholder: {
+    color: "#94A3B8",
+  },
+  footer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
+  },
+  validationNotice: {
+    fontSize: 11,
+    color: "#94A3B8",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  footerBtnRow: {
+    flexDirection: "row",
     gap: 12,
   },
   cancelBtn: {
@@ -515,10 +1268,242 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   submitBtnDisabled: {
-    opacity: 0.6,
+    backgroundColor: "#94A3B8",
+    opacity: 0.5,
   },
   submitBtnText: {
     fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  pickerModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  pickerModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  pickerModalTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  pickerModalSubtitle: {
+    fontSize: 12,
+    color: "#047857",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  pickerCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerColumnsContainer: {
+    flexDirection: "row",
+    height: 220,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  pickerCol: {
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  pickerColHeader: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748B",
+    textAlign: "center",
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  pickerScroll: {
+    flex: 1,
+  },
+  pickerItem: {
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: "center",
+    marginVertical: 2,
+  },
+  pickerItemActive: {
+    backgroundColor: "#ECFDF5",
+  },
+  pickerItemText: {
+    fontSize: 13,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  pickerItemTextActive: {
+    color: "#047857",
+    fontWeight: "800",
+  },
+  pickerActionRow: {
+    flexDirection: "row",
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    gap: 8,
+  },
+  pickerCancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+  },
+  pickerCancelBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  pickerConfirmBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#059669",
+    alignItems: "center",
+  },
+  pickerConfirmBtnDisabled: {
+    backgroundColor: "#94A3B8",
+    opacity: 0.5,
+  },
+  pickerConfirmBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  relOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  relOptionRowActive: {
+    backgroundColor: "#F0FDF4",
+  },
+  relOptionText: {
+    fontSize: 13,
+    color: "#1E293B",
+    fontWeight: "500",
+  },
+  relOptionTextActive: {
+    color: "#047857",
+    fontWeight: "700",
+  },
+  successOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  successModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  successIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 2,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  successTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  successSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  successSummaryCard: {
+    width: "100%",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 20,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  summaryValue: {
+    fontSize: 12,
+    color: "#0F172A",
+    fontWeight: "700",
+    maxWidth: "58%",
+    textAlign: "right",
+  },
+  successDoneBtn: {
+    width: "100%",
+    flexDirection: "row",
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: "#059669",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successDoneBtnText: {
+    fontSize: 14,
     fontWeight: "700",
     color: "#FFFFFF",
   },

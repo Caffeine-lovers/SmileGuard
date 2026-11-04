@@ -1233,6 +1233,7 @@ export default function AssistantDashboard({
           imageUrl: pat.avatar_url || require("../../assets/images/user.png"),
           patient_id: pat.id,
           created_at: pat.created_at,
+          dummy: Boolean(pat.dummy),
         }));
         setPatients(transformedPatients);
       } else {

@@ -4,23 +4,33 @@
 -- Allows clinic assistants and doctors to record walk-in / keeper patients who do
 -- not have an online patient-web auth account in a dedicated table.
 -- Also updates 'appointments' table so appointments can reference dummy patients.
+-- Includes 2 emergency contacts with patient relationships.
 -- ==============================================================================
 
 -- 1. CREATE DUMMY_PATIENTS TABLE
 CREATE TABLE IF NOT EXISTS public.dummy_patients (
-  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name                    TEXT NOT NULL,
-  phone                   TEXT,
-  email                   TEXT,
-  date_of_birth           TEXT,
-  gender                  TEXT,
-  address                 TEXT,
-  emergency_contact_name  TEXT,
-  emergency_contact_phone TEXT,
-  allergies               TEXT DEFAULT 'None',
-  service                 TEXT DEFAULT 'General',
-  created_at              TIMESTAMPTZ DEFAULT now(),
-  updated_at              TIMESTAMPTZ DEFAULT now()
+  id                                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                              TEXT NOT NULL,
+  phone                             TEXT,
+  email                             TEXT,
+  date_of_birth                     TEXT,
+  gender                            TEXT,
+  address                           TEXT,
+  
+  -- Emergency Contact 1 (Primary)
+  emergency_contact_name            TEXT,
+  emergency_contact_phone           TEXT,
+  emergency_contact_relationship    TEXT,
+  
+  -- Emergency Contact 2 (Secondary)
+  emergency_contact_2_name          TEXT,
+  emergency_contact_2_phone         TEXT,
+  emergency_contact_2_relationship  TEXT,
+  
+  -- Medical Alert (Only allergies retained for keeper records)
+  allergies                         TEXT DEFAULT 'None',
+  created_at                        TIMESTAMPTZ DEFAULT now(),
+  updated_at                        TIMESTAMPTZ DEFAULT now()
 );
 
 -- Index for searching dummy patients
@@ -71,12 +81,15 @@ CREATE OR REPLACE FUNCTION public.create_dummy_patient(
   p_name TEXT,
   p_email TEXT DEFAULT NULL,
   p_phone TEXT DEFAULT NULL,
-  p_service TEXT DEFAULT 'General',
   p_date_of_birth TEXT DEFAULT NULL,
   p_gender TEXT DEFAULT NULL,
   p_address TEXT DEFAULT NULL,
   p_emergency_contact_name TEXT DEFAULT NULL,
   p_emergency_contact_phone TEXT DEFAULT NULL,
+  p_emergency_contact_relationship TEXT DEFAULT NULL,
+  p_emergency_contact_2_name TEXT DEFAULT NULL,
+  p_emergency_contact_2_phone TEXT DEFAULT NULL,
+  p_emergency_contact_2_relationship TEXT DEFAULT NULL,
   p_allergies TEXT DEFAULT 'None'
 )
 RETURNS JSONB
@@ -92,12 +105,15 @@ BEGIN
     name,
     email,
     phone,
-    service,
     date_of_birth,
     gender,
     address,
     emergency_contact_name,
     emergency_contact_phone,
+    emergency_contact_relationship,
+    emergency_contact_2_name,
+    emergency_contact_2_phone,
+    emergency_contact_2_relationship,
     allergies,
     created_at,
     updated_at
@@ -105,12 +121,15 @@ BEGIN
     p_name,
     NULLIF(TRIM(p_email), ''),
     NULLIF(TRIM(p_phone), ''),
-    COALESCE(NULLIF(TRIM(p_service), ''), 'General'),
     NULLIF(TRIM(p_date_of_birth), ''),
     NULLIF(TRIM(p_gender), ''),
     NULLIF(TRIM(p_address), ''),
     NULLIF(TRIM(p_emergency_contact_name), ''),
     NULLIF(TRIM(p_emergency_contact_phone), ''),
+    NULLIF(TRIM(p_emergency_contact_relationship), ''),
+    NULLIF(TRIM(p_emergency_contact_2_name), ''),
+    NULLIF(TRIM(p_emergency_contact_2_phone), ''),
+    NULLIF(TRIM(p_emergency_contact_2_relationship), ''),
     COALESCE(NULLIF(TRIM(p_allergies), ''), 'None'),
     NOW(),
     NOW()
@@ -135,4 +154,3 @@ $$;
 
 -- Grant execution to authenticated users
 GRANT EXECUTE ON FUNCTION public.create_dummy_patient TO authenticated;
-

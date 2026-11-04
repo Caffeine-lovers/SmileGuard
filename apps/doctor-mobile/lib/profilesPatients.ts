@@ -12,6 +12,19 @@ export async function getPatientProfile(
   email: string;
   role: string;
   service: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  emergency_contact_2_name?: string;
+  emergency_contact_2_phone?: string;
+  emergency_contact_2_relationship?: string;
+  allergies?: string;
+  dummy?: boolean;
+  is_dummy?: boolean;
   pwd_status?: 'none' | 'pending' | 'approved' | 'rejected';
   pwd_type?: 'pwd' | 'senior';
   pwd_id_url?: string;
@@ -57,7 +70,20 @@ export async function getPatientProfile(
             name: dummyData.name,
             email: dummyData.email || '',
             role: 'patient',
-            service: dummyData.service || 'General',
+            phone: dummyData.phone || '',
+            date_of_birth: dummyData.date_of_birth || '',
+            gender: dummyData.gender || '',
+            address: dummyData.address || '',
+            emergency_contact_name: dummyData.emergency_contact_name || '',
+            emergency_contact_phone: dummyData.emergency_contact_phone || '',
+            emergency_contact_relationship: dummyData.emergency_contact_relationship || '',
+            emergency_contact_2_name: dummyData.emergency_contact_2_name || '',
+            emergency_contact_2_phone: dummyData.emergency_contact_2_phone || '',
+            emergency_contact_2_relationship: dummyData.emergency_contact_2_relationship || '',
+            allergies: dummyData.allergies || 'None',
+            dummy: true,
+            is_dummy: true,
+            service: 'General Dental',
             created_at: dummyData.created_at,
             updated_at: dummyData.updated_at,
           };
@@ -144,6 +170,10 @@ export async function getPatientMedicalIntake(
           address: dummyData.address || '',
           emergencyContactName: dummyData.emergency_contact_name || '',
           emergencyContactPhone: dummyData.emergency_contact_phone || '',
+          emergencyContactRelationship: dummyData.emergency_contact_relationship || '',
+          emergencyContact2Name: dummyData.emergency_contact_2_name || '',
+          emergencyContact2Phone: dummyData.emergency_contact_2_phone || '',
+          emergencyContact2Relationship: dummyData.emergency_contact_2_relationship || '',
           allergies: dummyData.allergies || 'None',
           currentMedications: 'None',
           medicalConditions: 'None',
@@ -225,9 +255,9 @@ export async function getPatientAppointments(
     });
 
     if (!rpcError && appointmentsData && Array.isArray(appointmentsData)) {
-      // Filter for this specific patient
+      // Filter for this specific patient (either patient_id or dummy_patient_id)
       const patientAppointments = appointmentsData.filter((apt: any) => 
-        apt.patient_id === patientId
+        apt.patient_id === patientId || apt.dummy_patient_id === patientId
       );
       
       if (patientAppointments.length > 0) {
@@ -246,8 +276,8 @@ export async function getPatientAppointments(
     console.log('⚠️ RPC returned no data or failed, trying direct query...');
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
-      .eq('patient_id', patientId)
+      .select('id, patient_id, dummy_patient_id, dentist_id, service, appointment_date, appointment_time, status, notes, created_at, updated_at', { count: 'exact' })
+      .or(`patient_id.eq.${patientId},dummy_patient_id.eq.${patientId}`)
       .order('appointment_date', { ascending: false });
 
     if (error) {
@@ -729,6 +759,10 @@ export interface WalkInPatientInput {
   address?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  emergency_contact_2_name?: string;
+  emergency_contact_2_phone?: string;
+  emergency_contact_2_relationship?: string;
   allergies?: string;
 }
 
@@ -764,12 +798,15 @@ export async function createWalkInPatient(
       p_name: input.name,
       p_email: input.email || null,
       p_phone: input.phone || null,
-      p_service: input.service || 'General',
       p_date_of_birth: input.date_of_birth || null,
       p_gender: input.gender || null,
       p_address: input.address || null,
       p_emergency_contact_name: input.emergency_contact_name || null,
       p_emergency_contact_phone: input.emergency_contact_phone || null,
+      p_emergency_contact_relationship: input.emergency_contact_relationship || null,
+      p_emergency_contact_2_name: input.emergency_contact_2_name || null,
+      p_emergency_contact_2_phone: input.emergency_contact_2_phone || null,
+      p_emergency_contact_2_relationship: input.emergency_contact_2_relationship || null,
       p_allergies: input.allergies || 'None',
     });
 
@@ -777,19 +814,22 @@ export async function createWalkInPatient(
       return { success: true, patient_id: rpcData.patient_id };
     }
 
-    // 2. Direct table insert fallback
+    // 2. Direct table insert fallback (no service column)
     const { data: insertData, error: insertError } = await supabase
       .from('dummy_patients')
       .insert({
         name: input.name,
         email: input.email || null,
         phone: input.phone || null,
-        service: input.service || 'General',
         date_of_birth: input.date_of_birth || null,
         gender: input.gender || null,
         address: input.address || null,
         emergency_contact_name: input.emergency_contact_name || null,
         emergency_contact_phone: input.emergency_contact_phone || null,
+        emergency_contact_relationship: input.emergency_contact_relationship || null,
+        emergency_contact_2_name: input.emergency_contact_2_name || null,
+        emergency_contact_2_phone: input.emergency_contact_2_phone || null,
+        emergency_contact_2_relationship: input.emergency_contact_2_relationship || null,
         allergies: input.allergies || 'None',
       })
       .select('id')
