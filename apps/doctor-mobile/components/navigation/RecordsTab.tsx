@@ -731,9 +731,6 @@ export default function RecordsTab({
                           </View>
                         )}
                       </View>
-                      <Text style={localStyles.patientService} numberOfLines={1}>
-                        {patient.service || "General Dental"}
-                      </Text>
                       {(patient.email || patient.contact) ? (
                         <Text style={localStyles.patientContact} numberOfLines={1}>
                           {patient.email || patient.contact}

@@ -648,14 +648,9 @@ export default function PatientDetailsView({
                       label="Allergies"
                       value={medicalIntake.allergies || "None declared"}
                       isAlert={Boolean(medicalIntake.allergies && medicalIntake.allergies.toLowerCase() !== 'none')}
+                      isLast={isDummyPatient}
                     />
-                    {((patient as any).dummy || patientProfile?.dummy) ? (
-                      <DetailRow
-                        label="Record Type"
-                        value="Walk-in / Clinic Keeper Patient"
-                        isLast={true}
-                      />
-                    ) : (
+                    {!isDummyPatient && (
                       <>
                         <DetailRow
                           label="Current Medications"
@@ -678,6 +673,7 @@ export default function PatientDetailsView({
                           <DetailRow
                             label="Pregnancy Status"
                             value={medicalIntake.pregnancyStatus || "Not applicable"}
+                            isLast={true}
                           />
                         )}
                       </>

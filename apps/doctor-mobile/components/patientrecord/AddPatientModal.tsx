@@ -115,6 +115,24 @@ export default function AddPatientModal({
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showConfirmSaveModal, setShowConfirmSaveModal] = useState(false);
+
+  // Baseline tracking for edit mode
+  const [initialValues, setInitialValues] = useState<{
+    name: string;
+    phone: string;
+    email: string;
+    gender: string;
+    dob: string;
+    address: string;
+    emergencyName: string;
+    emergencyRelationship: string;
+    emergencyPhone: string;
+    emergency2Name: string;
+    emergency2Relationship: string;
+    emergency2Phone: string;
+    allergies: string;
+  } | null>(null);
 
   // Validation helpers
   const isDobValid = useMemo(() => {
@@ -158,36 +176,62 @@ export default function AddPatientModal({
   // Populate form in edit mode or reset in create mode
   React.useEffect(() => {
     if (visible && patientToEdit) {
-      setName(patientToEdit.name || "");
-
+      const initName = (patientToEdit.name || "").trim();
       const pRaw = patientToEdit.phone || patientToEdit.contact || "";
       let pClean = pRaw.replace(/\D/g, "");
       if (pClean.startsWith("63")) pClean = pClean.slice(2);
       if (pClean.startsWith("0")) pClean = pClean.slice(1);
-      setPhone(pClean.slice(0, 10));
-
-      setEmail(patientToEdit.email || "");
-      setGender(patientToEdit.gender || "");
-      setDob(patientToEdit.date_of_birth || patientToEdit.dateOfBirth || "");
-      setAddress(patientToEdit.address || "");
-
-      setEmergencyName(patientToEdit.emergency_contact_name || patientToEdit.emergencyContactName || "");
-      setEmergencyRelationship(patientToEdit.emergency_contact_relationship || patientToEdit.emergencyContactRelationship || "");
+      const initPhone = pClean.slice(0, 10);
+      const initEmail = (patientToEdit.email || "").trim();
+      const initGender = (patientToEdit.gender || "") as any;
+      const initDob = (patientToEdit.date_of_birth || patientToEdit.dateOfBirth || "").trim();
+      const initAddress = (patientToEdit.address || "").trim();
+      const initEm1Name = (patientToEdit.emergency_contact_name || patientToEdit.emergencyContactName || "").trim();
+      const initEm1Rel = (patientToEdit.emergency_contact_relationship || patientToEdit.emergencyContactRelationship || "").trim();
       let em1 = (patientToEdit.emergency_contact_phone || patientToEdit.emergencyContactPhone || "").replace(/\D/g, "");
       if (em1.startsWith("63")) em1 = em1.slice(2);
       if (em1.startsWith("0")) em1 = em1.slice(1);
-      setEmergencyPhone(em1.slice(0, 10));
-
-      setEmergency2Name(patientToEdit.emergency_contact_2_name || patientToEdit.emergencyContact2Name || "");
-      setEmergency2Relationship(patientToEdit.emergency_contact_2_relationship || patientToEdit.emergencyContact2Relationship || "");
+      const initEm1Phone = em1.slice(0, 10);
+      const initEm2Name = (patientToEdit.emergency_contact_2_name || patientToEdit.emergencyContact2Name || "").trim();
+      const initEm2Rel = (patientToEdit.emergency_contact_2_relationship || patientToEdit.emergencyContact2Relationship || "").trim();
       let em2 = (patientToEdit.emergency_contact_2_phone || patientToEdit.emergencyContact2Phone || "").replace(/\D/g, "");
       if (em2.startsWith("63")) em2 = em2.slice(2);
       if (em2.startsWith("0")) em2 = em2.slice(1);
-      setEmergency2Phone(em2.slice(0, 10));
+      const initEm2Phone = em2.slice(0, 10);
+      const initAllergies = (patientToEdit.allergies && patientToEdit.allergies.toLowerCase() !== "none" ? patientToEdit.allergies : "").trim();
 
-      setAllergies(patientToEdit.allergies && patientToEdit.allergies.toLowerCase() !== "none" ? patientToEdit.allergies : "");
+      setName(initName);
+      setPhone(initPhone);
+      setEmail(initEmail);
+      setGender(initGender);
+      setDob(initDob);
+      setAddress(initAddress);
+      setEmergencyName(initEm1Name);
+      setEmergencyRelationship(initEm1Rel);
+      setEmergencyPhone(initEm1Phone);
+      setEmergency2Name(initEm2Name);
+      setEmergency2Relationship(initEm2Rel);
+      setEmergency2Phone(initEm2Phone);
+      setAllergies(initAllergies);
+
+      setInitialValues({
+        name: initName,
+        phone: initPhone,
+        email: initEmail,
+        gender: initGender,
+        dob: initDob,
+        address: initAddress,
+        emergencyName: initEm1Name,
+        emergencyRelationship: initEm1Rel,
+        emergencyPhone: initEm1Phone,
+        emergency2Name: initEm2Name,
+        emergency2Relationship: initEm2Rel,
+        emergency2Phone: initEm2Phone,
+        allergies: initAllergies,
+      });
       setErrorMessage(null);
     } else if (visible && !patientToEdit) {
+      setInitialValues(null);
       resetForm();
     }
   }, [visible, patientToEdit]);
@@ -224,6 +268,48 @@ export default function AddPatientModal({
     emergencyPhone,
   ]);
 
+  // Check whether any input field was modified in edit mode
+  const isFormChanged = useMemo(() => {
+    if (!patientToEdit || !initialValues) return true;
+    return (
+      name.trim() !== initialValues.name ||
+      phone.trim() !== initialValues.phone ||
+      email.trim() !== initialValues.email ||
+      gender !== initialValues.gender ||
+      dob.trim() !== initialValues.dob ||
+      address.trim() !== initialValues.address ||
+      emergencyName.trim() !== initialValues.emergencyName ||
+      emergencyRelationship.trim() !== initialValues.emergencyRelationship ||
+      emergencyPhone.trim() !== initialValues.emergencyPhone ||
+      emergency2Name.trim() !== initialValues.emergency2Name ||
+      emergency2Relationship.trim() !== initialValues.emergency2Relationship ||
+      emergency2Phone.trim() !== initialValues.emergency2Phone ||
+      allergies.trim() !== initialValues.allergies
+    );
+  }, [
+    patientToEdit,
+    initialValues,
+    name,
+    phone,
+    email,
+    gender,
+    dob,
+    address,
+    emergencyName,
+    emergencyRelationship,
+    emergencyPhone,
+    emergency2Name,
+    emergency2Relationship,
+    emergency2Phone,
+    allergies,
+  ]);
+
+  const isSubmitEnabled = useMemo(() => {
+    if (!isFormValid) return false;
+    if (patientToEdit && !isFormChanged) return false;
+    return true;
+  }, [isFormValid, patientToEdit, isFormChanged]);
+
   const resetForm = () => {
     setName("");
     setPhone("");
@@ -244,6 +330,8 @@ export default function AddPatientModal({
     setPickerMonth(null);
     setPickerDay(null);
     setShowRelationshipPickerFor(null);
+    setShowConfirmSaveModal(false);
+    setInitialValues(null);
   };
 
   const handleClose = () => {
@@ -388,12 +476,6 @@ export default function AddPatientModal({
           <View style={styles.headerLeft}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>{patientToEdit ? "EDIT PATIENT RECORD" : "ADD PATIENT"}</Text>
-              {patientToEdit && (
-                <View style={styles.editBadge}>
-                  <Pencil size={10} color="#B45309" />
-                  <Text style={styles.editBadgeText}>DUMMY RECORD</Text>
-                </View>
-              )}
             </View>
             <Text style={styles.subtitle}>
               {patientToEdit
@@ -730,11 +812,15 @@ export default function AddPatientModal({
 
         {/* Action Footer */}
         <View style={styles.footer}>
-          {!isFormValid && (
+          {!isFormValid ? (
             <Text style={styles.validationNotice}>
               Please fill in all required fields (*) with valid details to save.
             </Text>
-          )}
+          ) : patientToEdit && !isFormChanged ? (
+            <Text style={[styles.validationNotice, { color: "#64748B" }]}>
+              Make changes to any field to enable saving.
+            </Text>
+          ) : null}
 
           <View style={styles.footerBtnRow}>
             <TouchableOpacity
@@ -749,10 +835,16 @@ export default function AddPatientModal({
             <TouchableOpacity
               style={[
                 styles.submitBtn,
-                (!isFormValid || loading) && styles.submitBtnDisabled,
+                (!isSubmitEnabled || loading) && styles.submitBtnDisabled,
               ]}
-              onPress={handleSubmit}
-              disabled={!isFormValid || loading}
+              onPress={() => {
+                if (patientToEdit) {
+                  setShowConfirmSaveModal(true);
+                } else {
+                  handleSubmit();
+                }
+              }}
+              disabled={!isSubmitEnabled || loading}
               activeOpacity={0.8}
             >
               {loading ? (
@@ -1020,6 +1112,56 @@ export default function AddPatientModal({
                 <Check size={18} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
                 <Text style={styles.successDoneBtnText}>Done</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ───────────────────────────────────────── */}
+        {/* MODAL 4: CONFIRM SAVE CHANGES (EDIT MODE) */}
+        {/* ───────────────────────────────────────── */}
+        <Modal
+          visible={showConfirmSaveModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowConfirmSaveModal(false)}
+        >
+          <View style={styles.confirmOverlay}>
+            <View style={styles.confirmModalCard}>
+              <View style={styles.confirmIconBadge}>
+                <AlertCircle size={32} color="#059669" strokeWidth={2.5} />
+              </View>
+              <Text style={styles.confirmTitle}>Save Changes?</Text>
+              <Text style={styles.confirmSubtitle}>
+                Are you sure you want to save the updated information for {name.trim() || "this patient"}?
+              </Text>
+              <View style={styles.confirmBtnRow}>
+                <TouchableOpacity
+                  style={styles.confirmCancelBtn}
+                  onPress={() => setShowConfirmSaveModal(false)}
+                  disabled={loading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.confirmCancelBtnText}>Keep Editing</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.confirmSaveBtn}
+                  onPress={async () => {
+                    setShowConfirmSaveModal(false);
+                    await handleSubmit();
+                  }}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Check size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={styles.confirmSaveBtnText}>Confirm & Save</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -1619,6 +1761,86 @@ const styles = StyleSheet.create({
   },
   successDoneBtnText: {
     fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  confirmModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  confirmIconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 2,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  confirmSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  confirmBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmCancelBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  confirmSaveBtn: {
+    flex: 1.2,
+    flexDirection: "row",
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#059669",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmSaveBtnText: {
+    fontSize: 13,
     fontWeight: "700",
     color: "#FFFFFF",
   },
