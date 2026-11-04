@@ -347,6 +347,7 @@ export async function createDoctorProfile(
         postRegUpdates.years_of_experience = isNaN(yearsExp) ? 0 : yearsExp;
 
         postRegUpdates.office_hours = doctor.office_hours || EMPTY_DOCTOR.office_hours;
+        postRegUpdates.role = isAssistant ? "assistant" : "doctor";
 
         const targetDoctorId = result.doctor_id || doctor.id;
         console.log("[DoctorService] Updating doctor post-registration fields:", {
@@ -419,6 +420,7 @@ export async function createDoctorProfile(
     const { is_available, ...rawCleanDoctor } = doctor as any;
     const cleanDoctor = {
       ...rawCleanDoctor,
+      role: ((accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant") ? "assistant" : "doctor",
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,

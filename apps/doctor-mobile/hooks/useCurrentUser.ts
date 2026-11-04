@@ -16,29 +16,33 @@ export function useCurrentUser(): CurrentUser | null {
       let resolvedRole = sessionUser.user_metadata?.role || "doctor";
 
       try {
-        // Check profile role from public.profiles
+        // Check doctors table record and role FIRST (authoritative source of truth)
+        const { data: doctorRecord } = await supabase
+          .from("doctors")
+          .select("id, role")
+          .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
+          .maybeSingle();
+
+        const doctorRole = (
+          doctorRecord?.role ||
+          (doctorRecord as any)?.ROLE ||
+          ""
+        ).toString().trim().toLowerCase();
+
+        // Check profiles table as secondary fallback
         const { data: profile } = await supabase
           .from("profiles")
           .select("role, name")
           .eq("id", sessionUser.id)
           .maybeSingle();
 
-        // Also check doctors table record and role
-        const { data: doctorRecord } = await supabase
-          .from("doctors")
-          .select("id, role")
-          .eq("user_id", sessionUser.id)
-          .maybeSingle();
-
-        if (
-          profile?.role === "assistant" ||
-          doctorRecord?.role === "assistant" ||
-          sessionUser.user_metadata?.role === "assistant"
-        ) {
+        if (doctorRole === "assistant") {
           resolvedRole = "assistant";
-        } else if (profile?.role === "doctor") {
+        } else if (doctorRole === "doctor") {
           resolvedRole = "doctor";
-        } else if (doctorRecord) {
+        } else if (profile?.role === "assistant" || sessionUser.user_metadata?.role === "assistant") {
+          resolvedRole = "assistant";
+        } else if (profile?.role === "doctor" || doctorRecord) {
           resolvedRole = "doctor";
         }
       } catch (err) {

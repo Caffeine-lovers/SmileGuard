@@ -224,7 +224,7 @@ export default function AuthModal({
 
       const redirectUri = Linking.createURL("oauth-redirect");
       console.log("[AuthModal] Redirect URI:", redirectUri);
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -267,7 +267,7 @@ export default function AuthModal({
             access_token: params.access_token,
             refresh_token: params.refresh_token
           });
-          
+
           if (sessionError) throw sessionError;
 
           console.log("[GoogleOAuth] Session set successfully");
@@ -320,7 +320,7 @@ export default function AuthModal({
                 <View style={{ alignItems: "center", width: "100%" }}>
                   <Text style={styles.appName}>SmileGuard</Text>
                   <Text style={[styles.h2, { marginTop: 16, marginBottom: 8 }]}>Doctor & Assistant Portal</Text>
-                  
+
                   <Text style={[styles.subtitle, { marginBottom: 20 }]}>
                     Enter your clinic access code, then sign in with Google to access your dashboard.
                   </Text>
@@ -329,7 +329,7 @@ export default function AuthModal({
                     <Text style={styles.inputLabel}>Clinic Access Code</Text>
                     <TextInput
                       style={[styles.input, codeError ? styles.inputError : null]}
-                      placeholder="e.g. DOC-2024-SG"
+                      placeholder="e.g. SMILE-ACCESS-CODES"
                       placeholderTextColor="#94A3B8"
                       value={doctorAccessCode}
                       onChangeText={(text) => {
@@ -344,7 +344,7 @@ export default function AuthModal({
                       <Text style={styles.errorText}>{codeError}</Text>
                     ) : (
                       <Text style={styles.helperText}>
-                        Authorized clinic code required (SMILE-DOC-2026 for Doctors, SMILEGUARD-STAFF for Assistants).
+                        An authorized clinic access code is required to sign in.
                       </Text>
                     )}
                   </View>

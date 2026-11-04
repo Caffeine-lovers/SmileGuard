@@ -163,24 +163,39 @@ export default function RootLayout() {
             ]);
             const savedCode = (savedCodeRaw || "").trim().toUpperCase();
 
-            // 1. Check if doctor record exists in public.doctors
+            // 1. Authoritative check directly on public.doctors table (ignoring profiles table)
+            console.log("[RootLayout] Querying doctors table for user_id:", user.id);
             const { data: doctorRecord, error: doctorErr } = await supabase
               .from("doctors")
-              .select("id, role")
-              .eq("user_id", user.id)
+              .select("*")
+              .or(`user_id.eq.${user.id},id.eq.${user.id}`)
               .maybeSingle();
 
-            // If no profile found in doctors table, proceed to profile setup
+            if (doctorErr) {
+              console.warn("[RootLayout] Error querying doctors table:", doctorErr);
+            }
+
+            // If no record found in doctors table, route to profile setup
             if (!doctorRecord) {
-              console.log("[RootLayout] No doctor profile found in DB, routing to /setup-profile");
+              console.log("[RootLayout] No doctor profile found in doctors table, routing to /setup-profile");
               router.replace("/setup-profile");
               return;
             }
 
+            // Extract the role specifically from the doctors table
+            const doctorTableRole = (
+              doctorRecord.role ||
+              (doctorRecord as any).ROLE ||
+              (doctorRecord as any).Role ||
+              ""
+            ).toString().trim().toLowerCase();
+
+            console.log("[RootLayout] doctors table role:", doctorTableRole, "| entered access code:", savedCode);
+
             // 2. Authoritative check: verify access code entered aligns with doctors.role
             if (savedCode.length > 0) {
-              const isAssistantCode = savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant";
-              const registeredRole = (doctorRecord.role || "doctor").toLowerCase();
+              const isAssistantCode = savedCode === "SMILEGUARD-STAFF";
+              const isDoctorCode = savedCode === "SMILE-DOC-2026";
 
               const handleAccessBlock = (message: string) => {
                 Alert.alert(
@@ -211,20 +226,20 @@ export default function RootLayout() {
                 );
               };
 
-              // Case A: User entered Assistant access code (SMILEGUARD-STAFF), but account is a Doctor
-              if (isAssistantCode && registeredRole !== "assistant") {
-                console.warn("[RootLayout] Access Blocked: SMILEGUARD-STAFF entered for Doctor account");
+              // Case A: User entered Assistant access code (SMILEGUARD-STAFF), but doctors table says 'doctor'
+              if (isAssistantCode && doctorTableRole === "doctor") {
+                console.warn("[RootLayout] Access Blocked: SMILEGUARD-STAFF entered for doctor role in doctors table");
                 handleAccessBlock(
-                  "This account is registered as a Doctor. Please use your Doctor Clinic Access Code (SMILE-DOC-2026) to log in."
+                  "This account is registered as a Doctor. Please use your Doctor Clinic Access Code to log in."
                 );
                 return;
               }
 
-              // Case B: User entered Doctor access code (SMILE-DOC-2026), but account is an Assistant
-              if (!isAssistantCode && registeredRole === "assistant") {
-                console.warn("[RootLayout] Access Blocked: Doctor code entered for Assistant account");
+              // Case B: User entered Doctor access code (SMILE-DOC-2026), but doctors table says 'assistant'
+              if (isDoctorCode && doctorTableRole === "assistant") {
+                console.warn("[RootLayout] Access Blocked: Doctor code entered for assistant role in doctors table");
                 handleAccessBlock(
-                  "This account is registered as a Clinic Assistant. Please use the Assistant Access Code (SMILEGUARD-STAFF) to log in."
+                  "This account is registered as a Clinic Assistant. Please use your Assistant Access Code to log in."
                 );
                 return;
               }
