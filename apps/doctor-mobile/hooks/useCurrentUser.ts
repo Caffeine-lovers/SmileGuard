@@ -23,21 +23,23 @@ export function useCurrentUser(): CurrentUser | null {
           .eq("id", sessionUser.id)
           .maybeSingle();
 
-        if (profile?.role === "assistant" || sessionUser.user_metadata?.role === "assistant") {
+        // Also check doctors table record and role
+        const { data: doctorRecord } = await supabase
+          .from("doctors")
+          .select("id, role")
+          .eq("user_id", sessionUser.id)
+          .maybeSingle();
+
+        if (
+          profile?.role === "assistant" ||
+          doctorRecord?.role === "assistant" ||
+          sessionUser.user_metadata?.role === "assistant"
+        ) {
           resolvedRole = "assistant";
         } else if (profile?.role === "doctor") {
           resolvedRole = "doctor";
-        } else {
-          // Authoritative check: verify if record exists in doctors table
-          const { data: doctorRecord } = await supabase
-            .from("doctors")
-            .select("id")
-            .eq("user_id", sessionUser.id)
-            .maybeSingle();
-
-          if (doctorRecord) {
-            resolvedRole = sessionUser.user_metadata?.role === "assistant" ? "assistant" : "doctor";
-          }
+        } else if (doctorRecord) {
+          resolvedRole = "doctor";
         }
       } catch (err) {
         console.warn("[useCurrentUser] Could not check profiles or doctors table:", err);

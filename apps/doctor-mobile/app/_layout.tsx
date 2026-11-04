@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
 import { useEffect, useState } from "react";
 import { Slot, useRouter, useSegments } from "expo-router";
@@ -155,6 +156,21 @@ export default function RootLayout() {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
           try {
+            const [savedCode, savedRole] = await Promise.all([
+              AsyncStorage.getItem("@pending_doctor_access_code"),
+              AsyncStorage.getItem("@pending_user_role"),
+            ]);
+
+            const isAssistant = savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant";
+            if (isAssistant) {
+              console.log("[RootLayout] Assistant login detected, ensuring assistant role in database for user:", user.id);
+              await Promise.allSettled([
+                supabase.from("profiles").update({ role: "assistant" }).eq("id", user.id),
+                supabase.from("doctors").update({ role: "assistant" }).eq("user_id", user.id),
+                supabase.auth.updateUser({ data: { role: "assistant" } }),
+              ]);
+            }
+
             const { data, error } = await supabase
               .from("doctors")
               .select("id")
