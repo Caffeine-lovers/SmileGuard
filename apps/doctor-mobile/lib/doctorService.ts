@@ -388,7 +388,7 @@ export async function createDoctorProfile(
         // Also synchronize doctor_phone and full name with profiles table
         if (doctor.user_id) {
           try {
-            const profileUpdates: any = { role: "doctor" };
+            const profileUpdates: any = { role: isAssistant ? "assistant" : "doctor" };
             if (fullName) profileUpdates.name = fullName;
             if (postRegUpdates.doctor_phone) profileUpdates.phone_number = postRegUpdates.doctor_phone;
             await supabase
@@ -434,7 +434,7 @@ export async function createDoctorProfile(
       try {
         const profileUpdates: any = {
           id: cleanDoctor.user_id,
-          role: "doctor",
+          role: ((accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant") ? "assistant" : "doctor",
           updated_at: new Date().toISOString(),
         };
         if (fullName) profileUpdates.name = fullName;

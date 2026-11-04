@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useState, useEffect } from "react";
 import { CurrentUser, FormData } from "../types/index";
 import { supabase } from "@smileguard/supabase-client";
@@ -59,7 +60,17 @@ export function useAuth() {
           }
 
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
-          const userRole = user.user_metadata?.role || "doctor"; // Default to 'doctor' instead of 'patient'
+          let pendingRole: string | null = null;
+          let pendingCode: string | null = null;
+          try {
+            const stores = await AsyncStorage.multiGet(["@pending_user_role", "@pending_doctor_access_code"]);
+            pendingRole = stores[0]?.[1] || null;
+            pendingCode = stores[1]?.[1] || null;
+          } catch (e) {
+            console.warn("[useAuth] Could not read pending role from AsyncStorage:", e);
+          }
+          const isPendingAssistant = pendingRole === "assistant" || (pendingCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || user.user_metadata?.role === "assistant";
+          const userRole = isPendingAssistant ? "assistant" : (user.user_metadata?.role || "doctor");
           const userEmail = user.email || "";
 
           console.log("[useAuth] Creating profile with metadata:", { userName, userRole, userEmail });

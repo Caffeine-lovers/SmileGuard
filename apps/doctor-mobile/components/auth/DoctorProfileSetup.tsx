@@ -331,7 +331,7 @@ export default function DoctorProfileSetup({
       } else if ((doctorData.specialization || "").trim() === "") {
         errorMsg = "Please select a specialization.";
       } else if (yearsOfExperienceStr.trim() === "" || isNaN(Number(yearsOfExperienceStr))) {
-        errorMsg = "Please enter your years of experience (1-2 digits).";
+        errorMsg = "Please enter your years of experience.";
       } else if ((doctorData.first_name || "").trim() === "") {
         errorMsg = "Please enter your first name.";
       } else if ((doctorData.last_name || "").trim() === "") {
@@ -426,6 +426,16 @@ export default function DoctorProfileSetup({
         throw new Error("Failed to save doctor profile. Please try again.");
       }
 
+      // Explicit direct database sync to guarantee assistant role in both profiles and doctors tables
+      try {
+        console.log("[DoctorProfileSetup] Explicitly syncing assigned role to database:", assignedRole);
+        await supabase.from("profiles").update({ role: assignedRole }).eq("id", data.user.id);
+        await supabase.from("doctors").update({ role: assignedRole }).eq("user_id", data.user.id);
+        await supabase.auth.updateUser({ data: { role: assignedRole } });
+      } catch (postSyncErr) {
+        console.warn("[DoctorProfileSetup] Direct role sync notice:", postSyncErr);
+      }
+
       onContinue();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";
@@ -455,7 +465,6 @@ export default function DoctorProfileSetup({
             accessibilityLabel="Back to Initial Screen"
           >
             <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
-            <Text style={styles.headerBackBtnText}>Back</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ width: 60 }} />
@@ -465,8 +474,8 @@ export default function DoctorProfileSetup({
           <Text style={styles.topHeaderTitle}>{accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" ? "ASSISTANT REGISTRATION" : "DOCTOR REGISTRATION"}</Text>
         </View>
 
-        <View style={styles.headerStepPill}>
-          <Text style={styles.headerStepPillText}>Step 1 of 2</Text>
+        <View style={{ width: 60 }}>
+
         </View>
       </View>
 
@@ -568,21 +577,10 @@ export default function DoctorProfileSetup({
               </TouchableOpacity>
 
               <View style={styles.avatarInfoCol}>
-                <Text style={styles.avatarTitle}>Professional Portrait</Text>
+                <Text style={styles.avatarTitle}>Profile Picture</Text>
                 <Text style={styles.avatarSubtitle}>
                   Displayed to patients on appointment bookings and medical receipts.
                 </Text>
-                <TouchableOpacity
-                  style={styles.uploadBtn}
-                  onPress={handleImagePick}
-                  disabled={uploadingImage || loading}
-                  activeOpacity={0.75}
-                >
-                  <Camera size={13} color="#047857" style={{ marginRight: 6 }} />
-                  <Text style={styles.uploadBtnText}>
-                    {selectedImageUri ? "Change Photo" : "Upload Photo"}
-                  </Text>
-                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -767,7 +765,7 @@ export default function DoctorProfileSetup({
                   <Clock size={14} color="#047857" style={{ marginLeft: 8, marginRight: 4 }} />
                   <TextInput
                     style={styles.expInput}
-                    placeholder="Yrs (2 digits)"
+                    placeholder="Yrs"
                     placeholderTextColor="#94A3B8"
                     keyboardType="number-pad"
                     maxLength={2}
@@ -830,14 +828,11 @@ export default function DoctorProfileSetup({
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <FileText size={13} color="#047857" />
-            <Text style={styles.formSectionTitle}>PRACTITIONER BIOGRAPHY</Text>
+            <Text style={styles.formSectionTitle}>DOCTOR'S BIOGRAPHY</Text>
           </View>
 
           <View style={styles.formCard}>
             <View style={[styles.inputGroup, { marginBottom: 0 }]}>
-              <View style={styles.labelRow}>
-                <Text style={styles.inputLabel}>DOCTOR'S BIOGRAPHY (OPTIONAL)</Text>
-              </View>
               <TextInput
                 style={[styles.input, styles.textAreaInput]}
                 placeholder="Share your dental school, clinical experience, specializations, and patient care philosophy (optional)..."
@@ -868,7 +863,11 @@ export default function DoctorProfileSetup({
             ) : (
               <>
                 <Sparkles size={15} color="#FFFFFF" strokeWidth={2.2} />
-                <Text style={styles.primaryBtnText}>Continue to Clinic Setup</Text>
+                <Text style={styles.primaryBtnText}>
+                  {accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" || doctorData.role === "assistant"
+                    ? "Continue to Dashboard"
+                    : "Continue to Clinic Setup"}
+                </Text>
               </>
             )}
           </TouchableOpacity>
