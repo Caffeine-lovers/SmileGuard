@@ -5,6 +5,8 @@ import {
   computeCheckoutTotal,
   getServicePrice,
   getServicePriceForClinic,
+  getServicePriceOrThrow,
+  findCatalogPrice,
   resolveBaseAmount,
   FALLBACK_PRICE,
 } from "@/lib/pricing";
@@ -32,6 +34,11 @@ describe("getServicePrice()", () => {
     expect(getServicePrice("Implants Consultation")).toBe(45000);
   });
 
+  it("sums multi-service bookings separately", () => {
+    expect(getServicePrice("Whitening, Cleaning")).toBe(6500);
+    expect(getServicePrice("Checkup, X-Ray, Cleaning")).toBe(2300);
+  });
+
   it("falls back for unknown or missing services", () => {
     expect(getServicePrice("Something New")).toBe(FALLBACK_PRICE);
     expect(getServicePrice(null)).toBe(FALLBACK_PRICE);
@@ -54,6 +61,10 @@ describe("getServicePriceForClinic()", () => {
     expect(getServicePriceForClinic("Cleaning", clinic)).toBe(2500);
   });
 
+  it("sums multi-service clinic bookings separately", () => {
+    expect(getServicePriceForClinic("Whitening, Deep Cleaning", clinic)).toBe(7000);
+  });
+
   it("ignores non-positive clinic prices and uses the catalog", () => {
     expect(getServicePriceForClinic("Checkup", [{ name: "Checkup", price: 0 }])).toBe(300);
   });
@@ -61,6 +72,35 @@ describe("getServicePriceForClinic()", () => {
   it("falls back to the catalog with no clinic list", () => {
     expect(getServicePriceForClinic("Whitening", [])).toBe(5000);
     expect(getServicePriceForClinic("Whitening")).toBe(5000);
+  });
+});
+
+describe("getServicePriceOrThrow() — strict price validation", () => {
+  const clinic = [{ name: "Whitening", price: 4200 }];
+
+  it("returns price for valid catalog service", () => {
+    expect(getServicePriceOrThrow("Cleaning")).toBe(1500);
+    expect(findCatalogPrice("Cleaning")).toBe(1500);
+  });
+
+  it("returns price for valid clinic service", () => {
+    expect(getServicePriceOrThrow("Whitening", clinic)).toBe(4200);
+  });
+
+  it("sums valid multi-service requests", () => {
+    expect(getServicePriceOrThrow("Cleaning, Whitening", clinic)).toBe(5700);
+  });
+
+  it("throws an error when service has no price", () => {
+    expect(() => getServicePriceOrThrow("NonExistentTreatment")).toThrow(
+      'Price not found for service: "NonExistentTreatment".'
+    );
+    expect(findCatalogPrice("NonExistentTreatment")).toBeNull();
+  });
+
+  it("throws when serviceName is empty or missing", () => {
+    expect(() => getServicePriceOrThrow("")).toThrow("Service name is required to calculate price.");
+    expect(() => getServicePriceOrThrow(null)).toThrow("Service name is required to calculate price.");
   });
 });
 

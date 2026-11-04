@@ -30,9 +30,34 @@ export const FALLBACK_PRICE = 1500;
 
 export type ClinicService = { id?: string; name?: string; price?: number; description?: string };
 
-/** Catalog price for a service name (exact match first, then partial match). */
+/**
+ * Finds catalog price without fallback. Returns null if unpriced.
+ */
+export function findCatalogPrice(serviceName?: string | null): number | null {
+  if (!serviceName) return null;
+  const trimmed = serviceName.trim();
+  if (!trimmed) return null;
+  if (SERVICE_PRICES[trimmed] && SERVICE_PRICES[trimmed] > 0) {
+    return SERVICE_PRICES[trimmed];
+  }
+  const normalized = trimmed.toLowerCase();
+  for (const [key, price] of Object.entries(SERVICE_PRICES)) {
+    if (key.toLowerCase() === normalized) return price;
+  }
+  for (const [key, price] of Object.entries(SERVICE_PRICES)) {
+    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
+      return price;
+    }
+  }
+  return null;
+}
+
+/** Catalog price for a service name (exact match first, then partial match). Multi-service sums each separately. */
 export function getServicePrice(serviceName?: string | null): number {
-  if (!serviceName) return FALLBACK_PRICE;
+  if (!serviceName) {
+    console.error('[Pricing] Missing or null service name provided to getServicePrice. Using fallback.');
+    return FALLBACK_PRICE;
+  }
   if (SERVICE_PRICES[serviceName] && SERVICE_PRICES[serviceName] > 0) {
     return SERVICE_PRICES[serviceName];
   }
@@ -51,30 +76,69 @@ export function getServicePrice(serviceName?: string | null): number {
       return price;
     }
   }
+  console.error(`[Pricing] Price not found for service: "${serviceName}". Falling back to default price ₱${FALLBACK_PRICE}.`);
   return FALLBACK_PRICE;
 }
 
-/** Clinic-specific price if the clinic lists the service, otherwise the catalog price. */
+/** Clinic-specific price if the clinic lists the service, otherwise the catalog price. Multi-service sums each separately. */
 export function getServicePriceForClinic(serviceName?: string | null, clinicServices?: ClinicService[]): number {
-  if (!serviceName) return FALLBACK_PRICE;
-  const norm = serviceName.trim().toLowerCase();
-  if (Array.isArray(clinicServices) && clinicServices.length > 0) {
-    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
-    if (exact && typeof exact.price === 'number' && exact.price > 0) return exact.price;
+  if (!serviceName) {
+    console.error('[Pricing] Missing or null service name provided to getServicePriceForClinic. Using fallback.');
+    return FALLBACK_PRICE;
   }
+
+  // Multi-service: look up each service separately and calculate the sum
   if (serviceName.includes(',')) {
     const parts = serviceName.split(',').map((p) => p.trim()).filter(Boolean);
     if (parts.length > 1) {
       return parts.reduce((sum, part) => sum + getServicePriceForClinic(part, clinicServices), 0);
     }
   }
+
+  const norm = serviceName.trim().toLowerCase();
   if (Array.isArray(clinicServices) && clinicServices.length > 0) {
+    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
+    if (exact && typeof exact.price === 'number' && exact.price > 0) return exact.price;
     const partial = clinicServices.find(
       (s) => s.name && (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
     );
     if (partial && typeof partial.price === 'number' && partial.price > 0) return partial.price;
   }
+
   return getServicePrice(serviceName);
+}
+
+/**
+ * Strict price lookup that throws an Error when any service has no configured price in clinic services or catalog.
+ */
+export function getServicePriceOrThrow(serviceName?: string | null, clinicServices?: ClinicService[]): number {
+  if (!serviceName || !serviceName.trim()) {
+    throw new Error('Service name is required to calculate price.');
+  }
+
+  if (serviceName.includes(',')) {
+    const parts = serviceName.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      return parts.reduce((sum, part) => sum + getServicePriceOrThrow(part, clinicServices), 0);
+    }
+  }
+
+  const norm = serviceName.trim().toLowerCase();
+  if (Array.isArray(clinicServices) && clinicServices.length > 0) {
+    const exact = clinicServices.find((s) => s.name?.trim().toLowerCase() === norm);
+    if (exact && typeof exact.price === 'number' && exact.price > 0) return exact.price;
+    const partial = clinicServices.find(
+      (s) => s.name && (s.name.trim().toLowerCase().includes(norm) || norm.includes(s.name.trim().toLowerCase()))
+    );
+    if (partial && typeof partial.price === 'number' && partial.price > 0) return partial.price;
+  }
+
+  const catalogPrice = findCatalogPrice(serviceName);
+  if (catalogPrice !== null && catalogPrice > 0) {
+    return catalogPrice;
+  }
+
+  throw new Error(`Price not found for service: "${serviceName}". Please configure a price in the clinic catalog.`);
 }
 
 type BillingAmounts = { amount?: number | string | null; final_amount?: number | string | null } | null | undefined;

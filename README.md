@@ -183,3 +183,32 @@ For an in-depth security and cryptographic breakdown, refer to [**`EXECUTIVE_SUM
 * [**Executive Testing & Security Summary**](./EXECUTIVE_SUMMARY.md) — Benchmark numbers, cryptographic details, and defense Q&A.
 * [**RLS Policies Audit**](./RLS_POLICIES_AUDIT.md) — Comprehensive Row-Level Security evaluation and subscription policies.
 * [**Signup Flow Testing Guide**](./SIGNUP_FLOW_TESTING_GUIDE.md) — Step-by-step patient intake registration walkthrough.
+
+---
+
+## 🛠️ 9. Known Issues and Planned Features (as of 2026-11-04)
+
+This section records what is open. Nothing below is marked fixed unless the code shows it.
+
+### Open bugs
+
+- **None currently open.**
+  - *Patched (2026-11-04):* **Billing fallback for multi-service bookings.** Multi-service bookings now parse each service separately, look up each service price in clinic setup or the catalog, calculate the correct cumulative sum, and raise an explicit error when any service is unpriced (`supabase/migrations/041_fix_multi_service_billing_trigger.sql`, `supabase/migrations/034_connect_appointments_billings_trigger.sql`, and `apps/patient-web/lib/pricing.ts`).
+
+### Built in the current code
+
+- Patients can book, reschedule and cancel appointments in the patient portal.
+- Same-day booking is blocked; patients must book at least one day in advance.
+- A patient cannot make a new booking while a pending request is open.
+- Multi-service billing resolution: splits composite bookings, resolves clinic and catalog rates per procedure, calculates their sum, and rejects unpriced services with an explicit error.
+- Past appointments that were never completed are automatically marked as no-show by the dentist app.
+
+### Planned, not built
+
+1. **Cancellation limit.** Patients can cancel at any time, with no lead-time check and no count of cancellations.
+   - Location: `apps/patient-web/components/dashboard/PatientDashboard.tsx` (cancel handler).
+2. **Dentist alert for repeated no-shows.** The patient profile shows counts of cancelled and no-show appointments, but nothing alerts the dentist.
+   - Planned default: alert at five no-shows. The dentist chooses the action: contact the patient, block new bookings, or deactivate the account. The app takes no action on its own.
+   - Location: `apps/doctor-mobile/lib/profilesPatients.ts` (counts only).
+3. **Screening results in the dentist app.** Patients' AI screening results are saved to `analysis_results`, but the dentist app does not read that table.
+4. **Patient appointment reminders.** No code sends reminders to patients. The dentist app has a notification toggle for her own use only.
