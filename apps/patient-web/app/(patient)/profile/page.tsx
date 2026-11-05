@@ -8,9 +8,8 @@ import { useAuth } from '@smileguard/shared-hooks';
 import { supabase } from '@smileguard/supabase-client';
 import { uploadPatientProfilePicture } from '@/components/dashboard/uploadPatientProfilePicture';
 import { setPatientUserCookie } from '@/lib/auth-cookie';
-import { withTimeout } from '@/lib/appointmentService';
-
 import { showAlert } from '@/components/ui/AppDialog';
+
 interface MedicalIntake {
   patient_id: string;
   date_of_birth: string | null;
@@ -27,12 +26,7 @@ interface MedicalIntake {
   pregnancy_status: string | null;
 }
 
-import { 
-  normalizePregnancyStatus, 
-  formatPregnancyStatus, 
-  normalizeSmokingStatus, 
-  formatSmokingStatus 
-} from '@/lib/medical-helpers';
+import { normalizePregnancyStatus, formatPregnancyStatus } from '@/lib/medical-helpers';
 
 
 interface EmergencyContactItem {
@@ -41,10 +35,64 @@ interface EmergencyContactItem {
   phone: string;
 }
 
-function parseContactsFromMedical(nameStr?: string | null, phoneStr?: string | null): EmergencyContactItem[] {
-  if (!nameStr && !phoneStr) return [];
-  const rawNames = (nameStr || '').split(';').map(s => s.trim()).filter(Boolean);
-  const rawPhones = (phoneStr || '').split(';').map(s => s.trim()).filter(Boolean);
+function parseContactsFromMedical(dataOrName?: any, phoneStr?: string | null): EmergencyContactItem[] {
+  if (!dataOrName && !phoneStr) return [];
+  
+  if (typeof dataOrName === 'object' && dataOrName !== null) {
+    const data = dataOrName;
+    const items: EmergencyContactItem[] = [];
+    
+    // Primary contact (handles both semicolon delimited string and single contact)
+    if (data.emergency_contact_name || data.emergency_contact_phone) {
+      const rawNames = (data.emergency_contact_name || '').split(';').map((s: string) => s.trim()).filter(Boolean);
+      const rawPhones = (data.emergency_contact_phone || '').split(';').map((s: string) => s.trim()).filter(Boolean);
+      if (rawNames.length > 1 || rawPhones.length > 1) {
+        const len = Math.max(rawNames.length, rawPhones.length, 1);
+        for (let i = 0; i < len; i++) {
+          const rawName = rawNames[i] || '';
+          const phone = rawPhones[i] || '';
+          const match = rawName.match(/^(.*?)\s*\((.*?)\)$/);
+          if (match) {
+            items.push({ name: match[1].trim(), relationship: match[2].trim(), phone });
+          } else {
+            items.push({ name: rawName, relationship: i === 0 ? (data.emergency_contact_relationship || '') : '', phone });
+          }
+        }
+      } else {
+        const rawName = data.emergency_contact_name || '';
+        const match = rawName.match(/^(.*?)\s*\((.*?)\)$/);
+        items.push({
+          name: match ? match[1].trim() : rawName,
+          relationship: match ? match[2].trim() : (data.emergency_contact_relationship || ''),
+          phone: data.emergency_contact_phone || '',
+        });
+      }
+    }
+
+    // Additional contacts (from migration 046 columns)
+    if (items.length <= 1) {
+      if (data.emergency_contact_2_name || data.emergency_contact_2_phone) {
+        items.push({
+          name: data.emergency_contact_2_name || '',
+          relationship: data.emergency_contact_2_relationship || '',
+          phone: data.emergency_contact_2_phone || '',
+        });
+      }
+      if (data.emergency_contact_3_name || data.emergency_contact_3_phone) {
+        items.push({
+          name: data.emergency_contact_3_name || '',
+          relationship: data.emergency_contact_3_relationship || '',
+          phone: data.emergency_contact_3_phone || '',
+        });
+      }
+    }
+
+    return items.filter(c => c.name || c.phone);
+  }
+
+  // Fallback for string parameters
+  const rawNames = String(dataOrName || '').split(';').map(s => s.trim()).filter(Boolean);
+  const rawPhones = String(phoneStr || '').split(';').map(s => s.trim()).filter(Boolean);
   const len = Math.max(rawNames.length, rawPhones.length, 1);
   const items: EmergencyContactItem[] = [];
 
@@ -97,14 +145,14 @@ export default function ProfilePage() {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!authLoading && !currentUser) {
+    if (authLoading) return;
+
+    if (!currentUser) {
       router.push('/login');
       return;
     }
 
-    if (currentUser) {
-      fetchMedicalData();
-    }
+    fetchMedicalData();
   }, [authLoading, currentUser?.id, router]);
 
   const fetchMedicalData = async () => {
@@ -112,17 +160,11 @@ export default function ProfilePage() {
       setIsLoadingData(true);
       setError(null);
 
-      const res = await withTimeout<any>(
-        supabase
-          .from('medical_intake')
-          .select('*')
-          .eq('patient_id', currentUser?.id)
-          .maybeSingle(),
-        3000,
-        { data: null, error: null }
-      );
-
-      const { data, error: fetchError } = res || { data: null, error: null };
+      const { data, error: fetchError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .eq('patient_id', currentUser?.id)
+        .maybeSingle();
 
       if (fetchError) {
         console.error('[BioData] Error fetching medical data:', fetchError);
@@ -201,15 +243,24 @@ export default function ProfilePage() {
           current_medications: medicalData.current_medications,
           medical_conditions: medicalData.medical_conditions,
           past_surgeries: medicalData.past_surgeries,
-          smoking_status: normalizeSmokingStatus(medicalData.smoking_status),
-          pregnancy_status: normalizePregnancyStatus(medicalData.pregnancy_status),
+          smoking_status: null,
+          pregnancy_status: medicalData.gender?.toLowerCase() === 'male' ? 'na' : normalizePregnancyStatus(medicalData.pregnancy_status),
           updated_at: new Date().toISOString(),
         }, { onConflict: 'patient_id' });
 
       setMedicalData(prev => prev ? ({
         ...prev,
+        date_of_birth: medicalData.date_of_birth,
+        gender: medicalData.gender,
+        phone: medicalData.phone,
+        address: medicalData.address,
         emergency_contact_name: c1.name ? (validContacts.length > 1 ? summaryNames : c1.name) : null,
         emergency_contact_phone: c1.phone ? (validContacts.length > 1 ? summaryPhones : c1.phone) : null,
+        allergies: medicalData.allergies,
+        current_medications: medicalData.current_medications,
+        medical_conditions: medicalData.medical_conditions,
+        past_surgeries: medicalData.past_surgeries,
+        pregnancy_status: medicalData.gender?.toLowerCase() === 'male' ? 'na' : normalizePregnancyStatus(medicalData.pregnancy_status),
       }) : prev);
 
       if (saveError) {
@@ -235,7 +286,14 @@ export default function ProfilePage() {
   };
 
   const handleInputChange = (field: keyof MedicalIntake, value: string | null) => {
-    setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
+    setMedicalData(prev => {
+      if (!prev) return null;
+      const updated = { ...prev, [field]: value };
+      if (field === 'gender' && value?.toLowerCase() === 'male') {
+        updated.pregnancy_status = 'na';
+      }
+      return updated;
+    });
   };
 
   return (
@@ -357,7 +415,7 @@ export default function ProfilePage() {
                     <option value="female">Female</option>
                   </select>
                 ) : (
-                  <p className="text-text-secondary py-1 text-sm capitalize">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.gender ? (medicalData.gender.toLowerCase() === 'female' ? 'Female' : medicalData.gender.toLowerCase() === 'male' ? 'Male' : medicalData.gender) : 'Not provided'}
                   </p>
                 )}
@@ -609,49 +667,28 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
-                  Smoking Status
-                </label>
-                {isEditing ? (
-                  <select
-                    value={normalizeSmokingStatus(medicalData.smoking_status)}
-                    onChange={(e) => handleInputChange('smoking_status', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  >
-                    <option value="">Select...</option>
-                    <option value="never">Never smoked</option>
-                    <option value="former">Former smoker</option>
-                    <option value="current">Current smoker</option>
-                  </select>
-                ) : (
-                  <p className="text-text-secondary py-2">
-                    {formatSmokingStatus(medicalData.smoking_status)}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
-                  Pregnancy Status
-                </label>
-                {isEditing ? (
-                  <select
-                    value={normalizePregnancyStatus(medicalData.pregnancy_status)}
-                    onChange={(e) => handleInputChange('pregnancy_status', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  >
-                    <option value="">Select...</option>
-                    <option value="na">Not applicable</option>
-                    <option value="no">Not pregnant</option>
-                    <option value="yes">Currently pregnant</option>
-                  </select>
-                ) : (
-                  <p className="text-text-secondary py-2">
-                    {formatPregnancyStatus(medicalData.pregnancy_status)}
-                  </p>
-                )}
-              </div>
+              {medicalData.gender?.toLowerCase() === 'female' && (
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    Pregnancy Status
+                  </label>
+                  {isEditing ? (
+                    <select
+                      value={normalizePregnancyStatus(medicalData.pregnancy_status)}
+                      onChange={(e) => handleInputChange('pregnancy_status', e.target.value || null)}
+                      className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    >
+                      <option value="">Select...</option>
+                      <option value="no">Not pregnant</option>
+                      <option value="yes">Currently pregnant</option>
+                    </select>
+                  ) : (
+                    <p className="text-text-secondary py-2">
+                      {formatPregnancyStatus(medicalData.pregnancy_status)}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

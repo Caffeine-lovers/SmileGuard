@@ -620,7 +620,7 @@ export default function PatientDashboard() {
         )}
 
         {/* Pagination Controls */}
-        {!loading && activeAppointments.length > ITEMS_PER_PAGE && (
+        {!loading && activeAppointments.length > 0 && (
           <div className="mt-5 pt-4 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs font-semibold text-slate-500">
               Showing <span className="font-bold text-slate-800">{startIndex + 1}</span> to{' '}
@@ -672,28 +672,7 @@ export default function PatientDashboard() {
         )}
       </div>
 
-      {/* Quick Navigation Footer - Hidden on mobile per convention, scaled on desktop */}
-      <div className="hidden md:grid md:grid-cols-4 gap-3 lg:gap-5">
-        <Link href="/appointments" data-tour="quick-appointments" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
-          <span>Book Appointment</span>
-          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
-        </Link>
-        <Link href="/analysis" data-tour="quick-analysis" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
-          <span className="flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-            <span>AI Oral Screening</span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
-        </Link>
-        <Link href="/billing" data-tour="quick-billing" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
-          <span>Billing & Payments</span>
-          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
-        </Link>
-        <Link href="/profile" data-tour="quick-profile" className="skeuo-btn-secondary p-3.5 justify-between text-xs uppercase tracking-wider text-slate-800">
-          <span>Medical Profile</span>
-          <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
-        </Link>
-      </div>
+
 
       {/* Doctor Profile Viewing Modal */}
       <DoctorProfileModal

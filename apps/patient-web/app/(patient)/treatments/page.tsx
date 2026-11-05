@@ -15,6 +15,8 @@ import {
   Stethoscope,
   Clock,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Building2,
   Receipt,
 } from 'lucide-react';
@@ -26,6 +28,8 @@ export default function TreatmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -43,6 +47,7 @@ export default function TreatmentsPage() {
           (a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()
         );
         setAppointments(sorted);
+        setCurrentPage(1);
       } catch (err) {
         console.error('Error fetching treatments:', err);
       } finally {
@@ -121,8 +126,9 @@ export default function TreatmentsPage() {
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Loading clinical ledger...</p>
           </div>
         ) : appointments.length > 0 ? (
+        <div>
           <div className="space-y-2.5 sm:space-y-3">
-            {appointments.map((appointment) => (
+            {appointments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((appointment) => (
               <div
                 key={appointment.id}
                 className="skeuo-card p-3 sm:p-4 rounded-sm border-2 border-slate-300 flex flex-col gap-2.5 sm:gap-3"
@@ -219,6 +225,65 @@ export default function TreatmentsPage() {
               </div>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {appointments.length > 0 && (
+            <div className="mt-5 pt-4 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-slate-500">
+                Showing <span className="font-bold text-slate-800">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{' '}
+                <span className="font-bold text-slate-800">
+                  {Math.min(currentPage * ITEMS_PER_PAGE, appointments.length)}
+                </span>{' '}
+                of <span className="font-bold text-slate-800">{appointments.length}</span> treatment records
+              </p>
+
+              {Math.ceil(appointments.length / ITEMS_PER_PAGE) > 1 ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="skeuo-btn-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: Math.ceil(appointments.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-7 h-7 text-xs font-bold rounded-xs transition flex items-center justify-center ${
+                          currentPage === page
+                            ? 'bg-emerald-700 text-white shadow-xs'
+                            : 'text-slate-600 hover:bg-slate-200/80 bg-white/70 border border-slate-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(Math.ceil(appointments.length / ITEMS_PER_PAGE), p + 1))}
+                    disabled={currentPage === Math.ceil(appointments.length / ITEMS_PER_PAGE)}
+                    className="skeuo-btn-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="px-2.5 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded text-xs font-semibold">
+                  Page 1 of 1
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         ) : (
           <div className="p-10 text-center bg-slate-50 rounded-sm border-2 border-dashed border-slate-300">
             <ClipboardList className="w-8 h-8 text-slate-400 mx-auto mb-2" />

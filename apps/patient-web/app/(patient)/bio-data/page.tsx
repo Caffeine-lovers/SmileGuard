@@ -21,13 +21,7 @@ interface MedicalIntake {
   pregnancy_status: string | null;
 }
 
-import { withTimeout } from '@/lib/appointmentService';
-import { 
-  normalizePregnancyStatus, 
-  formatPregnancyStatus, 
-  normalizeSmokingStatus, 
-  formatSmokingStatus 
-} from '@/lib/medical-helpers';
+import { normalizePregnancyStatus, formatPregnancyStatus } from '@/lib/medical-helpers';
 
 export default function BioDataPage() {
   const router = useRouter();
@@ -40,14 +34,14 @@ export default function BioDataPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && !currentUser) {
+    if (authLoading) return;
+
+    if (!currentUser) {
       router.push('/login');
       return;
     }
 
-    if (currentUser) {
-      fetchMedicalData();
-    }
+    fetchMedicalData();
   }, [authLoading, currentUser?.id, router]);
 
   const fetchMedicalData = async () => {
@@ -55,17 +49,11 @@ export default function BioDataPage() {
       setLoading(true);
       setError(null);
 
-      const res = await withTimeout<any>(
-        supabase
-          .from('medical_intake')
-          .select('*')
-          .eq('patient_id', currentUser?.id)
-          .maybeSingle(),
-        3000,
-        { data: null, error: null }
-      );
-
-      const { data, error: fetchError } = res || { data: null, error: null };
+      const { data, error: fetchError } = await supabase
+        .from('medical_intake')
+        .select('*')
+        .eq('patient_id', currentUser?.id)
+        .maybeSingle();
 
       if (fetchError) {
         console.error('[BioData] Error fetching medical data:', fetchError);
@@ -74,8 +62,22 @@ export default function BioDataPage() {
       }
 
       if (!data) {
-        console.log('[BioData] No medical data found for user');
-        setMedicalData(null);
+        console.log('[BioData] No medical data found for user, initializing blank record');
+        setMedicalData({
+          patient_id: currentUser?.id || '',
+          date_of_birth: null,
+          gender: null,
+          phone: (currentUser as any)?.phone || (currentUser as any)?.phone_number || null,
+          address: null,
+          emergency_contact_name: null,
+          emergency_contact_phone: null,
+          allergies: 'None',
+          current_medications: 'None',
+          medical_conditions: 'None',
+          past_surgeries: 'None',
+          smoking_status: null,
+          pregnancy_status: null,
+        });
       } else {
         console.log('[BioData] Medical data loaded successfully');
         setMedicalData(data);
@@ -111,8 +113,8 @@ export default function BioDataPage() {
           current_medications: medicalData.current_medications,
           medical_conditions: medicalData.medical_conditions,
           past_surgeries: medicalData.past_surgeries,
-          smoking_status: normalizeSmokingStatus(medicalData.smoking_status),
-          pregnancy_status: normalizePregnancyStatus(medicalData.pregnancy_status),
+          smoking_status: null,
+          pregnancy_status: medicalData.gender?.toLowerCase() === 'male' ? 'na' : normalizePregnancyStatus(medicalData.pregnancy_status),
           updated_at: new Date().toISOString(),
         }, { onConflict: 'patient_id' });
 
@@ -137,7 +139,14 @@ export default function BioDataPage() {
   };
 
   const handleInputChange = (field: keyof MedicalIntake, value: string | null) => {
-    setMedicalData(prev => prev ? { ...prev, [field]: value } : null);
+    setMedicalData(prev => {
+      if (!prev) return null;
+      const updated = { ...prev, [field]: value };
+      if (field === 'gender' && value?.toLowerCase() === 'male') {
+        updated.pregnancy_status = 'na';
+      }
+      return updated;
+    });
   };
 
   return (
@@ -209,7 +218,7 @@ export default function BioDataPage() {
                     <option value="female">Female</option>
                   </select>
                 ) : (
-                  <p className="text-text-secondary py-1 text-sm capitalize">
+                  <p className="text-text-secondary py-1 text-sm">
                     {medicalData.gender ? (medicalData.gender.toLowerCase() === 'female' ? 'Female' : medicalData.gender.toLowerCase() === 'male' ? 'Male' : medicalData.gender) : 'Not provided'}
                   </p>
                 )}
@@ -373,49 +382,28 @@ export default function BioDataPage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
-                  Smoking Status
-                </label>
-                {isEditing ? (
-                  <select
-                    value={normalizeSmokingStatus(medicalData.smoking_status)}
-                    onChange={(e) => handleInputChange('smoking_status', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  >
-                    <option value="">Select...</option>
-                    <option value="never">Never smoked</option>
-                    <option value="former">Former smoker</option>
-                    <option value="current">Current smoker</option>
-                  </select>
-                ) : (
-                  <p className="text-text-secondary py-2">
-                    {formatSmokingStatus(medicalData.smoking_status)}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
-                  Pregnancy Status
-                </label>
-                {isEditing ? (
-                  <select
-                    value={normalizePregnancyStatus(medicalData.pregnancy_status)}
-                    onChange={(e) => handleInputChange('pregnancy_status', e.target.value || null)}
-                    className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
-                  >
-                    <option value="">Select...</option>
-                    <option value="na">Not applicable</option>
-                    <option value="no">Not pregnant</option>
-                    <option value="yes">Currently pregnant</option>
-                  </select>
-                ) : (
-                  <p className="text-text-secondary py-2">
-                    {formatPregnancyStatus(medicalData.pregnancy_status)}
-                  </p>
-                )}
-              </div>
+              {medicalData.gender?.toLowerCase() === 'female' && (
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    Pregnancy Status
+                  </label>
+                  {isEditing ? (
+                    <select
+                      value={normalizePregnancyStatus(medicalData.pregnancy_status)}
+                      onChange={(e) => handleInputChange('pregnancy_status', e.target.value || null)}
+                      className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
+                    >
+                      <option value="">Select...</option>
+                      <option value="no">Not pregnant</option>
+                      <option value="yes">Currently pregnant</option>
+                    </select>
+                  ) : (
+                    <p className="text-text-secondary py-2">
+                      {formatPregnancyStatus(medicalData.pregnancy_status)}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

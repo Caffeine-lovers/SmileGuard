@@ -149,21 +149,18 @@ export function formatAppointmentTime(timeStr?: string | null): string {
  *  15  -> "0.25 hr"
  */
 export function formatDuration(minutes?: number | null): string {
-  if (!minutes || minutes <= 0) return '0 hrs';
-  const hrs = minutes / 60;
-  if (minutes % 60 === 0) {
-    return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
+  if (!minutes || minutes <= 0) return '0 mins';
+
+  if (minutes < 60) {
+    return `${minutes} min${minutes === 1 ? '' : 's'}`;
   }
-  if (minutes % 30 === 0) {
-    return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
+
+  const wholeHours = Math.floor(minutes / 60);
+  const remainingMins = minutes % 60;
+
+  const hourStr = `${wholeHours} ${wholeHours === 1 ? 'hour' : 'hours'}`;
+  if (remainingMins === 0) {
+    return hourStr;
   }
-  if (minutes % 15 === 0) {
-    return `${hrs} ${hrs === 1 ? 'hr' : 'hrs'}`;
-  }
-  if (hrs >= 1) {
-    const whole = Math.floor(hrs);
-    const rem = minutes % 60;
-    return `${whole} hr${whole > 1 ? 's' : ''} ${rem} min`;
-  }
-  return `${minutes} min`;
+  return `${hourStr} ${remainingMins} min${remainingMins === 1 ? '' : 's'}`;
 }
