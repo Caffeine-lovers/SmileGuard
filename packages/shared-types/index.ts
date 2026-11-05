@@ -10,7 +10,7 @@ export interface CurrentUser {
   id?: string;
   name: string;
   email: string;
-  role: "patient" | "doctor" | "assistant";
+  role: "patient" | "doctor" | "assistant" | "admin";
   service?: string; // Patient's service type (e.g., "Cleaning", "Whitening")
   clinic_id?: string; // Doctor's clinic
   gender?: string;

@@ -246,7 +246,7 @@ export default function DoctorProfileSetup({
   const isFieldComplete = (field: string): boolean => {
     switch (field) {
       case "access_code":
-        return accessCode.trim().length >= 4;
+        return accessCode.trim().length > 0;
       case "license_number":
         return (
           isValidLicenseNumber(doctorData.license_number || "") &&
@@ -273,7 +273,7 @@ export default function DoctorProfileSetup({
 
   const isFormValid = () => {
     return (
-      accessCode.trim().length >= 4 &&
+      accessCode.trim().length > 0 &&
       isValidLicenseNumber(doctorData.license_number || "") &&
       isLicenseVerified &&
       !licenseDuplicateError &&
@@ -318,7 +318,7 @@ export default function DoctorProfileSetup({
     if (!isFormValid()) {
       let errorMsg = "Please complete all required fields.";
 
-      if (!accessCode.trim() || accessCode.trim().length < 4) {
+      if (!accessCode.trim()) {
         errorMsg = "Clinic Access Code is missing or invalid.";
       } else if (!isValidLicenseNumber(doctorData.license_number || "")) {
         errorMsg = "Medical License Number must be 1 to 7 numeric digits (e.g. 0123456).";

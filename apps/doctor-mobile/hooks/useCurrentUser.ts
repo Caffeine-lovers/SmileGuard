@@ -16,7 +16,25 @@ export function useCurrentUser(): CurrentUser | null {
       let resolvedRole = sessionUser.user_metadata?.role || "doctor";
 
       try {
-        // Check doctors table record and role FIRST (authoritative source of truth)
+        // Check profiles table FIRST for admin — admins have no doctors-table row
+        // and must never be silently routed into the doctor dashboard.
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, name")
+          .eq("id", sessionUser.id)
+          .maybeSingle();
+
+        if (profile?.role === "admin") {
+          setUser({
+            id: sessionUser.id,
+            email: sessionUser.email!,
+            name: sessionUser.user_metadata?.name || profile.name,
+            role: "admin",
+          });
+          return;
+        }
+
+        // Check doctors table record and role (authoritative source of truth)
         const { data: doctorRecord } = await supabase
           .from("doctors")
           .select("id, role")
@@ -28,13 +46,6 @@ export function useCurrentUser(): CurrentUser | null {
           (doctorRecord as any)?.ROLE ||
           ""
         ).toString().trim().toLowerCase();
-
-        // Check profiles table as secondary fallback
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role, name")
-          .eq("id", sessionUser.id)
-          .maybeSingle();
 
         if (doctorRole === "assistant") {
           resolvedRole = "assistant";
