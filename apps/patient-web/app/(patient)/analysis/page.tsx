@@ -520,9 +520,6 @@ export default function AnalysisPage() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary tracking-tight">AI Oral Analysis</h1>
           </div>
-          <p className="text-text-secondary text-xs sm:text-sm max-w-md sm:text-right">
-            Take or upload a close-up photo of your teeth. We check the photo quality first, then look for possible problems.
-          </p>
         </div>
 
         {/* Workspace: capture on the left, checklist + consent + action on the right */}
