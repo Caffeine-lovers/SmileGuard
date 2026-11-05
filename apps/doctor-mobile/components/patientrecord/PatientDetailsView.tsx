@@ -20,6 +20,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   FileText,
   Stethoscope,
   CreditCard,
@@ -38,6 +39,7 @@ import {
   getPatientBillingInfo,
   getPatientProfile,
   updatePatientPwdStatus,
+  updatePatientPriority,
   getPatientIdPhotoUrl,
   type PatientBillingInfo,
 } from "../../lib/profilesPatients";
@@ -62,6 +64,7 @@ export type AppointmentType = {
   imageUrl: string | number; // string for URI, number for require()
   initials?: string;
   status?: 'pending' | 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined';
+  priority?: 'Low' | 'Medium' | 'High' | 'low' | 'medium' | 'high';
   // Medical intake fields
   dateOfBirth?: string;
   address?: string;
@@ -71,6 +74,9 @@ export type AppointmentType = {
   emergencyContact2Name?: string;
   emergencyContact2Phone?: string;
   emergencyContact2Relationship?: string;
+  emergencyContact3Name?: string;
+  emergencyContact3Phone?: string;
+  emergencyContact3Relationship?: string;
   allergies?: string;
   dummy?: boolean;
   is_dummy?: boolean;
@@ -164,6 +170,36 @@ export default function PatientDetailsView({
     };
   }, [patientProfile?.pwd_id_path, patientProfile?.pwd_id_url]);
   const [updatingPwd, setUpdatingPwd] = useState(false);
+  const [isUpdatingPriority, setIsUpdatingPriority] = useState(false);
+  const [prioritySuccessMsg, setPrioritySuccessMsg] = useState<string | null>(null);
+
+  const handlePriorityChange = async (newPriority: 'Low' | 'Medium' | 'High') => {
+    if (!effectivePatientId || isUpdatingPriority) return;
+    const currentP = (patientProfile?.priority || patient?.priority || 'Low').toLowerCase();
+    if (currentP === newPriority.toLowerCase()) return;
+
+    setIsUpdatingPriority(true);
+    setPrioritySuccessMsg(null);
+    try {
+      const isDummy = Boolean((patient as any)?.dummy || patientProfile?.dummy);
+      const res = await updatePatientPriority(effectivePatientId, newPriority, isDummy);
+      if (res.success) {
+        setPatientProfile((prev: any) => ({ ...prev, priority: newPriority }));
+        if (patient) {
+          patient.priority = newPriority;
+        }
+        setPrioritySuccessMsg(`Priority set to ${newPriority}`);
+        setTimeout(() => setPrioritySuccessMsg(null), 3000);
+      } else {
+        Alert.alert('Error', res.error || 'Failed to update priority');
+      }
+    } catch (err: any) {
+      console.error('Error changing priority:', err);
+      Alert.alert('Error', 'An error occurred while updating patient priority');
+    } finally {
+      setIsUpdatingPriority(false);
+    }
+  };
 
   const effectivePatientId = patient?.patient_id || patient?.id;
 
@@ -381,6 +417,33 @@ export default function PatientDetailsView({
                         </Text>
                       </View>
                     )}
+
+                    {/* Attendance Priority Badge (Staff Only) */}
+                    {(() => {
+                      const p = (patientProfile?.priority || patient?.priority || 'Low');
+                      const pLower = p.toLowerCase();
+                      const isHigh = pLower === 'high';
+                      const isMed = pLower === 'medium';
+                      return (
+                        <View
+                          style={[
+                            styles.priorityHeroBadge,
+                            isHigh ? styles.priorityHeroBadgeHigh : isMed ? styles.priorityHeroBadgeMed : styles.priorityHeroBadgeLow,
+                          ]}
+                        >
+                          <AlertTriangle size={10} color={isHigh ? '#991B1B' : isMed ? '#92400E' : '#047857'} />
+                          <Text
+                            style={[
+                              styles.priorityHeroText,
+                              isHigh ? styles.priorityHeroTextHigh : isMed ? styles.priorityHeroTextMed : styles.priorityHeroTextLow,
+                            ]}
+                          >
+                            PRIORITY: {p.toUpperCase()}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+
                   </View>
                 </View>
               </View>
@@ -403,6 +466,75 @@ export default function PatientDetailsView({
                     ₱{billingInfo ? billingInfo.paidAmount.toLocaleString('en-US') : '0'}
                   </Text>
                 </View>
+              </View>
+            </View>
+
+
+            {/* Staff Attendance & Neglect Priority Card */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionTitleGroup}>
+                  <AlertTriangle size={14} color="#D97706" />
+                  <Text style={styles.sectionHeaderTitle}>ATTENDANCE PRIORITY (STAFF ONLY)</Text>
+                </View>
+                {isUpdatingPriority && (
+                  <ActivityIndicator size="small" color="#047857" />
+                )}
+              </View>
+
+              <View style={[styles.skeuoCard, styles.cardShadow, { padding: 14 }]}>
+                <Text style={styles.priorityDescText}>
+                  Internal clinical metric for tracking patient reliability and appointment neglect. Not visible to the patient.
+                </Text>
+
+                <View style={styles.priorityButtonRow}>
+                  {(['Low', 'Medium', 'High'] as const).map((level) => {
+                    const current = (patientProfile?.priority || patient?.priority || 'Low');
+                    const isSelected = current.toLowerCase() === level.toLowerCase();
+                    const isHigh = level === 'High';
+                    const isMed = level === 'Medium';
+
+                    return (
+                      <TouchableOpacity
+                        key={level}
+                        activeOpacity={0.8}
+                        disabled={isUpdatingPriority}
+                        onPress={() => handlePriorityChange(level)}
+                        style={[
+                          styles.prioritySelectorBtn,
+                          isSelected && (isHigh ? styles.priorityBtnActiveHigh : isMed ? styles.priorityBtnActiveMed : styles.priorityBtnActiveLow),
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                          {isSelected && <CheckCircle2 size={13} color="#FFFFFF" />}
+                          <Text
+                            style={[
+                              styles.prioritySelectorBtnText,
+                              isSelected ? styles.prioritySelectorBtnTextActive : null,
+                            ]}
+                          >
+                            {level}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.prioritySelectorSubtext,
+                            isSelected ? styles.prioritySelectorSubtextActive : null,
+                          ]}
+                        >
+                          {level === 'Low' ? 'Reliable' : level === 'Medium' ? 'Monitor' : 'Neglects Appts'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {prioritySuccessMsg && (
+                  <View style={styles.prioritySuccessBox}>
+                    <CheckCircle2 size={13} color="#047857" />
+                    <Text style={styles.prioritySuccessText}>{prioritySuccessMsg}</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -624,10 +756,45 @@ export default function PatientDetailsView({
                           "Not provided"
                         }
                         isHighlight={true}
+                        isLast={!medicalIntake?.emergencyContact3Name && !patientProfile?.emergency_contact_3_name}
+                      />
+                    </>
+                  ) : null}
+
+                  {/* Tertiary Emergency Contact */}
+                  {(medicalIntake?.emergencyContact3Name || patientProfile?.emergency_contact_3_name) ? (
+                    <>
+                      <DetailRow
+                        label="Tertiary Contact"
+                        value={
+                          medicalIntake?.emergencyContact3Name ||
+                          patientProfile?.emergency_contact_3_name ||
+                          "Not provided"
+                        }
+                      />
+                      {(medicalIntake?.emergencyContact3Relationship || patientProfile?.emergency_contact_3_relationship) ? (
+                        <DetailRow
+                          label="Relationship"
+                          value={
+                            medicalIntake?.emergencyContact3Relationship ||
+                            patientProfile?.emergency_contact_3_relationship ||
+                            "Not provided"
+                          }
+                        />
+                      ) : null}
+                      <DetailRow
+                        label="Tertiary Phone"
+                        value={
+                          medicalIntake?.emergencyContact3Phone ||
+                          patientProfile?.emergency_contact_3_phone ||
+                          "Not provided"
+                        }
+                        isHighlight={true}
                         isLast={true}
                       />
                     </>
                   ) : null}
+
                 </View>
               </View>
             ) : null}
@@ -1439,6 +1606,111 @@ const styles = StyleSheet.create({
   },
 
   // PWD Cards
+
+  priorityHeroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  priorityHeroBadgeLow: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  priorityHeroBadgeMed: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FCD34D",
+  },
+  priorityHeroBadgeHigh: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+  },
+  priorityHeroText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  priorityHeroTextLow: {
+    color: "#047857",
+  },
+  priorityHeroTextMed: {
+    color: "#B45309",
+  },
+  priorityHeroTextHigh: {
+    color: "#B91C1C",
+  },
+
+  priorityDescText: {
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 12,
+    lineHeight: 17,
+  },
+  priorityButtonRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  prioritySelectorBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  priorityBtnActiveLow: {
+    backgroundColor: "#059669",
+    borderColor: "#047857",
+  },
+  priorityBtnActiveMed: {
+    backgroundColor: "#D97706",
+    borderColor: "#B45309",
+  },
+  priorityBtnActiveHigh: {
+    backgroundColor: "#DC2626",
+    borderColor: "#B91C1C",
+  },
+  prioritySelectorBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  prioritySelectorBtnTextActive: {
+    color: "#FFFFFF",
+  },
+  prioritySelectorSubtext: {
+    fontSize: 10,
+    color: "#94A3B8",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  prioritySelectorSubtextActive: {
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  prioritySuccessBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  prioritySuccessText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#047857",
+  },
+
   pwdApprovedBox: {
     padding: 4,
     gap: 6,

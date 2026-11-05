@@ -131,12 +131,28 @@ export default function ProfilePage() {
       }
 
       if (!data) {
-        console.log('[BioData] No medical data found for user');
-        setMedicalData(null);
+        console.log('[BioData] No medical data found for user, initializing blank record');
+        const blankRecord: MedicalIntake = {
+          patient_id: currentUser?.id || '',
+          date_of_birth: null,
+          gender: null,
+          phone: (currentUser as any)?.phone || (currentUser as any)?.phone_number || null,
+          address: null,
+          emergency_contact_name: null,
+          emergency_contact_phone: null,
+          allergies: 'None',
+          current_medications: 'None',
+          medical_conditions: 'None',
+          past_surgeries: 'None',
+          smoking_status: null,
+          pregnancy_status: null,
+        };
+        setMedicalData(blankRecord);
+        setEmergencyContacts([{ name: '', relationship: '', phone: '' }]);
       } else {
         console.log('[BioData] Medical data loaded successfully');
         setMedicalData(data);
-        const parsed = parseContactsFromMedical(data.emergency_contact_name, data.emergency_contact_phone);
+        const parsed = parseContactsFromMedical(data);
         setEmergencyContacts(parsed.length > 0 ? parsed : [{ name: '', relationship: '', phone: '' }]);
       }
     } catch (err) {
@@ -156,6 +172,14 @@ export default function ProfilePage() {
       setError(null);
       setSuccess(null);
 
+      const validContacts = emergencyContacts.filter(c => c.name.trim() || c.phone.trim());
+      const c1 = validContacts[0] || { name: '', relationship: '', phone: '' };
+      const c2 = validContacts[1] || { name: '', relationship: '', phone: '' };
+      const c3 = validContacts[2] || { name: '', relationship: '', phone: '' };
+
+      const summaryNames = validContacts.map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}`).join('; ');
+      const summaryPhones = validContacts.map(c => c.phone).join('; ');
+
       const { error: saveError } = await supabase
         .from('medical_intake')
         .upsert({
@@ -164,8 +188,15 @@ export default function ProfilePage() {
           gender: medicalData.gender,
           phone: medicalData.phone,
           address: medicalData.address,
-          emergency_contact_name: medicalData.emergency_contact_name,
-          emergency_contact_phone: medicalData.emergency_contact_phone,
+          emergency_contact_name: c1.name ? (validContacts.length > 1 ? summaryNames : c1.name) : null,
+          emergency_contact_relationship: c1.relationship || null,
+          emergency_contact_phone: c1.phone ? (validContacts.length > 1 ? summaryPhones : c1.phone) : null,
+          emergency_contact_2_name: c2.name || null,
+          emergency_contact_2_relationship: c2.relationship || null,
+          emergency_contact_2_phone: c2.phone || null,
+          emergency_contact_3_name: c3.name || null,
+          emergency_contact_3_relationship: c3.relationship || null,
+          emergency_contact_3_phone: c3.phone || null,
           allergies: medicalData.allergies,
           current_medications: medicalData.current_medications,
           medical_conditions: medicalData.medical_conditions,
@@ -174,6 +205,12 @@ export default function ProfilePage() {
           pregnancy_status: normalizePregnancyStatus(medicalData.pregnancy_status),
           updated_at: new Date().toISOString(),
         }, { onConflict: 'patient_id' });
+
+      setMedicalData(prev => prev ? ({
+        ...prev,
+        emergency_contact_name: c1.name ? (validContacts.length > 1 ? summaryNames : c1.name) : null,
+        emergency_contact_phone: c1.phone ? (validContacts.length > 1 ? summaryPhones : c1.phone) : null,
+      }) : prev);
 
       if (saveError) {
         console.error('[BioData] Error saving medical data:', saveError);

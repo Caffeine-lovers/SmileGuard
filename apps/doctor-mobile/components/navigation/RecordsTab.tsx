@@ -38,7 +38,7 @@ import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
 
 // Type alias for backwards compatibility
-type AppointmentType = Appointment & { patient_id?: string; dummy?: boolean };
+type AppointmentType = Appointment & { patient_id?: string; dummy?: boolean; priority?: 'Low' | 'Medium' | 'High' | 'low' | 'medium' | 'high'; };
 
 interface RecordsTabProps {
   patients: AppointmentType[];
@@ -110,6 +110,7 @@ export default function RecordsTab({
           imageUrl: patient.avatar_url || patient.avatar || patient.profile_picture || patient.image_url || require('../../assets/images/user.png'),
           status: 'scheduled' as const,
           dummy: Boolean(patient.dummy),
+          priority: (patient.priority as any) || 'Low',
         }));
 
         console.log('RecordsTab - Mapped profiles patients:', mapped);
@@ -219,6 +220,7 @@ export default function RecordsTab({
         notes: '',
         imageUrl: (patient as any).avatar_url || (patient as any).avatar || (patient as any).profile_picture || (patient as any).image_url || require('../../assets/images/user.png'),
         status: 'scheduled' as const,
+        priority: (patient.priority as any) || 'Low',
       }));
       setSupabasePatients(mappedSupabase);
       setCurrentPage(1);
@@ -721,15 +723,34 @@ export default function RecordsTab({
                     <View style={{ flex: 1, marginRight: 8 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                         <Text style={localStyles.patientName} numberOfLines={1}>{patient.name}</Text>
-                        {patient.dummy ? (
-                          <View style={localStyles.dummyBadge}>
-                            <Text style={localStyles.dummyBadgeText}>DUMMY</Text>
-                          </View>
-                        ) : (
-                          <View style={localStyles.patientBadge}>
-                            <Text style={localStyles.patientBadgeText}>PATIENT</Text>
-                          </View>
-                        )}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          {patient.priority ? (
+                            <View style={[
+                              localStyles.cardPriorityBadge,
+                              patient.priority.toLowerCase() === 'high' ? localStyles.cardPriorityBadgeHigh :
+                              patient.priority.toLowerCase() === 'medium' ? localStyles.cardPriorityBadgeMed :
+                              localStyles.cardPriorityBadgeLow
+                            ]}>
+                              <Text style={[
+                                localStyles.cardPriorityText,
+                                patient.priority.toLowerCase() === 'high' ? localStyles.cardPriorityTextHigh :
+                                patient.priority.toLowerCase() === 'medium' ? localStyles.cardPriorityTextMed :
+                                localStyles.cardPriorityTextLow
+                              ]}>
+                                {patient.priority.toUpperCase()}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {patient.dummy ? (
+                            <View style={localStyles.dummyBadge}>
+                              <Text style={localStyles.dummyBadgeText}>DUMMY</Text>
+                            </View>
+                          ) : (
+                            <View style={localStyles.patientBadge}>
+                              <Text style={localStyles.patientBadgeText}>PATIENT</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                       {(patient.email || patient.contact) ? (
                         <Text style={localStyles.patientContact} numberOfLines={1}>
@@ -1222,6 +1243,38 @@ const localStyles = StyleSheet.create({
     fontWeight: '800',
     color: '#047857',
     letterSpacing: 0.5,
+  },
+  cardPriorityBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderWidth: 1,
+  },
+  cardPriorityBadgeLow: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  cardPriorityBadgeMed: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FCD34D',
+  },
+  cardPriorityBadgeHigh: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+  cardPriorityText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  cardPriorityTextLow: {
+    color: '#047857',
+  },
+  cardPriorityTextMed: {
+    color: '#B45309',
+  },
+  cardPriorityTextHigh: {
+    color: '#B91C1C',
   },
   dummyBadge: {
     backgroundColor: '#FEF3C7',

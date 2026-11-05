@@ -22,9 +22,13 @@ export async function getPatientProfile(
   emergency_contact_2_name?: string;
   emergency_contact_2_phone?: string;
   emergency_contact_2_relationship?: string;
+  emergency_contact_3_name?: string;
+  emergency_contact_3_phone?: string;
+  emergency_contact_3_relationship?: string;
   allergies?: string;
   dummy?: boolean;
   is_dummy?: boolean;
+  priority?: 'Low' | 'Medium' | 'High';
   pwd_status?: 'none' | 'pending' | 'approved' | 'rejected';
   pwd_type?: 'pwd' | 'senior';
   pwd_id_url?: string;
@@ -35,7 +39,7 @@ export async function getPatientProfile(
   updated_at: string;
 } | null> {
   try {
-    const baseCols = 'id, name, email, role, service, pwd_status, pwd_type, pwd_id_url, pwd_submitted_at, pwd_reviewed_at, created_at, updated_at';
+    const baseCols = 'id, name, email, role, service, priority, pwd_status, pwd_type, pwd_id_url, pwd_submitted_at, pwd_reviewed_at, created_at, updated_at';
     let { data, error } = await supabase
       .from('profiles')
       .select(`${baseCols}, pwd_id_path`)
@@ -45,6 +49,12 @@ export async function getPatientProfile(
     // pwd_id_path arrives with migration 038; keep working on databases without it
     if (error && error.message?.includes('pwd_id_path')) {
       ({ data, error } = await supabase.from('profiles').select(baseCols).eq('id', patientId).maybeSingle());
+    }
+
+    // priority arrives with migration 047; safe fallback if not yet migrated
+    if (error && error.message?.includes('priority')) {
+      const legacyCols = 'id, name, email, role, service, pwd_status, pwd_type, pwd_id_url, pwd_submitted_at, pwd_reviewed_at, created_at, updated_at';
+      ({ data, error } = await supabase.from('profiles').select(legacyCols).eq('id', patientId).maybeSingle());
     }
 
     if (error && error.message?.includes('pwd_status')) {
@@ -80,7 +90,11 @@ export async function getPatientProfile(
             emergency_contact_2_name: dummyData.emergency_contact_2_name || '',
             emergency_contact_2_phone: dummyData.emergency_contact_2_phone || '',
             emergency_contact_2_relationship: dummyData.emergency_contact_2_relationship || '',
+            emergency_contact_3_name: dummyData.emergency_contact_3_name || '',
+            emergency_contact_3_phone: dummyData.emergency_contact_3_phone || '',
+            emergency_contact_3_relationship: dummyData.emergency_contact_3_relationship || '',
             allergies: dummyData.allergies || 'None',
+            priority: dummyData.priority || 'Low',
             dummy: true,
             is_dummy: true,
             service: 'General Dental',
@@ -93,10 +107,46 @@ export async function getPatientProfile(
       }
     }
 
+    if (data) {
+      return {
+        ...data,
+        priority: data.priority || 'Low',
+      };
+    }
     return data;
   } catch (err) {
     console.error('Error fetching patient profile:', err);
     return null;
+  }
+}
+
+
+export async function updatePatientPriority(
+  patientId: string,
+  priority: 'Low' | 'Medium' | 'High',
+  isDummy?: boolean
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (isDummy) {
+      const { error } = await supabase
+        .from('dummy_patients')
+        .update({ priority, updated_at: new Date().toISOString() })
+        .eq('id', patientId);
+
+      if (error) throw error;
+      return { success: true };
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ priority, updated_at: new Date().toISOString() })
+      .eq('id', patientId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating patient priority:', err);
+    return { success: false, error: err.message };
   }
 }
 
@@ -174,6 +224,9 @@ export async function getPatientMedicalIntake(
           emergencyContact2Name: dummyData.emergency_contact_2_name || '',
           emergencyContact2Phone: dummyData.emergency_contact_2_phone || '',
           emergencyContact2Relationship: dummyData.emergency_contact_2_relationship || '',
+          emergencyContact3Name: dummyData.emergency_contact_3_name || '',
+          emergencyContact3Phone: dummyData.emergency_contact_3_phone || '',
+          emergencyContact3Relationship: dummyData.emergency_contact_3_relationship || '',
           allergies: dummyData.allergies || 'None',
           currentMedications: 'None',
           medicalConditions: 'None',
@@ -200,6 +253,13 @@ export async function getPatientMedicalIntake(
     address: record.address || '',
     emergencyContactName: record.emergency_contact_name || '',
     emergencyContactPhone: record.emergency_contact_phone || '',
+    emergencyContactRelationship: record.emergency_contact_relationship || '',
+    emergencyContact2Name: record.emergency_contact_2_name || '',
+    emergencyContact2Phone: record.emergency_contact_2_phone || '',
+    emergencyContact2Relationship: record.emergency_contact_2_relationship || '',
+    emergencyContact3Name: record.emergency_contact_3_name || '',
+    emergencyContact3Phone: record.emergency_contact_3_phone || '',
+    emergencyContact3Relationship: record.emergency_contact_3_relationship || '',
     allergies: record.allergies || '',
     currentMedications: record.current_medications || '',
     medicalConditions: record.medical_conditions || '',
@@ -358,6 +418,13 @@ export async function updatePatientMedicalIntake(
     if (medicalData.address !== undefined) dbData.address = medicalData.address;
     if (medicalData.emergencyContactName !== undefined) dbData.emergency_contact_name = medicalData.emergencyContactName;
     if (medicalData.emergencyContactPhone !== undefined) dbData.emergency_contact_phone = medicalData.emergencyContactPhone;
+    if (medicalData.emergencyContactRelationship !== undefined) dbData.emergency_contact_relationship = medicalData.emergencyContactRelationship;
+    if (medicalData.emergencyContact2Name !== undefined) dbData.emergency_contact_2_name = medicalData.emergencyContact2Name;
+    if (medicalData.emergencyContact2Phone !== undefined) dbData.emergency_contact_2_phone = medicalData.emergencyContact2Phone;
+    if (medicalData.emergencyContact2Relationship !== undefined) dbData.emergency_contact_2_relationship = medicalData.emergencyContact2Relationship;
+    if (medicalData.emergencyContact3Name !== undefined) dbData.emergency_contact_3_name = medicalData.emergencyContact3Name;
+    if (medicalData.emergencyContact3Phone !== undefined) dbData.emergency_contact_3_phone = medicalData.emergencyContact3Phone;
+    if (medicalData.emergencyContact3Relationship !== undefined) dbData.emergency_contact_3_relationship = medicalData.emergencyContact3Relationship;
     if (medicalData.allergies !== undefined) dbData.allergies = medicalData.allergies;
     if (medicalData.currentMedications !== undefined) dbData.current_medications = medicalData.currentMedications;
     if (medicalData.medicalConditions !== undefined) dbData.medical_conditions = medicalData.medicalConditions;
@@ -485,6 +552,7 @@ export async function getAllPatients(): Promise<
     medical_conditions?: string;
     role?: string;
     avatar_url?: string;
+    priority?: 'Low' | 'Medium' | 'High';
   }>
 > {
   // Fetch medical intake data
@@ -538,6 +606,7 @@ export async function getAllPatients(): Promise<
       medical_conditions: item.medical_conditions || '',
       role: profile.role || '',
       avatar_url: profile.avatar_url || profile.avatar || profile.profile_picture || profile.image_url || undefined,
+      priority: (profile.priority as any) || 'Low',
     };
   });
 
@@ -559,6 +628,7 @@ async function getAllPatientsFromProfiles(): Promise<
     medical_conditions?: string;
     role?: string;
     avatar_url?: string;
+    priority?: 'Low' | 'Medium' | 'High';
   }>
 > {
   const { data: profilesData, error: profilesError } = await supabase
@@ -585,6 +655,7 @@ async function getAllPatientsFromProfiles(): Promise<
     medical_conditions: '',
     role: profile.role || '',
     avatar_url: profile.avatar_url || profile.avatar || profile.profile_picture || profile.image_url || undefined,
+    priority: (profile.priority as any) || 'Low',
   }));
 }
 

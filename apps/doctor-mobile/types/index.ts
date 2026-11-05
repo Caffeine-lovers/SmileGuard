@@ -28,6 +28,9 @@ export interface MedicalIntake {
   emergencyContact2Name?: string;
   emergencyContact2Phone?: string;
   emergencyContact2Relationship?: string;
+  emergencyContact3Name?: string;
+  emergencyContact3Phone?: string;
+  emergencyContact3Relationship?: string;
   allergies: string;
   currentMedications: string;
   medicalConditions: string;
@@ -48,6 +51,9 @@ export const EMPTY_MEDICAL_INTAKE: MedicalIntake = {
   emergencyContact2Name: "",
   emergencyContact2Phone: "",
   emergencyContact2Relationship: "",
+  emergencyContact3Name: "",
+  emergencyContact3Phone: "",
+  emergencyContact3Relationship: "",
   allergies: "",
   currentMedications: "",
   medicalConditions: "",

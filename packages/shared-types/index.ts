@@ -64,6 +64,7 @@ export interface Patient {
   address?: string;
   medical_conditions?: string;
   allergies?: string;
+  priority?: 'Low' | 'Medium' | 'High' | 'low' | 'medium' | 'high';
   created_at?: string;
   updated_at?: string;
 }
@@ -76,6 +77,12 @@ export interface MedicalIntakeData {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  emergency_contact_2_name?: string;
+  emergency_contact_2_relationship?: string;
+  emergency_contact_2_phone?: string;
+  emergency_contact_3_name?: string;
+  emergency_contact_3_relationship?: string;
+  emergency_contact_3_phone?: string;
   allergies?: string;
   current_medications?: string;
   medical_conditions?: string;
