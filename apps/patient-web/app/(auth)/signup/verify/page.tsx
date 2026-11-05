@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { checkEmailContext } from '@/lib/email-context';
+import { AlertCircle, LogIn } from 'lucide-react';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 import { showAlert } from '@/components/ui/AppDialog';
@@ -25,6 +28,7 @@ export default function SignupVerifyPage() {
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [actionLink, setActionLink] = useState<{ text: string; href: string } | null>(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
 
   // Enforce email verification method
@@ -53,6 +57,7 @@ export default function SignupVerifyPage() {
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setActionLink(null);
     setVerificationLoading(true);
 
     const normalizedEmail = verificationEmail.trim().toLowerCase();
@@ -64,6 +69,16 @@ export default function SignupVerifyPage() {
 
     try {
       setVerificationEmail(normalizedEmail);
+
+      // Confirm email context: Check if email is already registered with completed intake
+      const context = await checkEmailContext(normalizedEmail);
+      if (context.is_registered && context.has_medical_intake) {
+        setLocalError('This email is already registered. Please sign in to your account.');
+        setActionLink({ text: 'Sign In to Account', href: '/login' });
+        setVerificationLoading(false);
+        return;
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
         options: {
@@ -187,8 +202,22 @@ export default function SignupVerifyPage() {
       )}
 
       {localError && (
-        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm">
-          {localError}
+        <div className="bg-brand-danger/10 border border-brand-danger text-brand-danger px-4 py-3 rounded mb-6 text-sm space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{localError}</span>
+          </div>
+          {actionLink && (
+            <div className="pt-2 border-t border-brand-danger/20">
+              <Link
+                href={actionLink.href}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary hover:underline bg-white px-3 py-1.5 rounded border border-border-card shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>{actionLink.text}</span>
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
@@ -216,7 +245,7 @@ export default function SignupVerifyPage() {
             <input
               type="email"
               value={verificationEmail}
-              onChange={(e) => setVerificationEmail(e.target.value)}
+              onChange={(e) => { setVerificationEmail(e.target.value); if (localError) { setLocalError(null); setActionLink(null); } }}
               required
               className="w-full px-4 py-2 border border-border-card rounded-lg focus:ring-2 focus:ring-brand-primary outline-none"
               placeholder="you@example.com"

@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { checkEmailContext } from '@/lib/email-context';
+import { AlertCircle, LogIn } from 'lucide-react';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 import { Eye, EyeOff, Check, X, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -25,6 +28,7 @@ export default function SignupRegisterPage() {
   } = useSignup();
 
   const [localError, setLocalError] = useState<string | null>(null);
+  const [actionLink, setActionLink] = useState<{ text: string; href: string } | null>(null);
   const [passwordCheck, setPasswordCheck] = useState({
     hasUpperCase: false,
     hasLowerCase: false,
@@ -111,6 +115,17 @@ export default function SignupRegisterPage() {
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setActionLink(null);
+
+    // Confirm email context: Check if email is already registered with completed medical intake
+    if (formData.email) {
+      const context = await checkEmailContext(formData.email);
+      if (context.is_registered && context.has_medical_intake) {
+        setLocalError('This email is already registered. Please sign in to your account.');
+        setActionLink({ text: 'Sign In to Account', href: '/login' });
+        return;
+      }
+    }
 
     const trimmedName = (formData.name || '').trim();
     if (!trimmedName) {
@@ -160,8 +175,22 @@ export default function SignupRegisterPage() {
       </div>
 
       {localError && (
-        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-sm font-semibold">
-          {localError}
+        <div className="bg-red-50 border-2 border-red-500 text-red-700 px-4 py-3 rounded-sm mb-6 text-sm font-semibold space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{localError}</span>
+          </div>
+          {actionLink && (
+            <div className="pt-2 border-t border-red-200">
+              <Link
+                href={actionLink.href}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-900 hover:underline bg-white px-3 py-1.5 rounded border border-slate-300 shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>{actionLink.text}</span>
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
