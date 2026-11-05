@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Query the database for valid, active codes
     const { data, error } = await supabase
       .from("doctor_access_codes")
-      .select("id, code, label")
+      .select("id, code, label, tier")
       .eq("code", code.toUpperCase())
       .eq("is_active", true)
       .single();
@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
         valid: true,
         codeId: data.id,
         label: data.label,
+        tier: data.tier,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
