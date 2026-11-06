@@ -55,7 +55,7 @@ interface AppointmentsTabProps {
   styles: any;
   doctorId?: string;
   userRole?: 'doctor' | 'assistant' | string;
-  onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
+  onAppointmentStatusUpdated?: (status: 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
   startTourTrigger?: number;
   refreshTrigger?: number;
 }
@@ -1257,6 +1257,9 @@ export default function AppointmentsTab({
           onClose={() => setShowAddAppointmentModal(false)}
           onAppointmentAdded={async () => {
             await handleRefreshAppointments();
+            if (onAppointmentStatusUpdated) {
+              onAppointmentStatusUpdated('scheduled', '', '', '', '');
+            }
           }}
           initialDate={selectedDate}
           defaultDoctorId={doctorId}

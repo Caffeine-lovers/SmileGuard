@@ -315,14 +315,18 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
       // 1. Query billings to get all unique patient IDs with existing billings
       const { data: billingPatientData, error: billingError } = await supabase
         .from('billings')
-        .select('patient_id');
+        .select('patient_id, dummy_patient_id');
 
       if (billingError) {
         console.error('Error fetching billing patient IDs:', billingError);
       }
 
       const uniquePatientIds = [
-        ...new Set((billingPatientData || []).map((b: any) => b.patient_id).filter(Boolean)),
+        ...new Set(
+          (billingPatientData || [])
+            .flatMap((b: any) => [b.patient_id, b.dummy_patient_id])
+            .filter(Boolean)
+        ),
       ];
 
       // 2. Fetch profiles for patients with billings
@@ -401,14 +405,13 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
         .order('created_at', { ascending: false });
 
       if (activePatientId) {
-        query = query.eq('patient_id', activePatientId);
+        query = query.or(`patient_id.eq.${activePatientId},dummy_patient_id.eq.${activePatientId}`);
       }
 
       const { data: billingRecords, error } = await query;
 
       if (error) {
         console.error('Error fetching billings:', error);
-        Alert.alert('Error', 'Failed to load billings');
         return;
       }
 
@@ -511,10 +514,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
       setCurrentPage(1);
       const loadedPatients = await loadPatients();
       await loadBillings(selectedPatientId, loadedPatients);
-      Alert.alert('Refreshed', 'Billing data updated successfully!');
     } catch (error) {
       console.error('Error refreshing billing data:', error);
-      Alert.alert('Error', 'Failed to refresh billing data. Please try again.');
     } finally {
       setLoading(false);
     }

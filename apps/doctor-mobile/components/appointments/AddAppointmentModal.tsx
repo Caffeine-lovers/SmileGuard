@@ -448,7 +448,7 @@ export default function AddAppointmentModal({
     }
   }, [visible, showDatePicker, pickerCalendarMonth, fetchMonthAppointments]);
 
-  // Compute Time Slots based on Clinic Setup Operating Hours for the Day
+  // Compute Time Slots based on Clinic Setup Operating Hours for the Day (30-minute intervals)
   const availableTimeSlots = useMemo(() => {
     if (!appointmentDate || !/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) {
       return STANDARD_TIMES;
@@ -464,17 +464,12 @@ export default function AddAppointmentModal({
     const closeTime = parse12HourTime(sched.closing_time || "03:00 PM");
 
     const slots: string[] = [];
-    let curH = openTime.hour;
-    let curM = openTime.minute;
+    const openMin = openTime.hour * 60 + openTime.minute;
+    const closeMin = closeTime.hour * 60 + closeTime.minute;
 
-    // Generate slots in 30-minute increments up to closing hour
-    while (curH < closeTime.hour || (curH === closeTime.hour && curM < closeTime.minute)) {
-      slots.push(format12HourTime(curH, curM));
-      curM += 30;
-      if (curM >= 60) {
-        curH += Math.floor(curM / 60);
-        curM = curM % 60;
-      }
+    // Generate slots in 30-minute increments while at least 30 mins remain before closing
+    for (let t = openMin; t + 30 <= closeMin; t += 30) {
+      slots.push(formatMinutes(t));
     }
 
     if (slots.length === 0) {
@@ -1237,7 +1232,9 @@ export default function AddAppointmentModal({
                           >
                             {t}
                           </Text>
-                          {isPast ? (
+                          {isSelected ? (
+                            <Text style={styles.timePillSelectedTag} numberOfLines={1}>Selected</Text>
+                          ) : isPast ? (
                             <Text style={styles.timePillPastTag} numberOfLines={1}>Passed</Text>
                           ) : isBooked ? (
                             <Text style={styles.timePillBookedTag} numberOfLines={1}>
@@ -1245,7 +1242,7 @@ export default function AddAppointmentModal({
                             </Text>
                           ) : isInSelectedWindow ? (
                             <Text style={styles.timePillInWindowTag} numberOfLines={1}>
-                              In Window
+                              Blocked Out
                             </Text>
                           ) : !fitsTime ? (
                             <Text style={styles.timePillNoFitTag} numberOfLines={1}>
@@ -2329,9 +2326,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#047857",
     borderColor: "#047857",
   },
+  timePillSelectedTag: {
+    fontSize: 8.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
   timePillInWindow: {
     backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
+    borderColor: "#10B981",
   },
   timePillTextInWindow: {
     color: "#047857",

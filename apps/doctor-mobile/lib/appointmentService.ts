@@ -1,4 +1,4 @@
-import { toMinutes } from './scheduling';
+import { toMinutes, getCatalogPriceForService } from './scheduling';
 import { isAppointmentUndecidedAndEclipsed } from './dateFormatters';
 import { supabase } from '@smileguard/supabase-client';
 export async function cancelAppointment(
@@ -1182,16 +1182,33 @@ export async function createDirectAppointment(
           .maybeSingle();
 
         if (!existingBill) {
-          // If trigger didn't run or is not yet applied, create billing row
-          await supabase.rpc('create_dummy_billing', {
-            p_patient_id: input.patient_id,
-            p_appointment_id: data.id,
-            p_amount: 1500,
-            p_discount_type: 'none',
-            p_discount_amount: 0,
-            p_final_amount: 1500,
-            p_payment_status: 'not_paid',
+          const servicePrice = getCatalogPriceForService(input.service);
+          // Try inserting directly with dummy_patient_id support
+          const { error: insertBillError } = await supabase.from('billings').insert({
+            patient_id: input.patient_id,
+            dummy_patient_id: input.patient_id,
+            appointment_id: data.id,
+            amount: servicePrice,
+            discount_type: 'none',
+            discount_amount: 0,
+            final_amount: servicePrice,
+            payment_status: 'not_paid',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           });
+
+          if (insertBillError) {
+            // Fallback to create_dummy_billing RPC
+            await supabase.rpc('create_dummy_billing', {
+              p_patient_id: input.patient_id,
+              p_appointment_id: data.id,
+              p_amount: servicePrice,
+              p_discount_type: 'none',
+              p_discount_amount: 0,
+              p_final_amount: servicePrice,
+              p_payment_status: 'not_paid',
+            });
+          }
         }
       } catch (billSyncErr) {
         console.warn('[createDirectAppointment] Billing safeguard sync error (non-fatal):', billSyncErr);

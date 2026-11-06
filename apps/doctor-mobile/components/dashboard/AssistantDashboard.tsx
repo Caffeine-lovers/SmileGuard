@@ -336,20 +336,22 @@ export default function AssistantDashboard({
         return [...filtered, activeTab];
       });
       setActiveTab(nextTab);
-
-      // Refresh the specific tab when clicked (or whole dashboard on dashboard)
-      if (nextTab === "dashboard") {
-        refreshDashboardData();
-      } else if (nextTab === "billing") {
-        setBillingRefreshTrigger((prev) => prev + 1);
-      } else if (nextTab === "appointments") {
-        setAppointmentsRefreshTrigger((prev) => prev + 1);
-      } else if (nextTab === "records") {
-        setRecordsRefreshTrigger((prev) => prev + 1);
-      }
     },
     [activeTab]
   );
+
+  // Automatically refresh the active tab whenever it changes
+  useEffect(() => {
+    if (activeTab === "dashboard") {
+      refreshDashboardData();
+    } else if (activeTab === "billing") {
+      setBillingRefreshTrigger((prev) => prev + 1);
+    } else if (activeTab === "appointments") {
+      setAppointmentsRefreshTrigger((prev) => prev + 1);
+    } else if (activeTab === "records") {
+      setRecordsRefreshTrigger((prev) => prev + 1);
+    }
+  }, [activeTab]);
 
   const handleGoBack = useCallback(() => {
     if (sidebarOpen) {
@@ -520,7 +522,8 @@ export default function AssistantDashboard({
     },
   ];
 
-  // Auto-prompt tour on first login
+  // Auto-prompt tour on first login (Temporarily disabled for assistant portal)
+  /*
   useEffect(() => {
     if (!user?.id || loadingAppointments || loadingPatients) return;
 
@@ -551,6 +554,7 @@ export default function AssistantDashboard({
       isMounted = false;
     };
   }, [user?.id, loadingAppointments, loadingPatients]);
+  */
 
   const handleFinishTour = async () => {
     setTourVisible(false);
@@ -569,10 +573,7 @@ export default function AssistantDashboard({
   };
 
   const handleRestartTour = () => {
-    setSidebarOpen(false);
-    setActiveTab("dashboard");
-    setTourIndex(0);
-    setTourVisible(true);
+    Alert.alert("Notice", "The app guide is temporarily disabled.");
   };
 
   const today = getToday();
@@ -1325,15 +1326,14 @@ export default function AssistantDashboard({
               onPress={async () => {
                 setIsRefreshing(true);
                 try {
-                  await refreshDashboardData();
                   if (activeTab === "billing") {
                     setBillingRefreshTrigger((prev) => prev + 1);
                   } else if (activeTab === "appointments") {
                     setAppointmentsRefreshTrigger((prev) => prev + 1);
                   } else if (activeTab === "records") {
                     setRecordsRefreshTrigger((prev) => prev + 1);
-                  } else if (activeTab === "appointment-requests") {
-                    setRequestsRefreshTrigger((prev) => prev + 1);
+                  } else {
+                    await refreshDashboardData();
                   }
                 } finally {
                   setIsRefreshing(false);
@@ -2155,8 +2155,8 @@ export default function AssistantDashboard({
         </KeyboardAvoidingView>
       </Modal>
 
-        {/* Walkthrough Tour */}
-        <AppTour
+        {/* Walkthrough Tour (Temporarily disabled) */}
+        {/* <AppTour
           visible={tourVisible}
           steps={tourSteps}
           index={tourIndex}
@@ -2164,7 +2164,7 @@ export default function AssistantDashboard({
           measureTarget={tour.measure}
           onFinish={handleFinishTour}
           onSkip={handleSkipTour}
-        />
+        /> */}
       </View>
     </SafeAreaView>
   );

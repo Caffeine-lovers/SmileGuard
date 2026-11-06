@@ -51,8 +51,8 @@ export default function SetupProfilePage() {
     }
 
     Alert.alert(
-      "Cancel Registration?",
-      "Are you sure you want to go back to the welcome screen? Any unsaved registration details will be discarded.",
+      "Exit Registration?",
+      "Are you sure you want to exit and return to the welcome screen? Any unsaved registration details will be discarded.",
       [
         { text: "Stay", style: "cancel" },
         {
@@ -67,6 +67,7 @@ export default function SetupProfilePage() {
                 "supabase.auth.refreshToken",
                 "supabase.auth.user",
                 "@pending_doctor_access_code",
+                "@pending_user_role",
               ]);
             } catch (err) {
               console.warn("[SetupProfile] Error during signOut on cancel:", err);

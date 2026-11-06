@@ -304,17 +304,19 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       return [...filtered, activeTab];
     });
     setActiveTab(nextTab);
+  }, [activeTab]);
 
-    // Refresh the specific tab when clicked (or whole dashboard on dashboard)
-    if (nextTab === 'dashboard') {
+  // Automatically refresh the active tab whenever it changes
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
       refreshDashboardData();
-    } else if (nextTab === 'billing') {
+    } else if (activeTab === 'billing') {
       setBillingRefreshTrigger(prev => prev + 1);
-    } else if (nextTab === 'appointments') {
+    } else if (activeTab === 'appointments') {
       setAppointmentsRefreshTrigger(prev => prev + 1);
-    } else if (nextTab === 'records') {
+    } else if (activeTab === 'records') {
       setRecordsRefreshTrigger(prev => prev + 1);
-    } else if (nextTab === 'appointment-requests') {
+    } else if (activeTab === 'appointment-requests') {
       setRequestsRefreshTrigger(prev => prev + 1);
     }
   }, [activeTab]);

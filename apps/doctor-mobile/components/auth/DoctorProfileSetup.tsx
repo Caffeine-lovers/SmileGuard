@@ -41,6 +41,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
+  LogOut,
 } from "lucide-react-native";
 import { createDoctorProfile, doctorLicenseExists } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage, ImagePickerResult } from "../../lib/imageUploadService";
@@ -169,18 +170,37 @@ export default function DoctorProfileSetup({
   // ── Selected Image Data
   const [selectedImage, setSelectedImage] = useState<ImagePickerResult | null>(null);
 
-  // Available Dental Specializations
-  const specializations = [
-    "General Dentistry",
-    "Orthodontics",
-    "Periodontics",
-    "Prosthodontics",
-    "Oral Surgery",
-    "Pediatric Dentistry",
-    "Endodontics",
-    "Cosmetic Dentistry",
-    "Implant Dentistry",
-  ];
+  // Available Dental & Clinical Specializations
+  const specializations = isAssistantRole
+    ? [
+        "General Dental Assisting",
+        "Chairside Assisting",
+        "Clinical Dental Assistant",
+        "Dental Hygiene & Prophylaxis",
+        "Orthodontic Assisting",
+        "Pediatric Dental Assisting",
+        "Surgical Dental Assisting",
+        "General Dentistry",
+        "Orthodontics",
+        "Periodontics",
+        "Prosthodontics",
+        "Oral Surgery",
+        "Pediatric Dentistry",
+        "Endodontics",
+        "Cosmetic Dentistry",
+        "Implant Dentistry",
+      ]
+    : [
+        "General Dentistry",
+        "Orthodontics",
+        "Periodontics",
+        "Prosthodontics",
+        "Oral Surgery",
+        "Pediatric Dentistry",
+        "Endodontics",
+        "Cosmetic Dentistry",
+        "Implant Dentistry",
+      ];
 
   // ────────────────────────────────────────────────────────────────
   // DOCTOR DETAILS VALIDATION
@@ -270,15 +290,14 @@ export default function DoctorProfileSetup({
 
   const isFormValid = () => {
     const credentialsValid =
-      isAssistantRole ||
-      (isValidLicenseNumber(doctorData.license_number || "") &&
-        isLicenseVerified &&
-        !licenseDuplicateError &&
-        !isCheckingLicense &&
-        (doctorData.specialization || "").trim() !== "" &&
-        yearsOfExperienceStr.trim() !== "" &&
-        !isNaN(Number(yearsOfExperienceStr)) &&
-        (doctorData.gender || "").trim() !== "");
+      isValidLicenseNumber(doctorData.license_number || "") &&
+      isLicenseVerified &&
+      !licenseDuplicateError &&
+      !isCheckingLicense &&
+      (doctorData.specialization || "").trim() !== "" &&
+      yearsOfExperienceStr.trim() !== "" &&
+      !isNaN(Number(yearsOfExperienceStr)) &&
+      (doctorData.gender || "").trim() !== "";
 
     return (
       accessCode.trim().length > 0 &&
@@ -416,10 +435,10 @@ export default function DoctorProfileSetup({
         last_name: (doctorData.last_name || "").trim(),
         doctor_phone: fullPhoneNumber,
         role: assignedRole,
-        years_of_experience: isAssistantRole ? 0 : Number(yearsOfExperienceStr) || 0,
-        license_number: isAssistantRole ? "" : paddedLicense,
-        specialization: isAssistantRole ? "" : doctorData.specialization,
-        bio: isAssistantRole ? "" : doctorData.bio,
+        years_of_experience: Number(yearsOfExperienceStr) || 0,
+        license_number: paddedLicense,
+        specialization: doctorData.specialization,
+        bio: doctorData.bio,
         profile_picture_url: profileImageUrl || undefined,
       };
 
@@ -464,21 +483,20 @@ export default function DoctorProfileSetup({
             onPress={onCancel}
             disabled={loading}
             activeOpacity={0.7}
-            accessibilityLabel="Back to Initial Screen"
+            accessibilityLabel="Exit to Welcome Screen"
           >
             <ChevronLeft size={16} color="#047857" strokeWidth={2.5} />
+            <Text style={styles.headerBackBtnText}>Exit</Text>
           </TouchableOpacity>
         ) : (
-          <View style={{ width: 60 }} />
+          <View style={{ width: 68 }} />
         )}
 
         <View style={styles.headerTitleGroup}>
           <Text style={styles.topHeaderTitle}>{isAssistantRole ? "ASSISTANT REGISTRATION" : "DOCTOR REGISTRATION"}</Text>
         </View>
 
-        <View style={{ width: 60 }}>
-
-        </View>
+        <View style={{ width: 68 }} />
       </View>
 
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
@@ -645,8 +663,7 @@ export default function DoctorProfileSetup({
               />
             </View>
 
-            {/* Honorific Prefix / Gender (dentists only) */}
-            {!isAssistantRole && (
+            {/* Honorific Prefix / Gender */}
             <View style={[styles.inputGroup, { marginBottom: 0 }]}>
               <View style={styles.labelRow}>
                 <Text style={styles.inputLabel}>HONORIFIC PREFIX</Text>
@@ -655,8 +672,8 @@ export default function DoctorProfileSetup({
 
               <View style={styles.genderRow}>
                 {[
-                  { label: "Male (Dr.)", value: "Male" },
-                  { label: "Female (Dra.)", value: "Female" },
+                  { label: isAssistantRole ? "Male (Mr.)" : "Male (Dr.)", value: "Male" },
+                  { label: isAssistantRole ? "Female (Ms.)" : "Female (Dra.)", value: "Female" },
                 ].map((item) => {
                   const isSelected = (doctorData.gender || "").toLowerCase() === item.value.toLowerCase();
                   return (
@@ -674,12 +691,10 @@ export default function DoctorProfileSetup({
                 })}
               </View>
             </View>
-            )}
           </View>
         </View>
 
-        {/* Section 4: PRC Credentials & Practice (dentists only) */}
-        {!isAssistantRole && (
+        {/* Section 4: PRC Credentials & Practice */}
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <ShieldCheck size={13} color="#047857" />
@@ -790,8 +805,6 @@ export default function DoctorProfileSetup({
           </View>
         </View>
 
-        )}
-
         {/* Section 5: Direct Contact */}
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
@@ -834,19 +847,24 @@ export default function DoctorProfileSetup({
           </View>
         </View>
 
-        {/* Section 6: Professional Bio (dentists only) */}
-        {!isAssistantRole && (
+        {/* Section 6: Professional Bio */}
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <FileText size={13} color="#047857" />
-            <Text style={styles.formSectionTitle}>DOCTOR'S BIOGRAPHY</Text>
+            <Text style={styles.formSectionTitle}>
+              {isAssistantRole ? "DOCTOR / STAFF BIOGRAPHY" : "DOCTOR'S BIOGRAPHY"}
+            </Text>
           </View>
 
           <View style={styles.formCard}>
             <View style={[styles.inputGroup, { marginBottom: 0 }]}>
               <TextInput
                 style={[styles.input, styles.textAreaInput]}
-                placeholder="Share your dental school, clinical experience, specializations, and patient care philosophy (optional)..."
+                placeholder={
+                  isAssistantRole
+                    ? "Share your clinical training, experience, specializations, and patient care philosophy (optional)..."
+                    : "Share your dental school, clinical experience, specializations, and patient care philosophy (optional)..."
+                }
                 placeholderTextColor="#94A3B8"
                 multiline
                 numberOfLines={3}
@@ -857,7 +875,6 @@ export default function DoctorProfileSetup({
             </View>
           </View>
         </View>
-        )}
 
         {/* Submit Action Card */}
         <View style={styles.actionCard}>
@@ -890,8 +907,10 @@ export default function DoctorProfileSetup({
               onPress={onCancel}
               disabled={loading}
               activeOpacity={0.7}
+              accessibilityLabel="Exit to Welcome Screen"
             >
-              <Text style={styles.secondaryBtnText}>Cancel and Return to Welcome Screen</Text>
+              <LogOut size={15} color="#475569" strokeWidth={2.2} />
+              <Text style={styles.secondaryBtnText}>Exit to Welcome Screen</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1424,15 +1443,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   secondaryBtn: {
-    paddingVertical: 10,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderTopColor: "#FFFFFF",
+    borderLeftColor: "#E2E8F0",
+    borderRightColor: "#CBD5E1",
+    borderBottomColor: "#CBD5E1",
   },
   secondaryBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
-    textDecorationLine: "underline",
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#475569",
+    letterSpacing: 0.3,
   },
 
   // Modal Dropdown
