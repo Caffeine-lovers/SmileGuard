@@ -636,9 +636,8 @@ return (
       </div>
 
       {/* Step guide — fills the space under the booking summary */}
-      <div className="flex-1 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-5">
-        <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">How to book</p>
-        <ol className="space-y-3">
+      <div className="bg-bg-surface rounded-2xl border border-border-card shadow-sm px-3 py-2.5">
+        <ol className="space-y-1">
           {[
             {
               n: 1,
@@ -664,43 +663,41 @@ return (
           ].map((step) => (
             <li
               key={step.n}
-              className={`flex items-start gap-2.5 rounded-xl p-2.5 transition-colors ${
-                step.current ? 'bg-brand-primary/10 border border-brand-primary/30' : 'border border-transparent'
+              className={`flex items-start gap-2 rounded-lg px-2 py-1 transition-colors ${
+                step.current ? 'bg-brand-primary/10' : ''
               }`}
             >
               <StepBadge n={step.n} done={step.done} />
               <div className="min-w-0">
-                <p className={`text-sm font-semibold leading-tight ${step.done ? 'text-text-secondary' : 'text-text-primary'}`}>
+                <p className={`text-xs font-semibold leading-tight ${step.done ? 'text-text-secondary' : 'text-text-primary'}`}>
                   {step.title}
                 </p>
-                {step.current && <p className="text-xs text-text-secondary mt-0.5">{step.hint}</p>}
+                {step.current && <p className="text-[11px] text-text-secondary leading-snug">{step.hint}</p>}
               </div>
             </li>
           ))}
 
           {/* Step 4 — the key step: more services once the time is known */}
           <li
-            className={`flex items-start gap-2.5 rounded-xl p-2.5 transition-colors border ${
-              step3Complete
-                ? 'bg-emerald-50 border-emerald-400 shadow-sm'
-                : 'border-dashed border-border-card opacity-70'
+            className={`flex items-start gap-2 rounded-lg px-2 py-1 transition-colors ${
+              step3Complete ? 'bg-emerald-50 ring-1 ring-emerald-400' : 'opacity-60'
             }`}
           >
             <StepBadge n={4} done={false} />
             <div className="min-w-0">
-              <p className="text-sm font-bold leading-tight text-text-primary">Add more services</p>
+              <p className="text-xs font-bold leading-tight text-text-primary">Add more services</p>
               {step3Complete ? (
                 minutesLeftToAdd !== null && minutesLeftToAdd > 0 ? (
-                  <p className="text-xs text-emerald-800 font-semibold mt-0.5">
-                    Your time has room for up to {formatDuration(minutesLeftToAdd)} more. Pick any service above that fits.
+                  <p className="text-[11px] text-emerald-800 font-semibold leading-snug">
+                    Room for up to {formatDuration(minutesLeftToAdd)} more. Pick any service that fits.
                   </p>
                 ) : (
-                  <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                    No room left at this time. Choose another time to add more services.
+                  <p className="text-[11px] text-amber-700 font-semibold leading-snug">
+                    No room left. Choose another time to add more.
                   </p>
                 )
               ) : (
-                <p className="text-xs text-text-secondary mt-0.5">Opens after you pick a time, if it allows.</p>
+                <p className="text-[11px] text-text-secondary leading-snug">Opens after you pick a time.</p>
               )}
             </div>
           </li>
