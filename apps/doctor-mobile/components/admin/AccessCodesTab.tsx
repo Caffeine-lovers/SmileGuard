@@ -10,8 +10,11 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { Plus, X, Power, Trash2, KeyRound } from "lucide-react-native";
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
+import { Plus, X, Power, Trash2, KeyRound, Stethoscope, Users, CheckCircle2 } from "lucide-react-native";
 import {
   DoctorAccessCode,
   listAccessCodes,
@@ -57,12 +60,16 @@ export default function AccessCodesTab() {
     }
     setSaving(true);
     try {
-      await createAccessCode(newCode, newLabel, newTier);
+      const created = await createAccessCode(newCode, newLabel, newTier);
       setNewCode("");
       setNewLabel("");
       setNewTier("doctor");
       setShowCreateModal(false);
-      await fetchCodes();
+      if (created) {
+        setCodes((prev) => [created, ...prev]);
+      } else {
+        await fetchCodes();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create access code.";
       Alert.alert("Error", message);
@@ -72,22 +79,34 @@ export default function AccessCodesTab() {
   };
 
   const handleToggleActive = async (item: DoctorAccessCode) => {
+    setCodes((prev) =>
+      prev.map((c) => (c.id === item.id ? { ...c, is_active: !c.is_active } : c))
+    );
     const ok = await updateAccessCode(item.id, { is_active: !item.is_active });
-    if (ok) await fetchCodes();
+    if (!ok) {
+      setCodes((prev) =>
+        prev.map((c) => (c.id === item.id ? { ...c, is_active: item.is_active } : c))
+      );
+      Alert.alert("Error", "Failed to update access code.");
+    }
   };
 
   const handleDelete = (item: DoctorAccessCode) => {
     Alert.alert(
       "Delete Access Code",
-      `Permanently delete "${item.code}"? This cannot be undone.`,
+      `Permanently delete "${item.code}"? Staff will no longer be able to register with it.`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            setCodes((prev) => prev.filter((c) => c.id !== item.id));
             const ok = await deleteAccessCode(item.id);
-            if (ok) await fetchCodes();
+            if (!ok) {
+              Alert.alert("Error", "Failed to delete access code.");
+              await fetchCodes();
+            }
           },
         },
       ]
@@ -103,200 +122,534 @@ export default function AccessCodesTab() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerRow}>
-          <Text style={styles.sectionLabel}>DOCTOR ACCESS CODES ({codes.length})</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.8}>
-            <Plus size={14} color="#FFFFFF" />
+        {/* Section Header Action Bar */}
+        <View style={styles.headerBar}>
+          <Text style={styles.sectionTitle}>Access Codes</Text>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => setShowCreateModal(true)}
+            activeOpacity={0.8}
+          >
+            <Plus size={15} color="#FFFFFF" />
             <Text style={styles.addBtnText}>New Code</Text>
           </TouchableOpacity>
         </View>
 
         {codes.length === 0 ? (
-          <Text style={styles.emptyText}>No access codes yet.</Text>
+          <View style={styles.emptyCard}>
+            <KeyRound size={32} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>No Access Codes</Text>
+          </View>
         ) : (
-          codes.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <View style={styles.cardRow}>
-                <View style={styles.iconBox}>
-                  <KeyRound size={16} color="#047857" />
+          codes.map((item, index) => {
+            const isDoctor = item.tier === "doctor";
+            const isAdmin = item.tier === "admin";
+            return (
+              <Animated.View
+                key={item.id}
+                entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+                exiting={FadeOut.duration(150)}
+                style={styles.card}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconBox, isAdmin && styles.iconBoxAdmin]}>
+                    <KeyRound size={17} color={isAdmin ? "#D97706" : "#047857"} />
+                  </View>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.codeText}>{item.code}</Text>
+                    <Text style={styles.labelText}>{item.label || "Clinic Code"}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      item.is_active ? styles.statusBadgeActive : styles.statusBadgeInactive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        item.is_active ? styles.statusTextActive : styles.statusTextInactive,
+                      ]}
+                    >
+                      {item.is_active ? "ACTIVE" : "INACTIVE"}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{item.code}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {item.label || "No label"} · {item.tier.toUpperCase()}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: item.is_active ? "#ECFDF5" : "#FEF2F2", borderColor: item.is_active ? "#A7F3D0" : "#FECACA" },
-                  ]}
-                >
-                  <Text style={[styles.statusBadgeText, { color: item.is_active ? "#047857" : "#B91C1C" }]}>
-                    {item.is_active ? "ACTIVE" : "INACTIVE"}
-                  </Text>
-                </View>
-              </View>
 
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleToggleActive(item)} activeOpacity={0.75}>
-                  <Power size={14} color="#047857" />
-                  <Text style={styles.actionBtnText}>{item.is_active ? "Deactivate" : "Activate"}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.deleteBtn]}
-                  onPress={() => handleDelete(item)}
-                  activeOpacity={0.75}
-                >
-                  <Trash2 size={14} color="#B91C1C" />
-                  <Text style={[styles.actionBtnText, { color: "#B91C1C" }]}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
+                {/* Tier Tag & Dates */}
+                <View style={styles.metaRow}>
+                  <View style={styles.tierPill}>
+                    {isDoctor ? (
+                      <Stethoscope size={12} color="#047857" />
+                    ) : (
+                      <Users size={12} color="#2563EB" />
+                    )}
+                    <Text style={styles.tierPillText}>{item.tier.toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.createdDate}>
+                    Added {new Date(item.created_at).toLocaleDateString()}
+                  </Text>
+                </View>
+
+                {/* Action Row */}
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, item.is_active ? styles.btnDeactivate : styles.btnActivate]}
+                    onPress={() => handleToggleActive(item)}
+                    activeOpacity={0.75}
+                  >
+                    <Power size={13} color={item.is_active ? "#B45309" : "#047857"} />
+                    <Text style={[styles.actionBtnText, { color: item.is_active ? "#B45309" : "#047857" }]}>
+                      {item.is_active ? "Deactivate" : "Activate"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.btnDelete]}
+                    onPress={() => handleDelete(item)}
+                    activeOpacity={0.75}
+                  >
+                    <Trash2 size={13} color="#DC2626" />
+                    <Text style={[styles.actionBtnText, { color: "#DC2626" }]}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            );
+          })
         )}
       </ScrollView>
 
-      <Modal visible={showCreateModal} animationType="slide" transparent onRequestClose={() => setShowCreateModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Access Code</Text>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <X size={18} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>CODE</Text>
-            <TextInput
-              style={styles.input}
-              value={newCode}
-              onChangeText={setNewCode}
-              placeholder="e.g. SMILE-DOC-2027"
-              autoCapitalize="characters"
-              placeholderTextColor="#94A3B8"
-            />
-
-            <Text style={styles.inputLabel}>LABEL</Text>
-            <TextInput
-              style={styles.input}
-              value={newLabel}
-              onChangeText={setNewLabel}
-              placeholder="e.g. Primary Dentist (2027 Cohort)"
-              placeholderTextColor="#94A3B8"
-            />
-
-            <Text style={styles.inputLabel}>TIER</Text>
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-              {(["doctor", "assistant"] as const).map((tierOption) => (
+      {/* Redesigned Modal: New Access Code */}
+      <Modal
+        visible={showCreateModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Generate Access Code</Text>
                 <TouchableOpacity
-                  key={tierOption}
-                  style={[styles.tierBtn, newTier === tierOption && styles.tierBtnActive]}
-                  onPress={() => setNewTier(tierOption)}
+                  style={styles.modalCloseBtn}
+                  onPress={() => setShowCreateModal(false)}
                 >
-                  <Text style={[styles.tierBtnText, newTier === tierOption && styles.tierBtnTextActive]}>
-                    {tierOption.toUpperCase()}
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inputLabel}>ACCESS CODE</Text>
+              <TextInput
+                style={styles.input}
+                value={newCode}
+                onChangeText={setNewCode}
+                placeholder="e.g. SMILE-DOC-2027"
+                autoCapitalize="characters"
+                placeholderTextColor="#94A3B8"
+              />
+
+              <Text style={styles.inputLabel}>LABEL</Text>
+              <TextInput
+                style={styles.input}
+                value={newLabel}
+                onChangeText={setNewLabel}
+                placeholder="e.g. Orthodontic Resident (Batch 2027)"
+                placeholderTextColor="#94A3B8"
+              />
+
+              <Text style={styles.inputLabel}>STAFF ROLE TIER</Text>
+              <View style={styles.tierSelector}>
+                <TouchableOpacity
+                  style={[styles.tierOption, newTier === "doctor" && styles.tierOptionActive]}
+                  onPress={() => setNewTier("doctor")}
+                  activeOpacity={0.8}
+                >
+                  <Stethoscope size={16} color={newTier === "doctor" ? "#FFFFFF" : "#047857"} />
+                  <Text style={[styles.tierOptionText, newTier === "doctor" && styles.tierOptionTextActive]}>
+                    Dentist
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
 
-            <TouchableOpacity style={styles.submitBtn} onPress={handleCreate} disabled={saving} activeOpacity={0.85}>
-              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitBtnText}>Create Code</Text>}
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tierOption, newTier === "assistant" && styles.tierOptionActive]}
+                  onPress={() => setNewTier("assistant")}
+                  activeOpacity={0.8}
+                >
+                  <Users size={16} color={newTier === "assistant" ? "#FFFFFF" : "#047857"} />
+                  <Text style={[styles.tierOptionText, newTier === "assistant" && styles.tierOptionTextActive]}>
+                    Assistant
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowCreateModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalSubmitBtn}
+                  onPress={handleCreate}
+                  disabled={saving}
+                  activeOpacity={0.85}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} color="#FFFFFF" />
+                      <Text style={styles.modalSubmitText}>Save Code</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centerFill: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionLabel: { fontSize: 11, fontWeight: "800", color: "#64748B", letterSpacing: 0.6 },
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  centerFill: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
+  },
+  headerBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 1,
+  },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: "#047857",
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: 10,
+    shadowColor: "#047857",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  addBtnText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
-  emptyText: { textAlign: "center", color: "#94A3B8", marginTop: 32, fontSize: 13 },
+  addBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 20,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  emptySub: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderTopColor: "#FFFFFF",
-    borderLeftColor: "#E2E8F0",
-    borderRightColor: "#CBD5E1",
-    borderBottomColor: "#CBD5E1",
-    padding: 12,
-    marginBottom: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  cardRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
-  cardSubtitle: { fontSize: 11, color: "#64748B", marginTop: 2 },
-  statusBadge: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
-  statusBadgeText: { fontSize: 10, fontWeight: "800" },
-  actionsRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  actionBtn: {
+  iconBoxAdmin: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+  },
+  cardInfo: {
+    flex: 1,
+  },
+  codeText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: 0.2,
+  },
+  labelText: {
+    fontSize: 11.5,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  statusBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+  statusBadgeActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  statusBadgeInactive: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  statusTextActive: {
+    color: "#047857",
+  },
+  statusTextInactive: {
+    color: "#DC2626",
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  tierPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
+    gap: 5,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  deleteBtn: { borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
-  actionBtnText: { fontSize: 12, fontWeight: "700", color: "#047857" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  inputLabel: { fontSize: 11, fontWeight: "800", color: "#64748B", letterSpacing: 0.5, marginBottom: 6, marginTop: 10 },
+  tierPillText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  createdDate: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+  cardActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  btnActivate: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  btnDeactivate: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
+  btnDelete: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  actionBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalBackdrop: {
+    width: "100%",
+    maxWidth: 440,
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#475569",
+    letterSpacing: 0.4,
+    marginBottom: 6,
+    marginTop: 8,
+  },
   input: {
     borderWidth: 1.5,
     borderColor: "#E2E8F0",
-    borderRadius: 6,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    paddingVertical: 9,
+    fontSize: 13.5,
     color: "#0F172A",
+    backgroundColor: "#FFFFFF",
   },
-  tierBtn: {
+  tierSelector: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 18,
+  },
+  tierOption: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
+    backgroundColor: "#F8FAFC",
   },
-  tierBtnActive: { backgroundColor: "#047857", borderColor: "#047857" },
-  tierBtnText: { fontWeight: "800", color: "#64748B", fontSize: 12 },
-  tierBtnTextActive: { color: "#FFFFFF" },
-  submitBtn: { backgroundColor: "#047857", borderRadius: 6, paddingVertical: 13, alignItems: "center" },
-  submitBtnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  tierOptionActive: {
+    backgroundColor: "#047857",
+    borderColor: "#047857",
+  },
+  tierOptionText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  tierOptionTextActive: {
+    color: "#FFFFFF",
+  },
+  modalBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  modalSubmitBtn: {
+    flex: 1.6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#047857",
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  modalSubmitText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });

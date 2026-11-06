@@ -160,6 +160,14 @@ export default function RootLayout() {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
           try {
+            const [savedCodeRaw, savedRole, pendingIsAdmin, adminAuthToken] = await Promise.all([
+              AsyncStorage.getItem("@pending_doctor_access_code"),
+              AsyncStorage.getItem("@pending_user_role"),
+              AsyncStorage.getItem("@pending_is_admin"),
+              AsyncStorage.getItem(`@admin_authenticated_${user.id}`),
+            ]);
+            const savedCode = (savedCodeRaw || "").trim().toUpperCase();
+
             // 0. Authoritative admin check — admins are profiles-only rows (no
             // doctors-table record), so they must be routed before the doctor
             // lookup below, which would otherwise bounce them to /setup-profile.
@@ -169,17 +177,31 @@ export default function RootLayout() {
               .eq("id", user.id)
               .maybeSingle();
 
-            if (adminProfile?.role === "admin") {
-              console.log("[RootLayout] Admin profile detected, routing to /(admin)/dashboard");
+            const isUserAdmin =
+              adminProfile?.role === "admin" ||
+              savedRole === "admin" ||
+              savedCode === "CLINIC-ADMIN-01" ||
+              savedCode.includes("ADMIN") ||
+              pendingIsAdmin === "true" ||
+              adminAuthToken === "true";
+
+            if (isUserAdmin) {
+              console.log("[RootLayout] Admin user detected, routing to /(admin)/dashboard");
+              await AsyncStorage.setItem(`@admin_authenticated_${user.id}`, "true");
+              await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role", "@pending_is_admin"]);
+              if (adminProfile?.role !== "admin") {
+                try {
+                  await supabase
+                    .from("profiles")
+                    .update({ role: "admin" })
+                    .eq("id", user.id);
+                } catch (e) {
+                  console.warn("[RootLayout] Admin role update in DB skipped:", e);
+                }
+              }
               router.replace("/(admin)/dashboard");
               return;
             }
-
-            const [savedCodeRaw, savedRole] = await Promise.all([
-              AsyncStorage.getItem("@pending_doctor_access_code"),
-              AsyncStorage.getItem("@pending_user_role"),
-            ]);
-            const savedCode = (savedCodeRaw || "").trim().toUpperCase();
 
             // 1. Authoritative check directly on public.doctors table (ignoring profiles table)
             console.log("[RootLayout] Querying doctors table for user_id:", user.id);

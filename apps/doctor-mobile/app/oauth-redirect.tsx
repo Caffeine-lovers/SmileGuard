@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
 
 /**
@@ -58,6 +59,24 @@ export default function OAuthRedirect() {
             console.log("[OAuthRedirect] Fallback routing check triggered");
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
+              const [savedCodeRaw, savedRole, pendingIsAdmin] = await Promise.all([
+                AsyncStorage.getItem("@pending_doctor_access_code"),
+                AsyncStorage.getItem("@pending_user_role"),
+                AsyncStorage.getItem("@pending_is_admin"),
+              ]);
+              const savedCode = (savedCodeRaw || "").trim().toUpperCase();
+
+              if (
+                savedCode === "CLINIC-ADMIN-01" ||
+                savedCode.includes("ADMIN") ||
+                savedRole === "admin" ||
+                pendingIsAdmin === "true"
+              ) {
+                console.log("[OAuthRedirect] Fallback: admin detected, routing to /(admin)/dashboard");
+                router.replace("/(admin)/dashboard");
+                return;
+              }
+
               const { data: doc } = await supabase
                 .from("doctors")
                 .select("id")

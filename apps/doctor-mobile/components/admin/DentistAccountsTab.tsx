@@ -10,7 +10,8 @@ import {
   RefreshControl,
   Switch,
 } from "react-native";
-import { Stethoscope, Trash2, BadgeCheck } from "lucide-react-native";
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
+import { Stethoscope, Trash2, BadgeCheck, Users, ShieldAlert } from "lucide-react-native";
 import { AdminDoctorRow, listDentists, setDoctorVerified, deleteDoctorAccount } from "../../lib/adminService";
 
 export default function DentistAccountsTab() {
@@ -38,24 +39,35 @@ export default function DentistAccountsTab() {
   };
 
   const handleToggleVerified = async (doctor: AdminDoctorRow) => {
+    setDoctors((prev) =>
+      prev.map((d) => (d.id === doctor.id ? { ...d, is_verified: !d.is_verified } : d))
+    );
     const ok = await setDoctorVerified(doctor.id, !doctor.is_verified);
-    if (ok) await fetchDoctors();
+    if (!ok) {
+      setDoctors((prev) =>
+        prev.map((d) => (d.id === doctor.id ? { ...d, is_verified: doctor.is_verified } : d))
+      );
+      Alert.alert("Error", "Failed to update verification status.");
+    }
   };
 
   const handleDelete = (doctor: AdminDoctorRow) => {
     const fullName = [doctor.first_name, doctor.last_name].filter(Boolean).join(" ") || "this account";
     Alert.alert(
-      "Delete Account",
-      `Permanently delete ${fullName}'s ${doctor.role === "assistant" ? "assistant" : "dentist"} account? This cannot be undone.`,
+      "Remove Staff Account",
+      `Permanently delete ${fullName}'s ${doctor.role === "assistant" ? "assistant" : "dentist"} account from the clinic system?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Remove Account",
           style: "destructive",
           onPress: async () => {
+            setDoctors((prev) => prev.filter((d) => d.id !== doctor.id));
             const ok = await deleteDoctorAccount(doctor.id, doctor.user_id);
-            if (ok) await fetchDoctors();
-            else Alert.alert("Error", "Failed to delete account.");
+            if (!ok) {
+              Alert.alert("Error", "Failed to delete account.");
+              await fetchDoctors();
+            }
           },
         },
       ]
@@ -71,101 +83,216 @@ export default function DentistAccountsTab() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-    >
-      <Text style={styles.sectionLabel}>DENTIST & ASSISTANT ACCOUNTS ({doctors.length})</Text>
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerBar}>
+          <Text style={styles.sectionTitle}>Staff</Text>
+        </View>
 
-      {doctors.length === 0 ? (
-        <Text style={styles.emptyText}>No dentist or assistant accounts yet.</Text>
-      ) : (
-        doctors.map((doctor) => {
-          const fullName = [doctor.first_name, doctor.middle_name, doctor.last_name].filter(Boolean).join(" ") || "Unnamed";
-          return (
-            <View key={doctor.id} style={styles.card}>
-              <View style={styles.cardRow}>
-                <View style={styles.iconBox}>
-                  <Stethoscope size={16} color="#047857" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{fullName}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {doctor.role === "assistant" ? "Clinic Assistant" : doctor.specialization || "Dentist"}
-                    {doctor.license_number ? ` · Lic. ${doctor.license_number}` : ""}
-                  </Text>
-                </View>
-              </View>
+        {doctors.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Stethoscope size={32} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>No Staff Registered</Text>
+          </View>
+        ) : (
+          doctors.map((doctor, index) => {
+            const fullName = [doctor.first_name, doctor.middle_name, doctor.last_name].filter(Boolean).join(" ") || "Unnamed Staff";
+            const isAssistant = doctor.role === "assistant";
+            return (
+              <Animated.View
+                key={doctor.id}
+                entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+                exiting={FadeOut.duration(150)}
+                style={styles.card}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={[styles.avatarBox, isAssistant && styles.avatarBoxAssistant]}>
+                    {isAssistant ? (
+                      <Users size={17} color="#2563EB" />
+                    ) : (
+                      <Stethoscope size={17} color="#047857" />
+                    )}
+                  </View>
 
-              <View style={styles.actionsRow}>
-                <View style={styles.verifyRow}>
-                  <BadgeCheck size={14} color={doctor.is_verified ? "#047857" : "#94A3B8"} />
-                  <Text style={styles.verifyLabel}>Verified</Text>
+                  <View style={styles.doctorInfo}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.doctorName}>{fullName}</Text>
+                      {doctor.is_verified && (
+                        <BadgeCheck size={16} color="#047857" />
+                      )}
+                    </View>
+                    <Text style={styles.doctorSpecialty}>
+                      {isAssistant ? "Clinic Assistant" : doctor.specialization || "General Dentistry"}
+                      {doctor.license_number ? ` · PRC #${doctor.license_number}` : ""}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.deleteIconBtn}
+                    onPress={() => handleDelete(doctor)}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Delete practitioner"
+                  >
+                    <Trash2 size={15} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Verification Control Row */}
+                <View style={styles.verificationRow}>
+                  <View style={styles.verifyTextWrap}>
+                    <Text style={styles.verifyLabel}>Verified Medical License</Text>
+                    <Text style={styles.verifySub}>
+                      {doctor.is_verified ? "Accredited practitioner" : "Pending admin validation"}
+                    </Text>
+                  </View>
                   <Switch
-                    value={!!doctor.is_verified}
+                    value={Boolean(doctor.is_verified)}
                     onValueChange={() => handleToggleVerified(doctor)}
                     trackColor={{ false: "#E2E8F0", true: "#A7F3D0" }}
                     thumbColor={doctor.is_verified ? "#047857" : "#94A3B8"}
                   />
                 </View>
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDelete(doctor)}
-                  activeOpacity={0.75}
-                >
-                  <Trash2 size={14} color="#B91C1C" />
-                  <Text style={styles.deleteBtnText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })
-      )}
-    </ScrollView>
+              </Animated.View>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centerFill: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" },
-  sectionLabel: { fontSize: 11, fontWeight: "800", color: "#64748B", letterSpacing: 0.6, marginBottom: 12 },
-  emptyText: { textAlign: "center", color: "#94A3B8", marginTop: 32, fontSize: 13 },
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  centerFill: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
+  },
+  headerBar: {
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 20,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  emptySub: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderTopColor: "#FFFFFF",
-    borderLeftColor: "#E2E8F0",
-    borderRightColor: "#CBD5E1",
-    borderBottomColor: "#CBD5E1",
-    padding: 12,
-    marginBottom: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  cardRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  avatarBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
-  cardSubtitle: { fontSize: 11, color: "#64748B", marginTop: 2 },
-  actionsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
-  verifyRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  verifyLabel: { fontSize: 12, fontWeight: "700", color: "#64748B" },
-  deleteBtn: {
+  avatarBoxAssistant: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  doctorInfo: {
+    flex: 1,
+  },
+  nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
+    gap: 5,
   },
-  deleteBtnText: { fontSize: 12, fontWeight: "700", color: "#B91C1C" },
+  doctorName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  doctorSpecialty: {
+    fontSize: 11.5,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  deleteIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verificationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  verifyTextWrap: {
+    flex: 1,
+  },
+  verifyLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  verifySub: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 1,
+  },
 });

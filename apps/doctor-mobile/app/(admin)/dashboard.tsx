@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import {
   KeyRound,
   Stethoscope,
@@ -10,25 +11,86 @@ import {
   LifeBuoy,
   ListChecks,
   LogOut,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react-native";
 import AccessCodesTab from "../../components/admin/AccessCodesTab";
 import DentistAccountsTab from "../../components/admin/DentistAccountsTab";
 import PatientAccountsTab from "../../components/admin/PatientAccountsTab";
 import SupportRequestsTab from "../../components/admin/SupportRequestsTab";
 import AttemptLogTab from "../../components/admin/AttemptLogTab";
+import AdminTourModal from "../../components/admin/AdminTourModal";
 
-type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts";
+export type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts";
 
-const TABS: { id: AdminTab; label: string; icon: any }[] = [
-  { id: "codes", label: "Access Codes", icon: KeyRound },
-  { id: "dentists", label: "Dentists", icon: Stethoscope },
-  { id: "patients", label: "Patients", icon: Users },
-  { id: "support", label: "Support", icon: LifeBuoy },
-  { id: "attempts", label: "Attempt Log", icon: ListChecks },
+interface TabMeta {
+  id: AdminTab;
+  label: string;
+  icon: any;
+}
+
+const TABS: TabMeta[] = [
+  {
+    id: "codes",
+    label: "Access Codes",
+    icon: KeyRound,
+  },
+  {
+    id: "dentists",
+    label: "Staff",
+    icon: Stethoscope,
+  },
+  {
+    id: "patients",
+    label: "Patients",
+    icon: Users,
+  },
+  {
+    id: "support",
+    label: "Support",
+    icon: LifeBuoy,
+  },
+  {
+    id: "attempts",
+    label: "Audit Log",
+    icon: ListChecks,
+  },
 ];
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("codes");
+  const [showTour, setShowTour] = useState(false);
+
+  // Automatically check if the admin has seen the UI walkthrough tour
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        const key = userId ? `@has_seen_admin_tour_${userId}` : "@has_seen_admin_tour_default";
+        const hasSeen = await AsyncStorage.getItem(key);
+        if (!hasSeen) {
+          timer = setTimeout(() => setShowTour(true), 600);
+        }
+      } catch (err) {
+        console.warn("[AdminDashboard] Error checking tour status:", err);
+      }
+    })();
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleTourClose = async () => {
+    setShowTour(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      const key = userId ? `@has_seen_admin_tour_${userId}` : "@has_seen_admin_tour_default";
+      await AsyncStorage.setItem(key, "true");
+    } catch (err) {
+      console.warn("[AdminDashboard] Error persisting tour completion:", err);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
@@ -38,12 +100,21 @@ export default function AdminDashboardPage() {
         style: "destructive",
         onPress: async () => {
           try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
             await supabase.auth.signOut();
-            await AsyncStorage.multiRemove([
+            const keysToRemove = [
               "supabase.auth.token",
               "supabase.auth.refreshToken",
               "supabase.auth.user",
-            ]);
+              "@pending_doctor_access_code",
+              "@pending_user_role",
+              "@pending_is_admin",
+            ];
+            if (userId) {
+              keysToRemove.push(`@admin_authenticated_${userId}`);
+            }
+            await AsyncStorage.multiRemove(keysToRemove);
           } catch (err) {
             console.error("[AdminDashboard] Logout error:", err);
           }
@@ -52,48 +123,112 @@ export default function AdminDashboardPage() {
     ]);
   };
 
+  const currentTabMeta = TABS.find((t) => t.id === activeTab) || TABS[0];
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.topHeader}>
-        <View>
-          <Text style={styles.topHeaderTitle}>ADMIN CONSOLE</Text>
-          <Text style={styles.topHeaderSubtitle}>SmileGuard Clinic Administration</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.75}>
-          <LogOut size={16} color="#B91C1C" />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
+      <View style={styles.appShell}>
+        {/* Left Navigation Pane (Icons Only, Originating from Middle Outwards) */}
+        <View style={styles.leftNavRail}>
+          {/* Top Anchor: Clinic Shield Badge */}
+          <View style={styles.railTop}>
+            <View style={styles.logoBadge}>
+              <ShieldCheck size={20} color="#047857" />
+            </View>
+          </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabBar}
-        contentContainerStyle={styles.tabBarContent}
-      >
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
+          {/* Center: Navigation Icons Centered Vertically (Originating from Middle Outwards) */}
+          <View style={styles.railCenter}>
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={styles.navItem}
+                  onPress={() => setActiveTab(tab.id)}
+                  activeOpacity={0.75}
+                  accessibilityLabel={tab.label}
+                >
+                  <View style={[styles.navIconBtn, isActive && styles.navIconBtnActive]}>
+                    {isActive && (
+                      <Animated.View
+                        entering={FadeIn.duration(160)}
+                        exiting={FadeOut.duration(120)}
+                        style={styles.activeBar}
+                      />
+                    )}
+                    <Icon
+                      size={20}
+                      color={isActive ? "#FFFFFF" : "#64748B"}
+                      strokeWidth={isActive ? 2.4 : 2}
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Bottom Actions: Tour Guide & Logout */}
+          <View style={styles.railBottom}>
             <TouchableOpacity
-              key={tab.id}
-              style={[styles.tabPill, isActive && styles.tabPillActive]}
-              onPress={() => setActiveTab(tab.id)}
-              activeOpacity={0.8}
+              style={styles.bottomIconBtn}
+              onPress={() => setShowTour(true)}
+              activeOpacity={0.75}
+              accessibilityLabel="UI Tour Guide"
             >
-              <Icon size={15} color={isActive ? "#FFFFFF" : "#047857"} />
-              <Text style={[styles.tabPillText, isActive && styles.tabPillTextActive]}>{tab.label}</Text>
+              <Sparkles size={17} color="#047857" />
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
 
-      <View style={{ flex: 1 }}>
-        {activeTab === "codes" && <AccessCodesTab />}
-        {activeTab === "dentists" && <DentistAccountsTab />}
-        {activeTab === "patients" && <PatientAccountsTab />}
-        {activeTab === "support" && <SupportRequestsTab />}
-        {activeTab === "attempts" && <AttemptLogTab />}
+            <TouchableOpacity
+              style={[styles.bottomIconBtn, styles.logoutBtn]}
+              onPress={handleLogout}
+              activeOpacity={0.75}
+              accessibilityLabel="Sign Out"
+            >
+              <LogOut size={17} color="#DC2626" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Right Main Content Pane */}
+        <View style={styles.mainContent}>
+          {/* Top Bar with Section Title & Clinic Status */}
+          <View style={styles.contentHeader}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {currentTabMeta.label}
+              </Text>
+            </View>
+            <View style={styles.headerBadge}>
+              <Text style={styles.headerBadgeText}>ADMIN</Text>
+            </View>
+          </View>
+
+          {/* Active Tab Screen */}
+          <View style={styles.tabBody}>
+            <Animated.View
+              key={activeTab}
+              entering={FadeIn.duration(180)}
+              exiting={FadeOut.duration(100)}
+              style={styles.tabBodyInner}
+            >
+              {activeTab === "codes" && <AccessCodesTab />}
+              {activeTab === "dentists" && <DentistAccountsTab />}
+              {activeTab === "patients" && <PatientAccountsTab />}
+              {activeTab === "support" && <SupportRequestsTab />}
+              {activeTab === "attempts" && <AttemptLogTab />}
+            </Animated.View>
+          </View>
+        </View>
       </View>
+
+      {/* Admin UI Walkthrough & Interactive Tour Modal */}
+      <AdminTourModal
+        visible={showTour}
+        onClose={handleTourClose}
+        onSelectTab={(tab) => setActiveTab(tab)}
+      />
     </SafeAreaView>
   );
 }
@@ -103,68 +238,134 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  topHeader: {
+  appShell: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#F8FAFC",
+  },
+  leftNavRail: {
+    width: 64,
+    backgroundColor: "#FFFFFF",
+    borderRightWidth: 1,
+    borderRightColor: "#E2E8F0",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  railTop: {
+    alignItems: "center",
+    paddingTop: 4,
+  },
+  logoBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  railCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 14,
+  },
+  navIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  navIconBtnActive: {
+    backgroundColor: "#047857",
+    borderColor: "#047857",
+    shadowColor: "#047857",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  activeBar: {
+    position: "absolute",
+    left: -10,
+    width: 4,
+    height: 22,
+    borderRadius: 2,
+    backgroundColor: "#047857",
+  },
+  railBottom: {
+    alignItems: "center",
+    gap: 10,
+    paddingBottom: 4,
+  },
+  bottomIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutBtn: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  mainContent: {
+    flex: 1,
+    flexDirection: "column",
+    backgroundColor: "#F8FAFC",
+  },
+  contentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1.5,
+    borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
   },
-  topHeaderTitle: {
-    fontSize: 15,
+  headerTitle: {
+    fontSize: 16,
     fontWeight: "800",
     color: "#0F172A",
-    letterSpacing: 0.6,
+    letterSpacing: -0.2,
   },
-  topHeaderSubtitle: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  logoutBtn: {
-    width: 36,
-    height: 36,
+  headerBadge: {
+    backgroundColor: "#047857",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
+  },
+  headerBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  tabBody: {
+    flex: 1,
+    position: "relative",
+  },
+  tabBodyInner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  navItem: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  tabBar: {
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1.5,
-    borderBottomColor: "#E2E8F0",
-  },
-  tabBarContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  tabPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 9999,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-  },
-  tabPillActive: {
-    backgroundColor: "#047857",
-    borderColor: "#047857",
-  },
-  tabPillText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#047857",
-  },
-  tabPillTextActive: {
-    color: "#FFFFFF",
   },
 });
