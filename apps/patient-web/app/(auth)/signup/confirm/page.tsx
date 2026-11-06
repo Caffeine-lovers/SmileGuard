@@ -226,7 +226,7 @@ export default function SignupConfirmPage() {
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Medical Summary</h3>
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
-            <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
+            <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth ? new Date(formData.medicalIntake.date_of_birth + (formData.medicalIntake.date_of_birth.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not provided'} />
             <ReviewField label="Gender" value={formData.medicalIntake.gender ? (formData.medicalIntake.gender.charAt(0).toUpperCase() + formData.medicalIntake.gender.slice(1).toLowerCase()) : 'Not provided'} />
             <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
             {formData.medicalIntake.gender === 'female' && (

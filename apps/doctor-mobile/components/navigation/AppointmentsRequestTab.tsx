@@ -350,7 +350,7 @@ export default function AppointmentsRequestTab({
       const notification = createManualNotification(
         'appointment-updated',
         'Appointment Accepted',
-        `You accepted the appointment with ${request.name} for ${request.date}`,
+        `You accepted the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
         {
           appointmentId: request.id,
           patientId: request.patient_id,
@@ -399,7 +399,7 @@ export default function AppointmentsRequestTab({
       const notification = createManualNotification(
         'appointment-declined',
         'Appointment Declined',
-        `You declined the appointment with ${request.name} for ${request.date}`,
+        `You declined the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
         {
           appointmentId: request.id,
           patientId: request.patient_id,

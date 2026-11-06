@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronLeft, Mail, ShieldAlert } from "lucide-react-native";
 import { AdminPatientRow, PatientOverview, getPatientOverview } from "../../lib/adminService";
+import { formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 
 interface PatientDetailModalProps {
   patient: AdminPatientRow | null;
@@ -90,7 +91,7 @@ export default function PatientDetailModal({ patient, onClose }: PatientDetailMo
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle}>{appointment.service || "Appointment"}</Text>
                       <Text style={styles.rowSub}>
-                        {[appointment.appointment_date, appointment.appointment_time].filter(Boolean).join(" · ")}
+                        {[formatAppointmentDate(appointment.appointment_date || ""), formatAppointmentTime(appointment.appointment_time || undefined)].filter(Boolean).join(" · ")}
                       </Text>
                     </View>
                     <Text style={styles.rowStatus}>{(appointment.status || "").replace("_", " ").toUpperCase()}</Text>
@@ -106,7 +107,9 @@ export default function PatientDetailModal({ patient, onClose }: PatientDetailMo
                   <View key={item.id} style={styles.row}>
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle}>{item.subject || "No Subject"}</Text>
-                      <Text style={styles.rowSub}>{new Date(item.created_at).toLocaleDateString()}</Text>
+                      <Text style={styles.rowSub}>
+                        {new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </Text>
                     </View>
                     <Text style={styles.rowStatus}>{item.status.replace("_", " ").toUpperCase()}</Text>
                   </View>

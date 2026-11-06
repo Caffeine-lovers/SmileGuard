@@ -131,7 +131,7 @@ export default function SupportPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap break-words">{request.message}</p>
-              <p className="text-[11px] text-slate-400 mt-1.5">{new Date(request.created_at).toLocaleDateString()}</p>
+              <p className="text-[11px] text-slate-400 mt-1.5">{new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
               {request.resolution_note && (
                 <div className="flex gap-1.5 bg-emerald-50 border border-emerald-200 rounded-sm p-2 mt-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
