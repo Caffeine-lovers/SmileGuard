@@ -175,7 +175,7 @@ export default function PatientAccountsTab() {
                 <View style={styles.dateWrap}>
                   <Calendar size={11} color="#94A3B8" />
                   <Text style={styles.createdDate}>
-                    Joined {new Date(patient.created_at).toLocaleDateString()}
+                    Joined {new Date(patient.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
                 </View>
               </View>

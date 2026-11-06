@@ -198,7 +198,7 @@ export default function BioDataPage() {
                   />
                 ) : (
                   <p className="text-text-secondary py-1 text-sm">
-                    {medicalData.date_of_birth ? new Date(medicalData.date_of_birth).toLocaleDateString() : 'Not provided'}
+                    {medicalData.date_of_birth ? new Date(medicalData.date_of_birth + (medicalData.date_of_birth.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not provided'}
                   </p>
                 )}
               </div>

@@ -118,7 +118,8 @@ export default function AuthCallbackPage() {
 
                 const next = params.get('next') || hashParams.get('next');
         const type = params.get('type') || hashParams.get('type');
-        const isPasswordRecovery = next === '/reset-password' || type === 'recovery';
+        const isStoredRecovery = typeof window !== 'undefined' && localStorage.getItem('smileguard_auth_recovery_flow') === 'true';
+        const isPasswordRecovery = next === '/reset-password' || type === 'recovery' || isStoredRecovery;
 
         if (isPasswordRecovery) {
           addDebug('Direct password recovery detected, forwarding to /reset-password');
@@ -159,10 +160,17 @@ export default function AuthCallbackPage() {
         if (session?.user) {
           addDebug(`Session detected for: ${session.user.email}`);
 
-          if (isPasswordRecovery) {
+          const sessionIsRecovery =
+            isPasswordRecovery ||
+            Boolean((session as any)?.amr?.some?.((a: any) => a.method === 'recovery' || a.method === 'otp'));
+
+          if (sessionIsRecovery) {
             addDebug('Recovery session established, routing directly to password reset');
             isHandled = true;
-            setMessage('Recovery verified! Redirecting to password reset...');
+            try {
+              localStorage.removeItem('smileguard_auth_recovery_flow');
+            } catch { }
+            setMessage('Recovery verified! Redirecting to set new password...');
             await new Promise(resolve => setTimeout(resolve, 300));
             router.replace('/reset-password');
             return;
