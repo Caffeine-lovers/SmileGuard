@@ -174,6 +174,12 @@ export default function RootLayout() {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
           try {
+            const isExiting = await AsyncStorage.getItem("@is_exiting_registration");
+            if (isExiting === "true") {
+              console.log("[RootLayout] User is exiting registration, suppressing redirect to /setup-profile");
+              return;
+            }
+
             const [savedCodeRaw, savedRole] = await Promise.all([
               AsyncStorage.getItem("@pending_doctor_access_code"),
               AsyncStorage.getItem("@pending_user_role"),
@@ -226,8 +232,22 @@ export default function RootLayout() {
 
             // 2. Authoritative check: verify access code entered aligns with doctors.role
             if (savedCode.length > 0) {
-              const isAssistantCode = savedCode === "SMILEGUARD-STAFF";
-              const isDoctorCode = savedCode === "SMILE-DOC-2026";
+              let codeTier: string | null = null;
+              if (savedCode === "SMILEGUARD-STAFF") {
+                codeTier = "assistant";
+              } else if (savedCode === "SMILE-DOC-2026") {
+                codeTier = "doctor";
+              } else {
+                const { data: codeRow } = await supabase
+                  .from("doctor_access_codes")
+                  .select("tier")
+                  .eq("code", savedCode)
+                  .maybeSingle();
+                codeTier = (codeRow?.tier || "").trim().toLowerCase();
+              }
+
+              const isAssistantCode = codeTier === "assistant" || codeTier === "staff";
+              const isDoctorCode = codeTier === "doctor";
 
               const handleAccessBlock = (message: string) => {
                 Alert.alert(
@@ -258,16 +278,16 @@ export default function RootLayout() {
                 );
               };
 
-              // Case A: User entered Assistant access code (SMILEGUARD-STAFF), but doctors table says 'doctor'
+              // Case A: User entered Assistant access code, but doctors table says 'doctor'
               if (isAssistantCode && doctorTableRole === "doctor") {
-                console.warn("[RootLayout] Access Blocked: SMILEGUARD-STAFF entered for doctor role in doctors table");
+                console.warn("[RootLayout] Access Blocked: Assistant code entered for doctor role in doctors table");
                 handleAccessBlock(
                   "This account is registered as a Doctor. Please use your Doctor Clinic Access Code to log in."
                 );
                 return;
               }
 
-              // Case B: User entered Doctor access code (SMILE-DOC-2026), but doctors table says 'assistant'
+              // Case B: User entered Doctor access code, but doctors table says 'assistant'
               if (isDoctorCode && doctorTableRole === "assistant") {
                 console.warn("[RootLayout] Access Blocked: Doctor code entered for assistant role in doctors table");
                 handleAccessBlock(

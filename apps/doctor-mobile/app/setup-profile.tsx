@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Alert, BackHandler } from "react-native";
+import { View, Alert, BackHandler, Keyboard } from "react-native";
 import DoctorProfileSetup from "../components/auth/DoctorProfileSetup";
 import ClinicSetup from "../components/settings/ClinicSetup";
 import { useRouter } from "expo-router";
@@ -24,8 +24,11 @@ export default function SetupProfilePage() {
       AsyncStorage.getItem("@pending_user_role"),
     ]);
 
-    if (savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant") {
-      console.log("[SetupProfile] Assistant role detected, bypassing clinic setup directly to onboarding");
+    const normalizedRole = (savedRole || "").trim().toLowerCase();
+    const normalizedCode = (savedCode || "").trim().toUpperCase();
+
+    if (normalizedCode === "SMILEGUARD-STAFF" || normalizedRole === "assistant" || normalizedRole === "staff") {
+      console.log("[SetupProfile] Assistant role detected, routing to onboarding");
       router.replace("/onboarding");
       return;
     }
@@ -61,14 +64,19 @@ export default function SetupProfilePage() {
           onPress: async () => {
             console.log("[SetupProfile] User exited registration, signing out...");
             try {
+              // Mark exiting flag first so RootLayout won't bounce back to /setup-profile while auth is signing out
+              await AsyncStorage.setItem("@is_exiting_registration", "true");
               await supabase.auth.signOut();
-              await AsyncStorage.multiRemove([
-                "supabase.auth.token",
-                "supabase.auth.refreshToken",
-                "supabase.auth.user",
-                "@pending_doctor_access_code",
-                "@pending_user_role",
-              ]);
+              const allKeys = await AsyncStorage.getAllKeys();
+              const keysToRemove = allKeys.filter(
+                (k) =>
+                  k.startsWith("sb-") ||
+                  k.startsWith("supabase.") ||
+                  k.startsWith("@pending_")
+              );
+              if (keysToRemove.length > 0) {
+                await AsyncStorage.multiRemove(keysToRemove);
+              }
             } catch (err) {
               console.warn("[SetupProfile] Error during signOut on cancel:", err);
             } finally {
@@ -80,9 +88,22 @@ export default function SetupProfilePage() {
     );
   };
 
-  // Intercept phone hardware back button on Android
+  // Intercept phone hardware back button on Android safely:
+  // If soft keyboard is open, pressing back simply dismisses the keyboard without exiting.
   useEffect(() => {
+    let keyboardVisible = false;
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+      keyboardVisible = true;
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardVisible = false;
+    });
+
     const onHardwareBack = () => {
+      if (keyboardVisible || Keyboard.isVisible()) {
+        Keyboard.dismiss();
+        return true;
+      }
       handleCancel();
       return true; // Prevent default OS pop which triggers route bounce loop
     };
@@ -92,7 +113,11 @@ export default function SetupProfilePage() {
       onHardwareBack
     );
 
-    return () => backSubscription.remove();
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      backSubscription.remove();
+    };
   }, [step]);
 
   return (

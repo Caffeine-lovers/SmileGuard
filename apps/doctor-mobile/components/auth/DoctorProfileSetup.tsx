@@ -117,14 +117,19 @@ export default function DoctorProfileSetup({
   // Pre-fill access code if stored during welcome screen
   useEffect(() => {
     AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]).then((stores) => {
-      const savedCode = stores[0]?.[1];
-      setIsAssistantRole(stores[1]?.[1] === "assistant");
+      const savedCode = (stores[0]?.[1] || "").trim().toUpperCase();
+      const savedRole = (stores[1]?.[1] || "").trim().toLowerCase();
+      const isAssistant = savedRole === "assistant" || savedRole === "staff" || savedCode === "SMILEGUARD-STAFF";
+      setIsAssistantRole(isAssistant);
       if (savedCode) {
-        setAccessCode(savedCode.trim().toUpperCase());
+        setAccessCode(savedCode);
       }
     });
 
     supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata?.role === "assistant" || user?.user_metadata?.role === "staff") {
+        setIsAssistantRole(true);
+      }
       if (user?.id) {
         supabase
           .from("doctors")
@@ -340,23 +345,23 @@ export default function DoctorProfileSetup({
 
       if (!accessCode.trim()) {
         errorMsg = "Clinic Access Code is missing or invalid.";
-      } else if (!isAssistantRole && !isValidLicenseNumber(doctorData.license_number || "")) {
+      } else if (!isValidLicenseNumber(doctorData.license_number || "")) {
         errorMsg = "Medical License Number must be 1 to 7 numeric digits (e.g. 0123456).";
-      } else if (!isAssistantRole && isCheckingLicense) {
+      } else if (isCheckingLicense) {
         errorMsg = "Please wait while your license number is being verified...";
-      } else if (!isAssistantRole && licenseDuplicateError) {
+      } else if (licenseDuplicateError) {
         errorMsg = licenseDuplicateError;
-      } else if (!isAssistantRole && !isLicenseVerified) {
+      } else if (!isLicenseVerified) {
         errorMsg = "Please enter your license number and tap outside the field to complete verification.";
-      } else if (!isAssistantRole && (doctorData.specialization || "").trim() === "") {
+      } else if ((doctorData.specialization || "").trim() === "") {
         errorMsg = "Please select a specialization.";
-      } else if (!isAssistantRole && (yearsOfExperienceStr.trim() === "" || isNaN(Number(yearsOfExperienceStr)))) {
+      } else if (yearsOfExperienceStr.trim() === "" || isNaN(Number(yearsOfExperienceStr))) {
         errorMsg = "Please enter your years of experience.";
       } else if ((doctorData.first_name || "").trim() === "") {
         errorMsg = "Please enter your first name.";
       } else if ((doctorData.last_name || "").trim() === "") {
         errorMsg = "Please enter your last name.";
-      } else if (!isAssistantRole && (doctorData.gender || "").trim() === "") {
+      } else if ((doctorData.gender || "").trim() === "") {
         errorMsg = "Please select your gender / honorific.";
       } else if (phoneDigits.trim().length !== 10) {
         errorMsg = "Please enter a valid 10-digit phone number after +63 (e.g., 912-345-6789).";
@@ -376,7 +381,7 @@ export default function DoctorProfileSetup({
       const paddedLicense = formatLicenseNumber(doctorData.license_number || "");
 
       // Pre-flight duplicate check against doctors table
-      const duplicateExists = isAssistantRole ? false : await doctorLicenseExists(paddedLicense, data.user.id);
+      const duplicateExists = await doctorLicenseExists(paddedLicense, data.user.id);
       if (duplicateExists) {
         setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
         Alert.alert(
@@ -499,7 +504,11 @@ export default function DoctorProfileSetup({
         <View style={{ width: 68 }} />
       </View>
 
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        enabled={Platform.OS === "ios"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}

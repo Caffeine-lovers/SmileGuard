@@ -46,6 +46,10 @@ export default function AuthModal({
   const lastBackPressRef = React.useRef<number>(0);
 
   const handleBackPress = React.useCallback(() => {
+    if (Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return true;
+    }
     const now = Date.now();
     if (now - lastBackPressRef.current < 2000) {
       BackHandler.exitApp();
@@ -92,13 +96,11 @@ export default function AuthModal({
       if (event === "SIGNED_IN" && session?.user) {
         console.log("[AuthModal] SIGNED_IN detected for", session.user.email);
         setLoading(false);
-        // Important: Close modal automatically when sign-in completes via deep link
-        onClose?.();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [onClose]);
+  }, []);
 
   /**
    * Helper to verify doctor access code via Edge Function, database, or fallback
@@ -242,9 +244,20 @@ export default function AuthModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={handleBackPress}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={() => {
+        if (Keyboard.isVisible()) {
+          Keyboard.dismiss();
+          return;
+        }
+        handleBackPress();
+      }}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
+        enabled={Platform.OS === "ios"}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <SafeAreaView style={styles.modalFull}>

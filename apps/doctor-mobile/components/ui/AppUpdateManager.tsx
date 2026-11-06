@@ -9,7 +9,14 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import * as Updates from 'expo-updates';
+// Safely load expo-updates: in Expo Go or dev environments where the native
+// module is not linked, requireNativeModule('ExpoUpdates') throws an uncaught exception.
+let Updates: typeof import('expo-updates') | null = null;
+try {
+  Updates = require('expo-updates');
+} catch {
+  Updates = null;
+}
 import {
   Sparkles,
   RefreshCw,
@@ -93,7 +100,7 @@ export default function AppUpdateManager() {
       return;
     }
 
-    if (!Updates.isEnabled) {
+    if (!Updates || !Updates.isEnabled) {
       if (interactive) {
         setStatus('error');
         setStatusMessage('EAS Updates are not enabled in this build.');
@@ -158,7 +165,9 @@ export default function AppUpdateManager() {
   const handleRestartNow = async () => {
     try {
       setShowReadyModal(false);
-      await Updates.reloadAsync();
+      if (Updates) {
+        await Updates.reloadAsync();
+      }
     } catch (err: any) {
       console.error('[AppUpdateManager] Reload failed:', err);
       setShowReadyModal(false);
@@ -264,10 +273,10 @@ export default function AppUpdateManager() {
 
             <View style={styles.modalMetaRow}>
               <Text style={styles.modalMetaText}>
-                Channel: <Text style={{ fontWeight: '700' }}>{Updates.channel || 'preview'}</Text>
+                Channel: <Text style={{ fontWeight: '700' }}>{Updates?.channel || 'preview'}</Text>
               </Text>
               <Text style={styles.modalMetaText}>
-                Version: <Text style={{ fontWeight: '700' }}>{Updates.runtimeVersion || '1.0.0'}</Text>
+                Version: <Text style={{ fontWeight: '700' }}>{Updates?.runtimeVersion || '1.0.0'}</Text>
               </Text>
             </View>
 
