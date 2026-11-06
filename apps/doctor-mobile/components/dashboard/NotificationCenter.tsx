@@ -37,6 +37,7 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 import { Notification, NotificationType } from '../../types/notifications';
+import { formatCurrency } from '../../lib/currencyFormatters';
 
 export type NotificationNavTab =
   | 'appointments'
@@ -585,7 +586,7 @@ export default function NotificationCenter({
                       <View style={[styles.infoChip, { backgroundColor: '#ECFDF5' }]}>
                         <Receipt size={12} color="#059669" />
                         <Text style={[styles.infoChipText, { color: '#047857', fontWeight: '700' }]}>
-                          ₱{notification.data.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          {formatCurrency(notification.data.amount)}
                         </Text>
                       </View>
                     )}
@@ -656,7 +657,7 @@ export default function NotificationCenter({
                         <View style={styles.drawerItem}>
                           <Text style={styles.drawerItemLabel}>Amount Paid</Text>
                           <Text style={[styles.drawerItemValue, { color: '#047857', fontWeight: '700' }]}>
-                            ₱{notification.data.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            {formatCurrency(notification.data.amount)}
                           </Text>
                         </View>
                       )}
