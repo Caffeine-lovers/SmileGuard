@@ -461,10 +461,12 @@ export async function cancelAppointment(
 // 5. GET ALL BLOCKED SLOTS (date + time pairs)
 // ─────────────────────────────────────────
 export interface BlockedSlot {
+  id?: string;
   date: string;
   time: string;
   patientId: string;
   service?: string;
+  duration?: number;
 }
 
 export interface BlockoutDate {
@@ -583,7 +585,7 @@ export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null)
   // ✅ PRIORITY 2: Fetch booked appointments (only for dates NOT in blockout)
   const { data: appointments, error: appointmentError } = await supabase
     .from('appointments')
-    .select('appointment_date, appointment_time, patient_id, service')
+    .select('id, appointment_date, appointment_time, patient_id, service')
     .not('status', 'in', '(cancelled,declined)')
     .order('appointment_date', { ascending: true });
 
@@ -594,14 +596,36 @@ export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null)
   }
 
   // Only add booked appointments for dates that are NOT already blocked
-  const bookedSlots = (appointments || [])
-    .filter(a => !blockedDateSet.has(a.appointment_date)) // Skip blocked dates
-    .map((a: any) => ({
-      date: a.appointment_date,
-      time: a.appointment_time,
-      patientId: a.patient_id,
-      service: a.service,
-    }));
+  const bookedSlots: BlockedSlot[] = [];
+  for (const a of (appointments || [])) {
+    if (blockedDateSet.has(a.appointment_date)) continue;
+    const startMin = toMinutes(a.appointment_time);
+    const duration = getServiceDuration(a.service);
+    if (!Number.isFinite(startMin) || duration <= BOOKING_INTERVAL_MINUTES) {
+      bookedSlots.push({
+        id: a.id,
+        date: a.appointment_date,
+        time: a.appointment_time,
+        patientId: a.patient_id,
+        service: a.service,
+        duration: BOOKING_INTERVAL_MINUTES,
+      });
+      continue;
+    }
+    // Expand every 30-min block that this service coverage occupies starting from the booked time
+    for (let m = startMin; m < startMin + duration; m += BOOKING_INTERVAL_MINUTES) {
+      const hh = String(Math.floor(m / 60)).padStart(2, '0');
+      const mm = String(m % 60).padStart(2, '0');
+      bookedSlots.push({
+        id: a.id,
+        date: a.appointment_date,
+        time: `${hh}:${mm}`,
+        patientId: a.patient_id,
+        service: a.service,
+        duration: BOOKING_INTERVAL_MINUTES,
+      });
+    }
+  }
 
   // Combine: blockout dates (high priority) + booked appointments
   const combined = [...blockoutSlots, ...bookedSlots];
@@ -618,7 +642,16 @@ export function isSlotTaken(
   date: string,
   time: string
 ): boolean {
-  return blockedSlots.some((slot) => slot.date === date && slot.time === time);
+  const targetMin = toMinutes(time);
+  return blockedSlots.some((slot) => {
+    if (slot.date !== date) return false;
+    if (slot.time === time) return true;
+    if (Number.isFinite(targetMin)) {
+      const slotMin = toMinutes(slot.time);
+      return Number.isFinite(slotMin) && slotMin === targetMin;
+    }
+    return false;
+  });
 }
 
 // ─────────────────────────────────────────
