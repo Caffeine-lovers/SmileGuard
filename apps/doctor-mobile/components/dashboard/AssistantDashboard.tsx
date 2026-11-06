@@ -29,7 +29,7 @@ import NotificationCenter from "./NotificationCenter";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
-import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
+import RequestDeck from "./RequestDeck";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -118,272 +118,6 @@ interface AssistantDashboardProps {
   user: CurrentUser;
   onLogout: () => void;
   promptAppointmentId?: string;
-}
-
-interface SwipeableRequestCardProps {
-  request: DashboardAppointment;
-  onPress: () => void;
-  onAccept: () => void;
-  onDecline: () => void;
-}
-
-function SwipeableRequestCard({
-  request,
-  onPress,
-  onAccept,
-  onDecline,
-}: SwipeableRequestCardProps) {
-  const pan = useRef(new Animated.ValueXY()).current;
-  const [swipeState, setSwipeState] = useState<"idle" | "accept-threshold" | "decline-threshold">("idle");
-  const isSwiping = useRef(false);
-  const SWIPE_THRESHOLD = 70;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isHorizontal =
-          Math.abs(gestureState.dx) > 12 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
-        if (isHorizontal) {
-          isSwiping.current = true;
-        }
-        return isHorizontal;
-      },
-      onPanResponderGrant: () => {
-        isSwiping.current = true;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        pan.x.setValue(gestureState.dx);
-        if (gestureState.dx < -SWIPE_THRESHOLD) {
-          setSwipeState("decline-threshold");
-        } else if (gestureState.dx > SWIPE_THRESHOLD) {
-          setSwipeState("accept-threshold");
-        } else {
-          setSwipeState("idle");
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < -SWIPE_THRESHOLD) {
-          // Swipe Left -> Decline / Delete
-          Animated.timing(pan, {
-            toValue: { x: -500, y: 0 },
-            duration: 180,
-            useNativeDriver: false,
-          }).start(() => {
-            onDecline();
-            pan.setValue({ x: 0, y: 0 });
-            setSwipeState("idle");
-            setTimeout(() => {
-              isSwiping.current = false;
-            }, 300);
-          });
-        } else if (gestureState.dx > SWIPE_THRESHOLD) {
-          // Swipe Right -> Accept
-          Animated.timing(pan, {
-            toValue: { x: 500, y: 0 },
-            duration: 180,
-            useNativeDriver: false,
-          }).start(() => {
-            onAccept();
-            setTimeout(() => {
-              isSwiping.current = false;
-            }, 300);
-          });
-        } else {
-          // Reset position
-          setSwipeState("idle");
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            friction: 6,
-            tension: 40,
-            useNativeDriver: false,
-          }).start(() => {
-            setTimeout(() => {
-              isSwiping.current = false;
-            }, 300);
-          });
-        }
-      },
-      onPanResponderTerminate: () => {
-        setSwipeState("idle");
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          friction: 6,
-          tension: 40,
-          useNativeDriver: false,
-        }).start(() => {
-          setTimeout(() => {
-            isSwiping.current = false;
-          }, 300);
-        });
-      },
-    })
-  ).current;
-
-  return (
-    <View style={styles.swipeContainer}>
-      {/* Decline / Delete Background (Red, revealed on the RIGHT when swiping LEFT: pan.x < 0) */}
-      <Animated.View
-        style={[
-          styles.swipeBackgroundFull,
-          styles.swipeBackgroundDecline,
-          {
-            opacity: pan.x.interpolate({
-              inputRange: [-SWIPE_THRESHOLD, -15, 0, 1],
-              outputRange: [1, 1, 0, 0],
-              extrapolate: "clamp",
-            }),
-          },
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.swipeActionIndicatorRight,
-            {
-              transform: [
-                {
-                  scale: pan.x.interpolate({
-                    inputRange: [-SWIPE_THRESHOLD * 2, -SWIPE_THRESHOLD, -20],
-                    outputRange: [1.12, 1.05, 0.9],
-                    extrapolate: "clamp",
-                  }),
-                },
-                {
-                  translateX: pan.x.interpolate({
-                    inputRange: [-SWIPE_THRESHOLD * 2, -SWIPE_THRESHOLD, 0],
-                    outputRange: [0, 0, 12],
-                    extrapolate: "clamp",
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.swipeIconCircleDecline}>
-            <X size={20} color="#FFFFFF" strokeWidth={3} />
-          </View>
-          <Text style={styles.swipeActionLabel}>
-            {swipeState === "decline-threshold" ? "QUICK DECLINE" : "DECLINE"}
-          </Text>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Accept Background (Green, revealed on the LEFT when swiping RIGHT: pan.x > 0) */}
-      <Animated.View
-        style={[
-          styles.swipeBackgroundFull,
-          styles.swipeBackgroundAccept,
-          {
-            opacity: pan.x.interpolate({
-              inputRange: [-1, 0, 15, SWIPE_THRESHOLD],
-              outputRange: [0, 0, 1, 1],
-              extrapolate: "clamp",
-            }),
-          },
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.swipeActionIndicatorLeft,
-            {
-              transform: [
-                {
-                  scale: pan.x.interpolate({
-                    inputRange: [20, SWIPE_THRESHOLD, SWIPE_THRESHOLD * 2],
-                    outputRange: [0.9, 1.05, 1.12],
-                    extrapolate: "clamp",
-                  }),
-                },
-                {
-                  translateX: pan.x.interpolate({
-                    inputRange: [0, SWIPE_THRESHOLD, SWIPE_THRESHOLD * 2],
-                    outputRange: [-12, 0, 0],
-                    extrapolate: "clamp",
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.swipeIconCircleAccept}>
-            <Check size={20} color="#FFFFFF" strokeWidth={3} />
-          </View>
-          <Text style={styles.swipeActionLabel}>
-            {swipeState === "accept-threshold" ? "QUICK ACCEPT" : "ACCEPT"}
-          </Text>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Swipeable Foreground Card */}
-      <Animated.View
-        style={[
-          styles.requestCardContainer,
-          { transform: [{ translateX: pan.x }] },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onPress={() => {
-            if (isSwiping.current) return;
-            onPress();
-          }}
-          style={styles.requestCardTop}
-        >
-          <Image
-            source={
-              typeof request.imageUrl === "string" && request.imageUrl.length > 0
-                ? { uri: request.imageUrl }
-                : require("../../assets/images/user.png")
-            }
-            style={styles.queueAvatar}
-          />
-
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={styles.queuePatientName} numberOfLines={1}>
-                {request.name}
-              </Text>
-            </View>
-
-            <Text style={styles.queueService} numberOfLines={1}>
-              {request.service || "General Dental Consultation"}
-            </Text>
-
-            <View style={styles.queueMetaRow}>
-              <View style={styles.queueMetaItem}>
-                <Calendar size={11} color="#047857" style={{ marginRight: 3 }} />
-                <Text style={styles.queueMetaText}>
-                  {formatAppointmentDate(request.date)}
-                </Text>
-              </View>
-
-              {request.time ? (
-                <View style={styles.queueMetaItem}>
-                  <Clock size={11} color="#0284C7" style={{ marginRight: 3 }} />
-                  <Text style={[styles.queueMetaText, { color: "#0284C7" }]}>
-                    {formatAppointmentTime(request.time)}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          <View
-            style={[
-              styles.queueStatusBadge,
-              { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" },
-            ]}
-          >
-            <Text style={[styles.queueStatusText, { color: "#B45309" }]}>
-              WAITING
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
-  );
 }
 
 export default function AssistantDashboard({
@@ -545,9 +279,8 @@ export default function AssistantDashboard({
   >([]);
   const lastBackPressRef = useRef<number>(0);
 
-  // Appointment requests search & sorting (orderly by created_at)
-  const [requestSearchQuery, setRequestSearchQuery] = useState("");
-  const [requestSortOrder, setRequestSortOrder] = useState<"desc" | "asc">("desc");
+  // Dashboard shows the swipe deck of booking requests, or today's schedule
+  const [dashboardView, setDashboardView] = useState<"requests" | "today">("requests");
 
   // Reschedule confirmation modal state
   const [confirmingReschedule, setConfirmingReschedule] = useState<DashboardAppointment | null>(null);
@@ -575,7 +308,6 @@ export default function AssistantDashboard({
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
-  const [requestsTourTrigger, setRequestsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
 
   // Doctors map for resolving doctor names on appointments
@@ -584,6 +316,11 @@ export default function AssistantDashboard({
   // Navigation handlers
   const navigateToTab = useCallback(
     (nextTab: "dashboard" | "records" | "appointments" | "appointment-requests" | "billing" | "settings") => {
+      // Booking requests now live on the dashboard deck
+      if (nextTab === "appointment-requests") {
+        setDashboardView("requests");
+        nextTab = "dashboard";
+      }
       if (nextTab === activeTab) return;
       setTabHistory((prev) => {
         if (nextTab === "dashboard") {
@@ -694,17 +431,18 @@ export default function AssistantDashboard({
       onEnter: () => setSidebarOpen(false),
     },
     {
-      id: "task-hub",
-      target: "task-hub",
-      title: "Quick Actions",
+      id: "request-deck",
+      target: "request-deck",
+      title: "Booking Requests",
       description:
-        "Helpful shortcuts to review new bookings, check today's arrivals, or find a patient.",
-      icon: LayoutDashboard,
+        "New bookings show up here one patient at a time, oldest first. Swipe right to accept or left to decline.",
+      icon: Inbox,
       padding: 6,
       radius: 14,
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("requests");
       },
     },
     {
@@ -719,6 +457,7 @@ export default function AssistantDashboard({
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("today");
       },
     },
     {
@@ -733,6 +472,7 @@ export default function AssistantDashboard({
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("today");
       },
     },
     {
@@ -747,6 +487,7 @@ export default function AssistantDashboard({
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("today");
         const yOffset =
           (dashboardColumnsLayoutY.current || 280) + (patientDetailsLayoutY.current || 180) - 12;
         try {
@@ -974,39 +715,24 @@ export default function AssistantDashboard({
     };
   }, [selectedPatient?.id, selectedPatient?.patient_id]);
 
-  // Filtered & sorted appointment requests (orderly by created_at, search by patient name)
-  const filteredRequests = useMemo(() => {
-    let list = [...appointmentRequests];
-    if (requestSearchQuery.trim()) {
-      const q = requestSearchQuery.toLowerCase().trim();
-      list = list.filter((r) => r.name.toLowerCase().includes(q));
-    }
-
-    list.sort((a, b) => {
-      const getTimestamp = (item: DashboardAppointment) => {
-        if (item.created_at) {
-          const parsed = new Date(item.created_at).getTime();
-          if (!isNaN(parsed) && parsed > 0) return parsed;
-        }
-        if (item.date) {
-          const dateTimeStr = item.time ? `${item.date}T${item.time}` : item.date;
-          const parsed = new Date(dateTimeStr).getTime();
-          if (!isNaN(parsed) && parsed > 0) return parsed;
-        }
-        return 0;
-      };
-
-      const timeA = getTimestamp(a);
-      const timeB = getTimestamp(b);
-
-      if (timeA !== timeB) {
-        return requestSortOrder === "desc" ? timeB - timeA : timeA - timeB;
+  // Booking requests in the order they were made: first come, first served
+  const deckRequests = useMemo(() => {
+    const requestedAt = (item: DashboardAppointment) => {
+      if (item.created_at) {
+        const parsed = new Date(item.created_at).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
       }
-      return requestSortOrder === "desc" ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
+      if (item.date) {
+        const parsed = new Date(item.date).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+      return 0;
+    };
+    return [...appointmentRequests].sort((a, b) => {
+      const diff = requestedAt(a) - requestedAt(b);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
     });
-
-    return list;
-  }, [appointmentRequests, requestSearchQuery, requestSortOrder]);
+  }, [appointmentRequests]);
 
   // Helper to open full patient chart
   const handleOpenPatientDetails = (item: DashboardAppointment) => {
@@ -1501,6 +1227,7 @@ export default function AssistantDashboard({
         activeTab={activeTab}
         topInset={statusBarHeight}
         bottomInset={Math.max(insets.bottom, 0)}
+        hiddenTabs={["appointment-requests"]}
         railRef={tour.register("menu-btn")}
         navRef={tour.register("sidebar-nav")}
         logoSource={
@@ -1552,8 +1279,6 @@ export default function AssistantDashboard({
                 setRecordsTourTrigger((prev) => prev + 1);
               } else if (activeTab === "appointments") {
                 setAppointmentsTourTrigger((prev) => prev + 1);
-              } else if (activeTab === "appointment-requests") {
-                setRequestsTourTrigger((prev) => prev + 1);
               } else if (activeTab === "billing") {
                 setBillingTourTrigger((prev) => prev + 1);
               } else {
@@ -1594,6 +1319,43 @@ export default function AssistantDashboard({
       ───────────────────────────────────────── */}
       <View style={styles.contentArea}>
         {activeTab === "dashboard" ? (
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 }}>
+              {(["requests", "today"] as const).map((view) => {
+                const active = dashboardView === view;
+                return (
+                  <TouchableOpacity
+                    key={view}
+                    onPress={() => setDashboardView(view)}
+                    activeOpacity={0.8}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 9,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      backgroundColor: active ? "#047857" : "#FFFFFF",
+                      borderWidth: 1,
+                      borderColor: active ? "#047857" : "#E2E8F0",
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#FFFFFF" : "#475569" }}>
+                      {view === "requests"
+                        ? `Requests${deckRequests.length > 0 ? ` · ${deckRequests.length}` : ""}`
+                        : "Today"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {dashboardView === "requests" ? (
+              <View ref={tour.register("request-deck")} collapsable={false} style={{ flex: 1 }}>
+                <RequestDeck
+                  requests={deckRequests}
+                  onAccept={(req) => handleAcceptAppointmentRequest(req)}
+                  onDecline={(req) => handleDeclineAppointmentRequest(req, "Declined via quick swipe")}
+                />
+              </View>
+            ) : (
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
 <ScrollView keyboardShouldPersistTaps="handled" ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
             <View style={styles.container}>
@@ -1625,99 +1387,6 @@ export default function AssistantDashboard({
                       Clinic Assistant • Helping Patients & Dentists
                     </Text>
                   </View>
-                </View>
-              </View>
-
-              {/* QUICK ACTIONS (Simple, easy shortcuts) */}
-              <View
-                ref={tour.register("task-hub")}
-                collapsable={false}
-                style={styles.taskHubContainer}
-              >
-                <View style={styles.taskHubHeader}>
-                  <Text style={styles.taskHubTitle}>QUICK ACTIONS</Text>
-                  <Text style={styles.taskHubSubtitle}>Things you can do right away</Text>
-                </View>
-
-                <View style={styles.taskHubGrid}>
-                  <TouchableOpacity
-                    style={[styles.taskHubCard, { borderColor: "#F59E0B" }]}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.taskHubIconWrap, { backgroundColor: "#FEF3C7" }]}>
-                      <Inbox size={18} color="#D97706" />
-                    </View>
-                    <View style={styles.taskHubTextWrap}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Text style={styles.taskHubCardTitle}>New Bookings</Text>
-                        {appointmentRequests.length > 0 && (
-                          <View style={styles.taskHubCountBadge}>
-                            <Text style={styles.taskHubCountText}>
-                              {appointmentRequests.length}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.taskHubCardDesc}>Check and accept new patient requests</Text>
-                    </View>
-                    <ChevronRight size={15} color="#94A3B8" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.taskHubCard, { borderColor: "#10B981" }]}
-                    onPress={() => {
-                      setQueueFilter("scheduled");
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.taskHubIconWrap, { backgroundColor: "#ECFDF5" }]}>
-                      <Clock size={18} color="#059669" />
-                    </View>
-                    <View style={styles.taskHubTextWrap}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Text style={styles.taskHubCardTitle}>Today's Patients</Text>
-                        <View
-                          style={[styles.taskHubCountBadge, { backgroundColor: "#D1FAE5" }]}
-                        >
-                          <Text style={[styles.taskHubCountText, { color: "#065F46" }]}>
-                            {todayScheduledCount}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.taskHubCardDesc}>See patients arriving today</Text>
-                    </View>
-                    <ChevronRight size={15} color="#94A3B8" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.taskHubCard, { borderColor: "#3B82F6" }]}
-                    onPress={() => setShowQuickPatientSearch(true)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.taskHubIconWrap, { backgroundColor: "#EFF6FF" }]}>
-                      <Search size={18} color="#2563EB" />
-                    </View>
-                    <View style={styles.taskHubTextWrap}>
-                      <Text style={styles.taskHubCardTitle}>Find a Patient</Text>
-                      <Text style={styles.taskHubCardDesc}>Look up patient details and records</Text>
-                    </View>
-                    <ChevronRight size={15} color="#94A3B8" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.taskHubCard, { borderColor: "#8B5CF6" }]}
-                    onPress={() => navigateToTab("appointments")}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.taskHubIconWrap, { backgroundColor: "#F5F3FF" }]}>
-                      <Calendar size={18} color="#7C3AED" />
-                    </View>
-                    <View style={styles.taskHubTextWrap}>
-                      <Text style={styles.taskHubCardTitle}>Calendar</Text>
-                      <Text style={styles.taskHubCardDesc}>See dentist schedules and open times</Text>
-                    </View>
-                    <ChevronRight size={15} color="#94A3B8" />
-                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -1766,126 +1435,10 @@ export default function AssistantDashboard({
                   collapsable={false}
                   style={styles.column}
                 >
-                  {/* SECTION 1: APPOINTMENT REQUESTS */}
-                  <View style={styles.sectionHeaderRow}>
-                    <View style={styles.sectionTitleGroup}>
-                      <Inbox size={16} color="#D97706" />
-                      <Text style={styles.sectionHeaderTitle}>APPOINTMENT REQUESTS</Text>
-                      <View style={[styles.pillCountBadge, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
-                        <Text style={[styles.pillCountText, { color: "#B45309" }]}>
-                          {appointmentRequests.length}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => navigateToTab("appointment-requests")}
-                      style={styles.seeAllBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.seeAllBtnText}>View all</Text>
-                      <ChevronRight size={14} color="#047857" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Search Bar & Sort Order Controls */}
-                  <View style={styles.requestControlRow}>
-                    <View style={styles.requestSearchBox}>
-                      <Search size={13} color="#64748B" style={{ marginRight: 6 }} />
-                      <TextInput
-                        style={styles.requestSearchInput}
-                        value={requestSearchQuery}
-                        onChangeText={setRequestSearchQuery}
-                        placeholder="Search patient name..."
-                        placeholderTextColor="#94A3B8"
-                      />
-                      {requestSearchQuery.length > 0 && (
-                        <TouchableOpacity
-                          onPress={() => setRequestSearchQuery("")}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <X size={13} color="#64748B" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.requestSortBtn}
-                      onPress={() => setRequestSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
-                      activeOpacity={0.7}
-                    >
-                      <ArrowUpDown size={12} color="#047857" style={{ marginRight: 4 }} />
-                      <Text style={styles.requestSortBtnText}>
-                        {requestSortOrder === "desc" ? "Descending (Newest)" : "Ascending (Oldest)"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Swipe gesture helper hint */}
-                  {filteredRequests.length > 0 && (
-                    <View style={styles.swipeHintRow}>
-                      <Text style={styles.swipeHintText}>
-                        Tap to View Details
-                      </Text>
-
-                      <Text style={styles.swipeHintText}>
-                        Swipe RIGHT to Accept  •  Swipe LEFT to Decline
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* List of Appointment Requests - Scrollable if > 3 */}
-                  {filteredRequests.length === 0 ? (
-                    <View style={styles.emptyQueueBox}>
-                      <Inbox size={26} color="#94A3B8" style={{ marginBottom: 6 }} />
-                      <Text style={styles.emptyQueueTitle}>
-                        {requestSearchQuery ? "No matching requests" : "No Pending Requests"}
-                      </Text>
-                      <Text style={styles.emptyQueueSubtitle}>
-                        {requestSearchQuery
-                          ? `No appointment requests found for "${requestSearchQuery}".`
-                          : "New patient booking requests will appear here for you to accept or decline."}
-                      </Text>
-                    </View>
-                  ) : filteredRequests.length > 3 ? (
-                    <ScrollView
-                      nestedScrollEnabled
-                      style={styles.requestsScrollList}
-                      contentContainerStyle={{ paddingBottom: 6 }}
-                      showsVerticalScrollIndicator={true}
-                    >
-                      {filteredRequests.map((req) => (
-                        <SwipeableRequestCard
-                          key={req.id}
-                          request={req}
-                          onPress={() => {
-                            setPromptAppointment(req);
-                            setShowPromptModal(true);
-                          }}
-                          onAccept={() => handleAcceptAppointmentRequest(req)}
-                          onDecline={() => handleDeclineAppointmentRequest(req, "Declined via quick swipe")}
-                        />
-                      ))}
-                    </ScrollView>
-                  ) : (
-                    filteredRequests.map((req) => (
-                      <SwipeableRequestCard
-                        key={req.id}
-                        request={req}
-                        onPress={() => {
-                          setPromptAppointment(req);
-                          setShowPromptModal(true);
-                        }}
-                        onAccept={() => handleAcceptAppointmentRequest(req)}
-                        onDecline={() => handleDeclineAppointmentRequest(req, "Declined via quick swipe")}
-                      />
-                    ))
-                  )}
-
                   {/* ─────────────────────────────────────────────────────────────
                       SECTION 2: TODAY'S APPOINTMENTS (BELOW APPOINTMENT REQUESTS)
                   ───────────────────────────────────────────────────────────── */}
-                  <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 8 }]}>
+                  <View style={[styles.sectionHeaderRow, { marginTop: 0, marginBottom: 8 }]}>
                     <View style={styles.sectionTitleGroup}>
                       <Calendar size={16} color="#047857" />
                       <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
@@ -2399,6 +1952,8 @@ export default function AssistantDashboard({
             </View>
           </ScrollView>
 </KeyboardAvoidingView>
+            )}
+          </View>
         ) : activeTab === "records" ? (
           <RecordsTab
             patients={patients}
@@ -2431,15 +1986,6 @@ export default function AssistantDashboard({
             onAppointmentStatusUpdated={() => {
               refreshDashboardData();
             }}
-          />
-        ) : activeTab === "appointment-requests" ? (
-          <AppointmentsRequestTab
-            userId={user?.id || ""}
-            onRequestAccepted={async () => {
-              await refreshDashboardData();
-            }}
-            styles={styles}
-            startTourTrigger={requestsTourTrigger}
           />
         ) : activeTab === "billing" ? (
           <BillingTab

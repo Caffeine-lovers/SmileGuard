@@ -47,6 +47,8 @@ interface LeftNavRailProps {
   /** Extra space reserved above/below the rail (e.g. status bar / gesture bar). */
   topInset?: number;
   bottomInset?: number;
+  /** Sections to leave out of the rail. */
+  hiddenTabs?: RailTab[];
   /** Tour anchors: the whole rail, and the group of section icons. */
   railRef?: any;
   navRef?: any;
@@ -60,6 +62,7 @@ export default function LeftNavRail({
   logoSource,
   topInset = 0,
   bottomInset = 0,
+  hiddenTabs = [],
   railRef,
   navRef,
 }: LeftNavRailProps) {
@@ -80,7 +83,7 @@ export default function LeftNavRail({
       </View>
 
       <View ref={navRef} collapsable={false} style={styles.railCenter}>
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => !hiddenTabs.includes(tab.id)).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
