@@ -41,7 +41,7 @@ import { getDoctorFullName, getDoctorPrefix, getDoctorTitleName } from "@smilegu
 import { supabase } from '@smileguard/supabase-client';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
-import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
+import { getStatusColor, getStatusBgColor, getStatusLabel } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
 import { Notification, NotificationType } from "../../types/notifications";
@@ -620,41 +620,50 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const [requests, setRequests] = useState<DashboardAppointment[]>([]);
   const [patients, setPatients] = useState<DashboardAppointment[]>([]);
   const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0, paidBillings: 0 });
+  const [agendaFilter, setAgendaFilter] = useState<'all' | 'upcoming' | 'completed'>('all');
 
-  // Filter today's appointments - exclude completed, cancelled, no-show, and declined ones
-  const todayAppointments = appointments
-    .filter(apt =>
-      apt.date === today &&
-      apt.status !== 'completed' &&
-      apt.status !== 'cancelled' &&
-      apt.status !== 'no-show' &&
-      apt.status !== 'declined'
-    )
-    .sort((a, b) => {
-      // Convert time strings (e.g., "09:30 AM" or "2:30 PM") to comparable format
-      const timeA = a.time || '';
-      const timeB = b.time || '';
+  // Strict chronological time parser
+  const parseTimeMinutes = (timeStr: string) => {
+    const match = (timeStr || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!match) return 0;
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const period = match[3]?.toUpperCase();
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
 
-      const parseTime = (timeStr: string) => {
-        // Handle 24-hour and 12-hour formats
-        const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-        if (!match) return 0;
+  // Filter today's appointments - strict chronological order
+  const todayAllAppointments = useMemo(() => {
+    return appointments
+      .filter(apt =>
+        apt.date === today &&
+        apt.status !== 'cancelled' &&
+        apt.status !== 'declined'
+      )
+      .sort((a, b) => parseTimeMinutes(a.time) - parseTimeMinutes(b.time));
+  }, [appointments, today]);
 
-        let hours = parseInt(match[1]);
-        const minutes = parseInt(match[2]);
-        const period = match[3]?.toUpperCase();
+  // Backward compatibility alias for any existing reference
+  const todayAppointments = useMemo(() => {
+    return todayAllAppointments.filter(apt => apt.status !== 'completed');
+  }, [todayAllAppointments]);
 
-        // Convert to 24-hour format if AM/PM is present
-        if (period) {
-          if (period === 'PM' && hours !== 12) hours += 12;
-          if (period === 'AM' && hours === 12) hours = 0;
-        }
+  const todayTotalCount = todayAllAppointments.length;
+  const todayCompletedCount = todayAllAppointments.filter(a => a.status === 'completed').length;
+  const todayUpcomingCount = todayAllAppointments.filter(a => a.status !== 'completed').length;
+  const nextPatient = todayAllAppointments.find(a => a.status !== 'completed');
 
-        return hours * 60 + minutes;
-      };
-
-      return parseTime(timeA) - parseTime(timeB);
-    });
+  const visibleAgendaAppointments = useMemo(() => {
+    if (agendaFilter === 'upcoming') {
+      return todayAllAppointments.filter(a => a.status !== 'completed');
+    }
+    if (agendaFilter === 'completed') {
+      return todayAllAppointments.filter(a => a.status === 'completed');
+    }
+    return todayAllAppointments;
+  }, [todayAllAppointments, agendaFilter]);
 
   // Auto-select first appointment from today's list
   const [selectedPatient, setSelectedPatient] = useState<DashboardAppointment | null>(
@@ -1472,379 +1481,256 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                   </View>
                 </View>
 
-                {/* Stats Panel - from Supabase with Iconic Lucide Icons */}
+                {/* Doctor Clinical Productivity Stats Panel */}
                 <View ref={tour.register("stats-panel")} collapsable={false} style={styles.firstPanel}>
-
                   <StatCard
-                    number={stats.total}
-                    label="Appointments"
+                    number={todayTotalCount}
+                    label="Today's Patients"
                     icon={<Calendar size={20} color="#0284C7" />}
                     accentColor="#0369A1"
                     bgTint="#E0F2FE"
                   />
                   <StatCard
-                    number={stats.paidBillings}
-                    label="Paid Billings"
-                    icon={<CreditCard size={20} color="#7C3AED" />}
-                    accentColor="#6D28D9"
-                    bgTint="#F5F3FF"
+                    number={todayCompletedCount}
+                    label={`Completed (${todayTotalCount > 0 ? Math.round((todayCompletedCount / todayTotalCount) * 100) : 0}%)`}
+                    icon={<CheckCircle2 size={20} color="#047857" />}
+                    accentColor="#047857"
+                    bgTint="#ECFDF5"
+                  />
+                  <StatCard
+                    number={todayUpcomingCount}
+                    label="Remaining"
+                    icon={<Clock size={20} color="#D97706" />}
+                    accentColor="#B45309"
+                    bgTint="#FEF3C7"
                   />
                 </View>
 
+                {/* Section Header: Doctor Agenda with Date & Non-intrusive Pending Action Pill */}
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.header}>DAILY CLINICAL SCHEDULE</Text>
-                </View>
-
-                <View style={styles.dashboardColumns} onLayout={(e) => { dashboardColumnsLayoutY.current = e.nativeEvent.layout.y; }}>
-                  {/* Left Column: Today's Appointments */}
-                  <View ref={tour.register("today-appointments")} collapsable={false} style={styles.column}>
-                    <View style={styles.sectionHeaderRow}>
-                      <View style={styles.sectionTitleGroup}>
-                        <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
-                        <View style={styles.pillCountBadge}>
-                          <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => navigateToTab('appointments')}
-                        style={styles.seeAllBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.seeAllBtnText}>See all</Text>
-                        <ChevronRight size={14} color="#047857" />
-                      </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <View>
+                      <Text style={styles.header}>TODAY'S CLINICAL AGENDA</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748B', marginTop: 2 }}>
+                        {formatAppointmentDate(today)}
+                      </Text>
                     </View>
-                    {todayAppointments.length === 0 ? (
-                      <View style={{ padding: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', minHeight: 100 }}>
-                        <Calendar size={28} color="#94A3B8" style={{ marginBottom: 8 }} />
-                        <Text style={{ color: '#64748B', fontSize: 14, fontWeight: '500', textAlign: 'center' }}>No appointments scheduled for today</Text>
-                      </View>
-                    ) : (
-                      todayAppointments.map((apt, idx) => (
-                        <AppointmentCard
-                          key={apt.id}
-                          name={apt.name}
-                          service={apt.service}
-                          time={apt.time}
-                          imageUrl={apt.imageUrl}
-                          onPress={() => handlePress(apt)}
-                          highlighted={idx === 0}
-                        />
-                      ))
+                    {(requests.length > 0 || rescheduleRequests.length > 0) && (
+                      <TouchableOpacity
+                        onPress={() => navigateToTab('appointment-requests')}
+                        style={styles.pendingBadgePill}
+                        activeOpacity={0.8}
+                      >
+                        <Clock size={12} color="#047857" style={{ marginRight: 4 }} />
+                        <Text style={styles.pendingBadgePillText}>
+                          {requests.length + rescheduleRequests.length} Pending Actions
+                        </Text>
+                        <ChevronRight size={12} color="#047857" />
+                      </TouchableOpacity>
                     )}
                   </View>
+                </View>
 
-                  {/* Right Column: Patient Details */}
-                  <View style={styles.column}>
-                    <View ref={tour.register("patient-details")} collapsable={false} onLayout={(e) => { patientDetailsLayoutY.current = e.nativeEvent.layout.y; }}>
-                      <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionHeaderTitle}>PATIENT DETAILS</Text>
-                      </View>
-                      {!selectedPatient ? (
-                        <View style={[styles.detailsCard, { alignItems: 'center', justifyContent: 'center', minHeight: 140, paddingVertical: 24, backgroundColor: '#F8FAFC', borderStyle: 'dashed' }]}>
-                          <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: '#EDF2F7', borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                            <Users size={22} color="#047857" />
-                          </View>
-                          <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>No Patient Selected</Text>
-                          <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', textAlign: 'center', marginTop: 4, maxWidth: 220 }}>
-                            Select an appointment from Today's Schedule or Requests to view patient records.
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.detailsCard, styles.shadow, {
-                          position: 'relative',
-                        }]}>
-                          {/* Status Badge - Top Right Corner */}
-                          <View
-                            style={{
-                              position: 'absolute',
-                              top: 12,
-                              right: 12,
-                              paddingHorizontal: 8,
-                              paddingVertical: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 4 : 3.5,
-                              borderRadius: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 10 : 4,
-                              borderWidth: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 1,
-                              borderColor: '#6EE7B7',
-                              backgroundColor: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#65A30D' : '#D1FAE5',
-                              zIndex: 10,
-                            }}
-                          >
-                            <Text style={{
-                              fontWeight: 'bold',
-                              color: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? '#FFFFFF' : '#065F46',
-                              fontSize: 10,
-                              letterSpacing: (selectedPatient.status || 'scheduled').toLowerCase() === 'pending' ? 0 : 0.6,
-                            }}>
-                              {(selectedPatient.status || 'scheduled').toUpperCase()}
-                            </Text>
-                          </View>
+                {/* Filter Pills for Doctor Productivity: All, Upcoming, Completed */}
+                <View style={styles.agendaFilterRow}>
+                  {[
+                    { id: 'all', label: `All (${todayTotalCount})` },
+                    { id: 'upcoming', label: `Upcoming (${todayUpcomingCount})` },
+                    { id: 'completed', label: `Completed (${todayCompletedCount})` },
+                  ].map((f) => {
+                    const isSelected = agendaFilter === f.id;
+                    return (
+                      <TouchableOpacity
+                        key={f.id}
+                        onPress={() => setAgendaFilter(f.id as any)}
+                        style={[styles.agendaFilterPill, isSelected && styles.agendaFilterPillActive]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.agendaFilterPillText, isSelected && styles.agendaFilterPillTextActive]}>
+                          {f.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
-                          {/* Patient Header */}
-                          <View style={{ alignItems: 'center', marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
-                            <Image
-                              source={typeof selectedPatient.imageUrl === "string" ? { uri: selectedPatient.imageUrl } : selectedPatient.imageUrl}
-                              style={{ width: 62, height: 62, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', marginBottom: 8 }}
-                            />
-                            <Text style={{ fontWeight: "900", fontSize: 17, color: '#0F172A', letterSpacing: -0.3 }}>
-                              {selectedPatient.name}
-                            </Text>
-                            {(selectedPatient.email || selectedPatient.contact) && (
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857', letterSpacing: 0.5, marginTop: 2 }}>
-                                {selectedPatient.email || selectedPatient.contact}
-                              </Text>
-                            )}
-                            {((selectedPatient as any).pwd_status === 'approved' || (selectedPatient as any).medicalIntake?.pwd_status === 'approved') && (
-                              <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#ECFDF5', borderRadius: 4, borderWidth: 1, borderColor: '#10B981' }}>
-                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#047857' }}>
-                                  ✓ Verified {(selectedPatient as any).pwd_type === 'senior' ? 'Senior' : 'PWD'}
+                {/* Chronological Agenda Timeline Cards */}
+                <View
+                  ref={tour.register("today-appointments")}
+                  collapsable={false}
+                  style={{ width: '100%', gap: 12, marginBottom: 24 }}
+                  onLayout={(e) => { dashboardColumnsLayoutY.current = e.nativeEvent.layout.y; }}
+                >
+                  {visibleAgendaAppointments.length === 0 ? (
+                    <View style={styles.emptyAgendaCard}>
+                      <Calendar size={32} color="#94A3B8" style={{ marginBottom: 8 }} />
+                      <Text style={styles.emptyAgendaTitle}>
+                        {agendaFilter === 'completed'
+                          ? 'No completed appointments yet today'
+                          : agendaFilter === 'upcoming'
+                          ? 'No upcoming appointments remaining today'
+                          : 'No appointments scheduled for today'}
+                      </Text>
+                      <Text style={styles.emptyAgendaSubtitle}>
+                        Your schedule is clear. Check the Appointments tab to view future bookings or schedule a patient.
+                      </Text>
+                    </View>
+                  ) : (
+                    visibleAgendaAppointments.map((apt, idx) => {
+                      const isNextUp = apt.id === nextPatient?.id && apt.status !== 'completed';
+                      const isCompleted = apt.status === 'completed';
+                      const isFirst = idx === 0;
+
+                      return (
+                        <View
+                          key={apt.id}
+                          style={[
+                            styles.agendaCard,
+                            isNextUp && styles.agendaCardNextUp,
+                            isCompleted && styles.agendaCardCompleted,
+                          ]}
+                        >
+                          {/* Top Row: Time Slot & Status */}
+                          <View style={styles.agendaCardTopRow}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <View style={[styles.agendaTimeBadge, isNextUp && styles.agendaTimeBadgeNextUp]}>
+                                <Clock size={13} color={isNextUp ? '#065F46' : '#0F172A'} style={{ marginRight: 4 }} />
+                                <Text style={[styles.agendaTimeText, isNextUp && styles.agendaTimeTextNextUp]}>
+                                  {apt.time ? formatAppointmentTime(apt.time) : 'No time'}
                                 </Text>
                               </View>
-                            )}
-                            {((selectedPatient as any).pwd_status === 'pending' || (selectedPatient as any).medicalIntake?.pwd_status === 'pending') && (
-                              <View style={{ marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#FFFBEB', borderRadius: 4, borderWidth: 1, borderColor: '#F59E0B' }}>
-                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>
-                                  ⚠️ PWD/Senior Review Pending
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-
-                          {/* Appointment Details Box */}
-                          <View style={{
-                            marginBottom: 14,
-                            backgroundColor: '#F8FAFC',
-                            borderRadius: 6,
-                            borderWidth: 1,
-                            borderColor: '#E2E8F0',
-                            padding: 10,
-                          }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                              <Calendar size={13} color="#047857" />
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: '#047857', letterSpacing: 0.6 }}>APPOINTMENT DETAILS</Text>
+                              {isNextUp && (
+                                <View style={styles.nextUpBadge}>
+                                  <Sparkles size={11} color="#047857" style={{ marginRight: 3 }} />
+                                  <Text style={styles.nextUpBadgeText}>NEXT IN CHAIR</Text>
+                                </View>
+                              )}
                             </View>
-                            <DetailRow label="Service" value={selectedPatient.service || "General Dental"} />
-                            <DetailRow label="Time" value={selectedPatient.time ? formatAppointmentTime(selectedPatient.time) : "Not specified"} isHighlight={true} />
-                            <DetailRow label="Date" value={formatAppointmentDate(selectedPatient.date) || "Not specified"} />
+
+                            {/* Status Badge */}
+                            <View
+                              style={[
+                                styles.agendaStatusBadge,
+                                {
+                                  backgroundColor: getStatusBgColor(apt.status || 'scheduled'),
+                                  borderColor: getStatusColor(apt.status || 'scheduled'),
+                                },
+                              ]}
+                            >
+                              {isCompleted && <CheckCircle2 size={11} color="#047857" style={{ marginRight: 3 }} />}
+                              <Text
+                                style={[
+                                  styles.agendaStatusText,
+                                  { color: getStatusColor(apt.status || 'scheduled') },
+                                ]}
+                              >
+                                {getStatusLabel(apt.status || 'scheduled').toUpperCase()}
+                              </Text>
+                            </View>
                           </View>
 
-                          {/* Action Buttons: Full Record & Update Status (Side by Side) */}
-                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                            {/* Action: Open Full Medical Record */}
-                            <TouchableOpacity
-                              style={{
-                                flex: 1,
-                                paddingVertical: 10,
-                                paddingHorizontal: 8,
-                                backgroundColor: '#047857',
-                                borderRadius: 6,
-                                borderWidth: 1,
-                                borderColor: '#064E3B',
-                                borderBottomWidth: 2.5,
-                                borderBottomColor: '#022C22',
-                                flexDirection: 'row',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: 6,
-                              }}
-                              onPress={() => {
-                                if (selectedPatient) {
-                                  handleOpenPatientDetails(selectedPatient);
-                                }
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <FileText size={13} color="#FFFFFF" />
-                              <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>
-                                FULL RECORD
-                              </Text>
-                            </TouchableOpacity>
-
-                            {/* Action: Update Appointment Status */}
-                            <TouchableOpacity
-                              style={{
-                                flex: 1,
-                                paddingVertical: 10,
-                                paddingHorizontal: 8,
-                                backgroundColor: '#F8FAFC',
-                                borderRadius: 6,
-                                borderWidth: 1.5,
-                                borderColor: '#CBD5E1',
-                                borderBottomWidth: 2.5,
-                                borderBottomColor: '#94A3B8',
-                                flexDirection: 'row',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: 6,
-                              }}
-                              onPress={() => {
-                                if (selectedPatient) {
-                                  handleOpenStatusModal(selectedPatient);
-                                }
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <Clock size={13} color="#475569" />
-                              <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '800', color: '#1E293B', letterSpacing: 0.4 }}>
-                                UPDATE STATUS
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      )}
-
-                    </View>
-
-                    {/* Reschedule Requests Section */}
-                    <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
-                      <View style={styles.sectionTitleGroup}>
-                        <CalendarDays size={15} color="#D97706" />
-                        <Text style={styles.sectionHeaderTitle}>RESCHEDULE REQUESTS</Text>
-                        <View style={[styles.pillCountBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                          <Text style={[styles.pillCountText, { color: '#B45309' }]}>{rescheduleRequests.length}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    {rescheduleRequests.length > 0 ? (
-                      rescheduleRequests.map((req) => (
-                        <View key={req.id} style={styles.rescheduleCard}>
-                          {/* Card Top: Patient & Rescheduled By */}
-                          <View style={styles.rescheduleCardTop}>
+                          {/* Patient Profile Row */}
+                          <View style={styles.agendaPatientRow}>
                             <Image
                               source={
-                                typeof req.imageUrl === 'string' && req.imageUrl.length > 0
-                                  ? { uri: req.imageUrl }
-                                  : require('../../assets/images/user.png')
+                                typeof apt.imageUrl === 'string' && apt.imageUrl.length > 0
+                                  ? { uri: apt.imageUrl }
+                                  : (typeof apt.imageUrl === 'number' ? apt.imageUrl : require('../../assets/images/user.png'))
                               }
-                              style={styles.rescheduleAvatar}
+                              style={styles.agendaAvatar}
                             />
-                            <View style={{ flex: 1, marginRight: 8 }}>
-                              <Text style={styles.reschedulePatientName}>{req.name}</Text>
-                              <Text style={styles.rescheduleService}>{req.service || 'Dental Consultation'}</Text>
-                              <View style={styles.rescheduleSlotRow}>
-                                <Calendar size={12} color="#047857" style={{ marginRight: 4 }} />
-                                <Text style={styles.rescheduleSlotText}>
-                                  {formatAppointmentDate(req.date)} • {formatAppointmentTime(req.time)}
-                                </Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.agendaPatientName}>{apt.name}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                                {(apt.gender || apt.age) && (
+                                  <Text style={styles.agendaPatientMeta}>
+                                    {[apt.gender, apt.age ? `${apt.age} yrs` : null].filter(Boolean).join(' • ')}
+                                  </Text>
+                                )}
+                                {apt.contact && (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                    <Phone size={10} color="#64748B" />
+                                    <Text style={styles.agendaPatientContact}>{apt.contact}</Text>
+                                  </View>
+                                )}
                               </View>
-                            </View>
-                            <View style={styles.rescheduledByBadge}>
-                              <Text style={styles.rescheduledByBadgeText}>
-                                {req.rescheduled_by ? `By ${req.rescheduled_by}` : 'Requested'}
-                              </Text>
+
+                              {/* PWD / Senior indicator */}
+                              {((apt as any).pwd_status === 'approved' || (apt as any).medicalIntake?.pwd_status === 'approved') && (
+                                <View style={styles.pwdTag}>
+                                  <Text style={styles.pwdTagText}>
+                                    ✓ Verified {(apt as any).pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'}
+                                  </Text>
+                                </View>
+                              )}
                             </View>
                           </View>
 
-                          {/* Reason / Notes */}
-                          {req.notes ? (
-                            <View style={styles.rescheduleNotesBox}>
-                              <Text style={styles.rescheduleNotesLabel}>Reason for Rescheduling:</Text>
-                              <Text style={styles.rescheduleNotesText} numberOfLines={3}>
-                                "{req.notes}"
+                          {/* Clinical Procedure / Service */}
+                          <View style={styles.agendaServiceBox}>
+                            <Stethoscope size={13} color="#047857" style={{ marginRight: 6 }} />
+                            <Text style={styles.agendaServiceLabel}>Procedure:</Text>
+                            <Text style={styles.agendaServiceValue} numberOfLines={2}>
+                              {apt.service || 'General Dental Consultation'}
+                            </Text>
+                          </View>
+
+                          {/* Clinical Notes / Patient Concern */}
+                          {apt.notes ? (
+                            <View style={styles.agendaNotesBox}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                <FileText size={11} color="#B45309" />
+                                <Text style={styles.agendaNotesLabel}>Patient Concern / Notes:</Text>
+                              </View>
+                              <Text style={styles.agendaNotesText} numberOfLines={3}>
+                                "{apt.notes}"
                               </Text>
                             </View>
                           ) : null}
 
-                          {/* Request timestamp if available */}
-                          {(req.rescheduled_at || req.reschedule_at) && (
-                            <Text style={styles.rescheduleTimestampText}>
-                              Requested on: {formatAppointmentDate(req.rescheduled_at || req.reschedule_at || "")}
-                            </Text>
-                          )}
-
-                          {/* Actions */}
-                          <View style={styles.rescheduleActionRow}>
+                          {/* Doctor Productivity Action Buttons */}
+                          <View
+                            ref={isFirst ? tour.register("patient-details") : undefined}
+                            collapsable={false}
+                            style={styles.agendaActionRow}
+                            onLayout={isFirst ? (e) => { patientDetailsLayoutY.current = e.nativeEvent.layout.y; } : undefined}
+                          >
+                            {/* Primary: Full Medical Chart */}
                             <TouchableOpacity
-                              style={styles.rescheduleConfirmBtn}
-                              onPress={() => {
-                                setConfirmingReschedule(req);
-                                setShowRescheduleConfirmModal(true);
-                              }}
+                              style={styles.agendaPrimaryBtn}
+                              onPress={() => handleOpenPatientDetails(apt)}
                               activeOpacity={0.8}
                             >
-                              <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                              <Text style={styles.rescheduleConfirmBtnText}>Confirm Time</Text>
+                              <FileText size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
+                              <Text style={styles.agendaPrimaryBtnText}>OPEN CHART</Text>
                             </TouchableOpacity>
 
+                            {/* Secondary: Update Status (Completed, In Progress, etc.) */}
                             <TouchableOpacity
-                              style={styles.rescheduleReviewBtn}
-                              onPress={() => handleOpenStatusModal(req)}
+                              style={styles.agendaSecondaryBtn}
+                              onPress={() => handleOpenStatusModal(apt)}
                               activeOpacity={0.8}
                             >
-                              <Text style={styles.rescheduleReviewBtnText}>Change Status</Text>
+                              <CheckCircle2 size={13} color="#047857" style={{ marginRight: 4 }} />
+                              <Text style={styles.agendaSecondaryBtnText}>STATUS</Text>
+                            </TouchableOpacity>
+
+                            {/* Secondary: Reschedule appointment */}
+                            <TouchableOpacity
+                              style={styles.agendaSecondaryBtn}
+                              onPress={() => handleOpenStatusModal(apt)}
+                              activeOpacity={0.8}
+                            >
+                              <CalendarDays size={13} color="#475569" style={{ marginRight: 4 }} />
+                              <Text style={styles.agendaSecondaryBtnText}>RESCHEDULE</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
-                      ))
-                    ) : (
-                      <View style={styles.emptyRescheduleCard}>
-                        <Clock size={16} color="#94A3B8" style={{ marginBottom: 4 }} />
-                        <Text style={styles.emptyRescheduleText}>No pending reschedule requests</Text>
-                      </View>
-                    )}
-
-                    {/* Patients List */}
-                    <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
-                      <View style={styles.sectionTitleGroup}>
-                        <Text style={styles.sectionHeaderTitle}>PATIENTS</Text>
-                        <View style={styles.pillCountBadge}>
-                          <Text style={styles.pillCountText}>{patients.length}</Text>
-                        </View>
-                      </View>
-                      {patients.length > 0 && (
-                        <TouchableOpacity
-                          onPress={() => navigateToTab('records')}
-                          style={styles.seeAllBtn}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.seeAllBtnText}>See more patients</Text>
-                          <ChevronRight size={14} color="#047857" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    {patients.length > 0 ? (
-                      patients
-                        .slice()
-                        .sort((a, b) => {
-                          const timeA = a.created_at || a.date ? new Date(a.created_at || a.date).getTime() : 0;
-                          const timeB = b.created_at || b.date ? new Date(b.created_at || b.date).getTime() : 0;
-                          return timeB - timeA;
-                        })
-                        .slice(0, 3)
-                        .map((patient) => (
-                          <TouchableOpacity
-                            key={patient.id}
-                            onPress={() => {
-                              handleOpenPatientDetails(patient);
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <View style={[styles.card, styles.shadow, { marginBottom: 10 }]}>
-                              <Image
-                                source={typeof patient.imageUrl === "string" && patient.imageUrl.length > 0 ? { uri: patient.imageUrl } : (typeof patient.imageUrl === "number" ? patient.imageUrl : require('../../assets/images/user.png'))}
-                                style={{ width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 12 }}
-                              />
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#0F172A' }}>{patient.name}</Text>
-                                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>{patient.email || patient.contact || 'No email provided'}</Text>
-                                {formatAccountCreatedDate(patient.created_at || patient.date) ? (
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                                    <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }}>
-                                      Account created: <Text style={{ color: '#047857', fontWeight: '700' }}>{formatAccountCreatedDate(patient.created_at || patient.date)}</Text>
-                                    </Text>
-                                  </View>
-                                ) : null}
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ))
-                    ) : (
-                      <Text style={{ fontSize: 12, color: '#999', marginVertical: 10 }}>No patients yet</Text>
-                    )}
-                  </View>
+                      );
+                    })
+                  )}
                 </View>
-
-                              </View>
+              </View>
             </ScrollView>
           ) : activeTab === 'records' ? (
             <RecordsTab
@@ -3446,6 +3332,285 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  // ─── DOCTOR CLINICAL AGENDA STYLES ─────────────────────────────────
+  pendingBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  pendingBadgePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+    marginRight: 2,
+  },
+  agendaFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+    width: '100%',
+  },
+  agendaFilterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  agendaFilterPillActive: {
+    backgroundColor: '#047857',
+    borderColor: '#064E3B',
+  },
+  agendaFilterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  agendaFilterPillTextActive: {
+    color: '#FFFFFF',
+  },
+  agendaCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderBottomWidth: 3,
+    borderBottomColor: '#CBD5E1',
+    padding: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  agendaCardNextUp: {
+    borderColor: '#10B981',
+    borderBottomColor: '#047857',
+    backgroundColor: '#FAFCFA',
+  },
+  agendaCardCompleted: {
+    opacity: 0.85,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  agendaCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  agendaTimeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  agendaTimeBadgeNextUp: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  agendaTimeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  agendaTimeTextNextUp: {
+    color: '#047857',
+  },
+  nextUpBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderRadius: 4,
+  },
+  nextUpBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
+    letterSpacing: 0.5,
+  },
+  agendaStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  agendaStatusText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  agendaPatientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  agendaAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    marginRight: 12,
+  },
+  agendaPatientName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  agendaPatientMeta: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  agendaPatientContact: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  pwdTag: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  pwdTagText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  agendaServiceBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+  },
+  agendaServiceLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+    marginRight: 4,
+  },
+  agendaServiceValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    flex: 1,
+  },
+  agendaNotesBox: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 6,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginBottom: 10,
+  },
+  agendaNotesLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  agendaNotesText: {
+    fontSize: 12,
+    color: '#78350F',
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+  agendaActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  agendaPrimaryBtn: {
+    flex: 1.4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#047857',
+    borderRadius: 6,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#064E3B',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#022C22',
+  },
+  agendaPrimaryBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
+  },
+  agendaSecondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderBottomWidth: 2.5,
+    borderBottomColor: '#94A3B8',
+  },
+  agendaSecondaryBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E293B',
+    letterSpacing: 0.4,
+  },
+  emptyAgendaCard: {
+    padding: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    minHeight: 140,
+  },
+  emptyAgendaTitle: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  emptyAgendaSubtitle: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    maxWidth: 280,
   },
 });
 
