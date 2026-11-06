@@ -82,6 +82,7 @@ export default function SettingsTab({
   const [doctorData, setDoctorData] = useState<Doctor>(EMPTY_DOCTOR);
   const [loadingDoctor, setLoadingDoctor] = useState(false);
   const { currentUser: authUser } = useAuth();
+  const isAssistant = user?.role === 'assistant' || authUser?.role === 'assistant';
   const [appSettings, setAppSettings] = useState<AppSettings>({
     appointmentReminders: true,
     newPatientRequests: true,
@@ -222,7 +223,7 @@ export default function SettingsTab({
 
         {/* Doctor Profile Section */}
         <View style={{ marginBottom: 16 }}>
-          <Text style={localStyles.sectionLabel}>DOCTOR PROFILE</Text>
+          <Text style={localStyles.sectionLabel}>{isAssistant ? 'MY PROFILE' : 'DOCTOR PROFILE'}</Text>
           <TouchableOpacity
             style={localStyles.skeuoCard}
             onPress={() => setEditingProfile(true)}
@@ -233,8 +234,8 @@ export default function SettingsTab({
                 <User size={18} color="#047857" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={localStyles.cardTitle}>Doctor Profile</Text>
-                <Text style={localStyles.cardSubtitle}>Name, specialty, and PRC license details</Text>
+                <Text style={localStyles.cardTitle}>{isAssistant ? 'My Profile' : 'Doctor Profile'}</Text>
+                <Text style={localStyles.cardSubtitle}>{isAssistant ? 'Name, photo, and contact number' : 'Name, specialty, and PRC license details'}</Text>
               </View>
               <View style={localStyles.chevronBox}>
                 <ChevronRight size={16} color="#047857" />
@@ -243,7 +244,8 @@ export default function SettingsTab({
           </TouchableOpacity>
         </View>
 
-        {/* Clinic Setup Section */}
+        {/* Clinic Setup Section (dentists only) */}
+        {!isAssistant && (
         <View style={{ marginBottom: 16 }}>
           <Text style={localStyles.sectionLabel}>CLINIC PRACTICE</Text>
           <TouchableOpacity
@@ -265,6 +267,8 @@ export default function SettingsTab({
             </View>
           </TouchableOpacity>
         </View>
+
+        )}
 
         {/* PayMongo Billing & Payout Section */}
         <View style={{ marginBottom: 16 }}>
