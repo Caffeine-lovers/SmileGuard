@@ -626,7 +626,17 @@ export function isSlotTaken(
   date: string,
   time: string
 ): boolean {
-  return blockedSlots.some((slot) => slot.date === date && slot.time === time);
+  const targetMin = toMinutes(time);
+  return blockedSlots.some((slot) => {
+    if (slot.date !== date) return false;
+    if (slot.time === 'ALL_DAY') return true;
+    if (slot.time === time) return true;
+    if (slot.service === 'blocked') return slot.time === time;
+    const start = toMinutes(slot.time);
+    if (isNaN(start) || isNaN(targetMin)) return false;
+    const dur = getServiceDuration(slot.service);
+    return targetMin >= start && targetMin < start + dur;
+  });
 }
 
 // ─────────────────────────────────────────

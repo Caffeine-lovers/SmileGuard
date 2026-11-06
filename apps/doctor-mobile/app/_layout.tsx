@@ -136,6 +136,7 @@ export default function RootLayout() {
     if (!ready) return;
 
     const inDoctorGroup = segments[0] === "(doctor)";
+    const inAdminGroup = segments[0] === "(admin)";
     const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
     const inOAuthRedirect = segments[0] === "oauth-redirect";
@@ -148,11 +149,13 @@ export default function RootLayout() {
     if (inResetPassword || inOnboarding) return;
 
     if (!user) {
-      if (inDoctorGroup || inSetupProfile) {
+      if (inDoctorGroup || inAdminGroup || inSetupProfile) {
         console.log("[RootLayout] No user, routing to /");
         router.replace("/");
       }
     } else {
+      if (inAdminGroup) return; // (admin)/_layout.tsx owns its own guard
+
       if (!inDoctorGroup && !inSetupProfile) {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
@@ -162,6 +165,21 @@ export default function RootLayout() {
               AsyncStorage.getItem("@pending_user_role"),
             ]);
             const savedCode = (savedCodeRaw || "").trim().toUpperCase();
+
+            // 0. Authoritative admin check — admins are profiles-only rows (no
+            // doctors-table record), so they must be routed before the doctor
+            // lookup below, which would otherwise bounce them to /setup-profile.
+            const { data: adminProfile } = await supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", user.id)
+              .maybeSingle();
+
+            if (adminProfile?.role === "admin" || savedRole === "admin" || savedCode === "CLINIC-ADMIN-01") {
+              console.log("[RootLayout] Admin user detected, routing to /(admin)/dashboard");
+              router.replace("/(admin)/dashboard");
+              return;
+            }
 
             // 1. Authoritative check directly on public.doctors table (ignoring profiles table)
             console.log("[RootLayout] Querying doctors table for user_id:", user.id);

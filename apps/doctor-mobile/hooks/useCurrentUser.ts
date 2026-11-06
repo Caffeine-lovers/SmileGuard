@@ -36,7 +36,9 @@ export function useCurrentUser(): CurrentUser | null {
           .eq("id", sessionUser.id)
           .maybeSingle();
 
-        if (doctorRole === "assistant") {
+        if (profile?.role === "admin") {
+          resolvedRole = "admin";
+        } else if (doctorRole === "assistant") {
           resolvedRole = "assistant";
         } else if (doctorRole === "doctor") {
           resolvedRole = "doctor";

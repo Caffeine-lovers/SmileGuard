@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import AssistantDashboard from "./AssistantDashboard";
 import {
   View,
   Text,
@@ -113,16 +112,6 @@ interface DoctorDashboardProps {
 }
 
 export default function DoctorDashboard({ user, onLogout, promptAppointmentId }: DoctorDashboardProps) {
-  if (user?.role === "assistant") {
-    return (
-      <AssistantDashboard
-        user={user}
-        onLogout={onLogout}
-        promptAppointmentId={promptAppointmentId}
-      />
-    );
-  }
-
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clinic, loading: clinicLoading } = useClinic();

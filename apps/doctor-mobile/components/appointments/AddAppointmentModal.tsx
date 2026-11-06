@@ -44,6 +44,7 @@ import {
   formatMinutes,
   busyIntervalsForDate,
   fits,
+  freeUntil,
 } from "../../lib/scheduling";
 import AddPatientModal from "../patientrecord/AddPatientModal";
 import { useClinic } from "../../contexts/ClinicContext";
@@ -558,37 +559,50 @@ export default function AddAppointmentModal({
 
   const isPatientScheduledOnDate = !!patientExistingAppointment;
 
-  // 5. Booked Time Slots Check (for any appointment or this patient)
-  // Make the time slot available if the status of the appointment is cancelled or declined
-  const bookedSlotTimes = useMemo(() => {
-    const set = new Set<string>();
-    (dayAppointments || []).forEach((a) => {
-      const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
-      if (apptDate && appointmentDate && apptDate !== appointmentDate) {
-        return; // Skip appointments from other dates
+  // 5. Duration-Aware Booked Slots Check
+  // An existing appointment occupies the full [start, start + duration) window.
+  // For example, a 1-hour appointment at 10:00 AM blocks out both 10:00 AM and 10:30 AM.
+  const getBookingForSlot = useCallback(
+    (slotStr: string) => {
+      const slotMin = toMinutes(slotStr);
+      if (isNaN(slotMin)) return null;
+
+      for (const a of dayAppointments || []) {
+        const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
+        // Must strictly match appointmentDate - never leak appointments with missing or mismatched dates
+        if (!apptDate || apptDate !== appointmentDate) {
+          continue;
+        }
+        if (isCancelledOrDeclined(a.status)) {
+          continue;
+        }
+        const status = String(a.status || "").toLowerCase().trim();
+        if (status && status !== "scheduled" && status !== "pending" && status !== "confirmed") {
+          continue;
+        }
+
+        const rawTime = a.appointment_time || a.time;
+        if (!rawTime) continue;
+        const apptStart = toMinutes(rawTime);
+        if (isNaN(apptStart)) continue;
+
+        const duration = getServiceDuration(a.service);
+        const apptEnd = apptStart + duration;
+
+        if (slotMin >= apptStart && slotMin < apptEnd) {
+          return a;
+        }
       }
-      // If the appointment is cancelled, declined, or no-show, NEVER book the slot!
-      if (isCancelledOrDeclined(a.status)) {
-        return;
-      }
-      // Only active statuses (scheduled, pending, confirmed) book the slot
-      const status = String(a.status || "").toLowerCase().trim();
-      if (status && status !== "scheduled" && status !== "pending" && status !== "confirmed" && status !== "completed") {
-        return;
-      }
-      const rawTime = a.appointment_time || a.time;
-      if (rawTime) {
-        set.add(normalizeTimeString(rawTime));
-      }
-    });
-    return set;
-  }, [dayAppointments, appointmentDate]);
+      return null;
+    },
+    [dayAppointments, appointmentDate]
+  );
 
   const isTimeSlotBooked = useCallback(
     (slotStr: string) => {
-      return bookedSlotTimes.has(normalizeTimeString(slotStr));
+      return !!getBookingForSlot(slotStr);
     },
-    [bookedSlotTimes]
+    [getBookingForSlot]
   );
 
   const isSelectedTimeBooked = useMemo(() => {
@@ -630,9 +644,13 @@ export default function AddAppointmentModal({
   const busyToday = useMemo(() => {
     if (!appointmentDate) return [];
     const appts = (dayAppointments || [])
-      .filter((a) => !isCancelledOrDeclined(a.status))
+      .filter((a) => {
+        if (isCancelledOrDeclined(a.status)) return false;
+        const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
+        return apptDate === appointmentDate;
+      })
       .map((a) => ({
-        date: (a.appointment_date || a.date || "").split("T")[0].split(" ")[0],
+        date: appointmentDate,
         time: a.appointment_time || a.time || "",
         service: a.service || "General",
       }));
@@ -1151,70 +1169,94 @@ export default function AddAppointmentModal({
                   <Text style={styles.noSlotsText}>No operating hours configured for this day.</Text>
                 </View>
               ) : (
-                <View style={styles.pillGroup}>
+                <>
                   {allTodaySlotsPassed ? (
                     <View style={styles.allSlotsPassedBox}>
-                      <AlertCircle size={14} color="#B45309" style={{ marginRight: 6 }} />
+                      <AlertCircle size={15} color="#B45309" style={{ marginRight: 8, flexShrink: 0 }} />
                       <Text style={styles.allSlotsPassedText}>
                         All operating hours for today have already passed. Please select an upcoming date.
                       </Text>
                     </View>
                   ) : null}
-                  {availableTimeSlots.map((t) => {
-                    const isBooked = isTimeSlotBooked(t);
-                    const isPast = isTimeSlotInPast(t);
-                    const fitsTime = doesSlotFit(t);
-                    const isSelected = appointmentTime === t;
-                    const isDisabled = isBooked || isPast || !fitsTime;
-                    const isPatientSlot =
-                      isPatientScheduledOnDate &&
-                      normalizeTimeString(patientExistingAppointment?.appointment_time || patientExistingAppointment?.time) ===
-                        normalizeTimeString(t);
 
-                    return (
-                      <TouchableOpacity
-                        key={t}
-                        style={[
-                          styles.timePill,
-                          isSelected && styles.timePillActive,
-                          isBooked && !isSelected && styles.timePillBooked,
-                          isPast && !isSelected && !isBooked && styles.timePillPast,
-                          !isBooked && !isPast && !fitsTime && !isSelected && styles.timePillNoFit,
-                        ]}
-                        onPress={() => {
-                          if (!isDisabled) {
-                            setAppointmentTime(t);
-                          }
-                        }}
-                        disabled={isDisabled}
-                        activeOpacity={0.7}
-                      >
-                        <Text
+                  <View style={styles.timeSlotsGrid}>
+                    {availableTimeSlots.map((t) => {
+                      const booking = getBookingForSlot(t);
+                      const isBooked = !!booking;
+                      const isPast = isTimeSlotInPast(t);
+                      const fitsTime = doesSlotFit(t);
+                      const isSelected = appointmentTime === t;
+
+                      const startMin = toMinutes(t);
+                      const freeLimit = freeUntil(startMin, busyToday, closingMinutes);
+                      const freeMins = freeLimit !== null ? freeLimit - startMin : 0;
+
+                      // Highlight consecutive slots in the selected appointment window
+                      const selectedStartMin = appointmentTime ? toMinutes(appointmentTime) : NaN;
+                      const isInSelectedWindow =
+                        !isNaN(selectedStartMin) &&
+                        !isSelected &&
+                        startMin > selectedStartMin &&
+                        startMin < selectedStartMin + totalDuration;
+
+                      const isDisabled = isBooked || isPast || !fitsTime || isInSelectedWindow;
+                      const isPatientSlot =
+                        isBooked &&
+                        selectedPatient &&
+                        ((selectedPatient.dummy && (booking?.dummy_patient_id === selectedPatient.id || booking?.dummy_account_id === selectedPatient.id)) ||
+                          booking?.patient_id === selectedPatient.id);
+
+                      return (
+                        <TouchableOpacity
+                          key={t}
                           style={[
-                            styles.timePillText,
-                            isSelected && styles.timePillTextActive,
-                            isBooked && styles.timePillTextBooked,
-                            isPast && !isBooked && styles.timePillTextPast,
-                            !isBooked && !isPast && !fitsTime && !isSelected && { color: "#94A3B8" },
+                            styles.timePill,
+                            isSelected && styles.timePillActive,
+                            isInSelectedWindow && styles.timePillInWindow,
+                            isPast && !isSelected && styles.timePillPast,
+                            !isPast && isBooked && !isSelected && styles.timePillBooked,
+                            !isBooked && !isPast && !fitsTime && !isSelected && !isInSelectedWindow && styles.timePillNoFit,
                           ]}
+                          onPress={() => {
+                            if (!isDisabled) {
+                              setAppointmentTime(t);
+                            }
+                          }}
+                          disabled={isDisabled}
+                          activeOpacity={0.7}
                         >
-                          {t}
-                        </Text>
-                        {isBooked ? (
-                          <Text style={styles.timePillBookedTag}>
-                            {isPatientSlot ? "Patient" : "Booked"}
+                          <Text
+                            style={[
+                              styles.timePillText,
+                              isSelected && styles.timePillTextActive,
+                              isInSelectedWindow && styles.timePillTextInWindow,
+                              isPast && !isSelected && styles.timePillTextPast,
+                              !isPast && isBooked && styles.timePillTextBooked,
+                              !isBooked && !isPast && !fitsTime && !isSelected && !isInSelectedWindow && { color: "#94A3B8" },
+                            ]}
+                          >
+                            {t}
                           </Text>
-                        ) : isPast ? (
-                          <Text style={styles.timePillPastTag}>Passed</Text>
-                        ) : !fitsTime ? (
-                          <Text style={styles.timePillNoFitTag}>
-                            No Time
-                          </Text>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                          {isPast ? (
+                            <Text style={styles.timePillPastTag} numberOfLines={1}>Passed</Text>
+                          ) : isBooked ? (
+                            <Text style={styles.timePillBookedTag} numberOfLines={1}>
+                              {isPatientSlot ? "Patient" : "Booked"}
+                            </Text>
+                          ) : isInSelectedWindow ? (
+                            <Text style={styles.timePillInWindowTag} numberOfLines={1}>
+                              In Window
+                            </Text>
+                          ) : !fitsTime ? (
+                            <Text style={styles.timePillNoFitTag} numberOfLines={1}>
+                              {freeMins > 0 && freeMins < totalDuration ? `< ${formatDuration(totalDuration)}` : "No Time"}
+                            </Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
               )}
             </View>
 
@@ -1289,10 +1331,12 @@ export default function AddAppointmentModal({
                   ? "Cannot schedule: Dummy patient already scheduled on this date."
                   : allTodaySlotsPassed
                   ? "Cannot schedule: All operating hours for today have already passed."
-                  : !appointmentTime || isSelectedTimeBooked
+                  : !appointmentTime
                   ? "Please select an available time slot."
                   : isTimeSlotInPast(appointmentTime)
                   ? "Cannot schedule: Selected time slot has already passed."
+                  : isSelectedTimeBooked
+                  ? "Cannot schedule: Selected time slot is already booked."
                   : !doesSlotFit(appointmentTime)
                   ? `Cannot schedule: Service requires ${durationLabel}.`
                   : "Please complete all required fields."}
@@ -2243,73 +2287,83 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#064E3B",
   },
-  timePillPast: {
-    backgroundColor: "#F1F5F9",
-    borderColor: "#E2E8F0",
-    opacity: 0.45,
-  },
-  timePillTextPast: {
-    color: "#94A3B8",
-    textDecorationLine: "line-through",
-  },
-  timePillPastTag: {
-    fontSize: 8.5,
-    fontWeight: "700",
-    color: "#94A3B8",
-    marginTop: 2,
-    letterSpacing: 0.2,
-  },
   allSlotsPassedBox: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FEF3C7",
     borderWidth: 1,
     borderColor: "#FDE68A",
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginTop: 8,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   allSlotsPassedText: {
+    flex: 1,
     fontSize: 12,
     color: "#B45309",
-    flex: 1,
     fontWeight: "600",
+    lineHeight: 16,
+  },
+  timeSlotsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    width: "100%",
+  },
+  timePill: {
+    width: "31.4%",
+    minHeight: 48,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timePillActive: {
+    backgroundColor: "#047857",
+    borderColor: "#047857",
+  },
+  timePillInWindow: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  timePillTextInWindow: {
+    color: "#047857",
+    fontWeight: "700",
+  },
+  timePillInWindowTag: {
+    fontSize: 8.5,
+    fontWeight: "800",
+    color: "#047857",
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  timePillBooked: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FECACA",
+    opacity: 0.65,
+  },
+  timePillPast: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
+    opacity: 0.45,
   },
   timePillNoFit: {
     backgroundColor: "#F1F5F9",
     borderColor: "#CBD5E1",
     opacity: 0.55,
   },
-  timePillNoFitTag: {
-    fontSize: 8.5,
-    fontWeight: "800",
-    color: "#64748B",
-    marginTop: 2,
-  },
-  timePill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    alignItems: "center",
-  },
-  timePillActive: {
-    backgroundColor: "#047857",
-    borderColor: "#047857",
-  },
-  timePillBooked: {
-    backgroundColor: "#FEE2E2",
-    borderColor: "#FECACA",
-    opacity: 0.6,
-  },
   timePillText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#475569",
+    color: "#334155",
+    textAlign: "center",
   },
   timePillTextActive: {
     color: "#FFFFFF",
@@ -2318,12 +2372,29 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     textDecorationLine: "line-through",
   },
+  timePillTextPast: {
+    color: "#94A3B8",
+    textDecorationLine: "line-through",
+  },
   timePillBookedTag: {
-    fontSize: 8,
+    fontSize: 8.5,
     fontWeight: "800",
     color: "#DC2626",
     marginTop: 2,
     letterSpacing: 0.2,
+  },
+  timePillPastTag: {
+    fontSize: 8.5,
+    fontWeight: "700",
+    color: "#94A3B8",
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  timePillNoFitTag: {
+    fontSize: 8.5,
+    fontWeight: "800",
+    color: "#64748B",
+    marginTop: 2,
   },
   pillBtn: {
     paddingHorizontal: 12,

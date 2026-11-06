@@ -183,36 +183,13 @@ export default function AppTour({
     return () => loop.stop();
   }, [visible, pulseAnim]);
 
-  // Smoothly glide the spotlight hole from the previous rect to the next one
+  // Position the spotlight hole on the target rect safely without rapid SVG re-allocations
   const animateHoleTo = useCallback(
     (next: TourRect | null) => {
-      const from = displayRectRef.current;
       holeAnim.stopAnimation();
       holeAnim.removeAllListeners();
-
-      if (!next || !from) {
-        displayRectRef.current = next;
-        setDisplayRect(next);
-        return;
-      }
-
-      holeAnim.setValue(0);
-      holeAnim.addListener(({ value }) => {
-        const r = {
-          x: from.x + (next.x - from.x) * value,
-          y: from.y + (next.y - from.y) * value,
-          width: from.width + (next.width - from.width) * value,
-          height: from.height + (next.height - from.height) * value,
-        };
-        displayRectRef.current = r;
-        setDisplayRect(r);
-      });
-      Animated.timing(holeAnim, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start(() => holeAnim.removeAllListeners());
+      displayRectRef.current = next;
+      setDisplayRect(next);
     },
     [holeAnim]
   );

@@ -3,7 +3,6 @@ import { Slot, Redirect } from "expo-router";
 import { supabase } from "@smileguard/supabase-client";
 import { Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { ActivityIndicator, View } from "react-native";
-import { ClinicProvider } from "../../contexts/ClinicContext";
 
 export default function DoctorLayout() {
   // undefined = still checking, null = no session, Session = authenticated
@@ -51,9 +50,5 @@ export default function DoctorLayout() {
     return <Redirect href="/" />;
   }
 
-  return (
-    <ClinicProvider>
-      <Slot />
-    </ClinicProvider>
-  );
+  return <Slot />;
 }
