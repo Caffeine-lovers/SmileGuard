@@ -23,7 +23,10 @@ import {
   ShieldCheck,
   ExternalLink,
   RefreshCw,
+  XCircle,
+  CalendarDays,
 } from 'lucide-react';
+import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
 interface BillingPaymentProps {
   appointmentId?: string;
@@ -33,6 +36,35 @@ interface BillingPaymentProps {
 }
 
 const PENDING_CHECKOUT_KEY = 'smileguard:pending-checkout';
+
+const BILLING_STATUS_STYLE: Record<
+  AppointmentBillingStatus,
+  { label: string; icon: typeof CheckCircle2; tile: string; chip: string; accent: string }
+> = {
+  PAID: {
+    label: 'Paid',
+    icon: CheckCircle2,
+    tile: 'bg-emerald-50 border-emerald-300 text-emerald-800',
+    chip: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    accent: 'border-l-emerald-600',
+  },
+  'NOT PAID': {
+    label: 'Not paid',
+    icon: Clock,
+    tile: 'bg-red-50 border-red-300 text-red-800',
+    chip: 'bg-red-100 text-red-800 border-red-300',
+    accent: 'border-l-red-500',
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    icon: XCircle,
+    tile: 'bg-slate-100 border-slate-300 text-slate-700',
+    chip: 'bg-slate-100 text-slate-700 border-slate-300',
+    accent: 'border-l-slate-400',
+  },
+};
+
+const BILLING_STATUS_ORDER: AppointmentBillingStatus[] = ['PAID', 'NOT PAID', 'CANCELLED'];
 
 export default function BillingPayment({
   appointmentId: _appointmentId,
@@ -429,7 +461,7 @@ export default function BillingPayment({
 
       setLocalPwdStatus('pending');
       setShowVerificationPanel(false);
-      showAlert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to Dr. Kyler for verification on the doctor portal. Once approved, the 20% statutory discount label will automatically activate on your account.');
+      showAlert('ID Sent! Your ' + (selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD') + ' ID was sent to the clinic for verification. Once approved, the 20% statutory discount label will automatically activate on your account.');
     } catch (err) {
       console.error('[BillingPayment] Failed to submit ID:', err);
       showAlert(err instanceof Error ? err.message : 'Failed to upload ID. Please try again.');
@@ -466,7 +498,7 @@ export default function BillingPayment({
     }
 
     if ((discountType === 'pwd' || discountType === 'senior') && !isPwdApproved) {
-      showAlert('Statutory discount requires doctor verification. Please submit your PWD/Senior ID to Dr. Kyler first.');
+      showAlert('Statutory discount requires doctor verification. Please submit your PWD/Senior ID to the clinic first.');
       return;
     }
 
@@ -535,7 +567,7 @@ export default function BillingPayment({
   const filteredLedger = ledgerFilter === 'ALL' ? ledger : ledger.filter((r) => r.billing_status === ledgerFilter);
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-2.5 py-3 sm:px-4 sm:py-5 space-y-4">
+    <div className="w-full py-3 sm:py-5 space-y-4">
       {/* Billing workspace header + at-a-glance stats */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
         <div className="lg:col-span-4 flex">
@@ -566,13 +598,21 @@ export default function BillingPayment({
               </Link>
               <div className="skeuo-card p-3 sm:p-4 border-2 border-slate-300 rounded-sm">
                 <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
-                <div className="flex items-baseline gap-2.5 sm:gap-3 mt-1">
-                  <span className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700" title="Paid">{ledgerCounts.PAID}</span>
-                  <span className="text-xl sm:text-2xl font-black tracking-tight text-red-700" title="Not paid">{ledgerCounts['NOT PAID']}</span>
-                  <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-500" title="Cancelled">{ledgerCounts.CANCELLED}</span>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {BILLING_STATUS_ORDER.map((status) => {
+                    const style = BILLING_STATUS_STYLE[status];
+                    const StatusIcon = style.icon;
+                    return (
+                      <div key={status} className={`rounded-sm border px-2 py-2 text-center ${style.tile}`}>
+                        <StatusIcon className="w-4 h-4 mx-auto" />
+                        <p className="text-xl sm:text-2xl font-black leading-none mt-1">{ledgerCounts[status]}</p>
+                        <p className="text-[10px] font-bold mt-1">{style.label}</p>
+                      </div>
+                    );
+                  })}
                 </div>
-                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">
-                  Paid · Not Paid · Cancelled ({billingHistory.length} receipts)
+                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-2">
+                  {billingHistory.length} {billingHistory.length === 1 ? 'receipt' : 'receipts'}
                 </p>
               </div>
               <div className="skeuo-card p-3 sm:p-4 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
@@ -706,7 +746,7 @@ export default function BillingPayment({
                               <p className="font-bold text-sm text-slate-900">{apt.service}</p>
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-xs text-[9px] sm:text-[10px] font-bold tracking-wide uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
                                 <Building2 className="w-2.5 h-2.5 text-emerald-700" />
-                                {apt.clinic_name || "Kyler's Clinic"}
+                                {apt.clinic_name || DEFAULT_CLINIC_NAME}
                               </span>
                             </div>
                             <p className="text-xs font-mono text-slate-500 mt-0.5">
@@ -799,7 +839,7 @@ export default function BillingPayment({
                   <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="text-xs text-emerald-950">
                     <span className="font-bold">Verified Statutory Discount Active: </span>
-                    Dr. Kyler has approved your {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} verification. A 20% deduction is applied to your billing.
+                    The clinic has approved your {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} verification. A 20% deduction is applied to your billing.
                   </div>
                 </div>
               )}
@@ -812,7 +852,7 @@ export default function BillingPayment({
                     ID Verification Submitted to Doctor
                   </div>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Your ID was sent to Dr. Kyler for clinical verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
+                    Your ID was sent to the clinic for verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
                   </p>
                 </div>
               )}
@@ -857,7 +897,7 @@ export default function BillingPayment({
                   </div>
 
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to Dr. Kyler for clinical verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
+                    To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to the clinic for verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
                   </p>
 
                   {/* ID Type Choice */}
@@ -925,7 +965,7 @@ export default function BillingPayment({
                         Uploading & Sending to Doctor...
                       </>
                     ) : (
-                      'Send ID to Dr. Kyler for Verification'
+                      'Send ID to the Clinic for Verification'
                     )}
                   </button>
                 </div>
@@ -1100,154 +1140,106 @@ export default function BillingPayment({
             <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900">
               Appointment Billing Status
             </h2>
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 sm:gap-1.5 p-1 bg-slate-200/80 border border-slate-300 rounded-sm w-full sm:w-auto">
-              {(['ALL', 'PAID', 'NOT PAID', 'CANCELLED'] as const).map((f) => (
-                <button
-                  type="button"
-                  key={f}
-                  onClick={() => setLedgerFilter(f)}
-                  className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-sm text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition cursor-pointer text-center ${
-                    ledgerFilter === f ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {f === 'ALL' ? `All (${ledger.length})` : `${f} (${ledgerCounts[f]})`}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 w-full sm:w-auto">
+              {(['ALL', ...BILLING_STATUS_ORDER] as const).map((f) => {
+                const label = f === 'ALL' ? 'All' : BILLING_STATUS_STYLE[f].label;
+                const count = f === 'ALL' ? ledger.length : ledgerCounts[f];
+                const active = ledgerFilter === f;
+                return (
+                  <button
+                    type="button"
+                    key={f}
+                    onClick={() => setLedgerFilter(f)}
+                    aria-pressed={active}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm border text-xs font-bold transition cursor-pointer ${
+                      active
+                        ? 'bg-emerald-700 text-white border-emerald-800 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400'
+                    }`}
+                  >
+                    {label}
+                    <span className={`min-w-[20px] rounded-full px-1.5 text-[10px] leading-[18px] ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Mobile Dynamic Card View (< md) */}
-          <div className="md:hidden space-y-2.5 w-full">
-            {filteredLedger.length === 0 ? (
-              <div className="p-4 text-center text-slate-500 font-bold uppercase tracking-wider text-xs bg-slate-50 border border-slate-200 rounded-sm">
-                No {ledgerFilter.toLowerCase()} appointments
-              </div>
-            ) : (
-              filteredLedger.map((row) => {
+          {filteredLedger.length === 0 ? (
+            <div className="p-6 text-center text-slate-500 font-semibold text-sm bg-slate-50 border border-slate-200 rounded-sm">
+              {ledgerFilter === 'ALL' ? 'No appointments' : `No ${BILLING_STATUS_STYLE[ledgerFilter].label.toLowerCase()} appointments`}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 w-full">
+              {filteredLedger.map((row) => {
                 const awaitingApproval = isPendingAppointment(row);
+                const style = BILLING_STATUS_STYLE[row.billing_status];
+                const StatusIcon = style.icon;
+                const appointmentState = awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status;
+                const referenceId = row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'pay_verified';
+                const note =
+                  row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid'
+                    ? 'Paid · refund due'
+                    : row.billing_status === 'NOT PAID' && awaitingApproval
+                    ? 'Payable once approved'
+                    : null;
+
                 return (
-                  <div key={row.id} className="p-3 bg-white border border-slate-300 rounded-sm shadow-2xs space-y-2">
+                  <div
+                    key={row.id}
+                    className={`flex flex-col gap-3 p-3.5 bg-white border border-slate-300 border-l-4 rounded-sm shadow-2xs ${style.accent}`}
+                  >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-xs text-slate-900 leading-snug truncate">{row.service}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-slate-900 leading-snug truncate">{row.service}</p>
                         {row.clinic_name && (
-                          <p className="text-[10px] text-slate-500 font-medium truncate">{row.clinic_name}</p>
+                          <p className="text-[11px] text-slate-500 font-medium truncate">{row.clinic_name}</p>
                         )}
-                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">
-                          {new Date(row.appointment_date).toLocaleDateString()} @ {formatAppointmentTime(row.appointment_time)}
-                        </p>
+                      </div>
+                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${style.chip}`}>
+                        <StatusIcon className="w-3 h-3" />
+                        {style.label}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <CalendarDays className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                      <span className="font-mono">
+                        {new Date(row.appointment_date).toLocaleDateString()} · {formatAppointmentTime(row.appointment_time)}
+                      </span>
+                    </div>
+
+                    <div className="mt-auto flex items-end justify-between gap-2 pt-2.5 border-t border-slate-100">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Appointment</p>
+                        <p className="text-xs font-semibold text-slate-700 capitalize truncate">{appointmentState}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="font-mono font-black text-sm text-slate-900">
-                          ₱{row.amount_due.toFixed(2)}
-                        </span>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Amount</p>
+                        <p className="font-mono font-black text-base text-slate-900">₱{row.amount_due.toFixed(2)}</p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
-                      <span className="text-slate-500 capitalize">
-                        {awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status}
-                      </span>
-                      <div className="text-right">
-                        <span
-                          className={`skeuo-badge text-[9px] ${
-                            row.billing_status === 'PAID'
-                              ? 'skeuo-badge-mint'
-                              : row.billing_status === 'CANCELLED'
-                              ? 'bg-slate-100 text-slate-700 border-slate-300'
-                              : 'bg-red-100 text-red-800 border-red-300'
-                          }`}
-                        >
-                          {row.billing_status}
-                        </span>
-                        {row.billing_status === 'PAID' && (
-                          <span className="block text-[8px] font-mono font-bold text-emerald-900 bg-emerald-100/90 px-1 py-0.5 rounded border border-emerald-300 mt-1 truncate max-w-[130px]" title={row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'PayMongo Verified'}>
-                            Ref: {row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'pay_verified'}
-                          </span>
-                        )}
-                        {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
-                          <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Paid · refund due</span>
-                        )}
-                        {row.billing_status === 'NOT PAID' && awaitingApproval && (
-                          <span className="block text-[8px] font-semibold text-amber-700 mt-0.5">Payable once approved</span>
-                        )}
-                      </div>
-                    </div>
+
+                    {row.billing_status === 'PAID' && (
+                      <p
+                        className="text-[10px] font-mono font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-sm px-2 py-1 truncate"
+                        title={referenceId}
+                      >
+                        Ref: {referenceId}
+                      </p>
+                    )}
+                    {note && (
+                      <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-sm px-2 py-1">
+                        {note}
+                      </p>
+                    )}
                   </div>
                 );
-              })
-            )}
-          </div>
-
-          {/* Desktop Table View (>= md) */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b-2 border-slate-300 text-slate-500 uppercase tracking-wider">
-                  <th className="text-left p-2.5 font-bold">Appointment</th>
-                  <th className="text-left p-2.5 font-bold">Clinical Service</th>
-                  <th className="text-left p-2.5 font-bold">Appointment Status</th>
-                  <th className="text-right p-2.5 font-bold">Amount</th>
-                  <th className="text-center p-2.5 font-bold">Billing</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredLedger.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-4 text-center text-slate-500 font-bold uppercase tracking-wider">
-                      No {ledgerFilter.toLowerCase()} appointments
-                    </td>
-                  </tr>
-                ) : (
-                  filteredLedger.map((row) => {
-                    const awaitingApproval = isPendingAppointment(row);
-                    return (
-                      <tr key={row.id} className="hover:bg-slate-50">
-                        <td className="p-2.5 text-slate-700 font-mono whitespace-nowrap">
-                          {new Date(row.appointment_date).toLocaleDateString()} @ {formatAppointmentTime(row.appointment_time)}
-                        </td>
-                        <td className="p-2.5 text-slate-900 font-bold">
-                          {row.service}
-                          {row.clinic_name && (
-                            <span className="block text-[10px] font-semibold text-slate-500">{row.clinic_name}</span>
-                          )}
-                        </td>
-                        <td className="p-2.5 text-slate-700 capitalize">
-                          {awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status}
-                        </td>
-                        <td className="p-2.5 text-right font-mono font-bold text-slate-900">
-                          ₱{row.amount_due.toFixed(2)}
-                        </td>
-                        <td className="p-2.5 text-center">
-                          <span
-                            className={`skeuo-badge text-[10px] ${
-                              row.billing_status === 'PAID'
-                                ? 'skeuo-badge-mint'
-                                : row.billing_status === 'CANCELLED'
-                                ? 'bg-slate-100 text-slate-700 border-slate-300'
-                                : 'bg-red-100 text-red-800 border-red-300'
-                            }`}
-                          >
-                            {row.billing_status}
-                          </span>
-                          {row.billing_status === 'PAID' && (
-                            <span className="block text-[9px] font-mono font-bold text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300 mt-1 max-w-[170px] mx-auto truncate" title={row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'PayMongo Verified'}>
-                              Ref: {row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'pay_verified'}
-                            </span>
-                          )}
-                          {row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid' && (
-                            <span className="block text-[10px] font-semibold text-amber-700 mt-1">Paid · refund due</span>
-                          )}
-                          {row.billing_status === 'NOT PAID' && awaitingApproval && (
-                            <span className="block text-[10px] font-semibold text-amber-700 mt-1">Payable once approved</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

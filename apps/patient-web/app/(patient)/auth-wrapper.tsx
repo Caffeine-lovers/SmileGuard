@@ -8,7 +8,8 @@ import { useAuth } from '@smileguard/shared-hooks';
 import { 
   CalendarPlus, 
   LogOut, 
-  LayoutDashboard, 
+  LayoutDashboard,
+  LifeBuoy,
   Sparkles, 
   CreditCard, 
   User, 
@@ -21,6 +22,7 @@ import {
 import type { ReactNode } from 'react';
 import NotificationSettingsModal from '@/components/notifications/NotificationSettingsModal';
 import LegalFooter from '@/components/legal/LegalFooter';
+import Wordmark from '@/components/ui/Wordmark';
 
 export default function AuthWrapper({ children }: { children: ReactNode }) {
   const { currentUser, loading, logout } = useAuth();
@@ -130,6 +132,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     { href: '/analysis', label: 'Analysis', icon: Sparkles },
     { href: '/treatments', label: 'Treatments', icon: Stethoscope },
     { href: '/documents', label: 'Documents', icon: FileText },
+    { href: '/support', label: 'Support', icon: LifeBuoy },
     { href: '/profile', label: 'Profile', icon: User },
   ];
 
@@ -155,9 +158,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                 alt="SmileGuard Logo"
                 className="w-6 h-6 sm:w-7 sm:h-7 rounded-md shrink-0 shadow-xs"
               />
-              <span className="text-[23px] sm:text-[28px] font-black text-brand-primary tracking-tight leading-none">
-                SmileGuard
-              </span>
+              <Wordmark className="text-[23px] sm:text-[28px] font-black text-brand-primary tracking-tight leading-none" />
               <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] inline-flex">
                 Patient
               </span>
@@ -196,6 +197,21 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
+            <button
+              type="button"
+              onClick={() => setSettingsModalOpen(true)}
+              aria-label={unreadNotifCount > 0 ? `Notifications, ${unreadNotifCount} unread` : 'Notifications'}
+              title="Notifications"
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-2xs transition-all hover:border-emerald-300 hover:text-emerald-700 cursor-pointer"
+            >
+              <Bell className="w-[18px] h-[18px]" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] rounded-full border-2 border-white bg-red-600 px-1 text-center text-[10px] font-bold leading-[14px] text-white">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
+            </button>
+
             {/* Unified profile panel: avatar opens profile, name/chevron opens menu */}
             <div className="relative" ref={profileMenuRef}>
               <div className="flex items-center rounded-full border border-slate-200 bg-white shadow-2xs hover:border-emerald-300 transition-all">
@@ -205,9 +221,6 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                   aria-label="View profile"
                   className="relative shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 >
-                  {unreadNotifCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-600 border border-white z-10" />
-                  )}
                   {avatarUrl && !avatarError ? (
                     <img
                       src={avatarUrl}
@@ -250,21 +263,6 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
                   >
                     <User className="w-4 h-4 text-slate-500" /> My Profile
                   </Link>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setProfileMenuOpen(false);
-                      setSettingsModalOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 cursor-pointer"
-                  >
-                    <Bell className="w-4 h-4 text-slate-500" />
-                    <span className="flex-1 text-left">Notifications & Settings</span>
-                    {unreadNotifCount > 0 && (
-                      <span className="text-[10px] font-bold bg-red-600 text-white rounded-full px-1.5 py-0.5">{unreadNotifCount}</span>
-                    )}
-                  </button>
                   <div className="border-t border-slate-100 mt-1 pt-1">
                     <Link href="/terms" role="menuitem" className="flex items-center gap-2.5 px-4 py-1.5 text-xs text-slate-500 hover:bg-slate-50">
                       <FileText className="w-3.5 h-3.5" /> Terms and Conditions
@@ -368,7 +366,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 w-full overflow-x-hidden pb-28 md:pb-8">
-        <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6">{children}</div>
+        <div className="max-w-7xl mx-auto w-full px-3 sm:px-6">{children}</div>
         <LegalFooter className="pt-6 pb-2" />
       </main>
 

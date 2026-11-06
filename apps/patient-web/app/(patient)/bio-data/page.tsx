@@ -150,7 +150,7 @@ export default function BioDataPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+    <div className="w-full py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-border-card">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary">Bio Data</h1>

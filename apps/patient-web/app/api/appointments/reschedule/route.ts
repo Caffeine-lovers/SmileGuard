@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
           await supabase.from('notifications').insert({
             user_id: patientId,
             title: 'Reschedule Submitted (Pending Approval)',
-            message: `Your request to reschedule ${serviceName} to ${newDate} at ${newTime} was submitted and is pending approval from Dr. Kyler.`,
+            message: `Your request to reschedule ${serviceName} to ${newDate} at ${newTime} was submitted and is pending approval from the clinic.`,
             type: 'appointment_rescheduled',
             metadata: {
               appointment_id: appointmentId,
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
           await supabase.from('notifications').insert({
             user_id: patientId,
             title: 'Appointment Rescheduled by Doctor',
-            message: `Dr. Kyler has rescheduled your ${serviceName} appointment to ${newDate} at ${newTime}.`,
+            message: `The clinic has rescheduled your ${serviceName} appointment to ${newDate} at ${newTime}.`,
             type: 'appointment_rescheduled',
             metadata: {
               appointment_id: appointmentId,
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       success: true,
       appointment: updatedApt,
       message: isPatient
-        ? 'Reschedule request submitted! Status is now pending approval from Dr. Kyler.'
+        ? 'Reschedule request submitted! Status is now pending approval from the clinic.'
         : 'Appointment rescheduled successfully.',
     });
   } catch (error) {

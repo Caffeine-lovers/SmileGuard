@@ -18,6 +18,7 @@ import {
   Lock,
   Smile
 } from 'lucide-react';
+import Wordmark from '@/components/ui/Wordmark';
 
 export default function PatientOnboardingWizard() {
   const router = useRouter();
@@ -201,7 +202,7 @@ export default function PatientOnboardingWizard() {
               <Stethoscope className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-black tracking-tight text-white text-lg">SmileGuard</span>
+              <Wordmark className="font-black tracking-tight text-white text-lg" smileClassName="text-emerald-300" />
               <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
                 Patient Guide
               </span>

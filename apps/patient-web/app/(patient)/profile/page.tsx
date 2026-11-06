@@ -297,7 +297,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+    <div className="w-full py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-border-card">
         <div className="flex items-center gap-4 sm:gap-6 min-w-0">
           <div className="flex flex-col items-center shrink-0">

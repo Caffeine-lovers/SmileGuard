@@ -184,8 +184,8 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
         if (!isMounted) return;
         setAvailableClinics(clinics);
 
-        // Pick Kyler's Clinic by default, or first available
-        const defaultClinic = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler') || c.clinic_name.toLowerCase().includes('kiler')) || clinics[0];
+        // Single clinic: use the first one available
+        const defaultClinic = clinics[0];
 
         let scheduleToUse: ClinicSchedule | null = null;
         if (defaultClinic) {

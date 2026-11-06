@@ -343,7 +343,7 @@ export default function NotificationSettingsModal({
                     Appointment & Schedule Alerts
                   </label>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    Receive instant notifications when visits are confirmed, rescheduled, or cancelled by Dr. Kyler.
+                    Receive instant notifications when visits are confirmed, rescheduled, or cancelled by the clinic.
                   </p>
                 </div>
                 <input

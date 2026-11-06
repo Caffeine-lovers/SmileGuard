@@ -318,7 +318,7 @@ export default function DocumentsPage() {
   const FILTERS: ('all' | Kind)[] = ['all', 'upload', 'scan', 'receipt', 'intake', 'id'];
 
   return (
-    <div className="min-h-screen p-3 sm:p-4 md:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-6">
+    <div className="min-h-screen py-3 sm:py-4 md:py-6 space-y-4 sm:space-y-6">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
         <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">

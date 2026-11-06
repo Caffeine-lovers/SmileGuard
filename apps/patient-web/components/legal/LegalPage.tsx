@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import Wordmark from '@/components/ui/Wordmark';
 
 export default function LegalPage({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -9,7 +10,7 @@ export default function LegalPage({ title, children }: { title: string; children
           <Link href="/" className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icon.svg" alt="" className="w-6 h-6 rounded-md" />
-            <span className="text-xl font-black text-brand-primary tracking-tight">SmileGuard</span>
+            <Wordmark className="text-xl font-black text-brand-primary tracking-tight" />
           </Link>
           <nav className="flex gap-4 text-sm font-semibold text-slate-600">
             <Link href="/terms" className="hover:text-brand-primary">Terms</Link>

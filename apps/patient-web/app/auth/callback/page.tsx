@@ -226,8 +226,7 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 p-4">
       <div className="skeuo-panel p-8 text-center max-w-md w-full border-2 border-slate-300">
         <div className="animate-spin rounded-full h-10 w-10 border-2 border-slate-200 border-b-emerald-600 mx-auto mb-4"></div>
-        <span className="skeuo-badge skeuo-badge-mint mb-2">Clinic Security Gateway</span>
-        <p className="text-slate-800 font-bold text-sm tracking-wide mt-2">{message}</p>
+        <p className="text-slate-800 font-bold text-sm tracking-wide">{message}</p>
         {error && (
           <p className="text-xs font-semibold text-red-600 mt-4 bg-red-50 p-2 border border-red-300 rounded-sm">{error}</p>
         )}

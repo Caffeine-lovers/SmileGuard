@@ -33,6 +33,7 @@ import {
   Bell,
   CalendarClock
 } from 'lucide-react';
+import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
 export default function PatientDashboard() {
   const { currentUser } = useAuth();
@@ -217,7 +218,7 @@ export default function PatientDashboard() {
           const clinic = (a.dentist_id ? clinicMap.get(a.dentist_id) : null) || defaultClinic;
           return {
             ...a,
-            clinic_name: clinic?.clinic_name || "Kyler's Clinic",
+            clinic_name: clinic?.clinic_name || DEFAULT_CLINIC_NAME,
           };
         });
 
@@ -306,7 +307,7 @@ export default function PatientDashboard() {
     .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))[0];
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6 w-full">
+    <div className="py-3 sm:py-4 md:py-6 space-y-4 sm:space-y-6 w-full">
       {/* Real-time Notification Prompt Banner */}
       {showNotificationPrompt && (
         <div className="p-3.5 sm:p-4 bg-emerald-50 border-2 border-emerald-500 rounded-sm shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
@@ -319,7 +320,7 @@ export default function PatientDashboard() {
                 Enable Appointment Notifications
               </p>
               <p className="text-xs text-emerald-800 mt-0.5">
-                Stay informed instantly whenever Dr. Kyler confirms, reschedules, or updates your clinic visits.
+                Stay informed instantly whenever the clinic confirms, reschedules, or updates your clinic visits.
               </p>
             </div>
           </div>
@@ -524,7 +525,7 @@ export default function PatientDashboard() {
                 return (
                   <AppointmentCard
                     key={apt.id}
-                    name={hasDoctor ? doctorNames[apt.dentist_id!] : (apt.clinic_name || "SmileGuard Clinic")}
+                    name={hasDoctor ? doctorNames[apt.dentist_id!] : (apt.clinic_name || DEFAULT_CLINIC_NAME)}
                     avatarUrl={hasDoctor ? doctorPictures[apt.dentist_id!] : undefined}
                     service={apt.service}
                     date={apt.appointment_date}
@@ -550,7 +551,7 @@ export default function PatientDashboard() {
               {paginatedAppointments.map((apt) => (
                 <AppointmentCard
                   key={apt.id}
-                  name={apt.clinic_name || "SmileGuard Clinic"}
+                  name={apt.clinic_name || DEFAULT_CLINIC_NAME}
                   avatarUrl={undefined}
                   service={apt.service}
                   date={apt.appointment_date}
@@ -711,7 +712,7 @@ export default function PatientDashboard() {
             </h3>
             <p className="text-xs font-bold text-emerald-800 mb-4 flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5" />
-              {selectedAppointment.clinic_name || "Kyler's Clinic"}
+              {selectedAppointment.clinic_name || DEFAULT_CLINIC_NAME}
             </p>
 
             <div className="bg-slate-50 border border-slate-200 rounded-sm p-3.5 space-y-2 text-xs mb-5 font-medium">
@@ -806,7 +807,7 @@ export default function PatientDashboard() {
             </h3>
             <p className="text-xs font-bold text-emerald-800 mb-3 flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5" />
-              {appointmentToReschedule.service} · {appointmentToReschedule.clinic_name || "Kyler's Clinic"}
+              {appointmentToReschedule.service} · {appointmentToReschedule.clinic_name || DEFAULT_CLINIC_NAME}
             </p>
 
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-amber-900 text-xs mb-4">
