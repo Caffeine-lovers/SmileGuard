@@ -130,12 +130,7 @@ export default function AccessCodesTab() {
       >
         {/* Section Header Action Bar */}
         <View style={styles.headerBar}>
-          <View>
-            <Text style={styles.sectionTitle}>Active Credentials</Text>
-            <Text style={styles.sectionSubtitle}>
-              {codes.length} {codes.length === 1 ? "registered code" : "registered codes"}
-            </Text>
-          </View>
+          <Text style={styles.sectionTitle}>Access Codes</Text>
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => setShowCreateModal(true)}
@@ -150,7 +145,6 @@ export default function AccessCodesTab() {
           <View style={styles.emptyCard}>
             <KeyRound size={32} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No Access Codes</Text>
-            <Text style={styles.emptySub}>Generate a clinic code to let doctors and assistants register.</Text>
           </View>
         ) : (
           codes.map((item, index) => {
@@ -245,10 +239,7 @@ export default function AccessCodesTab() {
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
               <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>Generate Access Code</Text>
-                  <Text style={styles.modalSubtitle}>Create registration key for clinical staff</Text>
-                </View>
+                <Text style={styles.modalTitle}>Generate Access Code</Text>
                 <TouchableOpacity
                   style={styles.modalCloseBtn}
                   onPress={() => setShowCreateModal(false)}
@@ -267,7 +258,7 @@ export default function AccessCodesTab() {
                 placeholderTextColor="#94A3B8"
               />
 
-              <Text style={styles.inputLabel}>DESCRIPTION / ROLE LABEL</Text>
+              <Text style={styles.inputLabel}>LABEL</Text>
               <TextInput
                 style={styles.input}
                 value={newLabel}

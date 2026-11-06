@@ -26,45 +26,33 @@ export type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts
 interface TabMeta {
   id: AdminTab;
   label: string;
-  navLabel: string;
-  subtitle: string;
   icon: any;
 }
 
 const TABS: TabMeta[] = [
   {
     id: "codes",
-    label: "Clinic Access Codes",
-    navLabel: "Codes",
-    subtitle: "Manage doctor, assistant & admin registration codes",
+    label: "Access Codes",
     icon: KeyRound,
   },
   {
     id: "dentists",
-    label: "Dentists & Clinicians",
-    navLabel: "Staff",
-    subtitle: "Medical license verification & staff practitioner roles",
+    label: "Staff",
     icon: Stethoscope,
   },
   {
     id: "patients",
-    label: "Patient Accounts",
-    navLabel: "Patients",
-    subtitle: "Directory of registered patients & discount credentials",
+    label: "Patients",
     icon: Users,
   },
   {
     id: "support",
-    label: "Support Helpdesk",
-    navLabel: "Support",
-    subtitle: "Review & resolve patient tickets and service inquiries",
+    label: "Support",
     icon: LifeBuoy,
   },
   {
     id: "attempts",
-    label: "Security Audit Log",
-    navLabel: "Audit",
-    subtitle: "Chronological log of clinic access code sign-in attempts",
+    label: "Audit Log",
     icon: ListChecks,
   },
 ];
@@ -176,12 +164,6 @@ export default function AdminDashboardPage() {
                       strokeWidth={isActive ? 2.4 : 2}
                     />
                   </View>
-                  <Text
-                    style={[styles.navItemLabel, isActive && styles.navItemLabelActive]}
-                    numberOfLines={1}
-                  >
-                    {tab.navLabel}
-                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -216,9 +198,6 @@ export default function AdminDashboardPage() {
             <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={styles.headerTitle} numberOfLines={1}>
                 {currentTabMeta.label}
-              </Text>
-              <Text style={styles.headerSubtitle} numberOfLines={1}>
-                {currentTabMeta.subtitle}
               </Text>
             </View>
             <View style={styles.headerBadge}>
@@ -265,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   leftNavRail: {
-    width: 76,
+    width: 64,
     backgroundColor: "#FFFFFF",
     borderRightWidth: 1,
     borderRightColor: "#E2E8F0",
@@ -362,11 +341,6 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     letterSpacing: -0.2,
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 2,
-  },
   headerBadge: {
     backgroundColor: "#047857",
     paddingHorizontal: 8,
@@ -392,16 +366,6 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: "center",
-    gap: 4,
-    width: 60,
-  },
-  navItemLabel: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#94A3B8",
-    letterSpacing: 0.1,
-  },
-  navItemLabelActive: {
-    color: "#047857",
+    justifyContent: "center",
   },
 });

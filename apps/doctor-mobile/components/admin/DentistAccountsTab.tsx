@@ -90,19 +90,13 @@ export default function DentistAccountsTab() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerBar}>
-          <View>
-            <Text style={styles.sectionTitle}>Clinicians & Assistants</Text>
-            <Text style={styles.sectionSubtitle}>
-              {doctors.length} {doctors.length === 1 ? "staff member" : "staff members"} registered
-            </Text>
-          </View>
+          <Text style={styles.sectionTitle}>Staff</Text>
         </View>
 
         {doctors.length === 0 ? (
           <View style={styles.emptyCard}>
             <Stethoscope size={32} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>No Clinicians Found</Text>
-            <Text style={styles.emptySub}>When doctors or assistants sign in using an access code, they appear here.</Text>
+            <Text style={styles.emptyTitle}>No Staff Registered</Text>
           </View>
         ) : (
           doctors.map((doctor, index) => {

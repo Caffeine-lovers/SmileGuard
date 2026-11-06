@@ -56,86 +56,73 @@ interface TourStep {
 
 // Width must match the left nav rail in app/(admin)/dashboard.tsx so the
 // interactive tour's dim panel never covers the live nav icons behind it.
-const NAV_RAIL_WIDTH = 76;
+const NAV_RAIL_WIDTH = 64;
 
 const TOUR_STEPS: TourStep[] = [
   {
     badge: "Step 1 of 6 • Overview",
-    title: "Welcome to Admin Console",
-    subtitle: "Clinic Command & Governance Center",
-    description:
-      "As an Administrator, you have full oversight of SmileGuard's clinical operations, user security, staff access codes, and system audit logs.",
+    title: "Admin Console",
+    subtitle: "Navigation Overview",
+    description: "Use the left navigation rail to access clinic management modules.",
     icon: ShieldCheck,
     accentColor: "#047857",
     features: [
       {
-        icon: Building2,
-        title: "Multi-Role Governance",
-        desc: "Oversee dentists, clinic assistants, and registered web patients in one centralized console.",
+        icon: KeyRound,
+        title: "Access Codes",
+        desc: "Manage registration codes for doctors and assistants.",
       },
       {
-        icon: Lock,
-        title: "Strict Role-Based Security",
-        desc: "Grant or revoke staff privileges instantly to safeguard sensitive patient records.",
+        icon: Stethoscope,
+        title: "Clinicians",
+        desc: "Verify practitioner licenses and credentials.",
       },
       {
-        icon: Sparkles,
-        title: "Real-Time Sync",
-        desc: "All administrative changes update live across the doctor mobile app and patient web portal.",
+        icon: Users,
+        title: "Patients",
+        desc: "Search patient accounts and discount IDs.",
       },
     ],
   },
   {
     tab: "codes",
     badge: "Step 2 of 6 • Access Codes",
-    title: "Clinic Access Codes",
-    subtitle: "Staff Registration & Security Codes",
-    description:
-      "Generate and manage clinic codes required for staff onboarding. Set whether codes grant Doctor or Assistant access, and toggle active status at any time.",
+    title: "Access Codes",
+    subtitle: "Registration Management",
+    description: "Create and toggle registration keys for doctors and clinic assistants.",
     icon: KeyRound,
     accentColor: "#059669",
     features: [
       {
         icon: KeyRound,
         title: "Standard Codes",
-        desc: "SMILE-DOC-2026 for Dentists, SMILEGUARD-STAFF for Front Desk & Assistants.",
+        desc: "SMILE-DOC-2026 for Dentists, SMILEGUARD-STAFF for Assistants.",
       },
       {
         icon: CheckCircle2,
-        title: "Active / Inactive Toggle",
-        desc: "Immediately deactivate codes when an employee departs without breaking existing data.",
-      },
-      {
-        icon: Sparkles,
-        title: "Custom Code Generator",
-        desc: "Create bespoke temporary or contractor access codes with descriptive clinic labels.",
+        title: "Status Toggle",
+        desc: "Activate or deactivate codes instantly.",
       },
     ],
   },
   {
     tab: "dentists",
     badge: "Step 3 of 6 • Clinicians",
-    title: "Dentist & Staff Roster",
-    subtitle: "Medical License & Credential Verification",
-    description:
-      "Review all registered dentists and clinic assistants. Verify professional licenses, check specialties, and manage practitioner credentials.",
+    title: "Staff Roster",
+    subtitle: "License Verification",
+    description: "Review registered staff and toggle verified status upon PRC license checks.",
     icon: Stethoscope,
     accentColor: "#0D9488",
     features: [
       {
         icon: CheckCircle2,
-        title: "License Verification",
-        desc: "Toggle verification badges for accredited dentists upon PRC license validation.",
-      },
-      {
-        icon: Stethoscope,
-        title: "Specialties & Roles",
-        desc: "Inspect Orthodontics, Oral Surgery, and General Dentistry credentials.",
+        title: "Verify License",
+        desc: "Confirm PRC accreditation.",
       },
       {
         icon: Lock,
-        title: "Staff Management",
-        desc: "Safely remove or suspend accounts directly from your phone if necessary.",
+        title: "Manage Access",
+        desc: "Update staff status directly.",
       },
     ],
   },
@@ -143,80 +130,62 @@ const TOUR_STEPS: TourStep[] = [
     tab: "patients",
     badge: "Step 4 of 6 • Patients",
     title: "Patient Accounts",
-    subtitle: "Profiles & Discount Verification",
-    description:
-      "Browse registered patient accounts. Check Senior Citizen and PWD discount credentials so appointment billings comply with statutory clinic regulations.",
+    subtitle: "Account Records",
+    description: "Search registered patient records and inspect Senior Citizen or PWD verification.",
     icon: Users,
     accentColor: "#2563EB",
     features: [
       {
         icon: Users,
-        title: "Registered Directory",
-        desc: "Search patients by name, email address, or registration timestamp.",
+        title: "Search Directory",
+        desc: "Find patient records by name or email.",
       },
       {
         icon: ShieldCheck,
-        title: "Senior Citizen & PWD IDs",
-        desc: "Review submitted government IDs to authorize discounted treatment billing.",
-      },
-      {
-        icon: Building2,
-        title: "Account Status",
-        desc: "Monitor active patient engagement and clinic visit records.",
+        title: "Discount Verification",
+        desc: "Verify Senior Citizen and PWD credentials.",
       },
     ],
   },
   {
     tab: "support",
     badge: "Step 5 of 6 • Helpdesk",
-    title: "Support & Inquiries",
-    subtitle: "Patient & Clinician Helpdesk Tickets",
-    description:
-      "Stay on top of patient support tickets, scheduling inquiries, and account assistance requests submitted via the mobile app or web portal.",
+    title: "Support Tickets",
+    subtitle: "Ticket Management",
+    description: "Filter and resolve patient inquiries.",
     icon: LifeBuoy,
     accentColor: "#D97706",
     features: [
       {
         icon: LifeBuoy,
-        title: "Live Ticket Queue",
-        desc: "Filter tickets by Open, In Progress, and Resolved status.",
+        title: "Filter Queue",
+        desc: "View Open, In Progress, or Resolved tickets.",
       },
       {
         icon: CheckCircle2,
-        title: "Fast Resolutions",
-        desc: "Tap to update ticket statuses and keep response times swift.",
-      },
-      {
-        icon: Sparkles,
-        title: "Priority Tagging",
-        desc: "Flag urgent patient inquiries requiring immediate clinical intervention.",
+        title: "Resolve Tickets",
+        desc: "Update ticket status and notes.",
       },
     ],
   },
   {
     tab: "attempts",
     badge: "Step 6 of 6 • Security Log",
-    title: "Audit Trail & Attempt Log",
-    subtitle: "Real-Time Security Intelligence",
-    description:
-      "Inspect every access code entered on the mobile login screen. The attempt log records valid entries as well as blocked or brute-force attempts with precise timestamps.",
+    title: "Audit Log",
+    subtitle: "Sign-In Attempts",
+    description: "Review authorized and blocked access code attempts.",
     icon: ListChecks,
     accentColor: "#DC2626",
     features: [
       {
         icon: ListChecks,
-        title: "Audit History",
-        desc: "Complete chronological timeline of clinic sign-in attempts.",
+        title: "Timestamped Log",
+        desc: "Review access code usage history.",
       },
       {
         icon: ShieldCheck,
-        title: "Success vs Blocked",
-        desc: "Instantly pinpoint invalid code attempts and prevent unauthorized clinic access.",
-      },
-      {
-        icon: Lock,
-        title: "Zero-Trust Enforcement",
-        desc: "Safeguard patient confidentiality with verified clinic credentials.",
+        title: "Security Alerts",
+        desc: "Identify blocked sign-in attempts.",
       },
     ],
   },
@@ -358,8 +327,7 @@ export default function AdminTourModal({
           >
             <Compass size={18} color="#FFFFFF" />
             <View style={styles.choiceTextWrap}>
-              <Text style={styles.choiceTitlePrimary}>Take the Interactive Tour</Text>
-              <Text style={styles.choiceSubPrimary}>Watch each section light up live as you go</Text>
+              <Text style={styles.choiceTitlePrimary}>Interactive Tour</Text>
             </View>
           </TouchableOpacity>
 
@@ -370,13 +338,12 @@ export default function AdminTourModal({
           >
             <BookOpen size={18} color="#334155" />
             <View style={styles.choiceTextWrap}>
-              <Text style={styles.choiceTitleSecondary}>Just Read the Walkthrough</Text>
-              <Text style={styles.choiceSubSecondary}>Skim every section without changing your screen</Text>
+              <Text style={styles.choiceTitleSecondary}>Quick Walkthrough</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.skipBtn} onPress={handleClose} activeOpacity={0.7}>
-            <Text style={styles.skipBtnText}>Skip for now</Text>
+            <Text style={styles.skipBtnText}>Skip</Text>
           </TouchableOpacity>
         </View>
       );
@@ -395,7 +362,7 @@ export default function AdminTourModal({
           activeOpacity={0.85}
         >
           <Text style={styles.nextBtnText}>
-            {isLast ? "Finish & Start Managing" : "Next"}
+            {isLast ? "Done" : "Next"}
           </Text>
           {!isLast && <ChevronRight size={18} color="#FFFFFF" />}
         </TouchableOpacity>

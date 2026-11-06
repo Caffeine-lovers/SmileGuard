@@ -63,6 +63,113 @@ function formatAppointmentTime(timeStr?: string): string {
   return trimmed
 }
 
+const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts'
+const RECEIPT_CHECK_DELAY_MS = 60_000
+
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void }
+
+interface ExpoMessage {
+  to: string
+  [key: string]: unknown
+}
+
+interface ExpoTicket {
+  status: 'ok' | 'error'
+  id?: string
+  message?: string
+  details?: { error?: string }
+}
+
+async function clearDeadToken(token: string) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ expo_push_token: null })
+    .eq('expo_push_token', token)
+  if (error) {
+    console.error(`[PushFunction] Failed to clear dead token ${token}:`, error.message)
+  } else {
+    console.log(`[PushFunction] Cleared dead token ${token}`)
+  }
+}
+
+async function postToExpo(messages: ExpoMessage[], headers: Record<string, string>) {
+  const response = await fetch(EXPO_PUSH_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(messages),
+  })
+  const result = await response.json()
+  console.log('[PushFunction] Expo API response:', JSON.stringify(result))
+  return result
+}
+
+// Expo rejects a whole request if its tokens belong to more than one project,
+// so split on the grouping it returns and resend each project separately.
+async function sendToExpo(messages: ExpoMessage[], headers: Record<string, string>) {
+  const result = await postToExpo(messages, headers)
+  const mixedProjects = result.errors?.find(
+    (e: { code?: string }) => e.code === 'PUSH_TOO_MANY_EXPERIENCE_IDS'
+  )
+
+  const batches: { messages: ExpoMessage[]; tickets: ExpoTicket[] }[] = []
+  const requestErrors: unknown[] = []
+
+  if (mixedProjects?.details) {
+    console.warn('[PushFunction] Tokens span multiple EAS projects:', Object.keys(mixedProjects.details))
+    for (const tokens of Object.values(mixedProjects.details) as string[][]) {
+      const group = messages.filter((m) => tokens.includes(m.to))
+      const groupResult = await postToExpo(group, headers)
+      if (groupResult.errors) requestErrors.push(...groupResult.errors)
+      batches.push({ messages: group, tickets: groupResult.data ?? [] })
+    }
+  } else {
+    if (result.errors) requestErrors.push(...result.errors)
+    batches.push({ messages, tickets: result.data ?? [] })
+  }
+
+  const receiptTokens = new Map<string, string>()
+  let accepted = 0
+  let rejected = 0
+
+  for (const batch of batches) {
+    for (const [index, ticket] of batch.tickets.entries()) {
+      const token = batch.messages[index].to
+      if (ticket.status === 'ok') {
+        accepted++
+        if (ticket.id) receiptTokens.set(ticket.id, token)
+        continue
+      }
+      rejected++
+      console.error(`[PushFunction] Expo rejected ${token}: ${ticket.details?.error} - ${ticket.message}`)
+      if (ticket.details?.error === 'DeviceNotRegistered') await clearDeadToken(token)
+    }
+  }
+
+  return { accepted, rejected, requestErrors, receiptTokens }
+}
+
+// FCM failures such as InvalidCredentials only appear on receipts, not on the send response.
+async function logReceiptErrors(receiptTokens: Map<string, string>, headers: Record<string, string>) {
+  await new Promise((resolve) => setTimeout(resolve, RECEIPT_CHECK_DELAY_MS))
+
+  const response = await fetch(EXPO_RECEIPTS_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ ids: Array.from(receiptTokens.keys()) }),
+  })
+  const { data, errors } = await response.json()
+  if (errors) console.error('[PushFunction] Receipt lookup failed:', JSON.stringify(errors))
+
+  for (const [id, receipt] of Object.entries((data ?? {}) as Record<string, ExpoTicket>)) {
+    if (receipt.status === 'ok') continue
+    const token = receiptTokens.get(id)!
+    console.error(`[PushFunction] Delivery failed for ${token}: ${receipt.details?.error} - ${receipt.message}`)
+    if (receipt.details?.error === 'DeviceNotRegistered') await clearDeadToken(token)
+  }
+  console.log(`[PushFunction] Receipts checked: ${Object.keys(data ?? {}).length} of ${receiptTokens.size} ready`)
+}
+
 Deno.serve(async (req) => {
   try {
     const payload: WebhookPayload = await req.json()
@@ -236,17 +343,18 @@ Deno.serve(async (req) => {
       headers['Authorization'] = `Bearer ${expoAccessToken}`
     }
 
-    const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(messages),
-    })
+    const { accepted, rejected, requestErrors, receiptTokens } = await sendToExpo(messages, headers)
 
-    const expoResult = await expoResponse.json()
-    console.log('[PushFunction] Expo API response:', JSON.stringify(expoResult))
+    if (receiptTokens.size > 0) {
+      EdgeRuntime.waitUntil(
+        logReceiptErrors(receiptTokens, headers).catch((err) =>
+          console.error('[PushFunction] Receipt check failed:', err)
+        )
+      )
+    }
 
-    return new Response(JSON.stringify({ success: true, result: expoResult }), {
-      status: 200,
+    return new Response(JSON.stringify({ success: accepted > 0, accepted, rejected, errors: requestErrors }), {
+      status: accepted > 0 ? 200 : 502,
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (err: any) {

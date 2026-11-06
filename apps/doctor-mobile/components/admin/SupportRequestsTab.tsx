@@ -143,19 +143,13 @@ export default function SupportRequestsTab() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Helpdesk Tickets</Text>
-          <Text style={styles.sectionSubtitle}>
-            {requests.length} {requests.length === 1 ? "ticket" : "tickets"} in queue
-          </Text>
+          <Text style={styles.sectionTitle}>Support Tickets</Text>
         </View>
 
         {requests.length === 0 ? (
           <View style={styles.emptyCard}>
             <LifeBuoy size={32} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No Inquiries</Text>
-            <Text style={styles.emptySub}>
-              No support tickets found under the &quot;{filter.replace("_", " ")}&quot; filter.
-            </Text>
           </View>
         ) : (
           requests.map((req, index) => {

@@ -80,17 +80,13 @@ export default function AttemptLogTab() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Login Security Trail</Text>
-          <Text style={styles.sectionSubtitle}>
-            {filtered.length} {filtered.length === 1 ? "entry logged" : "entries logged"} · Read-only audit
-          </Text>
+          <Text style={styles.sectionTitle}>Audit Log</Text>
         </View>
 
         {filtered.length === 0 ? (
           <View style={styles.emptyCard}>
             <ListChecks size={32} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>No Entries Recorded</Text>
-            <Text style={styles.emptySub}>When staff input access codes on the welcome modal, attempts are logged here.</Text>
+            <Text style={styles.emptyTitle}>No Entries</Text>
           </View>
         ) : (
           filtered.map((attempt, index) => {

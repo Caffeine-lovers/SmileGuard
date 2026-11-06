@@ -117,21 +117,13 @@ export default function PatientAccountsTab() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Registered Patients</Text>
-          <Text style={styles.sectionSubtitle}>
-            {patients.length} {patients.length === 1 ? "patient on portal" : "patients on portal"}
-          </Text>
+          <Text style={styles.sectionTitle}>Patients</Text>
         </View>
 
         {patients.length === 0 ? (
           <View style={styles.emptyCard}>
             <User size={32} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No Patients Found</Text>
-            <Text style={styles.emptySub}>
-              {search.trim().length > 0
-                ? "No registered patients match your search query."
-                : "Registered patient accounts will appear here."}
-            </Text>
           </View>
         ) : (
           patients.map((patient, index) => (
