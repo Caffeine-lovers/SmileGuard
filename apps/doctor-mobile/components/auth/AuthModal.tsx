@@ -110,8 +110,18 @@ export default function AuthModal({
     });
 
     if (error) {
-      console.error("[AuthModal] Access code check failed:", error.message);
-      throw new Error("We couldn't check your access code. Please check your connection and try again.");
+      console.error("[AuthModal] Access code check failed:", error.code, error.message);
+      // Only blame the connection when it really is one; otherwise show what the server said
+      // (e.g. "Could not find the function public.verify_access_code" => migration not applied).
+      const looksLikeNetwork =
+        /network request failed|failed to fetch|fetch failed|network error|timed? ?out/i.test(error.message) ||
+        error.name === "AuthRetryableFetchError";
+      if (looksLikeNetwork) {
+        throw new Error("We couldn't check your access code. Please check your connection and try again.");
+      }
+      throw new Error(
+        `We couldn't check your access code (server error${error.code ? ` ${error.code}` : ""}: ${error.message}). Please contact support if this keeps happening.`
+      );
     }
 
     const tier = data?.tier;
