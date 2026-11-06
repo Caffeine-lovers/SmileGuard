@@ -7,7 +7,7 @@
     "start": "pnpm exec expo start",
     "android": "pnpm exec expo start --android",
     "android:dev": "pnpm exec expo start --android --dev-client",
-    "android:expo-go": "pnpm exec expo start --android --expo-go",
+    "android:expo-go": "pnpm exec expo start --android --go",
     "ios": "pnpm exec expo start --ios",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
