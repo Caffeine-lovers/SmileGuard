@@ -25,6 +25,19 @@ import { supabase } from "@smileguard/supabase-client";
 // CRITICAL: For iOS, handle the auth session completion
 WebBrowser.maybeCompleteAuthSession();
 
+// Known valid fallback codes for testing / clinic staff
+const VALID_DOCTOR_CODES = [
+  "SMILE-DOC-2026",
+  "SMILEGUARD-STAFF",
+  "DOC-2024-SG",
+  "DOC-ALPHA-01",
+  "DOC-BETA-02",
+  "DOC-DEV-001",
+  "DOC-DEV-002",
+  "DOC-DEV-003",
+  "CLINIC-ADMIN-01",
+];
+
 export interface AuthModalProps {
   visible: boolean;
   onClose?: () => void;
@@ -143,6 +156,18 @@ export default function AuthModal({
         }
       } catch (e) {
         // fallback
+      }
+    }
+
+    // 3. Fallback known doctor/staff codes (offline / dev / bootstrap)
+    if (!isValid) {
+      if (VALID_DOCTOR_CODES.includes(trimmed)) {
+        isValid = true;
+        if (trimmed === "SMILEGUARD-STAFF") {
+          role = "assistant";
+        } else {
+          role = "doctor";
+        }
       }
     }
 
