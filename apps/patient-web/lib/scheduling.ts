@@ -17,9 +17,9 @@ export const SERVICE_DURATIONS: Record<string, number> = {
   Braces: 60,
   'Implants Consultation': 60,
   Implants: 60,
-  'X-Ray': 15,
-  'Check-up': 20,
-  Checkup: 20,
+  'X-Ray': 30,
+  'Check-up': 30,
+  Checkup: 30,
   Consultation: 30,
 };
 

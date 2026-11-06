@@ -41,8 +41,7 @@ export function getServiceDuration(name: string): number {
   if (norm.includes('whiten') || norm.includes('brace') || norm.includes('implant')) return 60;
   if (norm.includes('fill')) return 45;
   if (norm.includes('clean') || norm.includes('extract')) return 30;
-  if (norm.includes('check') || norm.includes('consult')) return 20;
-  if (norm.includes('x-ray') || norm.includes('xray') || norm.includes('scan')) return 15;
+  // Minimum appointment length is 30 minutes (check-ups, X-rays, consultations, etc.)
   return 30;
 }
 
@@ -54,8 +53,8 @@ export const FALLBACK_DEFAULT_SERVICES: ServiceOption[] = [
   { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500 },
   { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000 },
   { id: 'implants',   name: 'Implants Consultation', duration: 60, price: 45000 },
-  { id: 'xray',       name: 'X-Ray',                 duration: 15, price: 500 },
-  { id: 'checkup',    name: 'Check-up',              duration: 20, price: 300 },
+  { id: 'xray',       name: 'X-Ray',                 duration: 30, price: 500 },
+  { id: 'checkup',    name: 'Check-up',              duration: 30, price: 300 },
 ];
 
 interface BookAppointmentProps {
