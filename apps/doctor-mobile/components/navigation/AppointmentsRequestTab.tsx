@@ -187,7 +187,7 @@ export default function AppointmentsRequestTab({
       : []),
     {
       id: "requests-finish",
-      title: "You're All Set, Doctor!",
+      title: "You're All Set!",
       description: "You're now ready to manage your clinic's patient requests swiftly and efficiently. Enjoy a smooth triage workflow!",
       icon: ShieldCheck,
       placement: "center",
