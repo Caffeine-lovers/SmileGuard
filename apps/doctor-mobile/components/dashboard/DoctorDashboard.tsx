@@ -520,7 +520,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     },
     {
       id: "finish",
-      title: "You're All Set, Doctor!",
+      title: "You're All Set!",
       description: "SmileGuard keeps your schedule organized and synced across web and mobile. Let's make every smile shine!",
       icon: ShieldCheck,
       placement: "center",
