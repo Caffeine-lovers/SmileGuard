@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,18 @@ import {
   RefreshControl,
   TextInput,
 } from "react-native";
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { User, Search, Trash2, Mail, Phone, Calendar, X } from "lucide-react-native";
 import { AdminPatientRow, listPatients, deletePatientAccount } from "../../lib/adminService";
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 export default function PatientAccountsTab() {
   const [patients, setPatients] = useState<AdminPatientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchPatients = useCallback(async (query?: string) => {
     const data = await listPatients(query);
@@ -30,6 +34,9 @@ export default function PatientAccountsTab() {
       await fetchPatients();
       setLoading(false);
     })();
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
   }, [fetchPatients]);
 
   const handleRefresh = async () => {
@@ -38,9 +45,18 @@ export default function PatientAccountsTab() {
     setRefreshing(false);
   };
 
-  const handleSearch = async (text: string) => {
+  const handleSearch = (text: string) => {
     setSearch(text);
-    await fetchPatients(text);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      fetchPatients(text);
+    }, SEARCH_DEBOUNCE_MS);
+  };
+
+  const handleClearSearch = () => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearch("");
+    fetchPatients("");
   };
 
   const handleDelete = (patient: AdminPatientRow) => {
@@ -53,9 +69,12 @@ export default function PatientAccountsTab() {
           text: "Delete Account",
           style: "destructive",
           onPress: async () => {
+            setPatients((prev) => prev.filter((p) => p.id !== patient.id));
             const ok = await deletePatientAccount(patient.id);
-            if (ok) await fetchPatients(search);
-            else Alert.alert("Error", "Failed to delete patient account.");
+            if (!ok) {
+              Alert.alert("Error", "Failed to delete patient account.");
+              await fetchPatients(search);
+            }
           },
         },
       ]
@@ -85,7 +104,7 @@ export default function PatientAccountsTab() {
             returnKeyType="search"
           />
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch("")}>
+            <TouchableOpacity onPress={handleClearSearch}>
               <X size={15} color="#94A3B8" />
             </TouchableOpacity>
           )}
@@ -115,8 +134,13 @@ export default function PatientAccountsTab() {
             </Text>
           </View>
         ) : (
-          patients.map((patient) => (
-            <View key={patient.id} style={styles.card}>
+          patients.map((patient, index) => (
+            <Animated.View
+              key={patient.id}
+              entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+              exiting={FadeOut.duration(150)}
+              style={styles.card}
+            >
               <View style={styles.cardHeader}>
                 <View style={styles.avatarBox}>
                   <User size={17} color="#047857" />
@@ -163,7 +187,7 @@ export default function PatientAccountsTab() {
                   </Text>
                 </View>
               </View>
-            </View>
+            </Animated.View>
           ))
         )}
       </ScrollView>

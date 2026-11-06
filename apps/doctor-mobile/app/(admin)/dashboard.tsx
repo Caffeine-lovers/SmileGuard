@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import {
   KeyRound,
   Stethoscope,
@@ -25,6 +26,7 @@ export type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts
 interface TabMeta {
   id: AdminTab;
   label: string;
+  navLabel: string;
   subtitle: string;
   icon: any;
 }
@@ -33,30 +35,35 @@ const TABS: TabMeta[] = [
   {
     id: "codes",
     label: "Clinic Access Codes",
+    navLabel: "Codes",
     subtitle: "Manage doctor, assistant & admin registration codes",
     icon: KeyRound,
   },
   {
     id: "dentists",
     label: "Dentists & Clinicians",
+    navLabel: "Staff",
     subtitle: "Medical license verification & staff practitioner roles",
     icon: Stethoscope,
   },
   {
     id: "patients",
     label: "Patient Accounts",
+    navLabel: "Patients",
     subtitle: "Directory of registered patients & discount credentials",
     icon: Users,
   },
   {
     id: "support",
     label: "Support Helpdesk",
+    navLabel: "Support",
     subtitle: "Review & resolve patient tickets and service inquiries",
     icon: LifeBuoy,
   },
   {
     id: "attempts",
     label: "Security Audit Log",
+    navLabel: "Audit",
     subtitle: "Chronological log of clinic access code sign-in attempts",
     icon: ListChecks,
   },
@@ -150,17 +157,31 @@ export default function AdminDashboardPage() {
               return (
                 <TouchableOpacity
                   key={tab.id}
-                  style={[styles.navIconBtn, isActive && styles.navIconBtnActive]}
+                  style={styles.navItem}
                   onPress={() => setActiveTab(tab.id)}
                   activeOpacity={0.75}
                   accessibilityLabel={tab.label}
                 >
-                  {isActive && <View style={styles.activeBar} />}
-                  <Icon
-                    size={21}
-                    color={isActive ? "#FFFFFF" : "#64748B"}
-                    strokeWidth={isActive ? 2.4 : 2}
-                  />
+                  <View style={[styles.navIconBtn, isActive && styles.navIconBtnActive]}>
+                    {isActive && (
+                      <Animated.View
+                        entering={FadeIn.duration(160)}
+                        exiting={FadeOut.duration(120)}
+                        style={styles.activeBar}
+                      />
+                    )}
+                    <Icon
+                      size={20}
+                      color={isActive ? "#FFFFFF" : "#64748B"}
+                      strokeWidth={isActive ? 2.4 : 2}
+                    />
+                  </View>
+                  <Text
+                    style={[styles.navItemLabel, isActive && styles.navItemLabelActive]}
+                    numberOfLines={1}
+                  >
+                    {tab.navLabel}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -207,11 +228,18 @@ export default function AdminDashboardPage() {
 
           {/* Active Tab Screen */}
           <View style={styles.tabBody}>
-            {activeTab === "codes" && <AccessCodesTab />}
-            {activeTab === "dentists" && <DentistAccountsTab />}
-            {activeTab === "patients" && <PatientAccountsTab />}
-            {activeTab === "support" && <SupportRequestsTab />}
-            {activeTab === "attempts" && <AttemptLogTab />}
+            <Animated.View
+              key={activeTab}
+              entering={FadeIn.duration(180)}
+              exiting={FadeOut.duration(100)}
+              style={styles.tabBodyInner}
+            >
+              {activeTab === "codes" && <AccessCodesTab />}
+              {activeTab === "dentists" && <DentistAccountsTab />}
+              {activeTab === "patients" && <PatientAccountsTab />}
+              {activeTab === "support" && <SupportRequestsTab />}
+              {activeTab === "attempts" && <AttemptLogTab />}
+            </Animated.View>
           </View>
         </View>
       </View>
@@ -237,7 +265,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   leftNavRail: {
-    width: 64,
+    width: 76,
     backgroundColor: "#FFFFFF",
     borderRightWidth: 1,
     borderRightColor: "#E2E8F0",
@@ -353,5 +381,27 @@ const styles = StyleSheet.create({
   },
   tabBody: {
     flex: 1,
+    position: "relative",
+  },
+  tabBodyInner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  navItem: {
+    alignItems: "center",
+    gap: 4,
+    width: 60,
+  },
+  navItemLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#94A3B8",
+    letterSpacing: 0.1,
+  },
+  navItemLabelActive: {
+    color: "#047857",
   },
 });

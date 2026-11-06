@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { Plus, X, Power, Trash2, KeyRound, Stethoscope, Users, CheckCircle2 } from "lucide-react-native";
 import {
   DoctorAccessCode,
@@ -59,12 +60,16 @@ export default function AccessCodesTab() {
     }
     setSaving(true);
     try {
-      await createAccessCode(newCode, newLabel, newTier);
+      const created = await createAccessCode(newCode, newLabel, newTier);
       setNewCode("");
       setNewLabel("");
       setNewTier("doctor");
       setShowCreateModal(false);
-      await fetchCodes();
+      if (created) {
+        setCodes((prev) => [created, ...prev]);
+      } else {
+        await fetchCodes();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create access code.";
       Alert.alert("Error", message);
@@ -74,8 +79,16 @@ export default function AccessCodesTab() {
   };
 
   const handleToggleActive = async (item: DoctorAccessCode) => {
+    setCodes((prev) =>
+      prev.map((c) => (c.id === item.id ? { ...c, is_active: !c.is_active } : c))
+    );
     const ok = await updateAccessCode(item.id, { is_active: !item.is_active });
-    if (ok) await fetchCodes();
+    if (!ok) {
+      setCodes((prev) =>
+        prev.map((c) => (c.id === item.id ? { ...c, is_active: item.is_active } : c))
+      );
+      Alert.alert("Error", "Failed to update access code.");
+    }
   };
 
   const handleDelete = (item: DoctorAccessCode) => {
@@ -88,8 +101,12 @@ export default function AccessCodesTab() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            setCodes((prev) => prev.filter((c) => c.id !== item.id));
             const ok = await deleteAccessCode(item.id);
-            if (ok) await fetchCodes();
+            if (!ok) {
+              Alert.alert("Error", "Failed to delete access code.");
+              await fetchCodes();
+            }
           },
         },
       ]
@@ -136,11 +153,16 @@ export default function AccessCodesTab() {
             <Text style={styles.emptySub}>Generate a clinic code to let doctors and assistants register.</Text>
           </View>
         ) : (
-          codes.map((item) => {
+          codes.map((item, index) => {
             const isDoctor = item.tier === "doctor";
             const isAdmin = item.tier === "admin";
             return (
-              <View key={item.id} style={styles.card}>
+              <Animated.View
+                key={item.id}
+                entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+                exiting={FadeOut.duration(150)}
+                style={styles.card}
+              >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconBox, isAdmin && styles.iconBoxAdmin]}>
                     <KeyRound size={17} color={isAdmin ? "#D97706" : "#047857"} />
@@ -203,7 +225,7 @@ export default function AccessCodesTab() {
                     <Text style={[styles.actionBtnText, { color: "#DC2626" }]}>Delete</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </Animated.View>
             );
           })
         )}

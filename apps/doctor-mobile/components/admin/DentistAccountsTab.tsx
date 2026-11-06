@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Switch,
 } from "react-native";
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { Stethoscope, Trash2, BadgeCheck, Users, ShieldAlert } from "lucide-react-native";
 import { AdminDoctorRow, listDentists, setDoctorVerified, deleteDoctorAccount } from "../../lib/adminService";
 
@@ -38,8 +39,16 @@ export default function DentistAccountsTab() {
   };
 
   const handleToggleVerified = async (doctor: AdminDoctorRow) => {
+    setDoctors((prev) =>
+      prev.map((d) => (d.id === doctor.id ? { ...d, is_verified: !d.is_verified } : d))
+    );
     const ok = await setDoctorVerified(doctor.id, !doctor.is_verified);
-    if (ok) await fetchDoctors();
+    if (!ok) {
+      setDoctors((prev) =>
+        prev.map((d) => (d.id === doctor.id ? { ...d, is_verified: doctor.is_verified } : d))
+      );
+      Alert.alert("Error", "Failed to update verification status.");
+    }
   };
 
   const handleDelete = (doctor: AdminDoctorRow) => {
@@ -53,9 +62,12 @@ export default function DentistAccountsTab() {
           text: "Remove Account",
           style: "destructive",
           onPress: async () => {
+            setDoctors((prev) => prev.filter((d) => d.id !== doctor.id));
             const ok = await deleteDoctorAccount(doctor.id, doctor.user_id);
-            if (ok) await fetchDoctors();
-            else Alert.alert("Error", "Failed to delete account.");
+            if (!ok) {
+              Alert.alert("Error", "Failed to delete account.");
+              await fetchDoctors();
+            }
           },
         },
       ]
@@ -93,11 +105,16 @@ export default function DentistAccountsTab() {
             <Text style={styles.emptySub}>When doctors or assistants sign in using an access code, they appear here.</Text>
           </View>
         ) : (
-          doctors.map((doctor) => {
+          doctors.map((doctor, index) => {
             const fullName = [doctor.first_name, doctor.middle_name, doctor.last_name].filter(Boolean).join(" ") || "Unnamed Staff";
             const isAssistant = doctor.role === "assistant";
             return (
-              <View key={doctor.id} style={styles.card}>
+              <Animated.View
+                key={doctor.id}
+                entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+                exiting={FadeOut.duration(150)}
+                style={styles.card}
+              >
                 <View style={styles.cardHeader}>
                   <View style={[styles.avatarBox, isAssistant && styles.avatarBoxAssistant]}>
                     {isAssistant ? (
@@ -145,7 +162,7 @@ export default function DentistAccountsTab() {
                     thumbColor={doctor.is_verified ? "#047857" : "#94A3B8"}
                   />
                 </View>
-              </View>
+              </Animated.View>
             );
           })
         )}

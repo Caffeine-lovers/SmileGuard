@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { supabase } from "@smileguard/supabase-client";
 import { LifeBuoy, X, CheckCircle2, Clock, AlertCircle } from "lucide-react-native";
 import {
@@ -59,9 +60,21 @@ export default function SupportRequestsTab() {
     setRefreshing(false);
   };
 
+  const applyLocalStatus = (id: string, updates: Partial<SupportRequest>) => {
+    setRequests((prev) => {
+      const next = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      if (filter === "all") return next;
+      return next.filter((r) => r.status === filter);
+    });
+  };
+
   const handleMarkInProgress = async (request: SupportRequest) => {
+    applyLocalStatus(request.id, { status: "in_progress" });
     const ok = await setSupportRequestStatus(request.id, "in_progress");
-    if (ok) await fetchRequests(filter);
+    if (!ok) {
+      Alert.alert("Error", "Failed to update ticket status.");
+      await fetchRequests(filter);
+    }
   };
 
   const handleResolve = async () => {
@@ -75,9 +88,12 @@ export default function SupportRequestsTab() {
       const { data } = await supabase.auth.getUser();
       const ok = await resolveSupportRequest(resolvingRequest.id, data.user?.id || "", resolutionNote);
       if (ok) {
+        applyLocalStatus(resolvingRequest.id, {
+          status: "resolved",
+          resolution_note: resolutionNote.trim(),
+        });
         setResolvingRequest(null);
         setResolutionNote("");
-        await fetchRequests(filter);
       } else {
         Alert.alert("Error", "Failed to resolve support request.");
       }
@@ -142,13 +158,18 @@ export default function SupportRequestsTab() {
             </Text>
           </View>
         ) : (
-          requests.map((req) => {
+          requests.map((req, index) => {
             const isOpen = req.status === "open";
             const isInProgress = req.status === "in_progress";
             const isResolved = req.status === "resolved";
 
             return (
-              <View key={req.id} style={styles.card}>
+              <Animated.View
+                key={req.id}
+                entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+                exiting={FadeOut.duration(150)}
+                style={styles.card}
+              >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconBox, isResolved && styles.iconBoxResolved]}>
                     <LifeBuoy size={17} color={isResolved ? "#047857" : "#D97706"} />
@@ -216,7 +237,7 @@ export default function SupportRequestsTab() {
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
+              </Animated.View>
             );
           })
         )}

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { ListChecks, CheckCircle2, XCircle, ShieldAlert, Clock, Key } from "lucide-react-native";
 import { DoctorCodeAttempt, listCodeAttempts } from "../../lib/adminService";
 
@@ -92,10 +93,14 @@ export default function AttemptLogTab() {
             <Text style={styles.emptySub}>When staff input access codes on the welcome modal, attempts are logged here.</Text>
           </View>
         ) : (
-          filtered.map((attempt) => {
+          filtered.map((attempt, index) => {
             const isSuccess = attempt.is_successful;
             return (
-              <View key={attempt.id} style={styles.card}>
+              <Animated.View
+                key={attempt.id}
+                entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
+                style={styles.card}
+              >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconBox, isSuccess ? styles.iconBoxSuccess : styles.iconBoxFail]}>
                     {isSuccess ? (
@@ -150,7 +155,7 @@ export default function AttemptLogTab() {
                     </View>
                   </View>
                 </View>
-              </View>
+              </Animated.View>
             );
           })
         )}
