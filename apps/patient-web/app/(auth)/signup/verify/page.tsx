@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { checkEmailContext } from '@/lib/email-context';
+import { checkEmailContext, friendlyEmailError, isEmailInUse, isStaffEmail } from '@/lib/email-context';
 import { AlertCircle, LogIn } from 'lucide-react';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
@@ -70,10 +70,14 @@ export default function SignupVerifyPage() {
     try {
       setVerificationEmail(normalizedEmail);
 
-      // Confirm email context: Check if email is already registered with completed intake
+      // Refuse emails that already belong to a patient or clinic staff account
       const context = await checkEmailContext(normalizedEmail);
-      if (context.is_registered && context.has_medical_intake) {
-        setLocalError('This email is already registered. Please sign in to your account.');
+      if (isEmailInUse(context)) {
+        setLocalError(
+          isStaffEmail(context)
+            ? 'This email is already used by a clinic staff account. Please use a different email.'
+            : 'This email is already registered. Please sign in to your account.'
+        );
         setActionLink({ text: 'Sign In to Account', href: '/login' });
         setVerificationLoading(false);
         return;
@@ -86,14 +90,10 @@ export default function SignupVerifyPage() {
         },
       });
 
-      if (error) {
-        setLocalError(`Failed to send verification code: ${error.message}`);
-      } else {
-        setOtpSentAt(Date.now());
-      }
+      if (error) throw error;
+      setOtpSentAt(Date.now());
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'An error occurred';
-      setLocalError(`Error: ${msg}`);
+      setLocalError(friendlyEmailError(err, 'Failed to send the verification code. Please try again.'));
     } finally {
       setVerificationLoading(false);
     }
@@ -144,16 +144,6 @@ export default function SignupVerifyPage() {
       return;
     }
 
-    const newAttempts = resendAttempts + 1;
-    setResendAttempts(newAttempts);
-
-    if (newAttempts >= 2) {
-      const cooldownEnd = Date.now() + 60 * 1000;
-      setResendCooldownEnd(cooldownEnd);
-      setLocalError('Code resent. You can resend again in 60 seconds.');
-      return;
-    }
-
     setVerificationLoading(true);
 
     try {
@@ -165,16 +155,18 @@ export default function SignupVerifyPage() {
         },
       });
 
-      if (error) {
-        setLocalError(`Failed to resend code: ${error.message}`);
-      } else {
-        setOtpSentAt(Date.now());
-        setVerificationCode('');
-        showAlert('Verification code resent to your email!');
+      if (error) throw error;
+
+      const newAttempts = resendAttempts + 1;
+      setResendAttempts(newAttempts);
+      if (newAttempts >= 2) {
+        setResendCooldownEnd(Date.now() + 60 * 1000);
       }
+      setOtpSentAt(Date.now());
+      setVerificationCode('');
+      showAlert('Verification code resent to your email!');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'An error occurred';
-      setLocalError(`Error: ${msg}`);
+      setLocalError(friendlyEmailError(err, 'Failed to resend the code. Please try again.'));
     } finally {
       setVerificationLoading(false);
     }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 import { setPatientUserCookie } from '@/lib/auth-cookie';
+import { checkEmailContext, isStaffEmail } from '@/lib/email-context';
 
 import LegalModal, { type LegalDoc } from '@/components/legal/LegalModal';
 import { 
@@ -38,6 +39,15 @@ export default function SignupConfirmPage() {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const effectiveUser = currentAuthUser || authUser;
+
+      // This step writes role 'patient' to the profile, so it must never run on a staff account
+      const emailToCheck = authUser?.email || formData.email;
+      if (emailToCheck && isStaffEmail(await checkEmailContext(emailToCheck))) {
+        setLocalError('This email is already used by a clinic staff account. Please use a different email.');
+        setLoading(false);
+        return;
+      }
+
       const isOAuth = isOAuthFlow || (typeof window !== 'undefined' && localStorage.getItem('oauth_signup_flow') === 'true') || Boolean(authUser?.app_metadata?.provider === 'google');
 
       if (isOAuth && effectiveUser) {
