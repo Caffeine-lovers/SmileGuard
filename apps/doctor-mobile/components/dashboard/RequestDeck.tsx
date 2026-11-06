@@ -355,7 +355,7 @@ export default function RequestDeck({ requests, onAccept, onDecline }: RequestDe
 }
 
 const styles = StyleSheet.create({
-  deck: { flex: 1, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 12 },
+  deck: { flex: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   counter: {
     textAlign: "center",
     fontSize: 11,

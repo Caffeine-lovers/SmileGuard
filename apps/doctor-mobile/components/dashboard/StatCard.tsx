@@ -34,7 +34,7 @@ export default function StatCard({
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    minWidth: 90,
+    minWidth: 0,
     backgroundColor: "#FFFFFF",
     borderRadius: 6, // Sharp, defined skeuo micro-radius matching patient-web
     borderWidth: 1.5,

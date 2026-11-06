@@ -1241,144 +1241,149 @@ export default function AssistantDashboard({
   }, [assistantProfile]);
 
   return (
-    <SafeAreaView style={[styles.mainContainer, { paddingLeft: NAV_RAIL_WIDTH }]} edges={["top"]}>
-      <LeftNavRail
-        activeTab={activeTab}
-        topInset={statusBarHeight}
-        bottomInset={Math.max(insets.bottom, 0)}
-        hiddenTabs={["appointment-requests"]}
-        railRef={tour.register("menu-btn")}
-        navRef={tour.register("sidebar-nav")}
-        logoSource={
-          clinic?.logo_url === "APP_LOGO"
-            ? APP_LOGO
-            : clinic?.logo_url
-              ? { uri: clinic.logo_url }
-              : undefined
-        }
-        onSelect={(tab) => {
-          if (tab === "dashboard") {
-            setActiveTab("dashboard");
-            setTabHistory([]);
-          } else {
-            navigateToTab(tab);
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <View ref={tour.setContainer} collapsable={false} style={[styles.mainContainer, { paddingLeft: NAV_RAIL_WIDTH }]}>
+        <LeftNavRail
+          activeTab={activeTab}
+          hiddenTabs={["appointment-requests"]}
+          railRef={tour.register("menu-btn")}
+          navRef={tour.register("sidebar-nav")}
+          logoSource={
+            clinic?.logo_url === "APP_LOGO"
+              ? APP_LOGO
+              : clinic?.logo_url
+                ? { uri: clinic.logo_url }
+                : undefined
           }
-        }}
-        onTour={handleRestartTour}
-        onLogout={() => {
-          Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Logout", style: "destructive", onPress: onLogout },
-          ]);
-        }}
-      />
-      {/* ─────────────────────────────────────────
-          TOP APP BAR
-      ───────────────────────────────────────── */}
-      <View style={styles.topAppBar}>
-        <View style={styles.topAppBarLeft}>
-          <View style={styles.appBarTitleGroup}>
-            <View style={styles.brandRow}>
+          onSelect={(tab) => {
+            if (tab === "dashboard") {
+              setActiveTab("dashboard");
+              setTabHistory([]);
+            } else {
+              navigateToTab(tab);
+            }
+          }}
+          onTour={handleRestartTour}
+          onLogout={() => {
+            Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Logout", style: "destructive", onPress: onLogout },
+            ]);
+          }}
+        />
+        {/* ─────────────────────────────────────────
+            TOP APP BAR
+        ───────────────────────────────────────── */}
+        <View style={styles.topAppBar}>
+          <View style={styles.topBarCenter}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.topBarDoctorName} numberOfLines={1}>
+                {assistantDisplayName}
+              </Text>
               <View style={styles.assistantBadgeMini}>
-                <ShieldCheck size={12} color="#047857" />
+                <ShieldCheck size={11} color="#047857" />
                 <Text style={styles.assistantBadgeMiniText}>ASSISTANT</Text>
               </View>
             </View>
-            <Text style={styles.appBarSubTitle} numberOfLines={1}>
+            <Text style={styles.topBarClinic} numberOfLines={1}>
               {clinic?.clinic_name || "SmileGuard Dental Clinic"}
             </Text>
           </View>
-        </View>
 
-        <View style={styles.topAppBarRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => {
-              if (activeTab === "records") {
-                setRecordsTourTrigger((prev) => prev + 1);
-              } else if (activeTab === "appointments") {
-                setAppointmentsTourTrigger((prev) => prev + 1);
-              } else if (activeTab === "billing") {
-                setBillingTourTrigger((prev) => prev + 1);
-              } else {
-                handleRestartTour();
-              }
-            }}
-            accessibilityLabel="App Guide & Walkthrough"
-            activeOpacity={0.7}
-          >
-            <Sparkles size={19} color="#047857" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={async () => {
-              setIsRefreshing(true);
-              try {
-                await refreshDashboardData();
-                if (activeTab === "billing") {
-                  setBillingRefreshTrigger((prev) => prev + 1);
-                } else if (activeTab === "appointments") {
-                  setAppointmentsRefreshTrigger((prev) => prev + 1);
-                } else if (activeTab === "records") {
-                  setRecordsRefreshTrigger((prev) => prev + 1);
-                } else if (activeTab === "appointment-requests") {
-                  setRequestsRefreshTrigger((prev) => prev + 1);
-                }
-              } finally {
-                setIsRefreshing(false);
-              }
-            }}
-            accessibilityLabel="Refresh data"
-            activeOpacity={0.7}
-          >
-            {isRefreshing ? (
-              <ActivityIndicator size="small" color="#047857" />
-            ) : (
-              <RefreshCw size={18} color="#475569" />
-            )}
-          </TouchableOpacity>
-
-          <NotificationBell
-            unreadCount={totalUnreadCount}
-            onPress={() => setShowNotificationCenter(true)}
-          />
-        </View>
-      </View>
-
-      {/* ─────────────────────────────────────────
-          MAIN CONTENT AREA / TABS
-      ───────────────────────────────────────── */}
-      <View style={styles.contentArea}>
-        {activeTab === "dashboard" ? (
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 }}>
-              {(["requests", "today"] as const).map((view) => {
-                const active = dashboardView === view;
-                return (
-                  <TouchableOpacity
-                    key={view}
-                    onPress={() => setDashboardView(view)}
-                    activeOpacity={0.8}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 9,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      backgroundColor: active ? "#047857" : "#FFFFFF",
-                      borderWidth: 1,
-                      borderColor: active ? "#047857" : "#E2E8F0",
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#FFFFFF" : "#475569" }}>
-                      {view === "requests"
-                        ? `Requests${deckRequests.length > 0 ? ` · ${deckRequests.length}` : ""}`
-                        : "Today"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+          <View style={styles.topBarRightActions}>
+            <View collapsable={false} style={{ width: 40, height: 40 }}>
+              <TouchableOpacity
+                style={styles.topBarRefreshBtn}
+                onPress={() => {
+                  if (activeTab === "records") {
+                    setRecordsTourTrigger((prev) => prev + 1);
+                  } else if (activeTab === "appointments") {
+                    setAppointmentsTourTrigger((prev) => prev + 1);
+                  } else if (activeTab === "billing") {
+                    setBillingTourTrigger((prev) => prev + 1);
+                  } else {
+                    handleRestartTour();
+                  }
+                }}
+                accessibilityLabel="App Guide & Walkthrough"
+                activeOpacity={0.7}
+              >
+                <Sparkles size={16} color="#047857" />
+              </TouchableOpacity>
             </View>
+
+            <View collapsable={false} style={{ width: 40, height: 40 }}>
+              <NotificationBell
+                unreadCount={totalUnreadCount}
+                onPress={() => setShowNotificationCenter(true)}
+                animateOnNewNotification={true}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.topBarRefreshBtn}
+              onPress={async () => {
+                setIsRefreshing(true);
+                try {
+                  await refreshDashboardData();
+                  if (activeTab === "billing") {
+                    setBillingRefreshTrigger((prev) => prev + 1);
+                  } else if (activeTab === "appointments") {
+                    setAppointmentsRefreshTrigger((prev) => prev + 1);
+                  } else if (activeTab === "records") {
+                    setRecordsRefreshTrigger((prev) => prev + 1);
+                  } else if (activeTab === "appointment-requests") {
+                    setRequestsRefreshTrigger((prev) => prev + 1);
+                  }
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+              accessibilityLabel="Refresh data"
+              activeOpacity={0.7}
+            >
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <RefreshCw size={17} color="#047857" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ─────────────────────────────────────────
+            MAIN CONTENT AREA / TABS
+        ───────────────────────────────────────── */}
+        <View style={styles.contentArea}>
+          {activeTab === "dashboard" ? (
+            <View style={{ flex: 1 }}>
+              <View style={styles.dashboardViewToggleRow}>
+                {(["requests", "today"] as const).map((view) => {
+                  const active = dashboardView === view;
+                  return (
+                    <TouchableOpacity
+                      key={view}
+                      onPress={() => setDashboardView(view)}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.dashboardViewToggleBtn,
+                        active && styles.dashboardViewToggleBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.dashboardViewToggleText,
+                          active && styles.dashboardViewToggleTextActive,
+                        ]}
+                      >
+                        {view === "requests"
+                          ? `Requests${deckRequests.length > 0 ? ` · ${deckRequests.length}` : ""}`
+                          : "Today"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             {dashboardView === "requests" ? (
               <View ref={tour.register("request-deck")} collapsable={false} style={{ flex: 1 }}>
                 <RequestDeck
@@ -2181,16 +2186,17 @@ export default function AssistantDashboard({
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Walkthrough Tour */}
-      <AppTour
-        visible={tourVisible}
-        steps={tourSteps}
-        index={tourIndex}
-        onIndexChange={setTourIndex}
-        measureTarget={tour.measure}
-        onFinish={handleFinishTour}
-        onSkip={handleSkipTour}
-      />
+        {/* Walkthrough Tour */}
+        <AppTour
+          visible={tourVisible}
+          steps={tourSteps}
+          index={tourIndex}
+          onIndexChange={setTourIndex}
+          measureTarget={tour.measure}
+          onFinish={handleFinishTour}
+          onSkip={handleSkipTour}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -2230,13 +2236,14 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+    position: "relative",
   },
   topAppBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
@@ -2245,6 +2252,69 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 2,
+    zIndex: 10,
+  },
+  topBarCenter: {
+    flex: 1,
+    marginRight: 12,
+  },
+  topBarDoctorName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  topBarClinic: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  topBarRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  topBarRefreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dashboardViewToggleRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  dashboardViewToggleBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  dashboardViewToggleBtnActive: {
+    backgroundColor: "#047857",
+    borderColor: "#047857",
+    shadowColor: "#047857",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dashboardViewToggleText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#475569",
+  },
+  dashboardViewToggleTextActive: {
+    color: "#FFFFFF",
   },
   topAppBarLeft: {
     flexDirection: "row",
@@ -2315,7 +2385,7 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingTop: 8,
   },
 
   /* Clinic Banner */
@@ -2487,18 +2557,20 @@ const styles = StyleSheet.create({
   /* Stats Panel */
   firstPanel: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    justifyContent: "space-between",
+    width: "100%",
     gap: 8,
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   /* Dashboard Columns */
   dashboardColumns: {
     flexDirection: "column",
+    width: "100%",
     gap: 16,
   },
   column: {
-    flex: 1,
+    width: "100%",
   },
 
   /* Section Headers */
@@ -3339,12 +3411,12 @@ const styles = StyleSheet.create({
   },
   rescheduleCardTop: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   rescheduleAvatar: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 8,
     marginRight: 10,
     borderWidth: 1,
@@ -3412,6 +3484,7 @@ const styles = StyleSheet.create({
   },
   rescheduleActionRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     marginTop: 4,
   },
@@ -3421,10 +3494,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#047857',
-    paddingVertical: 8,
-    borderRadius: 7,
-    borderBottomWidth: 2,
-    borderBottomColor: '#065F46',
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#065F46',
   },
   rescheduleConfirmBtnText: {
     fontSize: 12,
@@ -3433,8 +3506,8 @@ const styles = StyleSheet.create({
   },
   rescheduleReviewBtn: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 7,
+    paddingVertical: 9,
+    borderRadius: 8,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#CBD5E1',
