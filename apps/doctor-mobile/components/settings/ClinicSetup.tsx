@@ -1558,7 +1558,7 @@ export default function ClinicSetup({
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
           style={styles.container}
@@ -2020,7 +2020,7 @@ export default function ClinicSetup({
       >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeaderRow}>
@@ -2471,7 +2471,7 @@ export default function ClinicSetup({
         onRequestClose={() => setShowBlockoutDatePicker(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
           style={styles.modalOverlay}
         >
           {(() => {

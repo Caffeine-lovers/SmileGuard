@@ -557,7 +557,7 @@ export default function AppointmentsRequestTab({
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView ref={scrollViewRef} style={tabStyles.requestsList} contentContainerStyle={tabStyles.requestsListContent}>
+        <ScrollView keyboardShouldPersistTaps="handled" ref={scrollViewRef} style={tabStyles.requestsList} contentContainerStyle={tabStyles.requestsListContent}>
           {/* Header info showing request count and page */}
           <View style={tabStyles.countHeader}>
             <Text style={tabStyles.countHeaderText}>

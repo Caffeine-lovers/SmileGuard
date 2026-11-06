@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Slot, Redirect } from "expo-router";
 import { supabase } from "@smileguard/supabase-client";
 import { Session, AuthChangeEvent } from "@supabase/supabase-js";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function AdminLayout() {
@@ -18,14 +18,6 @@ export default function AdminLayout() {
         return;
       }
 
-      const [savedCodeRaw, savedRole, pendingIsAdmin, adminAuthToken] = await Promise.all([
-        AsyncStorage.getItem("@pending_doctor_access_code"),
-        AsyncStorage.getItem("@pending_user_role"),
-        AsyncStorage.getItem("@pending_is_admin"),
-        AsyncStorage.getItem(`@admin_authenticated_${session.user.id}`),
-      ]);
-      const savedCode = (savedCodeRaw || "").trim().toUpperCase();
-
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("role")
@@ -36,29 +28,32 @@ export default function AdminLayout() {
         console.warn("[AdminLayout] Error checking admin role:", error);
       }
 
-      const isConfirmedAdmin =
-        profile?.role === "admin" ||
-        savedRole === "admin" ||
-        savedCode === "CLINIC-ADMIN-01" ||
-        savedCode.includes("ADMIN") ||
-        pendingIsAdmin === "true" ||
-        adminAuthToken === "true";
+      let confirmed = profile?.role === "admin";
 
-      if (isConfirmedAdmin) {
-        await AsyncStorage.setItem(`@admin_authenticated_${session.user.id}`, "true");
-        if (profile?.role !== "admin") {
-          try {
-            await supabase
-              .from("profiles")
-              .update({ role: "admin" })
-              .eq("id", session.user.id);
-          } catch (e) {
-            console.warn("[AdminLayout] DB role update skipped:", e);
+      // Admin rights come from the server, which re-checks the code entered at sign-in.
+      if (!confirmed) {
+        const [savedCode, savedRole] = await Promise.all([
+          AsyncStorage.getItem("@pending_doctor_access_code"),
+          AsyncStorage.getItem("@pending_user_role"),
+        ]);
+
+        if (savedCode && savedRole === "admin") {
+          const { data: granted, error: claimError } = await supabase.rpc("claim_admin_access", {
+            p_code: savedCode,
+            p_platform: Platform.OS,
+          });
+          if (claimError) {
+            console.warn("[AdminLayout] Could not confirm admin access:", claimError.message);
           }
+          confirmed = granted === true;
         }
       }
 
-      if (mounted) setIsAdmin(isConfirmedAdmin);
+      if (confirmed) {
+        await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+      }
+
+      if (mounted) setIsAdmin(confirmed);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {

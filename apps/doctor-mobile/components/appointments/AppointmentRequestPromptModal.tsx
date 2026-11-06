@@ -10,7 +10,6 @@ import {
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -107,7 +106,7 @@ export default function AppointmentRequestPromptModal({
     >
       <View style={styles.modalOverlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={styles.keyboardContainer}
         >
           <View style={styles.cardContainer}>

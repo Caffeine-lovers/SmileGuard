@@ -18,51 +18,22 @@ export interface DoctorAccessCode {
   created_at: string;
 }
 
-const DEFAULT_FALLBACK_CODES: DoctorAccessCode[] = [
-  {
-    id: "fb-1",
-    code: "SMILE-DOC-2026",
-    label: "Primary Dentist (Standard Clinical CRUD)",
-    tier: "doctor",
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "fb-2",
-    code: "SMILEGUARD-STAFF",
-    label: "Clinic Assistant (Schedule Viewing & Rescheduling Access)",
-    tier: "assistant",
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "fb-3",
-    code: "CLINIC-ADMIN-01",
-    label: "Lead Clinic Administrator",
-    tier: "admin",
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-];
-
+// Rows without a code are legacy hashed entries that can no longer be used.
 export async function listAccessCodes(): Promise<DoctorAccessCode[]> {
-  try {
-    const { data, error } = await supabase
-      .from("doctor_access_codes")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("doctor_access_codes")
+    .select("id, code, label, tier, is_active, created_at")
+    .not("code", "is", null)
+    .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      if (error) {
-        console.warn("[AdminService] Could not fetch remote access codes (falling back to clinic standards):", error.message);
-      }
-      return DEFAULT_FALLBACK_CODES;
-    }
-    return data as DoctorAccessCode[];
-  } catch (err) {
-    console.warn("[AdminService] listAccessCodes exception:", err);
-    return DEFAULT_FALLBACK_CODES;
-  }
+  if (error) throw new Error(error.message);
+  return (data || []) as DoctorAccessCode[];
+}
+
+export async function regenerateAccessCode(id: string): Promise<DoctorAccessCode> {
+  const { data, error } = await supabase.rpc("regenerate_access_code", { p_id: id });
+  if (error) throw new Error(error.message);
+  return data as DoctorAccessCode;
 }
 
 export async function createAccessCode(
@@ -81,22 +52,6 @@ export async function createAccessCode(
     throw new Error(error.message);
   }
   return data as DoctorAccessCode;
-}
-
-export async function updateAccessCode(
-  id: string,
-  updates: Partial<Pick<DoctorAccessCode, "label" | "tier" | "is_active">>
-): Promise<boolean> {
-  const { error } = await supabase.from("doctor_access_codes").update(updates).eq("id", id);
-  if (error) {
-    console.error("[AdminService] Error updating access code:", error);
-    return false;
-  }
-  return true;
-}
-
-export async function deactivateAccessCode(id: string): Promise<boolean> {
-  return updateAccessCode(id, { is_active: false });
 }
 
 export async function deleteAccessCode(id: string): Promise<boolean> {
@@ -169,7 +124,6 @@ export interface AdminPatientRow {
   id: string;
   name: string | null;
   email: string | null;
-  phone_number: string | null;
   role: string;
   created_at: string;
 }
@@ -177,7 +131,7 @@ export interface AdminPatientRow {
 export async function listPatients(search?: string): Promise<AdminPatientRow[]> {
   let query = supabase
     .from("profiles")
-    .select("id, name, email, phone_number, role, created_at")
+    .select("id, name, email, role, created_at")
     .eq("role", "patient")
     .order("created_at", { ascending: false });
 
@@ -210,6 +164,7 @@ export interface SupportRequest {
   id: string;
   requester_id: string | null;
   requester_role: string | null;
+  source_platform: string | null;
   subject: string | null;
   message: string | null;
   status: "open" | "in_progress" | "resolved";
@@ -217,10 +172,14 @@ export interface SupportRequest {
   resolution_note: string | null;
   created_at: string;
   resolved_at: string | null;
+  requester?: { name: string | null; email: string | null } | null;
 }
 
 export async function listSupportRequests(status?: SupportRequest["status"]): Promise<SupportRequest[]> {
-  let query = supabase.from("support_requests").select("*").order("created_at", { ascending: false });
+  let query = supabase
+    .from("support_requests")
+    .select("*, requester:profiles!support_requests_requester_id_fkey(name, email)")
+    .order("created_at", { ascending: false });
   if (status) query = query.eq("status", status);
 
   const { data, error } = await query;
@@ -266,29 +225,151 @@ export async function setSupportRequestStatus(
 }
 
 // ─────────────────────────────────────────
-// Access Code Attempt Log (read-only)
+// Audit Log (read-only)
 // ─────────────────────────────────────────
 
 export interface DoctorCodeAttempt {
   id: string;
+  event: string | null;
+  user_id: string | null;
   code: string | null;
   attempted_code: string | null;
   is_successful: boolean;
   ip_address: string | null;
   details: Record<string, any> | null;
   created_at: string;
+  actor_name?: string | null;
 }
 
-export async function listCodeAttempts(limit = 100): Promise<DoctorCodeAttempt[]> {
+// Rows without an event value are legacy rate-limit counters, not audit entries.
+export async function listCodeAttempts(limit = 200): Promise<DoctorCodeAttempt[]> {
   const { data, error } = await supabase
     .from("doctor_code_attempts")
-    .select("*")
+    .select("id, event, user_id, code, attempted_code, is_successful, ip_address, details, created_at")
+    .or("attempted_code.not.is.null,event.neq.verification")
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (error) {
-    console.error("[AdminService] Error listing code attempts:", error);
-    return [];
-  }
-  return (data || []) as DoctorCodeAttempt[];
+  if (error) throw new Error(error.message);
+
+  const attempts = (data || []) as DoctorCodeAttempt[];
+  const userIds = Array.from(new Set(attempts.map((a) => a.user_id).filter(Boolean))) as string[];
+  if (userIds.length === 0) return attempts;
+
+  const { data: people } = await supabase.from("profiles").select("id, name, email").in("id", userIds);
+  const names = new Map((people || []).map((p) => [p.id, p.name || p.email]));
+  return attempts.map((a) => ({ ...a, actor_name: a.user_id ? names.get(a.user_id) ?? null : null }));
+}
+
+// ─────────────────────────────────────────
+// Clinic Overview
+// ─────────────────────────────────────────
+
+export interface ClinicOverview {
+  clinic: {
+    id: string;
+    clinic_name: string | null;
+    address: string | null;
+    logo_url: string | null;
+    services: unknown;
+    updated_at: string | null;
+  } | null;
+  staffCount: number;
+  patientCount: number;
+  walkInCount: number;
+  upcomingAppointments: number;
+  totalAppointments: number;
+  openFeedback: number;
+}
+
+async function countRows(table: string, apply?: (query: any) => any): Promise<number> {
+  const base = supabase.from(table).select("id", { count: "exact", head: true });
+  const { count, error } = await (apply ? apply(base) : base);
+  if (error) throw new Error(`${table}: ${error.message}`);
+  return count ?? 0;
+}
+
+export async function getClinicOverview(): Promise<ClinicOverview> {
+  const today = new Date().toISOString().split("T")[0];
+  const [clinicResult, staffCount, patientCount, walkInCount, upcomingAppointments, totalAppointments, openFeedback] =
+    await Promise.all([
+      supabase.from("clinic_setup").select("id, clinic_name, address, logo_url, services, updated_at").limit(1).maybeSingle(),
+      countRows("doctors"),
+      countRows("profiles", (q) => q.eq("role", "patient")),
+      countRows("dummy_patients"),
+      countRows("appointments", (q) => q.gte("appointment_date", today).neq("status", "cancelled")),
+      countRows("appointments"),
+      countRows("support_requests", (q) => q.neq("status", "resolved")),
+    ]);
+
+  if (clinicResult.error) throw new Error(clinicResult.error.message);
+
+  return {
+    clinic: clinicResult.data,
+    staffCount,
+    patientCount,
+    walkInCount,
+    upcomingAppointments,
+    totalAppointments,
+    openFeedback,
+  };
+}
+
+// ─────────────────────────────────────────
+// Patient Profile (read-only)
+// ─────────────────────────────────────────
+
+export interface PatientOverview {
+  appointments: {
+    id: string;
+    service: string | null;
+    appointment_date: string | null;
+    appointment_time: string | null;
+    status: string | null;
+  }[];
+  appointmentCount: number;
+  billingCount: number;
+  unpaidBillingCount: number;
+  documentCount: number;
+  scanCount: number;
+  hasMedicalIntake: boolean;
+  feedback: Pick<SupportRequest, "id" | "subject" | "status" | "created_at">[];
+}
+
+export async function getPatientOverview(patientId: string): Promise<PatientOverview> {
+  const forPatient = (q: any) => q.eq("patient_id", patientId);
+  const [appointmentResult, appointmentCount, billingCount, unpaidBillingCount, documentCount, scanCount, intakeCount, feedbackResult] =
+    await Promise.all([
+      supabase
+        .from("appointments")
+        .select("id, service, appointment_date, appointment_time, status")
+        .eq("patient_id", patientId)
+        .order("appointment_date", { ascending: false })
+        .limit(5),
+      countRows("appointments", forPatient),
+      countRows("billings", forPatient),
+      countRows("billings", (q) => forPatient(q).in("payment_status", ["not_paid", "overdue"])),
+      countRows("patient_documents", forPatient),
+      countRows("analysis_results", forPatient),
+      countRows("medical_intake", forPatient),
+      supabase
+        .from("support_requests")
+        .select("id, subject, status, created_at")
+        .eq("requester_id", patientId)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  if (appointmentResult.error) throw new Error(appointmentResult.error.message);
+  if (feedbackResult.error) throw new Error(feedbackResult.error.message);
+
+  return {
+    appointments: appointmentResult.data || [],
+    appointmentCount,
+    billingCount,
+    unpaidBillingCount,
+    documentCount,
+    scanCount,
+    hasMedicalIntake: intakeCount > 0,
+    feedback: (feedbackResult.data || []) as PatientOverview["feedback"],
+  };
 }

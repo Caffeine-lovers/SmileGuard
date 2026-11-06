@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   BackHandler,
   Platform,
+  KeyboardAvoidingView,
   ToastAndroid,
   Linking,
   PanResponder,
@@ -1574,7 +1575,8 @@ export default function AssistantDashboard({
       ───────────────────────────────────────── */}
       <View style={styles.contentArea}>
         {activeTab === "dashboard" ? (
-          <ScrollView ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+<ScrollView keyboardShouldPersistTaps="handled" ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
             <View style={styles.container}>
               {/* Friendly Assistant Header Banner */}
               <View style={styles.clinicBanner}>
@@ -2377,6 +2379,7 @@ export default function AssistantDashboard({
 
             </View>
           </ScrollView>
+</KeyboardAvoidingView>
         ) : activeTab === "records" ? (
           <RecordsTab
             patients={patients}
@@ -2785,7 +2788,7 @@ export default function AssistantDashboard({
         animationType="fade"
         onRequestClose={() => setShowQuickPatientSearch(false)}
       >
-        <View style={styles.quickSearchOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.quickSearchOverlay}>
           <View style={styles.quickSearchBox}>
             <View style={styles.quickSearchHeader}>
               <Text style={styles.quickSearchTitle}>FIND A PATIENT</Text>
@@ -2849,7 +2852,7 @@ export default function AssistantDashboard({
                 ))}
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ─────────────────────────────────────────

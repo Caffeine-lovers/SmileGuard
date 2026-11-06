@@ -8,6 +8,7 @@ import {
   Alert,
   StyleSheet,
   Modal,
+  KeyboardAvoidingView,
   ActivityIndicator,
   Image,
   StatusBar,
@@ -516,6 +517,7 @@ export default function DoctorProfileEdit({
         </TouchableOpacity>
       </View>
 
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
@@ -951,6 +953,7 @@ export default function DoctorProfileEdit({
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Specialty Picker Modal */}
       <Modal

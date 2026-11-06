@@ -877,7 +877,7 @@ export default function AppointmentsTab({
           </View>
         </View>
 
-        <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
           {/* Search Input */}
           <View
             ref={tour.register("appointments-search")}

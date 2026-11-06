@@ -61,15 +61,12 @@ export function useAuth() {
 
           const userName = user.user_metadata?.name || user.email?.split("@")[0] || "User";
           let pendingRole: string | null = null;
-          let pendingCode: string | null = null;
           try {
-            const stores = await AsyncStorage.multiGet(["@pending_user_role", "@pending_doctor_access_code"]);
-            pendingRole = stores[0]?.[1] || null;
-            pendingCode = stores[1]?.[1] || null;
+            pendingRole = await AsyncStorage.getItem("@pending_user_role");
           } catch (e) {
             console.warn("[useAuth] Could not read pending role from AsyncStorage:", e);
           }
-          const isPendingAssistant = pendingRole === "assistant" || (pendingCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || user.user_metadata?.role === "assistant";
+          const isPendingAssistant = pendingRole === "assistant" || user.user_metadata?.role === "assistant";
           const userRole = isPendingAssistant ? "assistant" : (user.user_metadata?.role || "doctor");
           const userEmail = user.email || "";
 

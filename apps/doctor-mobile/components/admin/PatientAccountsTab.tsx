@@ -11,8 +11,9 @@ import {
   TextInput,
 } from "react-native";
 import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
-import { User, Search, Trash2, Mail, Phone, Calendar, X } from "lucide-react-native";
+import { User, Search, Trash2, Mail, Calendar, X } from "lucide-react-native";
 import { AdminPatientRow, listPatients, deletePatientAccount } from "../../lib/adminService";
+import PatientDetailModal from "./PatientDetailModal";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -21,6 +22,7 @@ export default function PatientAccountsTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<AdminPatientRow | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchPatients = useCallback(async (query?: string) => {
@@ -113,13 +115,10 @@ export default function PatientAccountsTab() {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Patients</Text>
-        </View>
-
         {patients.length === 0 ? (
           <View style={styles.emptyCard}>
             <User size={32} color="#94A3B8" />
@@ -134,29 +133,30 @@ export default function PatientAccountsTab() {
               style={styles.card}
             >
               <View style={styles.cardHeader}>
-                <View style={styles.avatarBox}>
-                  <User size={17} color="#047857" />
-                </View>
-
-                <View style={styles.patientInfo}>
-                  <Text style={styles.patientName}>{patient.name || "Anonymous Patient"}</Text>
-                  <View style={styles.contactRow}>
-                    {patient.email ? (
-                      <View style={styles.contactItem}>
-                        <Mail size={11} color="#64748B" />
-                        <Text style={styles.contactText} numberOfLines={1}>
-                          {patient.email}
-                        </Text>
-                      </View>
-                    ) : null}
-                    {patient.phone_number ? (
-                      <View style={styles.contactItem}>
-                        <Phone size={11} color="#64748B" />
-                        <Text style={styles.contactText}>{patient.phone_number}</Text>
-                      </View>
-                    ) : null}
+                <TouchableOpacity
+                  style={styles.patientTapArea}
+                  onPress={() => setSelectedPatient(patient)}
+                  activeOpacity={0.75}
+                  accessibilityLabel="View patient"
+                >
+                  <View style={styles.avatarBox}>
+                    <User size={17} color="#047857" />
                   </View>
-                </View>
+
+                  <View style={styles.patientInfo}>
+                    <Text style={styles.patientName}>{patient.name || "Anonymous Patient"}</Text>
+                    <View style={styles.contactRow}>
+                      {patient.email ? (
+                        <View style={styles.contactItem}>
+                          <Mail size={11} color="#64748B" />
+                          <Text style={styles.contactText} numberOfLines={1}>
+                            {patient.email}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.deleteIconBtn}
@@ -183,11 +183,19 @@ export default function PatientAccountsTab() {
           ))
         )}
       </ScrollView>
+
+      <PatientDetailModal patient={selectedPatient} onClose={() => setSelectedPatient(null)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  patientTapArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",

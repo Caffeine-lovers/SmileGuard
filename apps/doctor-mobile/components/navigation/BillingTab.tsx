@@ -11,7 +11,6 @@ import {
   StyleSheet,
   FlatList,
   KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -1295,6 +1294,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
             </View>
 
             <FlatList
+              keyboardShouldPersistTaps="handled"
               data={filteredPatients}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
               keyExtractor={(item) => item.id}
@@ -1518,7 +1518,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
               {/* Original Amount Input */}
               <View style={localStyles.formGroup}>
                 <Text style={localStyles.formLabel}>Original Amount (₱)</Text>
@@ -1713,6 +1714,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                 </TouchableOpacity>
               </View>
             </ScrollView>
+</KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
 
@@ -1745,7 +1747,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
               {/* Patient Selection */}
               <View style={localStyles.formGroup}>
                 <Text style={localStyles.formLabel}>Select Walk-in / Dummy Patient</Text>
@@ -1965,6 +1968,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                 </TouchableOpacity>
               </View>
             </ScrollView>
+</KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
 

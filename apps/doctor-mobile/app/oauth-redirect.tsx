@@ -59,19 +59,9 @@ export default function OAuthRedirect() {
             console.log("[OAuthRedirect] Fallback routing check triggered");
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-              const [savedCodeRaw, savedRole, pendingIsAdmin] = await Promise.all([
-                AsyncStorage.getItem("@pending_doctor_access_code"),
-                AsyncStorage.getItem("@pending_user_role"),
-                AsyncStorage.getItem("@pending_is_admin"),
-              ]);
-              const savedCode = (savedCodeRaw || "").trim().toUpperCase();
+              const savedRole = await AsyncStorage.getItem("@pending_user_role");
 
-              if (
-                savedCode === "CLINIC-ADMIN-01" ||
-                savedCode.includes("ADMIN") ||
-                savedRole === "admin" ||
-                pendingIsAdmin === "true"
-              ) {
+              if (savedRole === "admin") {
                 console.log("[OAuthRedirect] Fallback: admin detected, routing to /(admin)/dashboard");
                 router.replace("/(admin)/dashboard");
                 return;

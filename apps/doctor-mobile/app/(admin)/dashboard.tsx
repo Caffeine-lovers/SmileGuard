@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import {
+  Building2,
   KeyRound,
   Stethoscope,
   Users,
@@ -14,6 +15,7 @@ import {
   Sparkles,
   ShieldCheck,
 } from "lucide-react-native";
+import ClinicOverviewTab from "../../components/admin/ClinicOverviewTab";
 import AccessCodesTab from "../../components/admin/AccessCodesTab";
 import DentistAccountsTab from "../../components/admin/DentistAccountsTab";
 import PatientAccountsTab from "../../components/admin/PatientAccountsTab";
@@ -21,7 +23,7 @@ import SupportRequestsTab from "../../components/admin/SupportRequestsTab";
 import AttemptLogTab from "../../components/admin/AttemptLogTab";
 import AdminTourModal from "../../components/admin/AdminTourModal";
 
-export type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts";
+export type AdminTab = "clinic" | "codes" | "dentists" | "patients" | "support" | "attempts";
 
 interface TabMeta {
   id: AdminTab;
@@ -30,6 +32,11 @@ interface TabMeta {
 }
 
 const TABS: TabMeta[] = [
+  {
+    id: "clinic",
+    label: "Clinic",
+    icon: Building2,
+  },
   {
     id: "codes",
     label: "Access Codes",
@@ -58,38 +65,11 @@ const TABS: TabMeta[] = [
 ];
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState<AdminTab>("codes");
+  const [activeTab, setActiveTab] = useState<AdminTab>("clinic");
   const [showTour, setShowTour] = useState(false);
 
-  // Automatically check if the admin has seen the UI walkthrough tour
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        const key = userId ? `@has_seen_admin_tour_${userId}` : "@has_seen_admin_tour_default";
-        const hasSeen = await AsyncStorage.getItem(key);
-        if (!hasSeen) {
-          timer = setTimeout(() => setShowTour(true), 600);
-        }
-      } catch (err) {
-        console.warn("[AdminDashboard] Error checking tour status:", err);
-      }
-    })();
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleTourClose = async () => {
+  const handleTourClose = () => {
     setShowTour(false);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      const key = userId ? `@has_seen_admin_tour_${userId}` : "@has_seen_admin_tour_default";
-      await AsyncStorage.setItem(key, "true");
-    } catch (err) {
-      console.warn("[AdminDashboard] Error persisting tour completion:", err);
-    }
   };
 
   const handleLogout = () => {
@@ -100,8 +80,6 @@ export default function AdminDashboardPage() {
         style: "destructive",
         onPress: async () => {
           try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const userId = session?.user?.id;
             await supabase.auth.signOut();
             const keysToRemove = [
               "supabase.auth.token",
@@ -109,11 +87,7 @@ export default function AdminDashboardPage() {
               "supabase.auth.user",
               "@pending_doctor_access_code",
               "@pending_user_role",
-              "@pending_is_admin",
             ];
-            if (userId) {
-              keysToRemove.push(`@admin_authenticated_${userId}`);
-            }
             await AsyncStorage.multiRemove(keysToRemove);
           } catch (err) {
             console.error("[AdminDashboard] Logout error:", err);
@@ -151,13 +125,6 @@ export default function AdminDashboardPage() {
                   accessibilityLabel={tab.label}
                 >
                   <View style={[styles.navIconBtn, isActive && styles.navIconBtnActive]}>
-                    {isActive && (
-                      <Animated.View
-                        entering={FadeIn.duration(160)}
-                        exiting={FadeOut.duration(120)}
-                        style={styles.activeBar}
-                      />
-                    )}
                     <Icon
                       size={20}
                       color={isActive ? "#FFFFFF" : "#64748B"}
@@ -213,6 +180,7 @@ export default function AdminDashboardPage() {
               exiting={FadeOut.duration(100)}
               style={styles.tabBodyInner}
             >
+              {activeTab === "clinic" && <ClinicOverviewTab onOpenTab={setActiveTab} />}
               {activeTab === "codes" && <AccessCodesTab />}
               {activeTab === "dentists" && <DentistAccountsTab />}
               {activeTab === "patients" && <PatientAccountsTab />}
@@ -292,14 +260,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.28,
     shadowRadius: 8,
     elevation: 4,
-  },
-  activeBar: {
-    position: "absolute",
-    left: -10,
-    width: 4,
-    height: 22,
-    borderRadius: 2,
-    backgroundColor: "#047857",
   },
   railBottom: {
     alignItems: "center",

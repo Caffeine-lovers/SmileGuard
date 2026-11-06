@@ -634,7 +634,7 @@ export default function RecordsTab({
           </View>
         </View>
 
-        <ScrollView ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" ref={scrollViewRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 32 }}>
           {loadingSupabase ? (
             <View style={{ paddingVertical: 48, alignItems: 'center', justifyContent: 'center' }}>
               <ActivityIndicator size="large" color="#047857" />

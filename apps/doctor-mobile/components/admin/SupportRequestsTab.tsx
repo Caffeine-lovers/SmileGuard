@@ -11,7 +11,6 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { supabase } from "@smileguard/supabase-client";
@@ -142,10 +141,6 @@ export default function SupportRequestsTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Support Tickets</Text>
-        </View>
-
         {requests.length === 0 ? (
           <View style={styles.emptyCard}>
             <LifeBuoy size={32} color="#94A3B8" />
@@ -171,7 +166,11 @@ export default function SupportRequestsTab() {
                   <View style={styles.ticketInfo}>
                     <Text style={styles.subjectText}>{req.subject || "No Subject"}</Text>
                     <Text style={styles.metaText}>
-                      From {req.requester_role || "User"} · {new Date(req.created_at).toLocaleDateString()}
+                      {req.requester?.name || req.requester?.email || "Unknown"}
+                      {req.requester_role ? ` (${req.requester_role})` : ""}
+                    </Text>
+                    <Text style={styles.metaText}>
+                      {[req.source_platform, new Date(req.created_at).toLocaleDateString()].filter(Boolean).join(" · ")}
                     </Text>
                   </View>
                   <View
@@ -245,7 +244,7 @@ export default function SupportRequestsTab() {
         onRequestClose={() => setResolvingRequest(null)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
           style={styles.modalOverlay}
         >
           <View style={styles.modalBackdrop}>

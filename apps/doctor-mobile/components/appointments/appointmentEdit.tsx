@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -237,9 +238,11 @@ export default function AppointmentEdit({
         </View>
 
         {/* Scrollable Content */}
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* Patient & Appointment Card */}
@@ -597,6 +600,7 @@ export default function AppointmentEdit({
             )}
           </TouchableOpacity>
         </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );

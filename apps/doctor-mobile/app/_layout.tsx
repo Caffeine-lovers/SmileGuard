@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
 import { useEffect, useState } from "react";
@@ -160,11 +160,9 @@ export default function RootLayout() {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
           try {
-            const [savedCodeRaw, savedRole, pendingIsAdmin, adminAuthToken] = await Promise.all([
+            const [savedCodeRaw, savedRole] = await Promise.all([
               AsyncStorage.getItem("@pending_doctor_access_code"),
               AsyncStorage.getItem("@pending_user_role"),
-              AsyncStorage.getItem("@pending_is_admin"),
-              AsyncStorage.getItem(`@admin_authenticated_${user.id}`),
             ]);
             const savedCode = (savedCodeRaw || "").trim().toUpperCase();
 
@@ -177,28 +175,9 @@ export default function RootLayout() {
               .eq("id", user.id)
               .maybeSingle();
 
-            const isUserAdmin =
-              adminProfile?.role === "admin" ||
-              savedRole === "admin" ||
-              savedCode === "CLINIC-ADMIN-01" ||
-              savedCode.includes("ADMIN") ||
-              pendingIsAdmin === "true" ||
-              adminAuthToken === "true";
-
-            if (isUserAdmin) {
+            // (admin)/_layout.tsx confirms this with the server before showing anything.
+            if (adminProfile?.role === "admin" || savedRole === "admin") {
               console.log("[RootLayout] Admin user detected, routing to /(admin)/dashboard");
-              await AsyncStorage.setItem(`@admin_authenticated_${user.id}`, "true");
-              await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role", "@pending_is_admin"]);
-              if (adminProfile?.role !== "admin") {
-                try {
-                  await supabase
-                    .from("profiles")
-                    .update({ role: "admin" })
-                    .eq("id", user.id);
-                } catch (e) {
-                  console.warn("[RootLayout] Admin role update in DB skipped:", e);
-                }
-              }
               router.replace("/(admin)/dashboard");
               return;
             }
@@ -234,8 +213,8 @@ export default function RootLayout() {
 
             // 2. Authoritative check: verify access code entered aligns with doctors.role
             if (savedCode.length > 0) {
-              const isAssistantCode = savedCode === "SMILEGUARD-STAFF";
-              const isDoctorCode = savedCode === "SMILE-DOC-2026";
+              const isAssistantCode = savedRole === "assistant";
+              const isDoctorCode = savedRole === "doctor";
 
               const handleAccessBlock = (message: string) => {
                 Alert.alert(
@@ -266,16 +245,16 @@ export default function RootLayout() {
                 );
               };
 
-              // Case A: User entered Assistant access code (SMILEGUARD-STAFF), but doctors table says 'doctor'
+              // Case A: User entered an assistant access code, but doctors table says 'doctor'
               if (isAssistantCode && doctorTableRole === "doctor") {
-                console.warn("[RootLayout] Access Blocked: SMILEGUARD-STAFF entered for doctor role in doctors table");
+                console.warn("[RootLayout] Access Blocked: assistant code entered for doctor role in doctors table");
                 handleAccessBlock(
                   "This account is registered as a Doctor. Please use your Doctor Clinic Access Code to log in."
                 );
                 return;
               }
 
-              // Case B: User entered Doctor access code (SMILE-DOC-2026), but doctors table says 'assistant'
+              // Case B: User entered a doctor access code, but doctors table says 'assistant'
               if (isDoctorCode && doctorTableRole === "assistant") {
                 console.warn("[RootLayout] Access Blocked: Doctor code entered for assistant role in doctors table");
                 handleAccessBlock(
@@ -285,7 +264,16 @@ export default function RootLayout() {
               }
             }
 
-            // 3. Roles align: clear pending code and proceed to dashboard
+            // 3. Roles align: log the sign-in, clear pending code and proceed to dashboard
+            if (savedCode) {
+              const { error: signInLogError } = await supabase.rpc("record_code_sign_in", {
+                p_code: savedCode,
+                p_platform: Platform.OS,
+              });
+              if (signInLogError) {
+                console.warn("[RootLayout] Could not log sign-in:", signInLogError.message);
+              }
+            }
             await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
             console.log("[RootLayout] Profile and access code role aligned, routing to /(doctor)/dashboard");
             router.replace("/(doctor)/dashboard");

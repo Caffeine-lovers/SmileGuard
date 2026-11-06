@@ -89,10 +89,6 @@ export default function DentistAccountsTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Staff</Text>
-        </View>
-
         {doctors.length === 0 ? (
           <View style={styles.emptyCard}>
             <Stethoscope size={32} color="#94A3B8" />

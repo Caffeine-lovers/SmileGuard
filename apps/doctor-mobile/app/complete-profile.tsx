@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  KeyboardAvoidingView,
   StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -113,6 +114,7 @@ export default function CompleteProfile() {
 
   return (
     <SafeAreaView style={styles.modalFull}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <View style={styles.bordercard}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -247,6 +249,7 @@ export default function CompleteProfile() {
           </View>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

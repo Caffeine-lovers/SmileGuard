@@ -11,15 +11,15 @@ import {
   Alert,
   RefreshControl,
   KeyboardAvoidingView,
-  Platform,
+  Share,
 } from "react-native";
 import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
-import { Plus, X, Power, Trash2, KeyRound, Stethoscope, Users, CheckCircle2 } from "lucide-react-native";
+import { Plus, X, RefreshCw, Trash2, KeyRound, Stethoscope, Users, CheckCircle2, ShieldAlert, Share2 } from "lucide-react-native";
 import {
   DoctorAccessCode,
   listAccessCodes,
   createAccessCode,
-  updateAccessCode,
+  regenerateAccessCode,
   deleteAccessCode,
 } from "../../lib/adminService";
 
@@ -33,10 +33,17 @@ export default function AccessCodesTab() {
   const [newCode, setNewCode] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newTier, setNewTier] = useState<"doctor" | "assistant">("doctor");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [regeneratedCode, setRegeneratedCode] = useState<DoctorAccessCode | null>(null);
 
   const fetchCodes = useCallback(async () => {
-    const data = await listAccessCodes();
-    setCodes(data);
+    try {
+      setCodes(await listAccessCodes());
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Could not load access codes.");
+    }
   }, []);
 
   useEffect(() => {
@@ -78,17 +85,35 @@ export default function AccessCodesTab() {
     }
   };
 
-  const handleToggleActive = async (item: DoctorAccessCode) => {
-    setCodes((prev) =>
-      prev.map((c) => (c.id === item.id ? { ...c, is_active: !c.is_active } : c))
-    );
-    const ok = await updateAccessCode(item.id, { is_active: !item.is_active });
-    if (!ok) {
-      setCodes((prev) =>
-        prev.map((c) => (c.id === item.id ? { ...c, is_active: item.is_active } : c))
-      );
-      Alert.alert("Error", "Failed to update access code.");
+  const runRegenerate = async (item: DoctorAccessCode) => {
+    setRegeneratingId(item.id);
+    try {
+      const updated = await regenerateAccessCode(item.id);
+      setCodes((prev) => prev.map((c) => (c.id === item.id ? { ...c, ...updated } : c)));
+      setRegeneratedCode(updated);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to regenerate access code.";
+      Alert.alert("Error", message);
+    } finally {
+      setRegeneratingId(null);
     }
+  };
+
+  const handleRegenerate = (item: DoctorAccessCode) => {
+    const warning =
+      item.tier === "admin"
+        ? "The old code stops working immediately. You'll need the new code the next time you sign in, so save it somewhere safe."
+        : "The old code stops working immediately. Staff will need the new code the next time they sign in.";
+    Alert.alert(`Regenerate "${item.code}"?`, warning, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Regenerate", onPress: () => runRegenerate(item) },
+    ]);
+  };
+
+  const handleShareCode = (item: DoctorAccessCode) => {
+    Share.share({ message: item.code }).catch((err) => {
+      console.warn("[AccessCodesTab] Share failed:", err);
+    });
   };
 
   const handleDelete = (item: DoctorAccessCode) => {
@@ -129,8 +154,7 @@ export default function AccessCodesTab() {
         showsVerticalScrollIndicator={false}
       >
         {/* Section Header Action Bar */}
-        <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Access Codes</Text>
+        <View style={[styles.headerBar, { justifyContent: "flex-end" }]}>
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => setShowCreateModal(true)}
@@ -141,7 +165,13 @@ export default function AccessCodesTab() {
           </TouchableOpacity>
         </View>
 
-        {codes.length === 0 ? (
+        {loadError ? (
+          <View style={styles.emptyCard}>
+            <ShieldAlert size={32} color="#DC2626" />
+            <Text style={styles.emptyTitle}>Couldn't Load Access Codes</Text>
+            <Text style={styles.errorText}>{loadError}</Text>
+          </View>
+        ) : codes.length === 0 ? (
           <View style={styles.emptyCard}>
             <KeyRound size={32} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No Access Codes</Text>
@@ -162,7 +192,7 @@ export default function AccessCodesTab() {
                     <KeyRound size={17} color={isAdmin ? "#D97706" : "#047857"} />
                   </View>
                   <View style={styles.cardInfo}>
-                    <Text style={styles.codeText}>{item.code}</Text>
+                    <Text style={styles.codeText} selectable>{item.code}</Text>
                     <Text style={styles.labelText}>{item.label || "Clinic Code"}</Text>
                   </View>
                   <View
@@ -200,30 +230,81 @@ export default function AccessCodesTab() {
                 {/* Action Row */}
                 <View style={styles.cardActions}>
                   <TouchableOpacity
-                    style={[styles.actionBtn, item.is_active ? styles.btnDeactivate : styles.btnActivate]}
-                    onPress={() => handleToggleActive(item)}
+                    style={[styles.actionBtn, styles.btnRegenerate]}
+                    onPress={() => handleRegenerate(item)}
+                    disabled={regeneratingId === item.id}
                     activeOpacity={0.75}
                   >
-                    <Power size={13} color={item.is_active ? "#B45309" : "#047857"} />
-                    <Text style={[styles.actionBtnText, { color: item.is_active ? "#B45309" : "#047857" }]}>
-                      {item.is_active ? "Deactivate" : "Activate"}
-                    </Text>
+                    {regeneratingId === item.id ? (
+                      <ActivityIndicator size="small" color="#047857" />
+                    ) : (
+                      <RefreshCw size={13} color="#047857" />
+                    )}
+                    <Text style={[styles.actionBtnText, { color: "#047857" }]}>Re-generate</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.btnDelete]}
-                    onPress={() => handleDelete(item)}
-                    activeOpacity={0.75}
-                  >
-                    <Trash2 size={13} color="#DC2626" />
-                    <Text style={[styles.actionBtnText, { color: "#DC2626" }]}>Delete</Text>
-                  </TouchableOpacity>
+                  {!isAdmin && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.btnDelete]}
+                      onPress={() => handleDelete(item)}
+                      activeOpacity={0.75}
+                    >
+                      <Trash2 size={13} color="#DC2626" />
+                      <Text style={[styles.actionBtnText, { color: "#DC2626" }]}>Delete</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </Animated.View>
             );
           })
         )}
       </ScrollView>
+
+      {/* New code, shown right after regenerating */}
+      <Modal
+        visible={!!regeneratedCode}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setRegeneratedCode(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>New Access Code</Text>
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setRegeneratedCode(null)}>
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.newCodeHint}>
+                The old code no longer works. Save this one now and share it with whoever needs it.
+              </Text>
+              <View style={styles.newCodeBox}>
+                <Text style={styles.newCodeText} selectable>{regeneratedCode?.code}</Text>
+              </View>
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setRegeneratedCode(null)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelText}>Done</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalSubmitBtn}
+                  onPress={() => regeneratedCode && handleShareCode(regeneratedCode)}
+                  activeOpacity={0.85}
+                >
+                  <Share2 size={16} color="#FFFFFF" />
+                  <Text style={styles.modalSubmitText}>Share Code</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Redesigned Modal: New Access Code */}
       <Modal
@@ -233,7 +314,7 @@ export default function AccessCodesTab() {
         onRequestClose={() => setShowCreateModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
           style={styles.modalOverlay}
         >
           <View style={styles.modalBackdrop}>
@@ -500,6 +581,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 10,
+  },
+  btnRegenerate: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
+  newCodeHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#475569",
+    marginBottom: 12,
+  },
+  newCodeBox: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  newCodeText: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.5,
+    textAlign: "center",
   },
   actionBtn: {
     flex: 1,

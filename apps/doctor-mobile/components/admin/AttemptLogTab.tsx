@@ -1,26 +1,44 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { ListChecks, CheckCircle2, XCircle, ShieldAlert, Clock, Key } from "lucide-react-native";
+import { ListChecks, CheckCircle2, XCircle, ShieldAlert, Clock, Key, RefreshCw, Trash2, Plus, LogIn, ShieldCheck, User, Globe } from "lucide-react-native";
 import { DoctorCodeAttempt, listCodeAttempts } from "../../lib/adminService";
 
-type FilterOption = "all" | "success" | "failure";
+type FilterOption = "all" | "success" | "failure" | "admin";
 
 const FILTER_OPTIONS: { id: FilterOption; label: string }[] = [
-  { id: "all", label: "All Attempts" },
+  { id: "all", label: "All" },
   { id: "success", label: "Authorized" },
   { id: "failure", label: "Rejected" },
+  { id: "admin", label: "Admin" },
 ];
+
+const ADMIN_EVENTS = ["code_created", "code_regenerated", "code_deleted", "code_status_changed", "admin_claim"];
+
+const EVENT_META: Record<string, { label: string; icon: any }> = {
+  verification: { label: "Code entered", icon: Key },
+  sign_in: { label: "Signed in", icon: LogIn },
+  admin_claim: { label: "Admin access", icon: ShieldCheck },
+  code_created: { label: "Code created", icon: Plus },
+  code_regenerated: { label: "Code re-generated", icon: RefreshCw },
+  code_deleted: { label: "Code deleted", icon: Trash2 },
+  code_status_changed: { label: "Code status changed", icon: Key },
+};
 
 export default function AttemptLogTab() {
   const [attempts, setAttempts] = useState<DoctorCodeAttempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterOption>("all");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchAttempts = useCallback(async () => {
-    const data = await listCodeAttempts();
-    setAttempts(data);
+    try {
+      setAttempts(await listCodeAttempts());
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Could not load the audit log.");
+    }
   }, []);
 
   useEffect(() => {
@@ -40,6 +58,7 @@ export default function AttemptLogTab() {
   const filtered = attempts.filter((a) => {
     if (filter === "success") return a.is_successful;
     if (filter === "failure") return !a.is_successful;
+    if (filter === "admin") return ADMIN_EVENTS.includes(a.event || "");
     return true;
   });
 
@@ -53,7 +72,6 @@ export default function AttemptLogTab() {
 
   return (
     <View style={styles.container}>
-      {/* Segmented Filter Pills */}
       <View style={styles.filterBarContainer}>
         <View style={styles.filterBar}>
           {FILTER_OPTIONS.map((option) => {
@@ -79,11 +97,13 @@ export default function AttemptLogTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerBar}>
-          <Text style={styles.sectionTitle}>Audit Log</Text>
-        </View>
-
-        {filtered.length === 0 ? (
+        {loadError ? (
+          <View style={styles.emptyCard}>
+            <ShieldAlert size={32} color="#DC2626" />
+            <Text style={styles.emptyTitle}>Couldn't Load the Audit Log</Text>
+            <Text style={styles.errorText}>{loadError}</Text>
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.emptyCard}>
             <ListChecks size={32} color="#94A3B8" />
             <Text style={styles.emptyTitle}>No Entries</Text>
@@ -91,6 +111,12 @@ export default function AttemptLogTab() {
         ) : (
           filtered.map((attempt, index) => {
             const isSuccess = attempt.is_successful;
+            const meta = EVENT_META[attempt.event || ""] || { label: attempt.event || "Event", icon: Key };
+            const EventIcon = meta.icon;
+            const label = attempt.details?.label;
+            const role = attempt.details?.role;
+            const platform = attempt.details?.platform;
+
             return (
               <Animated.View
                 key={attempt.id}
@@ -99,39 +125,30 @@ export default function AttemptLogTab() {
               >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconBox, isSuccess ? styles.iconBoxSuccess : styles.iconBoxFail]}>
-                    {isSuccess ? (
-                      <CheckCircle2 size={17} color="#047857" />
-                    ) : (
-                      <XCircle size={17} color="#DC2626" />
-                    )}
+                    <EventIcon size={17} color={isSuccess ? "#047857" : "#DC2626"} />
                   </View>
 
                   <View style={styles.attemptInfo}>
                     <View style={styles.codeRow}>
-                      <Text style={styles.codeText}>
-                        {attempt.attempted_code || attempt.code || "Unknown Code"}
-                      </Text>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          isSuccess ? styles.statusBadgeSuccess : styles.statusBadgeFail,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusBadgeText,
-                            isSuccess ? styles.statusTextSuccess : styles.statusTextFail,
-                          ]}
-                        >
-                          {isSuccess ? "AUTHORIZED" : "BLOCKED"}
+                      <Text style={styles.eventText}>{meta.label}</Text>
+                      <View style={[styles.statusBadge, isSuccess ? styles.statusBadgeSuccess : styles.statusBadgeFail]}>
+                        {isSuccess ? <CheckCircle2 size={10} color="#047857" /> : <XCircle size={10} color="#DC2626" />}
+                        <Text style={[styles.statusBadgeText, isSuccess ? styles.statusTextSuccess : styles.statusTextFail]}>
+                          {isSuccess ? "OK" : "BLOCKED"}
                         </Text>
                       </View>
                     </View>
 
+                    {(attempt.attempted_code || attempt.code || label) && (
+                      <Text style={styles.codeText} numberOfLines={1}>
+                        {attempt.attempted_code || attempt.code || label}
+                      </Text>
+                    )}
+
                     <View style={styles.metaRow}>
-                      <View style={styles.timeWrap}>
+                      <View style={styles.metaItem}>
                         <Clock size={11} color="#94A3B8" />
-                        <Text style={styles.metaDate}>
+                        <Text style={styles.metaText}>
                           {new Date(attempt.created_at).toLocaleString([], {
                             month: "short",
                             day: "numeric",
@@ -140,11 +157,22 @@ export default function AttemptLogTab() {
                           })}
                         </Text>
                       </View>
-                      {attempt.details?.role && (
+                      <View style={styles.metaItem}>
+                        <User size={11} color="#94A3B8" />
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {attempt.actor_name || "Not signed in"}
+                        </Text>
+                      </View>
+                      {attempt.ip_address && (
+                        <View style={styles.metaItem}>
+                          <Globe size={11} color="#94A3B8" />
+                          <Text style={styles.metaText}>{attempt.ip_address}</Text>
+                        </View>
+                      )}
+                      {(role || platform) && (
                         <View style={styles.roleTag}>
-                          <Key size={10} color="#475569" />
                           <Text style={styles.roleTagText}>
-                            {String(attempt.details.role).toUpperCase()}
+                            {[role, platform].filter(Boolean).join(" · ").toUpperCase()}
                           </Text>
                         </View>
                       )}
@@ -198,7 +226,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#047857",
   },
   filterPillText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: "700",
     color: "#64748B",
   },
@@ -218,11 +246,6 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     letterSpacing: -0.2,
   },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 1,
-  },
   emptyCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -239,7 +262,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
   },
-  emptySub: {
+  errorText: {
     fontSize: 12,
     color: "#64748B",
     textAlign: "center",
@@ -259,7 +282,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
   },
   iconBox: {
@@ -285,14 +308,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
   },
-  codeText: {
+  eventText: {
+    flex: 1,
     fontSize: 13.5,
     fontWeight: "800",
     color: "#0F172A",
+  },
+  codeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
     letterSpacing: 0.2,
+    marginTop: 2,
   },
   statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2.5,
@@ -318,23 +352,23 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
     alignItems: "center",
+    gap: 8,
     marginTop: 6,
   },
-  timeWrap: {
+  metaItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    maxWidth: "100%",
   },
-  metaDate: {
+  metaText: {
     fontSize: 11,
     color: "#64748B",
+    flexShrink: 1,
   },
   roleTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
     backgroundColor: "#F1F5F9",
     paddingHorizontal: 7,
     paddingVertical: 2,

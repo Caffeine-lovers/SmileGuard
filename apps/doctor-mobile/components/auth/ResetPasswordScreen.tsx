@@ -3,7 +3,7 @@ import { useState } from "react";
 import React from "react";
 import {
   View, Text, TextInput,
-  TouchableOpacity, StyleSheet, ActivityIndicator,
+  TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView,
 } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
 
@@ -29,7 +29,7 @@ export default function ResetPasswordScreen({ onDone }: { onDone: () => void }) 
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView behavior="padding" style={styles.container}>
       <Text style={styles.title}>Set New Password</Text>
       <Text style={styles.sub}>Enter your new password below.</Text>
       <TextInput
@@ -47,7 +47,7 @@ export default function ResetPasswordScreen({ onDone }: { onDone: () => void }) 
           : <Text style={styles.btnText}>Update Password</Text>
         }
       </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

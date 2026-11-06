@@ -218,7 +218,7 @@ export async function createDoctorProfile(
     // (prevents PostgreSQL foreign key constraint violation: doctor_user_id_fkey)
     if (doctor.user_id) {
       try {
-        const isAssistant = (accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant";
+        const isAssistant = doctor.role === "assistant";
         const assignedRole: "doctor" | "assistant" = isAssistant ? "assistant" : "doctor";
         const defaultName = isAssistant ? "Assistant Doctor" : "Doctor";
 
@@ -327,7 +327,7 @@ export async function createDoctorProfile(
 
         // Crucial: Update doctor_phone, gender, years_of_experience, and office_hours
         // which may not be set by older complete_doctor_registration RPCs
-        const isAssistant = (accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant";
+        const isAssistant = doctor.role === "assistant";
         const postRegUpdates: Record<string, any> = {
           updated_at: new Date().toISOString(),
           role: isAssistant ? "assistant" : "doctor",
@@ -420,7 +420,7 @@ export async function createDoctorProfile(
     const { is_available, ...rawCleanDoctor } = doctor as any;
     const cleanDoctor = {
       ...rawCleanDoctor,
-      role: ((accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant") ? "assistant" : "doctor",
+      role: (doctor.role === "assistant") ? "assistant" : "doctor",
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
@@ -436,7 +436,7 @@ export async function createDoctorProfile(
       try {
         const profileUpdates: any = {
           id: cleanDoctor.user_id,
-          role: ((accessCode || "").trim().toUpperCase() === "SMILEGUARD-STAFF" || doctor.role === "assistant") ? "assistant" : "doctor",
+          role: (doctor.role === "assistant") ? "assistant" : "doctor",
           updated_at: new Date().toISOString(),
         };
         if (fullName) profileUpdates.name = fullName;

@@ -18,6 +18,7 @@ import {
   Alert,
   Image,
   Modal,
+  KeyboardAvoidingView,
   StatusBar,
   Platform,
 } from "react-native";
@@ -60,6 +61,7 @@ export default function DoctorProfileSetup({
 
   // ── Doctor Details
   const [accessCode, setAccessCode] = useState("");
+  const [isAssistantRole, setIsAssistantRole] = useState(false);
   const [doctorData, setDoctorData] = useState<Doctor>({
     ...EMPTY_DOCTOR,
     user_id: "",
@@ -115,14 +117,9 @@ export default function DoctorProfileSetup({
   useEffect(() => {
     AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]).then((stores) => {
       const savedCode = stores[0]?.[1];
-      const savedRole = stores[1]?.[1];
+      setIsAssistantRole(stores[1]?.[1] === "assistant");
       if (savedCode) {
         setAccessCode(savedCode.trim().toUpperCase());
-      } else if (savedRole === "assistant") {
-        setAccessCode("SMILEGUARD-STAFF");
-      } else {
-        // Fallback default dev code if none set
-        setAccessCode("SMILE-DOC-2026");
       }
     });
 
@@ -367,7 +364,6 @@ export default function DoctorProfileSetup({
         return;
       }
 
-      const isAssistantRole = accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF";
       const assignedRole: "doctor" | "assistant" = isAssistantRole ? "assistant" : "doctor";
 
       // Pre-seed profile in public.profiles to guarantee existence for doctor_user_id_fkey
@@ -471,7 +467,7 @@ export default function DoctorProfileSetup({
         )}
 
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.topHeaderTitle}>{accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" ? "ASSISTANT REGISTRATION" : "DOCTOR REGISTRATION"}</Text>
+          <Text style={styles.topHeaderTitle}>{isAssistantRole ? "ASSISTANT REGISTRATION" : "DOCTOR REGISTRATION"}</Text>
         </View>
 
         <View style={{ width: 60 }}>
@@ -479,6 +475,7 @@ export default function DoctorProfileSetup({
         </View>
       </View>
 
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
@@ -492,9 +489,9 @@ export default function DoctorProfileSetup({
               <Stethoscope size={18} color="#047857" strokeWidth={2.3} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>{accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" ? "Assistant Profile & License" : "Doctor Profile & License"}</Text>
+              <Text style={styles.heroTitle}>{isAssistantRole ? "Assistant Profile & License" : "Doctor Profile & License"}</Text>
               <Text style={styles.heroSubtitle}>
-                {accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF"
+                {isAssistantRole
                   ? "Complete your assistant registration to activate your SmileGuard staff account."
                   : "Complete your registration to activate your SmileGuard clinic account."}
               </Text>
@@ -864,7 +861,7 @@ export default function DoctorProfileSetup({
               <>
                 <Sparkles size={15} color="#FFFFFF" strokeWidth={2.2} />
                 <Text style={styles.primaryBtnText}>
-                  {accessCode.trim().toUpperCase() === "SMILEGUARD-STAFF" || doctorData.role === "assistant"
+                  {isAssistantRole || doctorData.role === "assistant"
                     ? "Continue to Dashboard"
                     : "Continue to Clinic Setup"}
                 </Text>
@@ -884,6 +881,7 @@ export default function DoctorProfileSetup({
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Specialization Picker Modal */}
       <Modal

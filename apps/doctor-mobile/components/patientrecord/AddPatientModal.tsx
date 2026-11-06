@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Platform,
   StatusBar,
   KeyboardAvoidingView,
 } from "react-native";
@@ -503,7 +502,7 @@ export default function AddPatientModal({
         ) : null}
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           style={{ flex: 1 }}
         >
           <ScrollView

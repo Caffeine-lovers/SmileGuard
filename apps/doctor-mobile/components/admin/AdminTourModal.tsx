@@ -29,7 +29,7 @@ import {
   Compass,
 } from "lucide-react-native";
 
-export type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts";
+export type AdminTab = "clinic" | "codes" | "dentists" | "patients" | "support" | "attempts";
 
 type TourMode = "choose" | "walkthrough" | "tour";
 
@@ -43,15 +43,9 @@ interface TourStep {
   tab?: AdminTab;
   badge: string;
   title: string;
-  subtitle: string;
   description: string;
   icon: any;
   accentColor: string;
-  features: {
-    icon: any;
-    title: string;
-    desc: string;
-  }[];
 }
 
 // Width must match the left nav rail in app/(admin)/dashboard.tsx so the
@@ -62,132 +56,49 @@ const TOUR_STEPS: TourStep[] = [
   {
     badge: "Step 1 of 6 • Overview",
     title: "Admin Console",
-    subtitle: "Navigation Overview",
     description: "Use the left navigation rail to access clinic management modules.",
     icon: ShieldCheck,
     accentColor: "#047857",
-    features: [
-      {
-        icon: KeyRound,
-        title: "Access Codes",
-        desc: "Manage registration codes for doctors and assistants.",
-      },
-      {
-        icon: Stethoscope,
-        title: "Clinicians",
-        desc: "Verify practitioner licenses and credentials.",
-      },
-      {
-        icon: Users,
-        title: "Patients",
-        desc: "Search patient accounts and discount IDs.",
-      },
-    ],
   },
   {
     tab: "codes",
     badge: "Step 2 of 6 • Access Codes",
     title: "Access Codes",
-    subtitle: "Registration Management",
-    description: "Create and toggle registration keys for doctors and clinic assistants.",
+    description: "Create and manage sign-in codes for dentists and clinic assistants.",
     icon: KeyRound,
     accentColor: "#059669",
-    features: [
-      {
-        icon: KeyRound,
-        title: "Standard Codes",
-        desc: "SMILE-DOC-2026 for Dentists, SMILEGUARD-STAFF for Assistants.",
-      },
-      {
-        icon: CheckCircle2,
-        title: "Status Toggle",
-        desc: "Activate or deactivate codes instantly.",
-      },
-    ],
   },
   {
     tab: "dentists",
     badge: "Step 3 of 6 • Clinicians",
     title: "Staff Roster",
-    subtitle: "License Verification",
     description: "Review registered staff and toggle verified status upon PRC license checks.",
     icon: Stethoscope,
     accentColor: "#0D9488",
-    features: [
-      {
-        icon: CheckCircle2,
-        title: "Verify License",
-        desc: "Confirm PRC accreditation.",
-      },
-      {
-        icon: Lock,
-        title: "Manage Access",
-        desc: "Update staff status directly.",
-      },
-    ],
   },
   {
     tab: "patients",
     badge: "Step 4 of 6 • Patients",
     title: "Patient Accounts",
-    subtitle: "Account Records",
     description: "Search registered patient records and inspect Senior Citizen or PWD verification.",
     icon: Users,
     accentColor: "#2563EB",
-    features: [
-      {
-        icon: Users,
-        title: "Search Directory",
-        desc: "Find patient records by name or email.",
-      },
-      {
-        icon: ShieldCheck,
-        title: "Discount Verification",
-        desc: "Verify Senior Citizen and PWD credentials.",
-      },
-    ],
   },
   {
     tab: "support",
     badge: "Step 5 of 6 • Helpdesk",
     title: "Support Tickets",
-    subtitle: "Ticket Management",
     description: "Filter and resolve patient inquiries.",
     icon: LifeBuoy,
     accentColor: "#D97706",
-    features: [
-      {
-        icon: LifeBuoy,
-        title: "Filter Queue",
-        desc: "View Open, In Progress, or Resolved tickets.",
-      },
-      {
-        icon: CheckCircle2,
-        title: "Resolve Tickets",
-        desc: "Update ticket status and notes.",
-      },
-    ],
   },
   {
     tab: "attempts",
     badge: "Step 6 of 6 • Security Log",
     title: "Audit Log",
-    subtitle: "Sign-In Attempts",
     description: "Review authorized and blocked access code attempts.",
     icon: ListChecks,
     accentColor: "#DC2626",
-    features: [
-      {
-        icon: ListChecks,
-        title: "Timestamped Log",
-        desc: "Review access code usage history.",
-      },
-      {
-        icon: ShieldCheck,
-        title: "Security Alerts",
-        desc: "Identify blocked sign-in attempts.",
-      },
-    ],
   },
 ];
 
@@ -198,8 +109,6 @@ export default function AdminTourModal({
 }: AdminTourModalProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [mode, setMode] = useState<TourMode>("choose");
-  const [showNavHint, setShowNavHint] = useState(false);
-  const navHintKeyRef = useRef<string | null>(null);
 
   const step = TOUR_STEPS[currentStep];
   const isFirst = currentStep === 0;
@@ -207,44 +116,6 @@ export default function AdminTourModal({
   // Only the live tour mode moves the real dashboard tab — and only once a
   // tab-specific step is showing, so the welcome screen never needs to dim it.
   const isLiveSheet = mode === "tour" && Boolean(step.tab);
-
-  // One-time nudge pointing at the nav rail, shown the first time the admin
-  // reaches a live tour step where the rail is actually visible and updating.
-  useEffect(() => {
-    if (!visible || !isLiveSheet || currentStep !== 1) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        const key = userId ? `@has_seen_admin_nav_hint_${userId}` : "@has_seen_admin_nav_hint_default";
-        navHintKeyRef.current = key;
-        const seen = await AsyncStorage.getItem(key);
-        if (!seen && !cancelled) {
-          setShowNavHint(true);
-          timer = setTimeout(() => dismissNavHint(), 4000);
-        }
-      } catch (err) {
-        console.warn("[AdminTourModal] Error checking nav hint status:", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [visible, isLiveSheet, currentStep]);
-
-  const dismissNavHint = async () => {
-    setShowNavHint(false);
-    const key = navHintKeyRef.current;
-    if (!key) return;
-    try {
-      await AsyncStorage.setItem(key, "true");
-    } catch (err) {
-      console.warn("[AdminTourModal] Error persisting nav hint seen:", err);
-    }
-  };
 
   if (!visible) return null;
 
@@ -409,26 +280,7 @@ export default function AdminTourModal({
         )}
 
         <Text style={[styles.title, compact && styles.titleCompact]}>{step.title}</Text>
-        <Text style={styles.subtitle}>{step.subtitle}</Text>
         <Text style={styles.description}>{step.description}</Text>
-
-        {/* Features List */}
-        <View style={styles.featuresContainer}>
-          {step.features.map((feat, fIdx) => {
-            const FeatIcon = feat.icon;
-            return (
-              <View key={fIdx} style={styles.featureItem}>
-                <View style={[styles.featureIconBadge, { backgroundColor: `${step.accentColor}14` }]}>
-                  <FeatIcon size={16} color={step.accentColor} />
-                </View>
-                <View style={styles.featureTextWrapper}>
-                  <Text style={styles.featureTitle}>{feat.title}</Text>
-                  <Text style={styles.featureDesc}>{feat.desc}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
       </ScrollView>
 
       {renderFooter()}
@@ -446,25 +298,6 @@ export default function AdminTourModal({
               {cardBody(true)}
             </SafeAreaView>
           </View>
-
-          {showNavHint && (
-            <Animated.View
-              entering={FadeIn.duration(220)}
-              exiting={FadeOut.duration(180)}
-              style={styles.navHintBubble}
-            >
-              <View style={styles.navHintCaret} />
-              <Compass size={14} color="#047857" />
-              <Text style={styles.navHintText}>Watch this tab light up on the left</Text>
-              <TouchableOpacity
-                onPress={dismissNavHint}
-                style={styles.navHintCloseBtn}
-                accessibilityLabel="Dismiss hint"
-              >
-                <X size={12} color="#94A3B8" />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
         </View>
       </Modal>
     );
@@ -510,54 +343,6 @@ const styles = StyleSheet.create({
   },
   sheetSafeArea: {
     padding: 16,
-  },
-  navHintBubble: {
-    position: "absolute",
-    top: "36%",
-    left: NAV_RAIL_WIDTH + 10,
-    maxWidth: 210,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    paddingRight: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  navHintCaret: {
-    position: "absolute",
-    left: -6,
-    top: "50%",
-    marginTop: -6,
-    width: 0,
-    height: 0,
-    borderTopWidth: 6,
-    borderBottomWidth: 6,
-    borderRightWidth: 6,
-    borderTopColor: "transparent",
-    borderBottomColor: "transparent",
-    borderRightColor: "#FFFFFF",
-  },
-  navHintText: {
-    flex: 1,
-    fontSize: 11.5,
-    fontWeight: "700",
-    color: "#065F46",
-    lineHeight: 15,
-  },
-  navHintCloseBtn: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    padding: 2,
   },
   card: {
     backgroundColor: "#FFFFFF",
@@ -644,13 +429,6 @@ const styles = StyleSheet.create({
   titleCompact: {
     fontSize: 17,
   },
-  subtitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748B",
-    textAlign: "center",
-    marginBottom: 12,
-  },
   description: {
     fontSize: 13.5,
     lineHeight: 20,
@@ -658,42 +436,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 16,
     paddingHorizontal: 4,
-  },
-  featuresContainer: {
-    width: "100%",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 12,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  featureItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  featureIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  featureTextWrapper: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 2,
-  },
-  featureDesc: {
-    fontSize: 12,
-    color: "#64748B",
-    lineHeight: 16,
   },
   footerRow: {
     flexDirection: "row",
@@ -776,19 +518,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFFFFF",
   },
-  choiceSubPrimary: {
-    fontSize: 11.5,
-    color: "#D1FAE5",
-    marginTop: 1,
-  },
   choiceTitleSecondary: {
     fontSize: 13.5,
     fontWeight: "800",
     color: "#0F172A",
-  },
-  choiceSubSecondary: {
-    fontSize: 11.5,
-    color: "#64748B",
-    marginTop: 1,
   },
 });

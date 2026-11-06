@@ -35,6 +35,7 @@ import {
 } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
+import SupportFeedbackModal from '../settings/SupportFeedbackModal';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
 import { useAuth } from '../../hooks/useAuth';
 import { getDoctorProfile, updateDoctorProfile } from '../../lib/doctorService';
@@ -75,6 +76,7 @@ export default function SettingsTab({
   const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
   const [doctorData, setDoctorData] = useState<Doctor>(EMPTY_DOCTOR);
@@ -457,7 +459,11 @@ export default function SettingsTab({
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={localStyles.skeuoCard} activeOpacity={0.75}>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            activeOpacity={0.75}
+            onPress={() => setShowSupport(true)}
+          >
             <View style={localStyles.cardContentRow}>
               <View style={localStyles.iconBox}>
                 <PhoneCall size={18} color="#047857" />
@@ -535,6 +541,12 @@ export default function SettingsTab({
           />
         </SafeAreaView>
       </Modal>
+
+      <SupportFeedbackModal
+        visible={showSupport}
+        userId={currentUser?.id}
+        onClose={() => setShowSupport(false)}
+      />
 
       {/* PayMongo Doctor Onboarding & Guidelines Modal */}
       <PayMongoDoctorGuideModal
