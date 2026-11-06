@@ -269,13 +269,6 @@ export default function AppointmentsRequestTab({
     }
   }, [startTourTrigger]);
 
-  // Support triggering refresh from parent (top bar Refresh or tab switch)
-  useEffect(() => {
-    if (refreshTrigger && refreshTrigger > 0) {
-      fetchAppointmentRequests();
-    }
-  }, [refreshTrigger, fetchAppointmentRequests]);
-
   // Fetch appointment requests
   const fetchAppointmentRequests = useCallback(async () => {
     try {
@@ -327,6 +320,13 @@ export default function AppointmentsRequestTab({
       setIsRefreshing(false);
     }
   }, []);
+
+  // Support triggering refresh from parent (top bar Refresh or tab switch)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchAppointmentRequests();
+    }
+  }, [refreshTrigger, fetchAppointmentRequests]);
 
   // Fetch on component mount
   useFocusEffect(

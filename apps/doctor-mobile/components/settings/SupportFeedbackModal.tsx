@@ -13,11 +13,42 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CheckCircle2, ChevronLeft, Send } from "lucide-react-native";
-import {
-  MySupportRequest,
-  listMySupportRequests,
-  submitSupportRequest,
-} from "@smileguard/supabase-client";
+import { supabase } from "@smileguard/supabase-client";
+
+export interface MySupportRequest {
+  id: string;
+  subject: string;
+  message: string;
+  status: string;
+  resolution_note?: string | null;
+  created_at: string;
+}
+
+export async function listMySupportRequests(userId: string): Promise<MySupportRequest[]> {
+  const { data, error } = await supabase
+    .from("support_requests")
+    .select("id, subject, message, status, resolution_note, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []) as MySupportRequest[];
+}
+
+export async function submitSupportRequest(params: {
+  userId: string;
+  subject: string;
+  message: string;
+  platform: string;
+}): Promise<void> {
+  const { error } = await supabase.from("support_requests").insert({
+    user_id: params.userId,
+    subject: params.subject.trim(),
+    message: params.message.trim(),
+    platform: params.platform,
+    status: "pending",
+  });
+  if (error) throw error;
+}
 
 interface SupportFeedbackModalProps {
   visible: boolean;

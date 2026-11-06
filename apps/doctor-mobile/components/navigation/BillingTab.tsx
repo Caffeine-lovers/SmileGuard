@@ -20,7 +20,6 @@ import {
   FileText,
   X,
   ChevronDown,
-  RefreshCw,
   Users,
   User,
   Check,
@@ -34,7 +33,6 @@ import {
   Calendar,
   Search,
   Pencil,
-  Plus,
   Tag,
   AlertCircle,
   Percent,
@@ -719,7 +717,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     p.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
-  const dummyPatientsList = patients.filter((p) => p.is_dummy);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
@@ -1591,115 +1588,6 @@ const localStyles = StyleSheet.create({
     fontWeight: '800',
     color: '#047857',
   },
-  headerActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  createInvoiceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#047857',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#064E3B',
-    borderBottomWidth: 2,
-    borderBottomColor: '#022C22',
-  },
-  createInvoiceBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  skeuoActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1.5,
-    borderTopColor: '#FFFFFF',
-    borderLeftColor: '#E2E8F0',
-    borderRightColor: '#CBD5E1',
-    borderBottomColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // PayMongo Card
-  paymongoCard: {
-    backgroundColor: '#042F2E',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#022C22',
-    padding: 14,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  paymongoBevel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-  },
-  paymongoContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  paymongoIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  paymongoTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  paymongoBadge: {
-    backgroundColor: '#059669',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 4,
-  },
-  paymongoBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  paymongoDesc: {
-    fontSize: 11,
-    color: '#99F6E4',
-    lineHeight: 15,
-    marginTop: 2,
-  },
-  paymongoActionBtn: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: '#047857',
-  },
-  paymongoActionBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#022C22',
-    textTransform: 'uppercase',
-  },
-
-  // Skeuomorphic Cards
   skeuoCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 6,

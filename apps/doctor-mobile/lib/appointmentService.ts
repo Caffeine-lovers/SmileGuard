@@ -1,3 +1,4 @@
+import { toMinutes } from './scheduling';
 import { supabase } from '@smileguard/supabase-client';
 export async function cancelAppointment(
   appointmentId: string
@@ -1088,7 +1089,6 @@ export interface CreateDirectAppointmentInput {
   appointment_date: string;
   appointment_time: string;
   notes?: string;
-  doctor_note?: string;
   status?: 'scheduled' | 'pending';
 }
 
@@ -1096,6 +1096,19 @@ export async function createDirectAppointment(
   input: CreateDirectAppointmentInput
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (input.appointment_date < todayStr) {
+      return { success: false, error: 'Cannot schedule appointment for a past date.' };
+    }
+    if (input.appointment_date === todayStr && input.appointment_time) {
+      const slotMin = toMinutes(input.appointment_time);
+      const now = new Date();
+      const currentMin = now.getHours() * 60 + now.getMinutes();
+      if (!isNaN(slotMin) && slotMin <= currentMin) {
+        return { success: false, error: 'Cannot schedule appointment for a past time slot. Please choose a future time.' };
+      }
+    }
+
     const payload: any = {
       dentist_id: input.dentist_id || null,
       service: input.service || 'General',
@@ -1103,7 +1116,6 @@ export async function createDirectAppointment(
       appointment_time: input.appointment_time,
       status: input.status || 'scheduled',
       notes: input.notes || '',
-      doctor_note: input.doctor_note || '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

@@ -1571,6 +1571,7 @@ export default function AssistantDashboard({
             onPress={async () => {
               setIsRefreshing(true);
               try {
+                await refreshDashboardData();
                 if (activeTab === "billing") {
                   setBillingRefreshTrigger((prev) => prev + 1);
                 } else if (activeTab === "appointments") {
@@ -1579,8 +1580,6 @@ export default function AssistantDashboard({
                   setRecordsRefreshTrigger((prev) => prev + 1);
                 } else if (activeTab === "appointment-requests") {
                   setRequestsRefreshTrigger((prev) => prev + 1);
-                } else {
-                  await refreshDashboardData();
                 }
               } finally {
                 setIsRefreshing(false);

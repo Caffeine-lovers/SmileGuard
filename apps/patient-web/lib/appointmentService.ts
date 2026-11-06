@@ -246,11 +246,15 @@ export function generateTimeSlots(clinicSchedule: ClinicSchedule | null, year: n
   let currentHour = openingTime.hour;
   let currentMinute = openingTime.minute;
   
-  // Generate slots in 1-hour intervals until one hour before closing
-  while (currentHour < closingTime.hour || (currentHour === closingTime.hour && currentMinute < closingTime.minute - 60)) {
+  // Generate slots in 30-minute intervals until closing
+  while (currentHour < closingTime.hour || (currentHour === closingTime.hour && currentMinute < closingTime.minute)) {
     slots.push(`${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
     
-    currentHour += 1;
+    currentMinute += 30;
+    if (currentMinute >= 60) {
+      currentHour += Math.floor(currentMinute / 60);
+      currentMinute = currentMinute % 60;
+    }
   }
 
   console.log(`📊 Generated ${slots.length} time slots for ${dayName} (${daySchedule.opening_time} - ${daySchedule.closing_time}):`, slots);

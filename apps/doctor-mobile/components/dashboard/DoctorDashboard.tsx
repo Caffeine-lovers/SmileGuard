@@ -32,7 +32,7 @@ import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
-import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests, getAppointmentById, confirmAppointmentReschedule } from "../../lib/appointmentService";
+import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests, getAppointmentById } from "../../lib/appointmentService";
 import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
 import { getDoctorProfile, isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from "../../lib/doctorService";
@@ -239,20 +239,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     setDeletedRequestIds(new Set(mergedNotifications.map((n: Notification) => n.id)));
     notificationState.actions.clearAll();
   }, [mergedNotifications, notificationState.actions]);
-
-  // Reschedule confirmation modal state
-  const [confirmingReschedule, setConfirmingReschedule] = useState<DashboardAppointment | null>(null);
-  const [showRescheduleConfirmModal, setShowRescheduleConfirmModal] = useState(false);
-  const [confirmingLoading, setConfirmingLoading] = useState(false);
-  const [confirmedRescheduleIds, setConfirmedRescheduleIds] = useState<Set<string>>(new Set());
-  const [rescheduleSuccessData, setRescheduleSuccessData] = useState<{
-    patientName: string;
-    service: string;
-    date: string;
-    time: string;
-    imageUrl?: string | number;
-  } | null>(null);
-  const [showRescheduleSuccessModal, setShowRescheduleSuccessModal] = useState(false);
 
   // Push notification prompt modal state
   const [promptAppointment, setPromptAppointment] = useState<DashboardAppointment | null>(null);
@@ -652,6 +638,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const handleTopBarRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await refreshDashboardData();
       if (activeTab === 'billing') {
         setBillingRefreshTrigger((prev) => prev + 1);
       } else if (activeTab === 'appointments') {
@@ -660,8 +647,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
         setRecordsRefreshTrigger((prev) => prev + 1);
       } else if (activeTab === 'appointment-requests') {
         setRequestsRefreshTrigger((prev) => prev + 1);
-      } else {
-        await refreshDashboardData();
       }
     } finally {
       setIsRefreshing(false);
@@ -1106,96 +1091,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   // ─────────────────────────────────────────
   // Clinic data is now loaded from ClinicContext and updates in real-time
 
-  // Reschedule requests filter: ONLY pending patient requests that have NOT been confirmed
-  const rescheduleRequests = useMemo(() => {
-    const combined = [...appointments, ...appointmentRequests];
-    const map = new Map<string, DashboardAppointment>();
-
-    combined.forEach((apt: DashboardAppointment) => {
-      // 1. If already confirmed in this session, skip
-      if (confirmedRescheduleIds.has(apt.id)) return;
-
-      const rBy = (apt.rescheduled_by || '').toLowerCase().trim();
-      const status = (apt.status || '').toLowerCase().trim();
-
-      // If already finished or cancelled, skip
-      if (['completed', 'cancelled', 'declined'].includes(status)) return;
-
-      // 2. CRITICAL RULE: If rescheduled_by is 'assistant' or 'doctor', IT HAS BEEN CONFIRMED! Skip!
-      if (rBy === 'assistant' || rBy === 'doctor' || rBy === 'clinic') return;
-
-      // 3. If status is already 'scheduled', the appointment is confirmed/locked! Skip!
-      if (status === 'scheduled') return;
-
-      // 4. Only show if it is a pending reschedule request from the patient
-      const isPatientReschedule =
-        rBy === 'patient' ||
-        (Boolean(apt.rescheduled_at || apt.reschedule_at || (apt.notes && apt.notes.toLowerCase().includes('reschedule'))) &&
-         status === 'pending');
-
-      if (isPatientReschedule && !map.has(apt.id)) {
-        map.set(apt.id, apt);
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) => {
-      const tA = a.rescheduled_at || a.date ? new Date(a.rescheduled_at || a.date).getTime() : 0;
-      const tB = b.rescheduled_at || b.date ? new Date(b.rescheduled_at || b.date).getTime() : 0;
-      return tB - tA;
-    });
-  }, [appointments, appointmentRequests, confirmedRescheduleIds]);
-
-  const handleConfirmReschedule = async (request: DashboardAppointment) => {
-    // 1. Optimistic UI update: Immediately mark confirmed and change rescheduled_by to 'doctor'
-    setConfirmedRescheduleIds((prev) => new Set([...prev, request.id]));
-    setAppointmentRequests((prev) => prev.filter((r) => r.id !== request.id));
-    setAppointments((prev) => {
-      const exists = prev.some((a) => a.id === request.id);
-      if (exists) {
-        return prev.map((a) =>
-          a.id === request.id
-            ? { ...a, status: "scheduled" as const, rescheduled_by: "doctor" }
-            : a
-        );
-      }
-      return [{ ...request, status: "scheduled" as const, rescheduled_by: "doctor" }, ...prev];
-    });
-
-    if (selectedPatient?.id === request.id) {
-      setSelectedPatient((prev) =>
-        prev ? { ...prev, status: "scheduled" as const, rescheduled_by: "doctor" } : prev
-      );
-    }
-
-    try {
-      // 2. Persist to database: explicitly change rescheduled_by to 'doctor' and status to 'scheduled'
-      await confirmAppointmentReschedule(
-        request.id,
-        'doctor',
-        request.dentist_id || undefined
-      );
-
-      // 3. Show Success Modal
-      setRescheduleSuccessData({
-        patientName: request.name,
-        service: request.service || 'Dental Consultation',
-        date: request.date,
-        time: request.time,
-        imageUrl: request.imageUrl,
-      });
-      setShowRescheduleSuccessModal(true);
-      await refreshDashboardData();
-    } catch (err: any) {
-      setConfirmedRescheduleIds((prev) => {
-        const next = new Set(prev);
-        next.delete(request.id);
-        return next;
-      });
-      Alert.alert('Error', err?.message || 'Failed to confirm reschedule');
-    }
-  };
-
-      const handleOpenStatusModal = (appointment: DashboardAppointment) => {
+        const handleOpenStatusModal = (appointment: DashboardAppointment) => {
     setEditingAppointment({
       ...appointment,
       appointment_date: appointment.date,
@@ -1728,95 +1624,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
 
                     </View>
 
-                    {/* Reschedule Requests Section */}
-                    <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
-                      <View style={styles.sectionTitleGroup}>
-                        <CalendarDays size={15} color="#D97706" />
-                        <Text style={styles.sectionHeaderTitle}>RESCHEDULE REQUESTS</Text>
-                        <View style={[styles.pillCountBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                          <Text style={[styles.pillCountText, { color: '#B45309' }]}>{rescheduleRequests.length}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    {rescheduleRequests.length > 0 ? (
-                      rescheduleRequests.map((req) => (
-                        <View key={req.id} style={styles.rescheduleCard}>
-                          {/* Card Top: Patient & Rescheduled By */}
-                          <View style={styles.rescheduleCardTop}>
-                            <Image
-                              source={
-                                typeof req.imageUrl === 'string' && req.imageUrl.length > 0
-                                  ? { uri: req.imageUrl }
-                                  : require('../../assets/images/user.png')
-                              }
-                              style={styles.rescheduleAvatar}
-                            />
-                            <View style={{ flex: 1, marginRight: 8 }}>
-                              <Text style={styles.reschedulePatientName}>{req.name}</Text>
-                              <Text style={styles.rescheduleService}>{req.service || 'Dental Consultation'}</Text>
-                              <View style={styles.rescheduleSlotRow}>
-                                <Calendar size={12} color="#047857" style={{ marginRight: 4 }} />
-                                <Text style={styles.rescheduleSlotText}>
-                                  {formatAppointmentDate(req.date)} • {formatAppointmentTime(req.time)}
-                                </Text>
-                              </View>
-                            </View>
-                            <View style={styles.rescheduledByBadge}>
-                              <Text style={styles.rescheduledByBadgeText}>
-                                {req.rescheduled_by ? `By ${req.rescheduled_by}` : 'Requested'}
-                              </Text>
-                            </View>
-                          </View>
-
-                          {/* Reason / Notes */}
-                          {req.notes ? (
-                            <View style={styles.rescheduleNotesBox}>
-                              <Text style={styles.rescheduleNotesLabel}>Reason for Rescheduling:</Text>
-                              <Text style={styles.rescheduleNotesText} numberOfLines={3}>
-                                "{req.notes}"
-                              </Text>
-                            </View>
-                          ) : null}
-
-                          {/* Request timestamp if available */}
-                          {(req.rescheduled_at || req.reschedule_at) && (
-                            <Text style={styles.rescheduleTimestampText}>
-                              Requested on: {formatAppointmentDate(req.rescheduled_at || req.reschedule_at || "")}
-                            </Text>
-                          )}
-
-                          {/* Actions */}
-                          <View style={styles.rescheduleActionRow}>
-                            <TouchableOpacity
-                              style={styles.rescheduleConfirmBtn}
-                              onPress={() => {
-                                setConfirmingReschedule(req);
-                                setShowRescheduleConfirmModal(true);
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                              <Text style={styles.rescheduleConfirmBtnText}>Confirm Time</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={styles.rescheduleReviewBtn}
-                              onPress={() => handleOpenStatusModal(req)}
-                              activeOpacity={0.8}
-                            >
-                              <Text style={styles.rescheduleReviewBtnText}>Change Status</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ))
-                    ) : (
-                      <View style={styles.emptyRescheduleCard}>
-                        <Clock size={16} color="#94A3B8" style={{ marginBottom: 4 }} />
-                        <Text style={styles.emptyRescheduleText}>No pending reschedule requests</Text>
-                      </View>
-                    )}
-
                     {/* Patients List */}
                     <View style={[styles.sectionHeaderRow, { marginTop: 20, marginBottom: 10 }]}>
                       <View style={styles.sectionTitleGroup}>
@@ -2179,233 +1986,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               />
             </View>
           </SafeAreaView>
-        </Modal>
-
-      {/* Reschedule Confirmation Success Modal */}
-      <Modal
-        visible={showRescheduleSuccessModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => {
-          setShowRescheduleSuccessModal(false);
-          setRescheduleSuccessData(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.successModalCard}>
-            <View style={styles.successIconOuter}>
-              <View style={styles.successIconInner}>
-                <CheckCircle2 size={36} color="#059669" />
-              </View>
-            </View>
-
-            <Text style={styles.successModalTitle}>Reschedule Confirmed!</Text>
-            <Text style={styles.successModalSubtitle}>
-              The appointment has been successfully updated and locked in the schedule.
-            </Text>
-
-            {rescheduleSuccessData && (
-              <View style={styles.successDetailsBox}>
-                <View style={styles.successPatientRow}>
-                  <Image
-                    source={
-                      typeof rescheduleSuccessData.imageUrl === "string" && rescheduleSuccessData.imageUrl.length > 0
-                        ? { uri: rescheduleSuccessData.imageUrl }
-                        : require("../../assets/images/user.png")
-                    }
-                    style={styles.successPatientAvatar}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.successPatientName}>{rescheduleSuccessData.patientName}</Text>
-                    <Text style={styles.successServiceText}>{rescheduleSuccessData.service}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.successSlotRow}>
-                  <Calendar size={14} color="#047857" style={{ marginRight: 6 }} />
-                  <Text style={styles.successSlotDate}>
-                    {formatAppointmentDate(rescheduleSuccessData.date)}
-                  </Text>
-                  <Text style={styles.successSlotDot}>•</Text>
-                  <Clock size={14} color="#047857" style={{ marginRight: 4 }} />
-                  <Text style={styles.successSlotTime}>
-                    {formatAppointmentTime(rescheduleSuccessData.time)}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={styles.successDoneBtn}
-              onPress={() => {
-                setShowRescheduleSuccessModal(false);
-                setRescheduleSuccessData(null);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.successDoneBtnText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-        {/* Reschedule Confirmation Modal Screen */}
-        <Modal
-          visible={showRescheduleConfirmModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => {
-            if (!confirmingLoading) setShowRescheduleConfirmModal(false);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.confirmModalCard}>
-              {/* Header */}
-              <View style={styles.confirmModalHeader}>
-                <View style={styles.confirmModalTitleGroup}>
-                  <View style={styles.confirmModalIconWrap}>
-                    <CalendarDays size={18} color="#047857" />
-                  </View>
-                  <View>
-                    <Text style={styles.confirmModalTitle}>Confirm Reschedule</Text>
-                    <Text style={styles.confirmModalSubtitle}>Review requested schedule changes</Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  onPress={() => setShowRescheduleConfirmModal(false)}
-                  disabled={confirmingLoading}
-                  style={styles.confirmModalCloseBtn}
-                >
-                  <X size={18} color="#64748B" />
-                </TouchableOpacity>
-              </View>
-
-              {confirmingReschedule && (
-                <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-                  {/* Patient Overview */}
-                  <View style={styles.confirmPatientRow}>
-                    <Image
-                      source={
-                        typeof confirmingReschedule.imageUrl === "string" && confirmingReschedule.imageUrl.length > 0
-                          ? { uri: confirmingReschedule.imageUrl }
-                          : require("../../assets/images/user.png")
-                      }
-                      style={styles.confirmPatientAvatar}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.confirmPatientName}>{confirmingReschedule.name}</Text>
-                      <Text style={styles.confirmServiceText}>
-                        {confirmingReschedule.service || "General Dental Consultation"}
-                      </Text>
-                      {confirmingReschedule.contact ? (
-                        <Text style={styles.confirmContactText}>{confirmingReschedule.contact}</Text>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  {/* Requested Schedule Changes Box */}
-                  <View style={styles.scheduleChangesBox}>
-                    <Text style={styles.scheduleChangesBoxTitle}>NEW REQUESTED APPOINTMENT TIME</Text>
-
-                    <View style={styles.scheduleNewSlotCard}>
-                      <View style={styles.slotDetailRow}>
-                        <Calendar size={15} color="#047857" style={{ marginRight: 6 }} />
-                        <Text style={styles.slotDetailLabel}>Date:</Text>
-                        <Text style={styles.slotDetailValue}>
-                          {formatAppointmentDate(confirmingReschedule.date)}
-                        </Text>
-                      </View>
-
-                      <View style={[styles.slotDetailRow, { marginTop: 6 }]}>
-                        <Clock size={15} color="#047857" style={{ marginRight: 6 }} />
-                        <Text style={styles.slotDetailLabel}>Time:</Text>
-                        <Text style={styles.slotDetailValue}>
-                          {confirmingReschedule.time ? formatAppointmentTime(confirmingReschedule.time) : "Not specified"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Rescheduling Meta: Who requested and when */}
-                    <View style={styles.rescheduleMetaBlock}>
-                      <View style={styles.metaRowItem}>
-                        <Text style={styles.metaRowLabel}>Requested by:</Text>
-                        <View style={styles.requestedByPill}>
-                          <Text style={styles.requestedByPillText}>
-                            {confirmingReschedule.rescheduled_by ? confirmingReschedule.rescheduled_by.toUpperCase() : "PATIENT"}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {(confirmingReschedule.rescheduled_at || confirmingReschedule.reschedule_at) && (
-                        <View style={[styles.metaRowItem, { marginTop: 6 }]}>
-                          <Text style={styles.metaRowLabel}>Request submitted:</Text>
-                          <Text style={styles.metaRowTimestamp}>
-                            {formatAppointmentDate(confirmingReschedule.rescheduled_at || confirmingReschedule.reschedule_at || "")}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Reason for Rescheduling ("notes" column) */}
-                    <View style={styles.reasonCard}>
-                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
-                        <FileText size={13} color="#C2410C" style={{ marginRight: 4 }} />
-                        <Text style={styles.reasonTitle}>REASON FOR RESCHEDULING</Text>
-                      </View>
-                      <Text style={styles.reasonText}>
-                        "{confirmingReschedule.notes || "No specific reason provided by patient."}"
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Prompt/Notice text */}
-                  <Text style={styles.confirmNoticeText}>
-                    Confirming will lock this new appointment schedule on the clinic calendar and update the patient's record.
-                  </Text>
-                </ScrollView>
-              )}
-
-              {/* Modal Actions */}
-              <View style={styles.confirmModalActionRow}>
-                <TouchableOpacity
-                  style={styles.confirmModalCancelBtn}
-                  onPress={() => setShowRescheduleConfirmModal(false)}
-                  disabled={confirmingLoading}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.confirmModalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.confirmModalSubmitBtn}
-                  onPress={async () => {
-                    if (!confirmingReschedule) return;
-                    const itemToConfirm = confirmingReschedule;
-                    setShowRescheduleConfirmModal(false);
-                    setConfirmingReschedule(null);
-                    try {
-                      setConfirmingLoading(true);
-                      await handleConfirmReschedule(itemToConfirm);
-                    } finally {
-                      setConfirmingLoading(false);
-                    }
-                  }}
-                  disabled={confirmingLoading}
-                  activeOpacity={0.8}
-                >
-                  {confirmingLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Check size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.confirmModalSubmitText}>Confirm & Lock Time</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
         </Modal>
 
         {/* Appointment Status Edit Modal */}
