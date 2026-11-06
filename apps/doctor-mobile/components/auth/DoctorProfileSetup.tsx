@@ -115,50 +115,77 @@ export default function DoctorProfileSetup({
 
   // Pre-fill access code if stored during welcome screen
   useEffect(() => {
+    let pendingRole: string | null = null;
     AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]).then((stores) => {
       const savedCode = stores[0]?.[1];
-      setIsAssistantRole(stores[1]?.[1] === "assistant");
+      pendingRole = stores[1]?.[1];
+      setIsAssistantRole(pendingRole === "assistant");
       if (savedCode) {
         setAccessCode(savedCode.trim().toUpperCase());
       }
     });
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user?.id) {
-        supabase
-          .from("doctors")
-          .select("*")
-          .eq("user_id", user.id)
-          .maybeSingle()
-          .then(({ data: doc }) => {
-            if (doc) {
-              setDoctorData({
-                first_name: doc.first_name || "",
-                middle_name: doc.middle_name || "",
-                last_name: doc.last_name || "",
-                doctor_phone: doc.doctor_phone || "",
-                specialization: doc.specialization || "",
-                license_number: doc.license_number || "",
-                years_of_experience: doc.years_of_experience || 0,
-                profile_picture_url: doc.profile_picture_url || "",
-                user_id: doc.user_id,
-              });
-              if (doc.doctor_phone) {
-                const cleaned = doc.doctor_phone.replace(/\D/g, "").slice(-10);
-                setPhoneDigits(cleaned);
-                setPhoneDisplay(formatPhoneChunks(cleaned));
-              }
-              if (doc.years_of_experience) {
-                setYearsOfExperienceStr(String(doc.years_of_experience));
-              }
-              if (doc.license_number) {
-                setIsLicenseVerified(true);
-              }
-              if (doc.profile_picture_url) {
-                setSelectedImageUri(doc.profile_picture_url);
-              }
-            }
+        const savedRole = pendingRole || (await AsyncStorage.getItem("@pending_user_role"));
+        const isAssistant = savedRole === "assistant";
+        let doc: any = null;
+
+        if (isAssistant) {
+          const { data: ast } = await supabase
+            .from("assistants")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (ast) {
+            doc = {
+              first_name: ast.first_name,
+              middle_name: ast.middle_name,
+              last_name: ast.last_name,
+              doctor_phone: ast.phone,
+              profile_picture_url: ast.profile_picture_url,
+              user_id: ast.user_id,
+            };
+          }
+        }
+
+        if (!doc) {
+          const { data: doctorRec } = await supabase
+            .from("doctors")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          doc = doctorRec;
+        }
+
+        if (doc) {
+          setDoctorData({
+            first_name: doc.first_name || "",
+            middle_name: doc.middle_name || "",
+            last_name: doc.last_name || "",
+            doctor_phone: doc.doctor_phone || "",
+            specialization: doc.specialization || "",
+            license_number: doc.license_number || "",
+            years_of_experience: doc.years_of_experience || 0,
+            profile_picture_url: doc.profile_picture_url || "",
+            user_id: doc.user_id,
           });
+          if (doc.doctor_phone) {
+            const cleaned = doc.doctor_phone.replace(/\D/g, "").slice(-10);
+            setPhoneDigits(cleaned);
+            setPhoneDisplay(formatPhoneChunks(cleaned));
+          }
+          if (doc.years_of_experience) {
+            setYearsOfExperienceStr(String(doc.years_of_experience));
+          }
+          if (doc.license_number) {
+            setIsLicenseVerified(true);
+          }
+          if (doc.profile_picture_url) {
+            setSelectedImageUri(doc.profile_picture_url);
+          }
+        }
       }
     });
   }, []);
@@ -428,11 +455,24 @@ export default function DoctorProfileSetup({
         throw new Error("Failed to save doctor profile. Please try again.");
       }
 
-      // Explicit direct database sync to guarantee assistant role in both profiles and doctors tables
+      // Explicit direct database sync to guarantee role in profiles, assistants, and doctors tables
       try {
         console.log("[DoctorProfileSetup] Explicitly syncing assigned role to database:", assignedRole);
         await supabase.from("profiles").update({ role: assignedRole }).eq("id", data.user.id);
-        await supabase.from("doctors").update({ role: assignedRole }).eq("user_id", data.user.id);
+        if (assignedRole === "assistant") {
+          await supabase.from("assistants").upsert([{
+            user_id: data.user.id,
+            first_name: (doctorData.first_name || "").trim(),
+            middle_name: doctorData.middle_name?.trim() || null,
+            last_name: (doctorData.last_name || "").trim(),
+            phone: (doctorData.doctor_phone || "").trim(),
+            gender: doctorData.gender || null,
+            profile_picture_url: profileImageUrl || undefined,
+            updated_at: new Date().toISOString(),
+          }], { onConflict: "user_id" });
+        } else {
+          await supabase.from("doctors").update({ role: assignedRole }).eq("user_id", data.user.id);
+        }
         await supabase.auth.updateUser({ data: { role: assignedRole } });
       } catch (postSyncErr) {
         console.warn("[DoctorProfileSetup] Direct role sync notice:", postSyncErr);
