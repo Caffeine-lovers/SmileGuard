@@ -24,6 +24,7 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClinic } from "../../contexts/ClinicContext";
 import StatCard from "./StatCard";
+import LeftNavRail, { NAV_RAIL_WIDTH } from "../navigation/LeftNavRail";
 import NotificationBell from "./NotificationBell";
 import NotificationCenter from "./NotificationCenter";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
@@ -428,7 +429,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       id: "menu-btn",
       target: "menu-btn",
       title: "Clinic Menu",
-      description: "Tap this menu icon anytime to open the side menu and switch between clinic sections.",
+      description: "Use this bar on the left anytime to switch between clinic sections, restart the guide, or log out.",
       icon: Menu,
       padding: 6,
       radius: 12,
@@ -442,8 +443,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       icon: LayoutDashboard,
       padding: 6,
       radius: 14,
-      placement: "bottom",
-      onEnter: () => setSidebarOpen(true),
+      onEnter: () => setSidebarOpen(false),
       delay: 450,
     },
     {
@@ -1293,20 +1293,36 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <View ref={tour.setContainer} collapsable={false} style={styles.mainContainer}>
+      <View ref={tour.setContainer} collapsable={false} style={[styles.mainContainer, { paddingLeft: NAV_RAIL_WIDTH }]}>
+        <LeftNavRail
+          activeTab={activeTab}
+          railRef={tour.register("menu-btn")}
+          navRef={tour.register("sidebar-nav")}
+          logoSource={
+            clinic?.logo_url === 'APP_LOGO'
+              ? APP_LOGO
+              : clinic?.logo_url
+                ? { uri: clinic.logo_url }
+                : undefined
+          }
+          onSelect={(tab) => {
+            if (tab === 'dashboard') {
+              setActiveTab('dashboard');
+              setTabHistory([]);
+            } else {
+              navigateToTab(tab);
+            }
+          }}
+          onTour={handleRestartTour}
+          onLogout={() => {
+            Alert.alert("Confirm Logout", "Are you sure?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Logout", style: "destructive", onPress: onLogout },
+            ]);
+          }}
+        />
         {/* Modern HeroUI Top App Bar */}
         <View style={styles.topAppBar}>
-          <View ref={tour.register("menu-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
-            <TouchableOpacity
-              style={styles.menuIconButton}
-              onPress={() => setSidebarOpen(true)}
-              accessibilityLabel="Open sidebar menu"
-              activeOpacity={0.7}
-            >
-              <Menu size={22} color="#047857" />
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.topBarCenter}>
             <Text style={styles.topBarDoctorName} numberOfLines={1}>
               {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
@@ -1921,164 +1937,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
             // Handled in PatientDetailsView
           }}
         />
-
-        {/* Backdrop Overlay - behind drawer */}
-        {sidebarOpen && (
-          <TouchableOpacity
-            style={styles.backdropOverlay}
-            onPress={() => setSidebarOpen(false)}
-            activeOpacity={1}
-          />
-        )}
-
-        {/* Sidebar Drawer */}
-        <Animated.View
-          pointerEvents={sidebarOpen ? 'auto' : 'none'}
-          style={[
-            styles.sidebarOverlay,
-            {
-              transform: [{ translateX: sidebarAnimatedValue }],
-            },
-          ]}
-        >
-          <View style={styles.sidebarHeader}>
-            <View style={styles.sidebarBrandRow}>
-              {clinic?.logo_url === 'APP_LOGO' ? (
-                <Image
-                  source={APP_LOGO}
-                  style={[styles.sidebarBrandLogo, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}
-                  resizeMode="contain"
-                />
-              ) : clinic?.logo_url ? (
-                <Image
-                  source={{ uri: clinic.logo_url }}
-                  style={styles.sidebarBrandLogo}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.sidebarBrandIcon}>
-                  <Stethoscope size={22} color="#A7F3D0" />
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.logoTitle} numberOfLines={1}>
-                  {clinic?.clinic_name || 'SmileGuard'}
-                </Text>
-                <Text style={styles.sidebarSubtitle} numberOfLines={1}>
-                  Doctor Portal
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.sidebarCloseButton}
-                onPress={() => setSidebarOpen(false)}
-                accessibilityLabel="Close sidebar"
-                activeOpacity={0.7}
-              >
-                <X size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.navItems}>
-            <View ref={tour.register("sidebar-nav")} collapsable={false} style={styles.navItemsList}>
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
-                onPress={() => {
-                  setActiveTab('dashboard');
-                  setTabHistory([]);
-                  setSidebarOpen(false);
-                }}
-              >
-                <LayoutDashboard size={20} color={activeTab === 'dashboard' ? '#A7F3D0' : '#FFFFFF'} />
-                <Text style={styles.navLabel}>Dashboard</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === 'records' && styles.navItemActive]}
-                onPress={() => {
-                  navigateToTab('records');
-                  setSidebarOpen(false);
-                }}
-              >
-                <Users size={20} color={activeTab === 'records' ? '#A7F3D0' : '#FFFFFF'} />
-                <Text style={styles.navLabel}>Records</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === 'appointments' && styles.navItemActive]}
-                onPress={() => {
-                  navigateToTab('appointments');
-                  setSidebarOpen(false);
-                }}
-              >
-                <Calendar size={20} color={activeTab === 'appointments' ? '#A7F3D0' : '#FFFFFF'} />
-                <Text style={styles.navLabel}>Appointments</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === 'appointment-requests' && styles.navItemActive]}
-                onPress={() => {
-                  navigateToTab('appointment-requests');
-                  setSidebarOpen(false);
-                }}
-              >
-                <Clock size={20} color={activeTab === 'appointment-requests' ? '#A7F3D0' : '#FFFFFF'} />
-                <Text style={styles.navLabel}>Requests</Text>
-              </TouchableOpacity>
-
-              
-                <TouchableOpacity
-                  style={[styles.navItem, activeTab === 'billing' && styles.navItemActive]}
-                  onPress={() => {
-                    navigateToTab('billing');
-                    setSidebarOpen(false);
-                  }}
-                >
-                  <CreditCard size={20} color={activeTab === 'billing' ? '#A7F3D0' : '#FFFFFF'} />
-                  <Text style={styles.navLabel}>Billing</Text>
-                </TouchableOpacity>
-
-              
-                <TouchableOpacity
-                  style={[styles.navItem, activeTab === 'settings' && styles.navItemActive]}
-                  onPress={() => {
-                    navigateToTab('settings');
-                    setSidebarOpen(false);
-                  }}
-                >
-                  <SettingsIcon size={20} color={activeTab === 'settings' ? '#A7F3D0' : '#FFFFFF'} />
-                  <Text style={styles.navLabel}>Settings</Text>
-                </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ gap: 8, marginTop: 12 }}>
-            <TouchableOpacity
-              style={styles.sidebarTourBtn}
-              onPress={() => {
-                setSidebarOpen(false);
-                setTimeout(() => handleRestartTour(), 300);
-              }}
-              activeOpacity={0.8}
-            >
-              <Compass size={18} color="#A7F3D0" style={{ marginRight: 8 }} />
-              <Text style={styles.sidebarTourText}>App Walkthrough</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.sidebarLogoutBtn}
-              onPress={() => {
-                Alert.alert("Confirm Logout", "Are you sure?", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Logout", style: "destructive", onPress: onLogout },
-                ]);
-              }}
-            >
-              <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.sidebarLogoutText}>Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
 
         {/* Loading Overlay for Tab Navigation */}
         {loadingOnTabSwitch && (

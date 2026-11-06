@@ -24,6 +24,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useClinic } from "../../contexts/ClinicContext";
 import StatCard from "./StatCard";
 import NotificationBell from "./NotificationBell";
+import LeftNavRail, { NAV_RAIL_WIDTH } from "../navigation/LeftNavRail";
 import NotificationCenter from "./NotificationCenter";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
@@ -686,7 +687,7 @@ export default function AssistantDashboard({
       target: "menu-btn",
       title: "Menu",
       description:
-        "Tap here anytime to go to your Dashboard, Patient Records, Appointments, Booking Requests, or Settings.",
+        "Use this bar on the left anytime to go to your Dashboard, Patient Records, Appointments, Booking Requests, Billing, or Settings.",
       icon: Menu,
       padding: 6,
       radius: 12,
@@ -1495,23 +1496,41 @@ export default function AssistantDashboard({
   }, [assistantProfile]);
 
   return (
-    <SafeAreaView style={styles.mainContainer} edges={["top"]}>
+    <SafeAreaView style={[styles.mainContainer, { paddingLeft: NAV_RAIL_WIDTH }]} edges={["top"]}>
+      <LeftNavRail
+        activeTab={activeTab}
+        topInset={statusBarHeight}
+        bottomInset={Math.max(insets.bottom, 0)}
+        railRef={tour.register("menu-btn")}
+        navRef={tour.register("sidebar-nav")}
+        logoSource={
+          clinic?.logo_url === "APP_LOGO"
+            ? APP_LOGO
+            : clinic?.logo_url
+              ? { uri: clinic.logo_url }
+              : undefined
+        }
+        onSelect={(tab) => {
+          if (tab === "dashboard") {
+            setActiveTab("dashboard");
+            setTabHistory([]);
+          } else {
+            navigateToTab(tab);
+          }
+        }}
+        onTour={handleRestartTour}
+        onLogout={() => {
+          Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Logout", style: "destructive", onPress: onLogout },
+          ]);
+        }}
+      />
       {/* ─────────────────────────────────────────
           TOP APP BAR
       ───────────────────────────────────────── */}
       <View style={styles.topAppBar}>
         <View style={styles.topAppBarLeft}>
-          <View ref={tour.register("menu-btn")} collapsable={false}>
-            <TouchableOpacity
-              style={styles.menuIconButton}
-              onPress={() => setSidebarOpen(true)}
-              accessibilityLabel="Open navigation menu"
-              activeOpacity={0.7}
-            >
-              <Menu size={22} color="#0F172A" />
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.appBarTitleGroup}>
             <View style={styles.brandRow}>
               <View style={styles.assistantBadgeMini}>
@@ -2854,178 +2873,6 @@ export default function AssistantDashboard({
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* ─────────────────────────────────────────
-          SIDEBAR MENU & BACKDROP
-      ───────────────────────────────────────── */}
-      {sidebarOpen && (
-        <TouchableOpacity
-          style={[styles.backdropOverlay, { top: statusBarHeight }]}
-          onPress={() => setSidebarOpen(false)}
-          activeOpacity={1}
-        />
-      )}
-
-      <Animated.View
-        pointerEvents={sidebarOpen ? "auto" : "none"}
-        style={[
-          styles.sidebarDrawer,
-          {
-            top: statusBarHeight,
-            paddingTop: 16,
-            paddingBottom: Math.max(insets.bottom, 20),
-            transform: [{ translateX: sidebarAnimatedValue }],
-          },
-        ]}
-      >
-        <View style={styles.sidebarHeader}>
-          <View style={styles.sidebarBrandRow}>
-            {clinic?.logo_url === "APP_LOGO" ? (
-              <Image
-                source={APP_LOGO}
-                style={[styles.sidebarBrandLogo, { backgroundColor: "rgba(255, 255, 255, 0.15)" }]}
-                resizeMode="contain"
-              />
-            ) : clinic?.logo_url ? (
-              <Image
-                source={{ uri: clinic.logo_url }}
-                style={styles.sidebarBrandLogo}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.sidebarBrandIcon}>
-                <Stethoscope size={22} color="#A7F3D0" />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.logoTitle} numberOfLines={1}>
-                {clinic?.clinic_name || "SmileGuard"}
-              </Text>
-              <Text style={styles.sidebarSubtitle} numberOfLines={1}>
-                Assistant Portal
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.sidebarCloseButton}
-              onPress={() => setSidebarOpen(false)}
-              accessibilityLabel="Close menu"
-              activeOpacity={0.7}
-            >
-              <X size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.navItems}>
-          <View style={styles.navItemsList}>
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === "dashboard" && styles.navItemActive]}
-              onPress={() => {
-                setActiveTab("dashboard");
-                setTabHistory([]);
-                setSidebarOpen(false);
-              }}
-            >
-              <LayoutDashboard
-                size={20}
-                color={activeTab === "dashboard" ? "#A7F3D0" : "#FFFFFF"}
-              />
-              <Text style={styles.navLabel}>Dashboard</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === "records" && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab("records");
-                setSidebarOpen(false);
-              }}
-            >
-              <Users size={20} color={activeTab === "records" ? "#A7F3D0" : "#FFFFFF"} />
-              <Text style={styles.navLabel}>Records</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === "appointments" && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab("appointments");
-                setSidebarOpen(false);
-              }}
-            >
-              <Calendar size={20} color={activeTab === "appointments" ? "#A7F3D0" : "#FFFFFF"} />
-              <Text style={styles.navLabel}>Appointments</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === "appointment-requests" && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab("appointment-requests");
-                setSidebarOpen(false);
-              }}
-            >
-              <Clock
-                size={20}
-                color={activeTab === "appointment-requests" ? "#A7F3D0" : "#FFFFFF"}
-              />
-              <Text style={styles.navLabel}>Requests</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === "billing" && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab("billing");
-                setSidebarOpen(false);
-              }}
-            >
-              <CreditCard
-                size={20}
-                color={activeTab === "billing" ? "#A7F3D0" : "#FFFFFF"}
-              />
-              <Text style={styles.navLabel}>Billing</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.navItem, activeTab === "settings" && styles.navItemActive]}
-              onPress={() => {
-                navigateToTab("settings");
-                setSidebarOpen(false);
-              }}
-            >
-              <SettingsIcon
-                size={20}
-                color={activeTab === "settings" ? "#A7F3D0" : "#FFFFFF"}
-              />
-              <Text style={styles.navLabel}>Settings</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={{ gap: 8, marginTop: 12 }}>
-          <TouchableOpacity
-            style={styles.sidebarTourBtn}
-            onPress={() => {
-              setSidebarOpen(false);
-              setTimeout(() => handleRestartTour(), 300);
-            }}
-            activeOpacity={0.8}
-          >
-            <Compass size={18} color="#A7F3D0" style={{ marginRight: 8 }} />
-            <Text style={styles.sidebarTourText}>App Guide</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.sidebarLogoutBtn}
-            onPress={() => {
-              Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: onLogout },
-              ]);
-            }}
-          >
-            <LogOut size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.sidebarLogoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
 
       {/* Walkthrough Tour */}
       <AppTour
