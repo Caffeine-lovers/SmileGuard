@@ -256,38 +256,31 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Terms & Privacy attestation — required before any sign-in or registration */}
-      <div
-        className={`mb-5 p-3.5 rounded-sm border-2 transition ${agreedToTerms ? 'border-emerald-300 bg-emerald-50/60' : 'border-amber-300 bg-amber-50/70'
-          }`}
-      >
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-          Terms &amp; Privacy
-        </p>
-        <p className="text-xs text-slate-600 leading-relaxed mb-2.5">
-          SmileGuard stores your personal and medical information under the Data Privacy Act of 2012 (RA 10173).
-          Please read our{' '}
-          <button type="button" onClick={() => setLegalDoc('terms')} className="font-semibold text-emerald-700 underline cursor-pointer">
-            Terms and Conditions
-          </button>{' '}
-          and{' '}
-          <button type="button" onClick={() => setLegalDoc('privacy')} className="font-semibold text-emerald-700 underline cursor-pointer">
-            Privacy Policy
-          </button>
-          .
-        </p>
-        <label className="flex items-start gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={agreedToTerms}
-            onChange={(e) => handleAgreeChange(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-slate-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
-          />
-          <span className="text-xs font-semibold text-slate-800 leading-relaxed">
-            I have read and agree to the Terms and Conditions and Privacy Policy.
-          </span>
-        </label>
+      {/* Registration — first thing new patients see */}
+      <div className="mb-5">
+        <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 text-center">New Clinic Patient?</p>
+        <RestrictedTooltip restricted={!agreedToTerms}>
+          <Link
+            href="/signup"
+            onClick={(e) => {
+              if (!requireAgreement()) e.preventDefault();
+            }}
+            aria-disabled={!agreedToTerms}
+            title={agreedToTerms ? undefined : 'Please agree to the Terms and Conditions and Privacy Policy first'}
+            className={`skeuo-btn-primary w-full py-3 text-xs tracking-wider uppercase ${agreedToTerms ? '' : 'opacity-50'
+              }`}
+          >
+            <span>Register New Patient Account</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </RestrictedTooltip>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 h-px bg-slate-300"></div>
+        <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Already registered?</span>
+        <div className="flex-1 h-px bg-slate-300"></div>
       </div>
 
       {/* OAuth Sign-in Option */}
@@ -370,25 +363,28 @@ export default function LoginPage() {
             Forgot your password?
           </Link>
         </p>
-        <div className="pt-4 border-t-2 border-slate-200">
-          <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">New Clinic Patient?</p>
-          <RestrictedTooltip restricted={!agreedToTerms}>
-            <Link
-              href="/signup"
-              onClick={(e) => {
-                if (!requireAgreement()) e.preventDefault();
-              }}
-              aria-disabled={!agreedToTerms}
-              title={agreedToTerms ? undefined : 'Please agree to the Terms and Conditions and Privacy Policy first'}
-              className={`skeuo-btn-secondary w-full py-2.5 text-xs tracking-wider uppercase text-emerald-800 ${agreedToTerms ? '' : 'opacity-50'
-                }`}
-            >
-              <span>Register New Patient Account</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </RestrictedTooltip>
-        </div>
       </div>
+
+      {/* Terms & Privacy attestation — minimal, required before any sign-in or registration */}
+      <label className="mt-5 flex items-start justify-center gap-2 cursor-pointer select-none text-[11px] text-slate-500 leading-snug">
+        <input
+          type="checkbox"
+          checked={agreedToTerms}
+          onChange={(e) => handleAgreeChange(e.target.checked)}
+          className="mt-0.5 h-3.5 w-3.5 rounded border-slate-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+        />
+        <span>
+          I agree to the{' '}
+          <button type="button" onClick={(e) => { e.preventDefault(); setLegalDoc('terms'); }} className="font-semibold text-emerald-700 underline cursor-pointer">
+            Terms
+          </button>{' '}
+          and{' '}
+          <button type="button" onClick={(e) => { e.preventDefault(); setLegalDoc('privacy'); }} className="font-semibold text-emerald-700 underline cursor-pointer">
+            Privacy Policy
+          </button>
+          .
+        </span>
+      </label>
       <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />
     </div>
   );
