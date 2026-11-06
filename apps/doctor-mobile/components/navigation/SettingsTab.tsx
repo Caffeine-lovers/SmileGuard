@@ -32,11 +32,13 @@ import {
   FileCheck,
   PhoneCall,
   User,
+  RefreshCw,
 } from 'lucide-react-native';
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import SupportFeedbackModal from '../settings/SupportFeedbackModal';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
+import { triggerManualUpdateCheck } from '../ui/AppUpdateManager';
 import { useAuth } from '../../hooks/useAuth';
 import { getDoctorProfile, updateDoctorProfile } from '../../lib/doctorService';
 
@@ -475,6 +477,30 @@ export default function SettingsTab({
               <View style={{ flex: 1 }}>
                 <Text style={localStyles.cardTitle}>Contact SmileGuard Support</Text>
                 <Text style={localStyles.cardSubtitle}>Get technical assistance or report an issue</Text>
+              </View>
+              <View style={localStyles.chevronBox}>
+                <ChevronRight size={16} color="#047857" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* App Updates Section */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={localStyles.sectionLabel}>APP UPDATES & SYSTEM</Text>
+
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            onPress={() => triggerManualUpdateCheck(true)}
+            activeOpacity={0.75}
+          >
+            <View style={localStyles.cardContentRow}>
+              <View style={[localStyles.iconBox, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <RefreshCw size={18} color="#047857" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={localStyles.cardTitle}>Check for Updates</Text>
+                <Text style={localStyles.cardSubtitle}>Scan for latest clinical agenda & over-the-air fixes</Text>
               </View>
               <View style={localStyles.chevronBox}>
                 <ChevronRight size={16} color="#047857" />
