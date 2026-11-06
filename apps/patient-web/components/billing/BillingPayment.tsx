@@ -1061,13 +1061,7 @@ export default function BillingPayment({
                     Payment Gateway &bull; PayMongo
                   </span>
                 </div>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
-                  All Channels Accepted
-                </span>
               </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                You&apos;ll choose how to pay on PayMongo&apos;s secure checkout page.
-              </p>
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1">
                 <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
                   <CreditCard className="w-3.5 h-3.5 text-blue-700" />
@@ -1096,9 +1090,6 @@ export default function BillingPayment({
                 </span>
                 <span className="text-slate-400 text-xs transition-transform group-open:rotate-180">▾</span>
               </summary>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                If you settled via GCash, Maya, or Card, enter your PayMongo Reference ID below to immediately link the transaction to your appointment and update your account balance.
-              </p>
               <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <input
                   type="text"
@@ -1128,7 +1119,7 @@ export default function BillingPayment({
         {/* Security Badge */}
         <p className="text-[10px] font-semibold text-slate-500 flex items-start gap-1.5 leading-snug">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          Secured by PayMongo (BSP-licensed). Your card and e-wallet details never touch SmileGuard.
+          Secured by PayMongo.
         </p>
         </aside>
       </div>
