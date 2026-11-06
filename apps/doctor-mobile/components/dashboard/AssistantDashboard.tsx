@@ -29,7 +29,7 @@ import NotificationCenter from "./NotificationCenter";
 import PatientDetailsView from "../patientrecord/PatientDetailsView";
 import RecordsTab from "../navigation/RecordsTab";
 import AppointmentsTab from "../navigation/AppointmentsTab";
-import SwipeActionCard from "./SwipeActionCard";
+import RequestDeck from "./RequestDeck";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -77,6 +77,7 @@ import {
   FileText,
   Phone,
   Compass,
+  Inbox,
   AlertTriangle,
   Search,
   CheckCircle2,
@@ -278,6 +279,9 @@ export default function AssistantDashboard({
   >([]);
   const lastBackPressRef = useRef<number>(0);
 
+  // Dashboard shows the swipe deck of booking requests, or today's schedule
+  const [dashboardView, setDashboardView] = useState<"requests" | "today">("requests");
+
   // Reschedule confirmation modal state
   const [confirmingReschedule, setConfirmingReschedule] = useState<DashboardAppointment | null>(null);
   const [showRescheduleConfirmModal, setShowRescheduleConfirmModal] = useState(false);
@@ -293,7 +297,7 @@ export default function AssistantDashboard({
   const [showRescheduleSuccessModal, setShowRescheduleSuccessModal] = useState(false);
 
   // Filter for today's visits list
-  const [queueFilter, setQueueFilter] = useState<"all" | "requests" | "scheduled" | "completed">("all");
+  const [queueFilter, setQueueFilter] = useState<"all" | "scheduled" | "completed">("all");
 
   // Appointment status edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -314,6 +318,7 @@ export default function AssistantDashboard({
     (nextTab: "dashboard" | "records" | "appointments" | "appointment-requests" | "billing" | "settings") => {
       // Booking requests now live on the dashboard deck
       if (nextTab === "appointment-requests") {
+        setDashboardView("requests");
         nextTab = "dashboard";
       }
       if (nextTab === activeTab) return;
@@ -409,7 +414,7 @@ export default function AssistantDashboard({
       id: "welcome",
       title: "Welcome to SmileGuard!",
       description:
-        "Here is a quick look at how you can see arriving patients, accept new bookings, and help dentists get ready for appointments.",
+        "Here is a quick look at how you can see arriving patients, check new booking requests, and help dentists get ready for appointments.",
       icon: Stethoscope,
       placement: "center",
       onEnter: () => setSidebarOpen(false),
@@ -419,24 +424,40 @@ export default function AssistantDashboard({
       target: "menu-btn",
       title: "Menu",
       description:
-        "Use this bar on the left anytime to go to your Dashboard, Patient Records, Appointments, Billing, or Settings.",
+        "Use this bar on the left anytime to go to your Dashboard, Patient Records, Appointments, Booking Requests, Billing, or Settings.",
       icon: Menu,
       padding: 6,
       radius: 12,
       onEnter: () => setSidebarOpen(false),
     },
     {
+      id: "request-deck",
+      target: "request-deck",
+      title: "Booking Requests",
+      description:
+        "New bookings show up here one patient at a time, oldest first. Swipe right to accept or left to decline.",
+      icon: Inbox,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        setDashboardView("requests");
+      },
+    },
+    {
       id: "stats-panel",
       target: "stats-panel",
       title: "Today at a Glance",
       description:
-        "Shows reschedule requests waiting for you and the appointments finished today.",
+        "Shows today's visits, new requests waiting for you, and finished appointments.",
       icon: Calendar,
       padding: 6,
       radius: 14,
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("today");
       },
     },
     {
@@ -444,13 +465,14 @@ export default function AssistantDashboard({
       target: "today-queue",
       title: "Today's Patients",
       description:
-        "New booking requests (oldest first) and today's patients. Tap any patient to view their info.",
+        "All patients scheduled to visit the clinic today. Tap any patient to view their info on the right.",
       icon: Calendar,
       padding: 6,
       radius: 14,
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("today");
       },
     },
     {
@@ -458,13 +480,14 @@ export default function AssistantDashboard({
       target: "chairside-prep",
       title: "Patient Details & Alerts",
       description:
-        "See health alerts like allergies and call the patient. Swipe the card right to accept a booking or mark a visit done, left to decline or mark a no-show.",
+        "See important health alerts like allergies, call the patient, or change appointment times.",
       icon: HeartPulse,
       padding: 6,
       radius: 14,
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
+        setDashboardView("today");
         const yOffset =
           (dashboardColumnsLayoutY.current || 280) + (patientDetailsLayoutY.current || 180) - 12;
         try {
@@ -578,6 +601,17 @@ export default function AssistantDashboard({
       });
   }, [appointments, today]);
 
+  // Filtered appointments
+  const filteredQueueAppointments = useMemo(() => {
+    if (queueFilter === "scheduled") {
+      return todayAppointments.filter((apt) => (apt.status || "scheduled") === "scheduled");
+    }
+    if (queueFilter === "completed") {
+      return todayAppointments.filter((apt) => apt.status === "completed");
+    }
+    return todayAppointments;
+  }, [todayAppointments, queueFilter]);
+
   // Reschedule requests filter: ONLY pending patient requests that have NOT been confirmed
   const rescheduleRequests = useMemo(() => {
     const combined = [...appointments, ...appointmentRequests];
@@ -617,49 +651,14 @@ export default function AssistantDashboard({
     });
   }, [appointments, appointmentRequests, confirmedRescheduleIds]);
 
-  // Booking requests in the order they were made: first come, first served
-  const pendingRequests = useMemo(() => {
-    const requestedAt = (item: DashboardAppointment) => {
-      if (item.created_at) {
-        const parsed = new Date(item.created_at).getTime();
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-      }
-      if (item.date) {
-        const parsed = new Date(item.date).getTime();
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-      }
-      return 0;
-    };
-    return [...appointmentRequests].sort((a, b) => {
-      const diff = requestedAt(a) - requestedAt(b);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name);
-    });
-  }, [appointmentRequests]);
-
-  const queueItems = useMemo(() => {
-    const todayIds = new Set(todayAppointments.map((apt) => apt.id));
-    return [...pendingRequests.filter((req) => !todayIds.has(req.id)), ...todayAppointments];
-  }, [pendingRequests, todayAppointments]);
-
-  const filteredQueueAppointments = useMemo(() => {
-    if (queueFilter === "requests") return pendingRequests;
-    if (queueFilter === "scheduled") {
-      return todayAppointments.filter((apt) => (apt.status || "scheduled") === "scheduled");
-    }
-    if (queueFilter === "completed") {
-      return todayAppointments.filter((apt) => apt.status === "completed");
-    }
-    return queueItems;
-  }, [queueItems, pendingRequests, todayAppointments, queueFilter]);
-
   // Selected patient
   const [selectedPatient, setSelectedPatient] = useState<DashboardAppointment | null>(null);
 
   // Focus Patient Details on Today's Appointments
   useEffect(() => {
-    if (queueItems.length > 0) {
-      if (!selectedPatient || !queueItems.some((apt) => apt.id === selectedPatient.id)) {
-        setSelectedPatient(queueItems[0]);
+    if (todayAppointments.length > 0) {
+      if (!selectedPatient || !todayAppointments.some((apt) => apt.id === selectedPatient.id)) {
+        setSelectedPatient(todayAppointments[0]);
       }
     } else if (rescheduleRequests.length > 0) {
       if (!selectedPatient || !rescheduleRequests.some((apt) => apt.id === selectedPatient.id)) {
@@ -668,7 +667,7 @@ export default function AssistantDashboard({
     } else {
       setSelectedPatient(null);
     }
-  }, [queueItems, rescheduleRequests, selectedPatient]);
+  }, [todayAppointments, rescheduleRequests, selectedPatient]);
 
   // Load patient contact and intake notes
   useEffect(() => {
@@ -715,6 +714,25 @@ export default function AssistantDashboard({
       isMounted = false;
     };
   }, [selectedPatient?.id, selectedPatient?.patient_id]);
+
+  // Booking requests in the order they were made: first come, first served
+  const deckRequests = useMemo(() => {
+    const requestedAt = (item: DashboardAppointment) => {
+      if (item.created_at) {
+        const parsed = new Date(item.created_at).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+      if (item.date) {
+        const parsed = new Date(item.date).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+      return 0;
+    };
+    return [...appointmentRequests].sort((a, b) => {
+      const diff = requestedAt(a) - requestedAt(b);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    });
+  }, [appointmentRequests]);
 
   // Helper to open full patient chart
   const handleOpenPatientDetails = (item: DashboardAppointment) => {
@@ -1203,31 +1221,6 @@ export default function AssistantDashboard({
     return assistantProfile.name || assistantProfile.email?.split("@")[0] || "Assistant";
   }, [assistantProfile]);
 
-  // Swiping Patient Details: right = positive action, left = negative action
-  const getSwipeActions = (apt: DashboardAppointment) => {
-    const status = (apt.status || "scheduled").toLowerCase();
-    if (status === "pending") {
-      return {
-        rightLabel: "Accept booking",
-        leftLabel: "Decline",
-        hint: "Swipe right to accept · left to decline",
-        onRight: () => handleAcceptAppointmentRequest(apt),
-        onLeft: () => handleDeclineAppointmentRequest(apt, "Declined via quick swipe"),
-      };
-    }
-    if (status === "scheduled") {
-      return {
-        rightLabel: "Mark as done",
-        leftLabel: "Did not show",
-        hint: "Swipe right to mark done · left for no-show",
-        onRight: () => handleQuickStatusChange(apt, "completed"),
-        onLeft: () => handleQuickStatusChange(apt, "no-show"),
-      };
-    }
-    return null;
-  };
-  const swipeActions = selectedPatient ? getSwipeActions(selectedPatient) : null;
-
   return (
     <SafeAreaView style={[styles.mainContainer, { paddingLeft: NAV_RAIL_WIDTH }]} edges={["top"]}>
       <LeftNavRail
@@ -1327,6 +1320,42 @@ export default function AssistantDashboard({
       <View style={styles.contentArea}>
         {activeTab === "dashboard" ? (
           <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 }}>
+              {(["requests", "today"] as const).map((view) => {
+                const active = dashboardView === view;
+                return (
+                  <TouchableOpacity
+                    key={view}
+                    onPress={() => setDashboardView(view)}
+                    activeOpacity={0.8}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 9,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      backgroundColor: active ? "#047857" : "#FFFFFF",
+                      borderWidth: 1,
+                      borderColor: active ? "#047857" : "#E2E8F0",
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "800", color: active ? "#FFFFFF" : "#475569" }}>
+                      {view === "requests"
+                        ? `Requests${deckRequests.length > 0 ? ` · ${deckRequests.length}` : ""}`
+                        : "Today"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {dashboardView === "requests" ? (
+              <View ref={tour.register("request-deck")} collapsable={false} style={{ flex: 1 }}>
+                <RequestDeck
+                  requests={deckRequests}
+                  onAccept={(req) => handleAcceptAppointmentRequest(req)}
+                  onDecline={(req) => handleDeclineAppointmentRequest(req, "Declined via quick swipe")}
+                />
+              </View>
+            ) : (
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
 <ScrollView keyboardShouldPersistTaps="handled" ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
             <View style={styles.container}>
@@ -1368,6 +1397,13 @@ export default function AssistantDashboard({
                 style={styles.firstPanel}
               >
                 <StatCard
+                  number={appointmentRequests.length}
+                  label="Booking Requests"
+                  icon={<Inbox size={20} color="#D97706" />}
+                  accentColor="#B45309"
+                  bgTint="#FEF3C7"
+                />
+                <StatCard
                   number={rescheduleRequests.length}
                   label="Reschedule Requests"
                   icon={<CalendarDays size={20} color="#2563EB" />}
@@ -1392,7 +1428,7 @@ export default function AssistantDashboard({
                 }}
               >
                 {/* ─────────────────────────────────────────────────────────────
-                    LEFT COLUMN: PATIENT QUEUE (REQUESTS + TODAY)
+                    LEFT COLUMN: APPOINTMENT REQUESTS & TODAY'S APPOINTMENTS
                 ───────────────────────────────────────────────────────────── */}
                 <View
                   ref={tour.register("today-queue")}
@@ -1400,14 +1436,14 @@ export default function AssistantDashboard({
                   style={styles.column}
                 >
                   {/* ─────────────────────────────────────────────────────────────
-                      PATIENT QUEUE: PENDING REQUESTS, THEN TODAY'S APPOINTMENTS
+                      SECTION 2: TODAY'S APPOINTMENTS (BELOW APPOINTMENT REQUESTS)
                   ───────────────────────────────────────────────────────────── */}
                   <View style={[styles.sectionHeaderRow, { marginTop: 0, marginBottom: 8 }]}>
                     <View style={styles.sectionTitleGroup}>
                       <Calendar size={16} color="#047857" />
-                      <Text style={styles.sectionHeaderTitle}>PATIENT QUEUE</Text>
+                      <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
                       <View style={styles.pillCountBadge}>
-                        <Text style={styles.pillCountText}>{queueItems.length}</Text>
+                        <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
                       </View>
                     </View>
 
@@ -1428,16 +1464,7 @@ export default function AssistantDashboard({
                       onPress={() => setQueueFilter("all")}
                     >
                       <Text style={[styles.queueFilterPillText, queueFilter === "all" && styles.queueFilterPillTextActive]}>
-                        All ({queueItems.length})
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.queueFilterPill, queueFilter === "requests" && styles.queueFilterPillActive]}
-                      onPress={() => setQueueFilter("requests")}
-                    >
-                      <Text style={[styles.queueFilterPillText, queueFilter === "requests" && styles.queueFilterPillTextActive]}>
-                        Requests ({pendingRequests.length})
+                        All ({todayAppointments.length})
                       </Text>
                     </TouchableOpacity>
 
@@ -1464,9 +1491,9 @@ export default function AssistantDashboard({
                   {filteredQueueAppointments.length === 0 ? (
                     <View style={styles.emptyQueueBox}>
                       <Calendar size={26} color="#94A3B8" style={{ marginBottom: 6 }} />
-                      <Text style={styles.emptyQueueTitle}>No patients in the queue</Text>
+                      <Text style={styles.emptyQueueTitle}>No visits scheduled for today</Text>
                       <Text style={styles.emptyQueueSubtitle}>
-                        New booking requests and today's arriving patients will appear here. Tap any patient to see their details.
+                        Today's arriving patients will appear here. Tap any patient to view their record on the right.
                       </Text>
                     </View>
                   ) : (
@@ -1510,12 +1537,6 @@ export default function AssistantDashboard({
                                   <Text style={[styles.queueMetaText, { color: "#047857", fontWeight: "700" }]}>
                                     {formatAppointmentTime(apt.time)}
                                   </Text>
-                                </View>
-                              ) : null}
-                              {apt.date && apt.date !== today ? (
-                                <View style={styles.queueMetaItem}>
-                                  <Calendar size={11} color="#64748B" style={{ marginRight: 3 }} />
-                                  <Text style={styles.queueMetaText}>{formatAppointmentDate(apt.date)}</Text>
                                 </View>
                               ) : null}
                             </View>
@@ -1574,18 +1595,10 @@ export default function AssistantDashboard({
                         </View>
                         <Text style={styles.emptyPrepTitle}>NO PATIENT SELECTED</Text>
                         <Text style={styles.emptyPrepDesc}>
-                          Tap any patient in the queue to see their details, notes, and medical alerts.
+                          Tap any patient from the list on the left to see their details, notes, and medical alerts.
                         </Text>
                       </View>
                     ) : (
-                      <>
-                      <SwipeActionCard
-                        enabled={!!swipeActions}
-                        rightLabel={swipeActions?.rightLabel ?? ""}
-                        leftLabel={swipeActions?.leftLabel ?? ""}
-                        onSwipeRight={() => swipeActions?.onRight()}
-                        onSwipeLeft={() => swipeActions?.onLeft()}
-                      >
                       <View style={[styles.detailsCard, styles.shadow]}>
                         {/* Status Badge in Corner */}
                         <View
@@ -1754,33 +1767,89 @@ export default function AssistantDashboard({
                           ) : null}
                         </View>
 
-                        <View style={styles.actionButtonRow}>
-                          <TouchableOpacity
-                            style={styles.fullRecordBtn}
-                            onPress={() => handleOpenPatientDetails(selectedPatient)}
-                            activeOpacity={0.8}
-                          >
-                            <FileText size={13} color="#FFFFFF" />
-                            <Text style={styles.fullRecordBtnText}>VIEW FULL RECORD</Text>
-                          </TouchableOpacity>
+                        {/* ACTION BUTTONS: DEDICATED ACCEPT OR DECLINE SECTION */}
+                        {selectedPatient.status === "pending" ? (
+                          <View style={styles.decisionSectionCard}>
+                            <View style={styles.decisionHeader}>
+                              <ShieldCheck size={15} color="#047857" style={{ marginRight: 6 }} />
+                              <Text style={styles.decisionTitle}>CONFIRM OR DECLINE REQUEST</Text>
+                            </View>
+                            <Text style={styles.decisionSubtitle}>
+                              Confirm booking for {selectedPatient.name} or decline with a note.
+                            </Text>
 
-                          <TouchableOpacity
-                            style={styles.updateStatusBtn}
-                            onPress={() => handleOpenStatusModal(selectedPatient)}
-                            activeOpacity={0.8}
-                          >
-                            <Clock size={13} color="#1E293B" />
-                            <Text style={styles.updateStatusBtnText}>CHANGE STATUS</Text>
-                          </TouchableOpacity>
-                        </View>
+                            <View style={styles.decisionBtnRow}>
+                              <TouchableOpacity
+                                style={styles.decisionAcceptBtn}
+                                onPress={() => handleAcceptAppointmentRequest(selectedPatient)}
+                                activeOpacity={0.85}
+                              >
+                                <Check size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+                                <Text style={styles.decisionAcceptText}>Accept Booking</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.decisionDeclineBtn}
+                                onPress={() => {
+                                  setPromptAppointment(selectedPatient);
+                                  setShowPromptModal(true);
+                                }}
+                                activeOpacity={0.85}
+                              >
+                                <X size={14} color="#E11D48" style={{ marginRight: 5 }} />
+                                <Text style={styles.decisionDeclineText}>Decline</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          <>
+                            <View style={styles.actionButtonRow}>
+                              <TouchableOpacity
+                                style={styles.fullRecordBtn}
+                                onPress={() => handleOpenPatientDetails(selectedPatient)}
+                                activeOpacity={0.8}
+                              >
+                                <FileText size={13} color="#FFFFFF" />
+                                <Text style={styles.fullRecordBtnText}>VIEW FULL RECORD</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.updateStatusBtn}
+                                onPress={() => handleOpenStatusModal(selectedPatient)}
+                                activeOpacity={0.8}
+                              >
+                                <Clock size={13} color="#1E293B" />
+                                <Text style={styles.updateStatusBtnText}>CHANGE STATUS</Text>
+                              </TouchableOpacity>
+                            </View>
+
+                            {/* FAST 1-TAP STATUS BUTTONS */}
+                            <View style={styles.quickStatusRow}>
+                              <TouchableOpacity
+                                style={[styles.quickStatusBtn, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}
+                                onPress={() => handleQuickStatusChange(selectedPatient, "completed")}
+                                activeOpacity={0.8}
+                              >
+                                <CheckCircle2 size={12} color="#047857" />
+                                <Text style={[styles.quickStatusBtnText, { color: "#047857" }]}>
+                                  Mark as Done
+                                </Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={[styles.quickStatusBtn, { backgroundColor: "#FFF1F2", borderColor: "#FECDD3" }]}
+                                onPress={() => handleQuickStatusChange(selectedPatient, "no-show")}
+                                activeOpacity={0.8}
+                              >
+                                <AlertCircle size={12} color="#E11D48" />
+                                <Text style={[styles.quickStatusBtnText, { color: "#E11D48" }]}>
+                                  Did Not Show
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        )}
                       </View>
-                      </SwipeActionCard>
-                      {swipeActions ? (
-                        <View style={[styles.swipeHintRow, { marginTop: 10 }]}>
-                          <Text style={styles.swipeHintText}>{swipeActions.hint}</Text>
-                        </View>
-                      ) : null}
-                      </>
                     )}
                   </View>
 
@@ -1883,6 +1952,7 @@ export default function AssistantDashboard({
             </View>
           </ScrollView>
 </KeyboardAvoidingView>
+            )}
           </View>
         ) : activeTab === "records" ? (
           <RecordsTab
