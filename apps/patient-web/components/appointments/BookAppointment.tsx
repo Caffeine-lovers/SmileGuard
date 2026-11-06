@@ -106,6 +106,10 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       const exists = prev.some(s => s.id === service.id || s.name.toLowerCase() === service.name.toLowerCase());
       if (exists) {
         return prev.filter(s => s.id !== service.id && s.name.toLowerCase() !== service.name.toLowerCase());
+      } else if (!selectedTime) {
+        // Before a time is chosen only one service can be picked; tapping another swaps it.
+        // More services can be added once the date and time are set and the time allows it.
+        return [service];
       } else {
         return [...prev, service];
       }
@@ -548,7 +552,7 @@ return (
       <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
           <StepBadge n={1} done={step1Complete} />
-          Choose Services (Multi-Select Allowed)
+          {selectedTime ? 'Add More Services (if your time allows)' : 'Choose a Service'}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
