@@ -74,13 +74,7 @@ export default function OAuthRedirect() {
                   .eq("user_id", session.user.id)
                   .maybeSingle();
 
-                const { data: legacyDoc } = !ast ? await supabase
-                  .from("doctors")
-                  .select("id")
-                  .eq("user_id", session.user.id)
-                  .maybeSingle() : { data: null };
-
-                if (ast || legacyDoc) {
+                if (ast) {
                   console.log("[OAuthRedirect] Fallback routing to assistant dashboard");
                   router.replace("/(doctor)/dashboard");
                 } else {

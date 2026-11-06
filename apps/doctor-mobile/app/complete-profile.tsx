@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { supabase } from "@smileguard/supabase-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../hooks/useAuth";
 
 /**
@@ -73,12 +74,48 @@ export default function CompleteProfile() {
       if (updateError) throw updateError;
       console.log("[CompleteProfile] User metadata updated");
 
-      // Create or update doctor profile
-      console.log("[CompleteProfile] Upserting doctor profile...");
       const nameParts = (formData.name || "").trim().split(" ");
       const firstName = nameParts[0] || "Doctor";
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
+      const savedRole = await AsyncStorage.getItem("@pending_user_role");
+      if (savedRole === "assistant") {
+        console.log("[CompleteProfile] Upserting assistant profile...");
+        const { error: astErr } = await supabase.from("assistants").upsert([
+          {
+            user_id: user?.id,
+            first_name: firstName,
+            last_name: lastName,
+            gender: formData.gender,
+            phone: formData.phoneNumber,
+          },
+        ], { onConflict: "user_id" });
+        if (astErr) throw astErr;
+        console.log("✅ Assistant profile completed successfully");
+        Alert.alert("Success", "Assistant profile updated successfully!");
+        router.replace("/(doctor)/dashboard");
+        return;
+      }
+
+      if (savedRole === "admin") {
+        console.log("[CompleteProfile] Upserting admin profile...");
+        const { error: admErr } = await supabase.from("admins").upsert([
+          {
+            user_id: user?.id,
+            first_name: firstName,
+            last_name: lastName,
+            phone: formData.phoneNumber,
+          },
+        ], { onConflict: "user_id" });
+        if (admErr) throw admErr;
+        console.log("✅ Admin profile completed successfully");
+        Alert.alert("Success", "Admin profile updated successfully!");
+        router.replace("/(admin)/dashboard");
+        return;
+      }
+
+      // Create or update doctor profile
+      console.log("[CompleteProfile] Upserting doctor profile...");
       const { error: insertError } = await supabase.from("doctors").upsert([
         {
           user_id: user?.id,

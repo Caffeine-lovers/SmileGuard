@@ -46,7 +46,7 @@ export function useCurrentUser(): CurrentUser | null {
           return;
         }
 
-        // 3. Assistant: fetch from assistants table (with fallback to doctors table)
+        // 3. Assistant: fetch from assistants table
         if (roleCandidate === "assistant") {
           const { data: assistantRecord } = await supabase
             .from("assistants")
@@ -54,34 +54,17 @@ export function useCurrentUser(): CurrentUser | null {
             .eq("user_id", sessionUser.id)
             .maybeSingle();
 
-          if (assistantRecord) {
-            const assistantName = `${assistantRecord.first_name || ""} ${assistantRecord.last_name || ""}`.trim();
-            setUser({
-              id: sessionUser.id,
-              email: sessionUser.email!,
-              name: assistantName || profile?.name || sessionUser.user_metadata?.name,
-              role: "assistant",
-            });
-            return;
-          }
+          const assistantName = assistantRecord
+            ? `${assistantRecord.first_name || ""} ${assistantRecord.last_name || ""}`.trim()
+            : profile?.name || sessionUser.user_metadata?.name;
 
-          // Legacy fallback: check if still in doctors table with role = 'assistant'
-          const { data: legacyDoctorRecord } = await supabase
-            .from("doctors")
-            .select("id, role, first_name, last_name")
-            .or(`user_id.eq.${sessionUser.id},id.eq.${sessionUser.id}`)
-            .maybeSingle();
-
-          if (legacyDoctorRecord?.role === "assistant") {
-            const legacyName = `${legacyDoctorRecord.first_name || ""} ${legacyDoctorRecord.last_name || ""}`.trim();
-            setUser({
-              id: sessionUser.id,
-              email: sessionUser.email!,
-              name: legacyName || profile?.name || sessionUser.user_metadata?.name,
-              role: "assistant",
-            });
-            return;
-          }
+          setUser({
+            id: sessionUser.id,
+            email: sessionUser.email!,
+            name: assistantName || "Clinic Assistant",
+            role: "assistant",
+          });
+          return;
         }
 
         // 4. Doctor: fetch from doctors table

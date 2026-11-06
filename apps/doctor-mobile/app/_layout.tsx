@@ -226,14 +226,7 @@ export default function RootLayout() {
                 .eq("user_id", user.id)
                 .maybeSingle();
 
-              // Fallback to legacy doctors record if assistant not yet migrated
-              const { data: legacyDoctorRecord } = !assistantRecord ? await supabase
-                .from("doctors")
-                .select("*")
-                .or(`user_id.eq.${user.id},id.eq.${user.id}`)
-                .maybeSingle() : { data: null };
-
-              if (!assistantRecord && (!legacyDoctorRecord || legacyDoctorRecord.role !== "assistant")) {
+              if (!assistantRecord) {
                 console.log("[RootLayout] No assistant profile found, routing to /setup-profile");
                 router.replace("/setup-profile");
                 return;

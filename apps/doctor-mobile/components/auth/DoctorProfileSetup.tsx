@@ -42,7 +42,7 @@ import {
   CheckCircle2,
   Sparkles,
 } from "lucide-react-native";
-import { createDoctorProfile, doctorLicenseExists } from "../../lib/doctorService";
+import { createDoctorProfile, createAssistantProfile, createAdminProfile, doctorLicenseExists } from "../../lib/doctorService";
 import { pickImage, uploadProfileImage, ImagePickerResult } from "../../lib/imageUploadService";
 import { supabase } from "@smileguard/supabase-client";
 
@@ -115,20 +115,28 @@ export default function DoctorProfileSetup({
 
   // Pre-fill access code if stored during welcome screen
   useEffect(() => {
-    let pendingRole: string | null = null;
-    AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]).then((stores) => {
+    (async () => {
+      const stores = await AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]);
       const savedCode = stores[0]?.[1];
-      pendingRole = stores[1]?.[1];
+      const pendingRole = stores[1]?.[1];
       setIsAssistantRole(pendingRole === "assistant");
       if (savedCode) {
         setAccessCode(savedCode.trim().toUpperCase());
       }
-    });
 
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
-        const savedRole = pendingRole || (await AsyncStorage.getItem("@pending_user_role"));
-        const isAssistant = savedRole === "assistant";
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, name, phone_number")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const effectiveRole = pendingRole || profile?.role || "doctor";
+        const isAssistant = effectiveRole === "assistant";
+        const isAdmin = effectiveRole === "admin";
+        setIsAssistantRole(isAssistant);
+
         let doc: any = null;
 
         if (isAssistant) {
@@ -148,9 +156,25 @@ export default function DoctorProfileSetup({
               user_id: ast.user_id,
             };
           }
-        }
+        } else if (isAdmin) {
+          const { data: adm } = await supabase
+            .from("admins")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
 
-        if (!doc) {
+          if (adm) {
+            doc = {
+              first_name: adm.first_name,
+              middle_name: adm.middle_name,
+              last_name: adm.last_name,
+              doctor_phone: adm.phone,
+              profile_picture_url: null,
+              user_id: adm.user_id,
+            };
+          }
+        } else {
+          // Doctor role only
           const { data: doctorRec } = await supabase
             .from("doctors")
             .select("*")
@@ -160,7 +184,8 @@ export default function DoctorProfileSetup({
         }
 
         if (doc) {
-          setDoctorData({
+          setDoctorData((prev) => ({
+            ...prev,
             first_name: doc.first_name || "",
             middle_name: doc.middle_name || "",
             last_name: doc.last_name || "",
@@ -170,7 +195,7 @@ export default function DoctorProfileSetup({
             years_of_experience: doc.years_of_experience || 0,
             profile_picture_url: doc.profile_picture_url || "",
             user_id: doc.user_id,
-          });
+          }));
           if (doc.doctor_phone) {
             const cleaned = doc.doctor_phone.replace(/\D/g, "").slice(-10);
             setPhoneDigits(cleaned);
@@ -185,9 +210,22 @@ export default function DoctorProfileSetup({
           if (doc.profile_picture_url) {
             setSelectedImageUri(doc.profile_picture_url);
           }
+        } else if (profile?.name) {
+          const parts = profile.name.trim().split(" ");
+          setDoctorData((prev) => ({
+            ...prev,
+            first_name: parts[0] || "",
+            last_name: parts.slice(1).join(" ") || "",
+            doctor_phone: profile.phone_number || "",
+          }));
+          if (profile.phone_number) {
+            const cleaned = profile.phone_number.replace(/\D/g, "").slice(-10);
+            setPhoneDigits(cleaned);
+            setPhoneDisplay(formatPhoneChunks(cleaned));
+          }
         }
       }
-    });
+    })();
   }, []);
 
   // ── Specialization Dropdown
@@ -395,35 +433,13 @@ export default function DoctorProfileSetup({
         return;
       }
 
-      const assignedRole: "doctor" | "assistant" = isAssistantRole ? "assistant" : "doctor";
-
-      // Pre-seed profile in public.profiles to guarantee existence for doctor_user_id_fkey
-      try {
-        const defaultTitle = isAssistantRole ? "Assistant Doctor" : "Doctor";
-        const constructedName = `${(doctorData.first_name || "").trim()} ${(doctorData.last_name || "").trim()}`.trim() || data.user.email?.split("@")[0] || defaultTitle;
-        await supabase.from("profiles").upsert(
-          [
-            {
-              id: data.user.id,
-              name: constructedName,
-              email: data.user.email || "",
-              role: assignedRole,
-              updated_at: new Date().toISOString(),
-            },
-          ],
-          { onConflict: "id" }
-        );
-
-        // Sync auth metadata role
-        await supabase.auth.updateUser({
-          data: {
-            role: assignedRole,
-            name: constructedName,
-          },
-        });
-      } catch (profPreErr) {
-        console.warn("[DoctorProfileSetup] Pre-seed profiles warning:", profPreErr);
-      }
+      const pendingRole = await AsyncStorage.getItem("@pending_user_role");
+      const assignedRole: "doctor" | "assistant" | "admin" =
+        pendingRole === "admin"
+          ? "admin"
+          : (isAssistantRole || pendingRole === "assistant")
+          ? "assistant"
+          : "doctor";
 
       let profileImageUrl = "";
       if (selectedImage) {
@@ -435,18 +451,66 @@ export default function DoctorProfileSetup({
       }
 
       const fullPhoneNumber = `+63${formatPhoneChunks(phoneDigits.trim())}`;
+      const firstName = (doctorData.first_name || "").trim();
+      const middleName = (doctorData.middle_name || "").trim();
+      const lastName = (doctorData.last_name || "").trim();
+
+      // ── ASSISTANT REGISTRATION: STRICT ISOLATION TO ASSISTANTS TABLE
+      if (assignedRole === "assistant") {
+        const result = await createAssistantProfile(
+          {
+            user_id: data.user.id,
+            first_name: firstName,
+            middle_name: middleName || null,
+            last_name: lastName,
+            phone: fullPhoneNumber,
+            gender: doctorData.gender || null,
+            profile_picture_url: profileImageUrl || null,
+          },
+          accessCode.trim()
+        );
+
+        if (!result || !result.success) {
+          throw new Error("Failed to save assistant profile. Please try again.");
+        }
+
+        await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+        onContinue();
+        return;
+      }
+
+      // ── ADMIN REGISTRATION: STRICT ISOLATION TO ADMINS TABLE
+      if (assignedRole === "admin") {
+        const result = await createAdminProfile({
+          user_id: data.user.id,
+          first_name: firstName,
+          middle_name: middleName || null,
+          last_name: lastName,
+          phone: fullPhoneNumber,
+        });
+
+        if (!result || !result.success) {
+          throw new Error("Failed to save admin profile. Please try again.");
+        }
+
+        await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+        onContinue();
+        return;
+      }
+
+      // ── DOCTOR REGISTRATION: DOCTORS TABLE ONLY
       const finalDoctorData: Doctor = {
         ...doctorData,
         user_id: data.user.id,
-        first_name: (doctorData.first_name || "").trim(),
-        middle_name: (doctorData.middle_name || "").trim(),
-        last_name: (doctorData.last_name || "").trim(),
+        first_name: firstName,
+        middle_name: middleName,
+        last_name: lastName,
         doctor_phone: fullPhoneNumber,
-        role: assignedRole,
-        years_of_experience: isAssistantRole ? 0 : Number(yearsOfExperienceStr) || 0,
-        license_number: isAssistantRole ? "" : paddedLicense,
-        specialization: isAssistantRole ? "" : doctorData.specialization,
-        bio: isAssistantRole ? "" : doctorData.bio,
+        role: "doctor",
+        years_of_experience: Number(yearsOfExperienceStr) || 0,
+        license_number: paddedLicense,
+        specialization: doctorData.specialization,
+        bio: doctorData.bio,
         profile_picture_url: profileImageUrl || undefined,
       };
 
@@ -455,29 +519,7 @@ export default function DoctorProfileSetup({
         throw new Error("Failed to save doctor profile. Please try again.");
       }
 
-      // Explicit direct database sync to guarantee role in profiles, assistants, and doctors tables
-      try {
-        console.log("[DoctorProfileSetup] Explicitly syncing assigned role to database:", assignedRole);
-        await supabase.from("profiles").update({ role: assignedRole }).eq("id", data.user.id);
-        if (assignedRole === "assistant") {
-          await supabase.from("assistants").upsert([{
-            user_id: data.user.id,
-            first_name: (doctorData.first_name || "").trim(),
-            middle_name: doctorData.middle_name?.trim() || null,
-            last_name: (doctorData.last_name || "").trim(),
-            phone: (doctorData.doctor_phone || "").trim(),
-            gender: doctorData.gender || null,
-            profile_picture_url: profileImageUrl || undefined,
-            updated_at: new Date().toISOString(),
-          }], { onConflict: "user_id" });
-        } else {
-          await supabase.from("doctors").update({ role: assignedRole }).eq("user_id", data.user.id);
-        }
-        await supabase.auth.updateUser({ data: { role: assignedRole } });
-      } catch (postSyncErr) {
-        console.warn("[DoctorProfileSetup] Direct role sync notice:", postSyncErr);
-      }
-
+      await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
       onContinue();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";

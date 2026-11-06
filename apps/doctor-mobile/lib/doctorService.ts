@@ -48,6 +48,7 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
           updated_at: ast.updated_at,
         } as Doctor;
       }
+      return null;
     }
 
     if (profile?.role === "admin") {
@@ -73,6 +74,7 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
           updated_at: adminData.updated_at,
         } as any;
       }
+      return null;
     }
 
     // Default: fetch from doctors table
@@ -89,31 +91,6 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
     }
 
     if (!data) {
-      // Fallback check on assistants table
-      const { data: ast } = await supabase
-        .from("assistants")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (ast) {
-        return {
-          id: ast.id,
-          user_id: ast.user_id,
-          first_name: ast.first_name,
-          middle_name: ast.middle_name,
-          last_name: ast.last_name,
-          doctor_name: `${ast.first_name || ""} ${ast.last_name || ""}`.trim(),
-          gender: ast.gender,
-          doctor_phone: ast.phone,
-          profile_picture_url: ast.profile_picture_url,
-          role: "assistant",
-          license_number: "",
-          specialization: "Clinic Assistant",
-          created_at: ast.created_at,
-          updated_at: ast.updated_at,
-        } as Doctor;
-      }
       return null;
     }
 
@@ -268,6 +245,278 @@ export async function getDoctorsByClinic(clinicName: string): Promise<Doctor[]> 
   }
 }
 
+export interface AssistantProfileData {
+  user_id: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  phone?: string | null;
+  gender?: string | null;
+  profile_picture_url?: string | null;
+  clinic_name?: string | null;
+}
+
+export interface AdminProfileData {
+  user_id: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  phone?: string | null;
+}
+
+/**
+ * Create or update an assistant profile (idempotent via UPSERT)
+ * Strictly inserts/updates public.assistants and public.profiles. Never touches public.doctors.
+ */
+export async function createAssistantProfile(
+  assistant: AssistantProfileData,
+  accessCode?: string
+): Promise<{ success: boolean; id?: string }> {
+  try {
+    const firstName = (assistant.first_name || "").trim();
+    const lastName = (assistant.last_name || "").trim();
+    const middleName = (assistant.middle_name || "").trim();
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ") || "Clinic Assistant";
+
+    if (!assistant.user_id) throw new Error("Missing required field: user_id");
+    if (!firstName) throw new Error("Missing required field: first_name");
+    if (!lastName) throw new Error("Missing required field: last_name");
+
+    console.log("[DoctorService] Creating/updating assistant profile:", {
+      user_id: assistant.user_id,
+      first_name: firstName,
+      last_name: lastName,
+      has_access_code: !!accessCode,
+    });
+
+    // 1. Sync public.profiles
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      [
+        {
+          id: assistant.user_id,
+          name: fullName,
+          role: "assistant",
+          phone_number: assistant.phone || null,
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      { onConflict: "id" }
+    );
+    if (profileError) {
+      console.warn("[DoctorService] Profile sync error for assistant:", profileError.message);
+    }
+
+    // 2. Access code RPC attempt if provided
+    let rpcAssistantId: string | undefined;
+    if (accessCode && accessCode.trim().length > 0) {
+      try {
+        const rpcRes = await supabase.rpc("complete_doctor_registration", {
+          p_code: accessCode.trim(),
+          p_first_name: firstName,
+          p_middle_name: middleName || null,
+          p_last_name: lastName,
+          p_specialization: null,
+          p_license_number: null,
+          p_bio: null,
+          p_profile_picture_url: assistant.profile_picture_url || null,
+          p_gender: assistant.gender || null,
+        });
+        if (rpcRes.data?.success && rpcRes.data?.doctor_id) {
+          rpcAssistantId = rpcRes.data.doctor_id;
+        }
+      } catch (rpcErr) {
+        console.warn("[DoctorService] Assistant RPC registration attempt notice:", rpcErr);
+      }
+    }
+
+    // 3. Upsert directly into public.assistants
+    const { data: astData, error: astError } = await supabase
+      .from("assistants")
+      .upsert(
+        [
+          {
+            user_id: assistant.user_id,
+            first_name: firstName,
+            middle_name: middleName || null,
+            last_name: lastName,
+            phone: assistant.phone || null,
+            gender: assistant.gender || null,
+            profile_picture_url: assistant.profile_picture_url || null,
+            clinic_name: assistant.clinic_name || "SmileGuard Dental Clinic",
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+        ],
+        { onConflict: "user_id" }
+      )
+      .select()
+      .maybeSingle();
+
+    if (astError) {
+      console.error("[DoctorService] Error upserting to assistants table:", astError);
+      throw new Error(`Database error: ${astError.message}`);
+    }
+
+    // 4. Update auth user metadata
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          role: "assistant",
+          name: fullName,
+        },
+      });
+    } catch (authMetaErr) {
+      console.warn("[DoctorService] Could not update user metadata:", authMetaErr);
+    }
+
+    return {
+      success: true,
+      id: astData?.id || rpcAssistantId,
+    };
+  } catch (err) {
+    console.error("[DoctorService] Exception in createAssistantProfile:", err);
+    throw err;
+  }
+}
+
+/**
+ * Create or update an admin profile (idempotent via UPSERT)
+ * Strictly inserts/updates public.admins and public.profiles. Never touches public.doctors.
+ */
+export async function createAdminProfile(
+  admin: AdminProfileData
+): Promise<{ success: boolean; id?: string }> {
+  try {
+    const firstName = (admin.first_name || "").trim();
+    const lastName = (admin.last_name || "").trim();
+    const middleName = (admin.middle_name || "").trim();
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ") || "Clinic Administrator";
+
+    if (!admin.user_id) throw new Error("Missing required field: user_id");
+    if (!firstName) throw new Error("Missing required field: first_name");
+    if (!lastName) throw new Error("Missing required field: last_name");
+
+    console.log("[DoctorService] Creating/updating admin profile:", {
+      user_id: admin.user_id,
+      first_name: firstName,
+      last_name: lastName,
+    });
+
+    // 1. Sync public.profiles
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      [
+        {
+          id: admin.user_id,
+          name: fullName,
+          role: "admin",
+          phone_number: admin.phone || null,
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      { onConflict: "id" }
+    );
+    if (profileError) {
+      console.warn("[DoctorService] Profile sync error for admin:", profileError.message);
+    }
+
+    // 2. Upsert directly into public.admins
+    const { data: admData, error: admError } = await supabase
+      .from("admins")
+      .upsert(
+        [
+          {
+            user_id: admin.user_id,
+            first_name: firstName,
+            middle_name: middleName || null,
+            last_name: lastName,
+            phone: admin.phone || null,
+            admin_level: "admin",
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+        ],
+        { onConflict: "user_id" }
+      )
+      .select()
+      .maybeSingle();
+
+    if (admError) {
+      console.error("[DoctorService] Error upserting to admins table:", admError);
+      throw new Error(`Database error: ${admError.message}`);
+    }
+
+    // 3. Update auth metadata
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          role: "admin",
+          name: fullName,
+        },
+      });
+    } catch (authMetaErr) {
+      console.warn("[DoctorService] Could not update user metadata:", authMetaErr);
+    }
+
+    return {
+      success: true,
+      id: admData?.id,
+    };
+  } catch (err) {
+    console.error("[DoctorService] Exception in createAdminProfile:", err);
+    throw err;
+  }
+}
+
+/**
+ * Update an assistant's profile
+ * Strictly updates public.assistants and public.profiles. Never touches public.doctors.
+ */
+export async function updateAssistantProfile(
+  userId: string,
+  updates: {
+    first_name?: string;
+    middle_name?: string | null;
+    last_name?: string;
+    phone?: string | null;
+    gender?: string | null;
+    profile_picture_url?: string | null;
+  }
+): Promise<any> {
+  try {
+    const fullName = [updates.first_name, updates.middle_name, updates.last_name].filter(Boolean).join(" ");
+    if (updates.phone || fullName) {
+      const profileUpdates: any = { role: "assistant", updated_at: new Date().toISOString() };
+      if (fullName) profileUpdates.name = fullName;
+      if (updates.phone) profileUpdates.phone_number = updates.phone;
+      await supabase.from("profiles").update(profileUpdates).eq("id", userId);
+    }
+
+    const astUpdates: any = { updated_at: new Date().toISOString() };
+    if (updates.first_name !== undefined) astUpdates.first_name = updates.first_name;
+    if (updates.middle_name !== undefined) astUpdates.middle_name = updates.middle_name;
+    if (updates.last_name !== undefined) astUpdates.last_name = updates.last_name;
+    if (updates.phone !== undefined) astUpdates.phone = updates.phone;
+    if (updates.gender !== undefined) astUpdates.gender = updates.gender;
+    if (updates.profile_picture_url !== undefined) astUpdates.profile_picture_url = updates.profile_picture_url;
+
+    const { data, error } = await supabase
+      .from("assistants")
+      .update(astUpdates)
+      .or(`id.eq.${userId},user_id.eq.${userId}`)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error("[DoctorService] Error updating assistant profile:", error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("[DoctorService] Exception in updateAssistantProfile:", err);
+    return null;
+  }
+}
+
 /**
  * Create or update a doctor profile (idempotent via UPSERT)
  * Uses UPSERT to handle the case where a profile already exists.
@@ -290,15 +539,54 @@ export async function createDoctorProfile(
     if (!doctor.user_id) throw new Error("Missing required field: user_id");
     if (!firstName) throw new Error("Missing required field: first_name");
     if (!lastName) throw new Error("Missing required field: last_name");
-    const isAssistantProfile = doctor.role === "assistant";
-    if (!isAssistantProfile) {
-      if (!doctor.specialization) throw new Error("Missing required field: specialization");
-      if (!doctor.license_number) throw new Error("Missing required field: license_number");
+
+    // Strictly route assistant registration to dedicated table
+    if (doctor.role === "assistant") {
+      const astResult = await createAssistantProfile(
+        {
+          user_id: doctor.user_id,
+          first_name: firstName,
+          middle_name: middleName || null,
+          last_name: lastName,
+          phone: doctor.doctor_phone || null,
+          gender: doctor.gender || null,
+          profile_picture_url: doctor.profile_picture_url || null,
+        },
+        accessCode
+      );
+      return {
+        ...doctor,
+        id: astResult.id || doctor.id,
+        role: "assistant",
+        specialization: "Clinic Assistant",
+        license_number: "",
+      } as Doctor;
     }
-    // Assistants have no PRC license, specialty or dentist bio
-    const specialization = isAssistantProfile ? null : doctor.specialization;
-    const licenseNumber = isAssistantProfile ? null : doctor.license_number;
-    const bio = isAssistantProfile ? null : doctor.bio || null;
+
+    // Strictly route admin registration to dedicated table
+    if ((doctor.role as any) === "admin") {
+      const admResult = await createAdminProfile({
+        user_id: doctor.user_id,
+        first_name: firstName,
+        middle_name: middleName || null,
+        last_name: lastName,
+        phone: doctor.doctor_phone || null,
+      });
+      return {
+        ...doctor,
+        id: admResult.id || doctor.id,
+        role: "admin" as any,
+        specialization: "Clinic Administrator",
+        license_number: "",
+      } as any;
+    }
+
+    if (!doctor.specialization) throw new Error("Missing required field: specialization");
+    if (!doctor.license_number) throw new Error("Missing required field: license_number");
+
+    const specialization = doctor.specialization;
+    const licenseNumber = doctor.license_number;
+    const bio = doctor.bio || null;
 
     console.log("[DoctorService] Creating/updating doctor profile with data:", {
       user_id: doctor.user_id,
@@ -315,18 +603,14 @@ export async function createDoctorProfile(
     // (prevents PostgreSQL foreign key constraint violation: doctor_user_id_fkey)
     if (doctor.user_id) {
       try {
-        const isAssistant = doctor.role === "assistant";
-        const assignedRole: "doctor" | "assistant" = isAssistant ? "assistant" : "doctor";
-        const defaultName = isAssistant ? "Assistant Doctor" : "Doctor";
-
         const { error: profileSyncError } = await supabase
           .from("profiles")
           .upsert(
             [
               {
                 id: doctor.user_id,
-                name: fullName || defaultName,
-                role: assignedRole,
+                name: fullName || "Doctor",
+                role: "doctor",
                 phone_number: doctor.doctor_phone || null,
                 updated_at: new Date().toISOString(),
               },
@@ -424,10 +708,9 @@ export async function createDoctorProfile(
 
         // Crucial: Update doctor_phone, gender, years_of_experience, and office_hours
         // which may not be set by older complete_doctor_registration RPCs
-        const isAssistant = doctor.role === "assistant";
         const postRegUpdates: Record<string, any> = {
           updated_at: new Date().toISOString(),
-          role: isAssistant ? "assistant" : "doctor",
+          role: "doctor",
         };
 
         if (doctor.gender !== undefined && doctor.gender !== null) {
@@ -441,10 +724,10 @@ export async function createDoctorProfile(
         const yearsExp = doctor.years_of_experience !== undefined && doctor.years_of_experience !== null
           ? Number(doctor.years_of_experience)
           : 0;
-        postRegUpdates.years_of_experience = isAssistant ? null : isNaN(yearsExp) ? 0 : yearsExp;
+        postRegUpdates.years_of_experience = isNaN(yearsExp) ? 0 : yearsExp;
 
         postRegUpdates.office_hours = doctor.office_hours || EMPTY_DOCTOR.office_hours;
-        postRegUpdates.role = isAssistant ? "assistant" : "doctor";
+        postRegUpdates.role = "doctor";
 
         const targetDoctorId = result.doctor_id || doctor.id;
         console.log("[DoctorService] Updating doctor post-registration fields:", {
@@ -486,7 +769,7 @@ export async function createDoctorProfile(
         // Also synchronize doctor_phone and full name with profiles table
         if (doctor.user_id) {
           try {
-            const profileUpdates: any = { role: isAssistant ? "assistant" : "doctor" };
+            const profileUpdates: any = { role: "doctor" };
             if (fullName) profileUpdates.name = fullName;
             if (postRegUpdates.doctor_phone) profileUpdates.phone_number = postRegUpdates.doctor_phone;
             await supabase
@@ -496,25 +779,6 @@ export async function createDoctorProfile(
             console.log("[DoctorService] Profiles table synced with role and phone_number");
           } catch (profileErr) {
             console.warn("[DoctorService] Could not update profile phone during RPC registration:", profileErr);
-          }
-
-          // If assistant, ensure record exists in dedicated assistants table
-          if (isAssistant) {
-            try {
-              await supabase.from("assistants").upsert([{
-                user_id: doctor.user_id,
-                first_name: firstName,
-                middle_name: middleName || null,
-                last_name: lastName,
-                phone: postRegUpdates.doctor_phone || doctor.doctor_phone || null,
-                gender: postRegUpdates.gender || doctor.gender || null,
-                profile_picture_url: doctor.profile_picture_url || null,
-                updated_at: new Date().toISOString(),
-              }], { onConflict: "user_id" });
-              console.log("[DoctorService] Dedicated assistants table synced");
-            } catch (astErr) {
-              console.warn("[DoctorService] Could not sync assistants table:", astErr);
-            }
           }
         }
 
@@ -536,7 +800,7 @@ export async function createDoctorProfile(
     const { is_available, ...rawCleanDoctor } = doctor as any;
     const cleanDoctor = {
       ...rawCleanDoctor,
-      role: (doctor.role === "assistant") ? "assistant" : "doctor",
+      role: "doctor",
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
@@ -545,7 +809,7 @@ export async function createDoctorProfile(
       license_number: licenseNumber,
       specialization,
       bio,
-      years_of_experience: isAssistantProfile ? null : Number(doctor.years_of_experience) || 0,
+      years_of_experience: Number(doctor.years_of_experience) || 0,
       office_hours: doctor.office_hours || EMPTY_DOCTOR.office_hours,
     };
     delete cleanDoctor.doctor_name;
@@ -555,7 +819,7 @@ export async function createDoctorProfile(
       try {
         const profileUpdates: any = {
           id: cleanDoctor.user_id,
-          role: (doctor.role === "assistant") ? "assistant" : "doctor",
+          role: "doctor",
           updated_at: new Date().toISOString(),
         };
         if (fullName) profileUpdates.name = fullName;
@@ -573,24 +837,6 @@ export async function createDoctorProfile(
       .upsert([cleanDoctor], { onConflict: "user_id" })
       .select()
       .single();
-
-    if (isAssistantProfile && cleanDoctor.user_id) {
-      try {
-        await supabase.from("assistants").upsert([{
-          user_id: cleanDoctor.user_id,
-          first_name: firstName,
-          middle_name: middleName || null,
-          last_name: lastName,
-          phone: cleanDoctor.doctor_phone || null,
-          gender: cleanDoctor.gender || null,
-          profile_picture_url: cleanDoctor.profile_picture_url || null,
-          updated_at: new Date().toISOString(),
-        }], { onConflict: "user_id" });
-        console.log("[DoctorService] Assistant fallback upserted into assistants table");
-      } catch (astUpsertErr) {
-        console.warn("[DoctorService] Notice upserting assistants table:", astUpsertErr);
-      }
-    }
 
     // If database table does not yet have gender column (error 42703), retry without gender
     if (error && error.code === "42703" && error.message?.includes("gender")) {
@@ -654,6 +900,17 @@ export async function updateDoctorProfile(
 ): Promise<Doctor | null> {
   try {
     const { id, created_at, is_available, doctor_name, ...cleanUpdates } = updates as any;
+
+    if (updates.role === "assistant") {
+      return updateAssistantProfile(doctorId, {
+        first_name: cleanUpdates.first_name,
+        middle_name: cleanUpdates.middle_name,
+        last_name: cleanUpdates.last_name,
+        phone: cleanUpdates.doctor_phone,
+        gender: cleanUpdates.gender,
+        profile_picture_url: cleanUpdates.profile_picture_url,
+      }) as any;
+    }
 
     const fullName = [cleanUpdates.first_name, cleanUpdates.middle_name, cleanUpdates.last_name]
       .filter(Boolean)
