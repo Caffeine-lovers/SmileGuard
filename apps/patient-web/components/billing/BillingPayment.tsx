@@ -624,33 +624,37 @@ export default function BillingPayment({
         <div className="lg:col-span-8">
           {/* Financial Summary Stats */}
           {!loadingData && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 w-full h-full">
-              <Link href="/billing" className="block no-underline">
-                <div className="skeuo-card p-3 sm:p-4 border-2 border-red-300 bg-red-50/40 rounded-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 w-full h-full items-stretch">
+              <Link href="/billing" className="block no-underline h-full">
+                <div className="skeuo-card p-3 sm:p-4 border-2 border-red-300 bg-red-50/40 rounded-sm h-full">
                   <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
                   <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
                 </div>
               </Link>
-              <div className="skeuo-card p-3 sm:p-4 border-2 border-slate-300 rounded-sm">
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Appointment Billing</span>
-                <div className="grid grid-cols-3 gap-2 mt-2">
+              <div className="skeuo-card p-3 sm:p-4 border-2 border-slate-300 rounded-sm h-full">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500">Appointment Billing</span>
+                  <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
+                    {billingHistory.length} {billingHistory.length === 1 ? 'receipt' : 'receipts'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 mt-2">
                   {BILLING_STATUS_ORDER.map((status) => {
                     const style = BILLING_STATUS_STYLE[status];
                     const StatusIcon = style.icon;
                     return (
-                      <div key={status} className={`rounded-sm border px-2 py-2 text-center ${style.tile}`}>
-                        <StatusIcon className="w-4 h-4 mx-auto" />
-                        <p className="text-xl sm:text-2xl font-black leading-none mt-1">{ledgerCounts[status]}</p>
-                        <p className="text-[10px] font-bold mt-1">{style.label}</p>
+                      <div key={status} className={`rounded-sm border px-1 py-1.5 text-center ${style.tile}`}>
+                        <p className="text-base font-black leading-none">{ledgerCounts[status]}</p>
+                        <p className="text-[9px] font-bold mt-1 flex items-center justify-center gap-0.5 leading-none whitespace-nowrap">
+                          <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                          {style.label}
+                        </p>
                       </div>
                     );
                   })}
                 </div>
-                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-2">
-                  {billingHistory.length} {billingHistory.length === 1 ? 'receipt' : 'receipts'}
-                </p>
               </div>
-              <div className="skeuo-card p-3 sm:p-4 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
+              <div className="skeuo-card p-3 sm:p-4 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm h-full">
                 <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Payment Status</span>
                 <div className="flex items-center gap-2 mt-1">
                   {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
