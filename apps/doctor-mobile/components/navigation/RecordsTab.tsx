@@ -54,6 +54,7 @@ interface RecordsTabProps {
   styles: any;
   startTourTrigger?: number;
   userRole?: string;
+  refreshTrigger?: number;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -72,6 +73,7 @@ export default function RecordsTab({
   styles,
   startTourTrigger,
   userRole,
+  refreshTrigger,
 }: RecordsTabProps) {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const router = useRouter();
@@ -402,6 +404,13 @@ export default function RecordsTab({
       setTourVisible(true);
     }
   }, [startTourTrigger]);
+
+  // Support triggering refresh from parent (top bar Refresh or tab switch)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      handleRefresh();
+    }
+  }, [refreshTrigger]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>

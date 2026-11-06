@@ -57,6 +57,7 @@ interface AppointmentsTabProps {
   userRole?: 'doctor' | 'assistant' | string;
   onAppointmentStatusUpdated?: (status: 'completed' | 'cancelled' | 'no-show' | 'declined', patientName: string, appointmentId: string, patientId: string, doctorId: string) => void;
   startTourTrigger?: number;
+  refreshTrigger?: number;
 }
 
 export default function AppointmentsTab({
@@ -67,6 +68,7 @@ export default function AppointmentsTab({
   userRole = 'doctor',
   onAppointmentStatusUpdated,
   startTourTrigger,
+  refreshTrigger,
 }: AppointmentsTabProps) {
   const { clinic } = useClinic();
   console.log('[AppointmentsTab] Rendered. providedDoctorId:', providedDoctorId);
@@ -844,6 +846,13 @@ export default function AppointmentsTab({
       setTourVisible(true);
     }
   }, [startTourTrigger]);
+
+  // Support triggering refresh from parent (top bar Refresh or tab switch)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      handleRefreshAppointments();
+    }
+  }, [refreshTrigger]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>

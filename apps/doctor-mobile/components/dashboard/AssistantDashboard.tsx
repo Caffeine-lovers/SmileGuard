@@ -577,6 +577,12 @@ export default function AssistantDashboard({
   const [requestsTourTrigger, setRequestsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
 
+  // Tab-specific refresh triggers
+  const [recordsRefreshTrigger, setRecordsRefreshTrigger] = useState(0);
+  const [appointmentsRefreshTrigger, setAppointmentsRefreshTrigger] = useState(0);
+  const [requestsRefreshTrigger, setRequestsRefreshTrigger] = useState(0);
+  const [billingRefreshTrigger, setBillingRefreshTrigger] = useState(0);
+
   // Doctors map for resolving doctor names on appointments
   const [doctorsMap, setDoctorsMap] = useState<Record<string, string>>({});
 
@@ -592,6 +598,19 @@ export default function AssistantDashboard({
         return [...filtered, activeTab];
       });
       setActiveTab(nextTab);
+
+      // Refresh the specific tab when clicked (or whole dashboard on dashboard)
+      if (nextTab === "dashboard") {
+        refreshDashboardData();
+      } else if (nextTab === "billing") {
+        setBillingRefreshTrigger((prev) => prev + 1);
+      } else if (nextTab === "appointments") {
+        setAppointmentsRefreshTrigger((prev) => prev + 1);
+      } else if (nextTab === "records") {
+        setRecordsRefreshTrigger((prev) => prev + 1);
+      } else if (nextTab === "appointment-requests") {
+        setRequestsRefreshTrigger((prev) => prev + 1);
+      }
     },
     [activeTab]
   );
@@ -1551,7 +1570,21 @@ export default function AssistantDashboard({
             style={styles.iconButton}
             onPress={async () => {
               setIsRefreshing(true);
-              await refreshDashboardData();
+              try {
+                if (activeTab === "billing") {
+                  setBillingRefreshTrigger((prev) => prev + 1);
+                } else if (activeTab === "appointments") {
+                  setAppointmentsRefreshTrigger((prev) => prev + 1);
+                } else if (activeTab === "records") {
+                  setRecordsRefreshTrigger((prev) => prev + 1);
+                } else if (activeTab === "appointment-requests") {
+                  setRequestsRefreshTrigger((prev) => prev + 1);
+                } else {
+                  await refreshDashboardData();
+                }
+              } finally {
+                setIsRefreshing(false);
+              }
             }}
             accessibilityLabel="Refresh data"
             activeOpacity={0.7}
@@ -2394,11 +2427,13 @@ export default function AssistantDashboard({
             setShowPatientDetails={setShowPatientDetails}
             styles={styles}
             startTourTrigger={recordsTourTrigger}
+            refreshTrigger={recordsRefreshTrigger}
             userRole="assistant"
           />
         ) : activeTab === "appointments" ? (
           <AppointmentsTab
             startTourTrigger={appointmentsTourTrigger}
+            refreshTrigger={appointmentsRefreshTrigger}
             appointments={appointments}
             onUpdateAppointmentStatus={async (appointmentId, status) => {
               if (user?.id) {
@@ -2421,12 +2456,14 @@ export default function AssistantDashboard({
             }}
             styles={styles}
             startTourTrigger={requestsTourTrigger}
+            refreshTrigger={requestsRefreshTrigger}
           />
         ) : activeTab === "billing" ? (
           <BillingTab
             doctorId={user?.id || ""}
             styles={styles}
             startTourTrigger={billingTourTrigger}
+            refreshTrigger={billingRefreshTrigger}
             userRole="assistant"
           />
         ) : activeTab === "settings" ? (

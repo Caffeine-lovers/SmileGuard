@@ -5,7 +5,6 @@ import { saveTransactionLocally, isOnline, syncPendingTransactions } from "./syn
 export interface Appointment {
   id?: string;
   patient_id: string;
-  dummy_patient?: string | null;
   dummy_patient_id?: string | null;
   dentist_id: string | null;
   service: string;

@@ -28,6 +28,7 @@ interface AppointmentsRequestTabProps {
   onRequestAcceptedWithNotification?: (notification: any) => void;
   styles: any;
   startTourTrigger?: number;
+  refreshTrigger?: number;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -38,6 +39,7 @@ export default function AppointmentsRequestTab({
   onRequestAcceptedWithNotification,
   styles,
   startTourTrigger,
+  refreshTrigger,
 }: AppointmentsRequestTabProps) {
   const [appointmentRequests, setAppointmentRequests] = useState<DashboardAppointment[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -266,6 +268,13 @@ export default function AppointmentsRequestTab({
       setTourVisible(true);
     }
   }, [startTourTrigger]);
+
+  // Support triggering refresh from parent (top bar Refresh or tab switch)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchAppointmentRequests();
+    }
+  }, [refreshTrigger, fetchAppointmentRequests]);
 
   // Fetch appointment requests
   const fetchAppointmentRequests = useCallback(async () => {

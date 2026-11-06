@@ -1,27 +1,19 @@
 -- ==============================================================================
--- Migration 051: Auto-generate Billings for Dummy Patients & Support dummy_patient Column
+-- Migration 051: Auto-generate Billings for Dummy Patients (using dummy_patient_id)
 -- ==============================================================================
--- 1. Adds 'dummy_patient' column to 'appointments' table (in addition to dummy_patient_id)
--- 2. Adds 'dummy_patient' and 'dummy_patient_id' columns to 'billings' table
--- 3. Updates 'handle_appointment_billing_sync' trigger so that when an appointment is
---    created/scheduled for a dummy patient (dummy_patient / dummy_patient_id), a billing
---    record is automatically generated in public.billings (matching the process for
---    regular patients in patient-web).
--- 4. Backfills any existing scheduled dummy appointments that were missing a billing row.
+-- 1. Ensures 'dummy_patient_id' column exists on 'appointments' table
+-- 2. Ensures 'dummy_patient_id' column exists on 'billings' table
+-- 3. Cleans up any accidental 'dummy_patient' extra column if present
+-- 4. Updates 'handle_appointment_billing_sync' trigger so that when an appointment is
+--    created/scheduled for a dummy patient (dummy_patient_id), a billing record is
+--    automatically generated in public.billings (matching the process for regular
+--    patients in patient-web).
+-- 5. Backfills any existing scheduled dummy appointments that were missing a billing row.
 -- ==============================================================================
 
--- 1. ADD 'dummy_patient' AND 'dummy_patient_id' COLUMNS TO 'appointments' TABLE
+-- 1. ENSURE 'dummy_patient_id' EXISTS ON 'appointments' (AND DROP EXTRA 'dummy_patient' IF PRESENT)
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'public' AND table_name = 'appointments' AND column_name = 'dummy_patient'
-  ) THEN
-    ALTER TABLE public.appointments 
-    ADD COLUMN dummy_patient UUID REFERENCES public.dummy_patients(id) ON DELETE SET NULL;
-    COMMENT ON COLUMN public.appointments.dummy_patient IS 'Reference to dummy_patients table for walk-in / keeper patients.';
-  END IF;
-
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' AND table_name = 'appointments' AND column_name = 'dummy_patient_id'
@@ -30,32 +22,26 @@ BEGIN
     ADD COLUMN dummy_patient_id UUID REFERENCES public.dummy_patients(id) ON DELETE SET NULL;
     COMMENT ON COLUMN public.appointments.dummy_patient_id IS 'Reference to dummy_patients table for walk-in / keeper patients.';
   END IF;
+
+  -- Drop redundant dummy_patient extra column if it was previously created
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'appointments' AND column_name = 'dummy_patient'
+  ) THEN
+    -- Preserve data if dummy_patient had values and dummy_patient_id was null
+    UPDATE public.appointments 
+    SET dummy_patient_id = dummy_patient 
+    WHERE dummy_patient_id IS NULL AND dummy_patient IS NOT NULL;
+
+    ALTER TABLE public.appointments DROP COLUMN dummy_patient CASCADE;
+  END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_appointments_dummy_patient ON public.appointments(dummy_patient);
 CREATE INDEX IF NOT EXISTS idx_appointments_dummy_patient_id ON public.appointments(dummy_patient_id);
 
--- Keep dummy_patient and dummy_patient_id in sync for existing appointments
-UPDATE public.appointments
-SET dummy_patient = dummy_patient_id
-WHERE dummy_patient IS NULL AND dummy_patient_id IS NOT NULL;
-
-UPDATE public.appointments
-SET dummy_patient_id = dummy_patient
-WHERE dummy_patient_id IS NULL AND dummy_patient IS NOT NULL;
-
--- 2. ADD 'dummy_patient' AND 'dummy_patient_id' COLUMNS TO 'billings' TABLE
+-- 2. ENSURE 'dummy_patient_id' EXISTS ON 'billings' (AND DROP EXTRA 'dummy_patient' IF PRESENT)
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'public' AND table_name = 'billings' AND column_name = 'dummy_patient'
-  ) THEN
-    ALTER TABLE public.billings 
-    ADD COLUMN dummy_patient UUID REFERENCES public.dummy_patients(id) ON DELETE SET NULL;
-    COMMENT ON COLUMN public.billings.dummy_patient IS 'Reference to dummy_patients table for walk-in billing records.';
-  END IF;
-
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' AND table_name = 'billings' AND column_name = 'dummy_patient_id'
@@ -64,9 +50,20 @@ BEGIN
     ADD COLUMN dummy_patient_id UUID REFERENCES public.dummy_patients(id) ON DELETE SET NULL;
     COMMENT ON COLUMN public.billings.dummy_patient_id IS 'Reference to dummy_patients table for walk-in billing records.';
   END IF;
+
+  -- Drop redundant dummy_patient extra column if it was previously created
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'billings' AND column_name = 'dummy_patient'
+  ) THEN
+    UPDATE public.billings 
+    SET dummy_patient_id = dummy_patient 
+    WHERE dummy_patient_id IS NULL AND dummy_patient IS NOT NULL;
+
+    ALTER TABLE public.billings DROP COLUMN dummy_patient CASCADE;
+  END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_billings_dummy_patient ON public.billings(dummy_patient);
 CREATE INDEX IF NOT EXISTS idx_billings_dummy_patient_id ON public.billings(dummy_patient_id);
 
 -- 3. UPDATE APPOINTMENT BILLING SYNC TRIGGER TO SUPPORT DUMMY PATIENTS
@@ -81,15 +78,7 @@ DECLARE
   v_part TEXT;
   v_has_services BOOLEAN := FALSE;
   v_effective_patient_id UUID;
-  v_effective_dummy_id UUID;
 BEGIN
-  -- Sync dummy_patient and dummy_patient_id on the incoming row if set
-  IF NEW.dummy_patient IS NOT NULL AND NEW.dummy_patient_id IS NULL THEN
-    NEW.dummy_patient_id := NEW.dummy_patient;
-  ELSIF NEW.dummy_patient_id IS NOT NULL AND NEW.dummy_patient IS NULL THEN
-    NEW.dummy_patient := NEW.dummy_patient_id;
-  END IF;
-
   -- ------------------------------------------------------------------
   -- A. APPOINTMENT CANCELLED / DECLINED:
   --    Cancel linked billing records (unless already paid)
@@ -195,15 +184,13 @@ BEGIN
       END IF;
 
       -- Determine effective patient ID (online patient or dummy/walk-in patient)
-      v_effective_dummy_id := COALESCE(NEW.dummy_patient_id, NEW.dummy_patient);
-      v_effective_patient_id := COALESCE(NEW.patient_id, v_effective_dummy_id);
+      v_effective_patient_id := COALESCE(NEW.patient_id, NEW.dummy_patient_id);
 
       -- Automatically insert billing record (works for both regular and dummy patients)
       IF v_effective_patient_id IS NOT NULL THEN
         INSERT INTO public.billings (
           patient_id,
           dummy_patient_id,
-          dummy_patient,
           appointment_id,
           amount,
           discount_type,
@@ -214,8 +201,7 @@ BEGIN
           updated_at
         ) VALUES (
           v_effective_patient_id,
-          v_effective_dummy_id,
-          v_effective_dummy_id,
+          NEW.dummy_patient_id,
           NEW.id,
           v_service_price,
           'none',
@@ -233,11 +219,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Re-create the trigger to watch dummy_patient and dummy_patient_id columns as well
+-- Re-create the trigger to watch dummy_patient_id as well
 DROP TRIGGER IF EXISTS trg_appointment_billing_sync ON public.appointments;
 
 CREATE TRIGGER trg_appointment_billing_sync
-AFTER INSERT OR UPDATE OF status, service, dentist_id, patient_id, dummy_patient_id, dummy_patient
+AFTER INSERT OR UPDATE OF status, service, dentist_id, patient_id, dummy_patient_id
 ON public.appointments
 FOR EACH ROW
 EXECUTE FUNCTION public.handle_appointment_billing_sync();
@@ -246,7 +232,6 @@ EXECUTE FUNCTION public.handle_appointment_billing_sync();
 INSERT INTO public.billings (
   patient_id,
   dummy_patient_id,
-  dummy_patient,
   appointment_id,
   amount,
   discount_type,
@@ -257,9 +242,8 @@ INSERT INTO public.billings (
   updated_at
 )
 SELECT 
-  COALESCE(a.dummy_patient_id, a.dummy_patient),
-  COALESCE(a.dummy_patient_id, a.dummy_patient),
-  COALESCE(a.dummy_patient, a.dummy_patient_id),
+  a.dummy_patient_id,
+  a.dummy_patient_id,
   a.id,
   1500,
   'none',
@@ -269,9 +253,8 @@ SELECT
   NOW(),
   NOW()
 FROM public.appointments a
-WHERE (a.dummy_patient_id IS NOT NULL OR a.dummy_patient IS NOT NULL)
+WHERE a.dummy_patient_id IS NOT NULL
   AND LOWER(a.status) = 'scheduled'
   AND NOT EXISTS (
     SELECT 1 FROM public.billings b WHERE b.appointment_id = a.id
   );
-

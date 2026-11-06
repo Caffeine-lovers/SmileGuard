@@ -308,7 +308,14 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const [tourIndex, setTourIndex] = useState(0);
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
+  const [requestsTourTrigger, setRequestsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
+
+  // Tab-specific refresh triggers
+  const [recordsRefreshTrigger, setRecordsRefreshTrigger] = useState(0);
+  const [appointmentsRefreshTrigger, setAppointmentsRefreshTrigger] = useState(0);
+  const [requestsRefreshTrigger, setRequestsRefreshTrigger] = useState(0);
+  const [billingRefreshTrigger, setBillingRefreshTrigger] = useState(0);
 
   // Hierarchical back handler & tab navigation
   const navigateToTab = useCallback((nextTab: 'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings') => {
@@ -321,6 +328,19 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       return [...filtered, activeTab];
     });
     setActiveTab(nextTab);
+
+    // Refresh the specific tab when clicked (or whole dashboard on dashboard)
+    if (nextTab === 'dashboard') {
+      refreshDashboardData();
+    } else if (nextTab === 'billing') {
+      setBillingRefreshTrigger(prev => prev + 1);
+    } else if (nextTab === 'appointments') {
+      setAppointmentsRefreshTrigger(prev => prev + 1);
+    } else if (nextTab === 'records') {
+      setRecordsRefreshTrigger(prev => prev + 1);
+    } else if (nextTab === 'appointment-requests') {
+      setRequestsRefreshTrigger(prev => prev + 1);
+    }
   }, [activeTab]);
 
   const handleGoBack = useCallback(() => {
@@ -613,6 +633,39 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
         },
       ]
     );
+  };
+
+  const handleTopBarGuide = () => {
+    if (activeTab === 'records') {
+      setRecordsTourTrigger((prev) => prev + 1);
+    } else if (activeTab === 'appointments') {
+      setAppointmentsTourTrigger((prev) => prev + 1);
+    } else if (activeTab === 'appointment-requests') {
+      setRequestsTourTrigger((prev) => prev + 1);
+    } else if (activeTab === 'billing') {
+      setBillingTourTrigger((prev) => prev + 1);
+    } else {
+      handleOpenGuideOptions();
+    }
+  };
+
+  const handleTopBarRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (activeTab === 'billing') {
+        setBillingRefreshTrigger((prev) => prev + 1);
+      } else if (activeTab === 'appointments') {
+        setAppointmentsRefreshTrigger((prev) => prev + 1);
+      } else if (activeTab === 'records') {
+        setRecordsRefreshTrigger((prev) => prev + 1);
+      } else if (activeTab === 'appointment-requests') {
+        setRequestsRefreshTrigger((prev) => prev + 1);
+      } else {
+        await refreshDashboardData();
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const today = getToday();
@@ -1319,7 +1372,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           <View style={styles.topBarRightActions}>
             <View ref={tour.register("guide-btn")} collapsable={false} style={{ width: 40, height: 40 }}>
               <TouchableOpacity
-                onPress={handleOpenGuideOptions}
+                onPress={handleTopBarGuide}
                 style={styles.topBarRefreshBtn}
                 activeOpacity={0.7}
                 accessibilityLabel="Clinic Guide & Interactive Tour"
@@ -1335,10 +1388,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               />
             </View>
             <TouchableOpacity
-              onPress={() => {
-                setIsRefreshing(true);
-                refreshDashboardData();
-              }}
+              onPress={handleTopBarRefresh}
               disabled={isRefreshing}
               style={styles.topBarRefreshBtn}
               activeOpacity={0.7}
@@ -1844,10 +1894,12 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               setShowPatientDetails={setShowPatientDetails}
               styles={styles}
               startTourTrigger={recordsTourTrigger}
+              refreshTrigger={recordsRefreshTrigger}
             />
           ) : activeTab === 'appointments' ? (
             <AppointmentsTab
               startTourTrigger={appointmentsTourTrigger}
+              refreshTrigger={appointmentsRefreshTrigger}
               appointments={appointments}
               onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               styles={styles}
@@ -1860,6 +1912,8 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           ) : activeTab === 'appointment-requests' ? (
             <AppointmentsRequestTab
               userId={user.id || ''}
+              startTourTrigger={requestsTourTrigger}
+              refreshTrigger={requestsRefreshTrigger}
               onRequestAccepted={() => {
                 // Refresh dashboard data when request is accepted
                 refreshDashboardData();
@@ -1875,6 +1929,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               doctorId={user.id || ''}
               styles={styles}
               startTourTrigger={billingTourTrigger}
+              refreshTrigger={billingRefreshTrigger}
             />
           ) : (
             <SettingsTab
