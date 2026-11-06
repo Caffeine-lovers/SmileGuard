@@ -67,6 +67,29 @@ export default function OAuthRedirect() {
                 return;
               }
 
+              if (savedRole === "assistant") {
+                const { data: ast } = await supabase
+                  .from("assistants")
+                  .select("id")
+                  .eq("user_id", session.user.id)
+                  .maybeSingle();
+
+                const { data: legacyDoc } = !ast ? await supabase
+                  .from("doctors")
+                  .select("id")
+                  .eq("user_id", session.user.id)
+                  .maybeSingle() : { data: null };
+
+                if (ast || legacyDoc) {
+                  console.log("[OAuthRedirect] Fallback routing to assistant dashboard");
+                  router.replace("/(doctor)/dashboard");
+                } else {
+                  console.log("[OAuthRedirect] Fallback routing to setup-profile for assistant");
+                  router.replace("/setup-profile");
+                }
+                return;
+              }
+
               const { data: doc } = await supabase
                 .from("doctors")
                 .select("id")

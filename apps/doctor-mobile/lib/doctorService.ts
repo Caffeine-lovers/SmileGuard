@@ -15,15 +15,105 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
   try {
     console.log(' getDoctorProfile called with userId:', userId);
+
+    // 1. Check profiles table first to determine role
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, name")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile?.role === "assistant") {
+      const { data: ast } = await supabase
+        .from("assistants")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (ast) {
+        return {
+          id: ast.id,
+          user_id: ast.user_id,
+          first_name: ast.first_name,
+          middle_name: ast.middle_name,
+          last_name: ast.last_name,
+          doctor_name: `${ast.first_name || ""} ${ast.last_name || ""}`.trim(),
+          gender: ast.gender,
+          doctor_phone: ast.phone,
+          profile_picture_url: ast.profile_picture_url,
+          role: "assistant",
+          license_number: "",
+          specialization: "Clinic Assistant",
+          created_at: ast.created_at,
+          updated_at: ast.updated_at,
+        } as Doctor;
+      }
+    }
+
+    if (profile?.role === "admin") {
+      const { data: adminData } = await supabase
+        .from("admins")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (adminData) {
+        return {
+          id: adminData.id,
+          user_id: adminData.user_id,
+          first_name: adminData.first_name,
+          middle_name: adminData.middle_name,
+          last_name: adminData.last_name,
+          doctor_name: `${adminData.first_name || ""} ${adminData.last_name || ""}`.trim(),
+          doctor_phone: adminData.phone,
+          role: "admin" as any,
+          license_number: "",
+          specialization: "Clinic Administrator",
+          created_at: adminData.created_at,
+          updated_at: adminData.updated_at,
+        } as any;
+      }
+    }
+
+    // Default: fetch from doctors table
     const { data, error } = await supabase
       .from("doctors")
       .select("*")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error(" Error fetching doctor profile:", error.message, error.details, error.code);
       console.log("Query attempted: SELECT * FROM doctors WHERE user_id = ?", userId);
+      return null;
+    }
+
+    if (!data) {
+      // Fallback check on assistants table
+      const { data: ast } = await supabase
+        .from("assistants")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (ast) {
+        return {
+          id: ast.id,
+          user_id: ast.user_id,
+          first_name: ast.first_name,
+          middle_name: ast.middle_name,
+          last_name: ast.last_name,
+          doctor_name: `${ast.first_name || ""} ${ast.last_name || ""}`.trim(),
+          gender: ast.gender,
+          doctor_phone: ast.phone,
+          profile_picture_url: ast.profile_picture_url,
+          role: "assistant",
+          license_number: "",
+          specialization: "Clinic Assistant",
+          created_at: ast.created_at,
+          updated_at: ast.updated_at,
+        } as Doctor;
+      }
       return null;
     }
 
@@ -407,6 +497,25 @@ export async function createDoctorProfile(
           } catch (profileErr) {
             console.warn("[DoctorService] Could not update profile phone during RPC registration:", profileErr);
           }
+
+          // If assistant, ensure record exists in dedicated assistants table
+          if (isAssistant) {
+            try {
+              await supabase.from("assistants").upsert([{
+                user_id: doctor.user_id,
+                first_name: firstName,
+                middle_name: middleName || null,
+                last_name: lastName,
+                phone: postRegUpdates.doctor_phone || doctor.doctor_phone || null,
+                gender: postRegUpdates.gender || doctor.gender || null,
+                profile_picture_url: doctor.profile_picture_url || null,
+                updated_at: new Date().toISOString(),
+              }], { onConflict: "user_id" });
+              console.log("[DoctorService] Dedicated assistants table synced");
+            } catch (astErr) {
+              console.warn("[DoctorService] Could not sync assistants table:", astErr);
+            }
+          }
         }
 
         return {
@@ -464,6 +573,24 @@ export async function createDoctorProfile(
       .upsert([cleanDoctor], { onConflict: "user_id" })
       .select()
       .single();
+
+    if (isAssistantProfile && cleanDoctor.user_id) {
+      try {
+        await supabase.from("assistants").upsert([{
+          user_id: cleanDoctor.user_id,
+          first_name: firstName,
+          middle_name: middleName || null,
+          last_name: lastName,
+          phone: cleanDoctor.doctor_phone || null,
+          gender: cleanDoctor.gender || null,
+          profile_picture_url: cleanDoctor.profile_picture_url || null,
+          updated_at: new Date().toISOString(),
+        }], { onConflict: "user_id" });
+        console.log("[DoctorService] Assistant fallback upserted into assistants table");
+      } catch (astUpsertErr) {
+        console.warn("[DoctorService] Notice upserting assistants table:", astUpsertErr);
+      }
+    }
 
     // If database table does not yet have gender column (error 42703), retry without gender
     if (error && error.code === "42703" && error.message?.includes("gender")) {
@@ -625,6 +752,25 @@ export async function updateDoctorProfile(
       } catch (cacheErr) {
         console.warn("[DoctorService] Could not cache gender:", cacheErr);
       }
+    }
+
+    // Also synchronize assistants table if assistant record exists
+    const targetUserId = cleanUpdates.user_id || doctorId;
+    try {
+      const astUpdate: any = { updated_at: new Date().toISOString() };
+      if (cleanUpdates.first_name) astUpdate.first_name = cleanUpdates.first_name;
+      if (cleanUpdates.middle_name !== undefined) astUpdate.middle_name = cleanUpdates.middle_name;
+      if (cleanUpdates.last_name) astUpdate.last_name = cleanUpdates.last_name;
+      if (cleanUpdates.doctor_phone) astUpdate.phone = cleanUpdates.doctor_phone;
+      if (cleanUpdates.gender) astUpdate.gender = cleanUpdates.gender;
+      if (cleanUpdates.profile_picture_url) astUpdate.profile_picture_url = cleanUpdates.profile_picture_url;
+
+      await supabase
+        .from("assistants")
+        .update(astUpdate)
+        .or(`id.eq.${targetUserId},user_id.eq.${targetUserId}`);
+    } catch (astUpdErr) {
+      console.warn("[DoctorService] Notice updating assistants table:", astUpdErr);
     }
 
     if (error) {

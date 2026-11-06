@@ -67,7 +67,8 @@ export function useAuth() {
             console.warn("[useAuth] Could not read pending role from AsyncStorage:", e);
           }
           const isPendingAssistant = pendingRole === "assistant" || user.user_metadata?.role === "assistant";
-          const userRole = isPendingAssistant ? "assistant" : (user.user_metadata?.role || "doctor");
+          const isPendingAdmin = pendingRole === "admin" || user.user_metadata?.role === "admin";
+          const userRole = isPendingAdmin ? "admin" : isPendingAssistant ? "assistant" : (user.user_metadata?.role || "doctor");
           const userEmail = user.email || "";
 
           console.log("[useAuth] Creating profile with metadata:", { userName, userRole, userEmail });
@@ -88,12 +89,11 @@ export function useAuth() {
 
           if (createError) {
             console.error("[useAuth] ❌ Error creating profile:", createError.message, createError.code);
-            // Still set user even if creation fails
             setCurrentUser({
               id:    userId,
               name:  userName,
               email: userEmail,
-              role:  userRole as "patient" | "doctor" | "assistant",
+              role:  userRole as "patient" | "doctor" | "assistant" | "admin",
             });
           } else {
             console.log("[useAuth] ✅ Profile created successfully:", createdProfile);
@@ -101,7 +101,7 @@ export function useAuth() {
               id:    userId,
               name:  createdProfile?.name  || userName,
               email: createdProfile?.email || userEmail,
-              role:  (createdProfile?.role as "patient" | "doctor" | "assistant") || userRole,
+              role:  (createdProfile?.role as "patient" | "doctor" | "assistant" | "admin") || userRole,
             });
           }
         } else {
@@ -110,9 +110,41 @@ export function useAuth() {
         }
       } else {
         console.log("[useAuth] ✅ Profile fetched successfully:", { id: userId, name: data.name, role: data.role });
+        let resolvedName = data.name;
+
+        // Fetch name and details from dedicated role table
+        if (data.role === "admin") {
+          const { data: adminRecord } = await supabase
+            .from("admins")
+            .select("first_name, last_name")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (adminRecord) {
+            resolvedName = `${adminRecord.first_name || ""} ${adminRecord.last_name || ""}`.trim() || resolvedName;
+          }
+        } else if (data.role === "assistant") {
+          const { data: assistantRecord } = await supabase
+            .from("assistants")
+            .select("first_name, last_name")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (assistantRecord) {
+            resolvedName = `${assistantRecord.first_name || ""} ${assistantRecord.last_name || ""}`.trim() || resolvedName;
+          }
+        } else if (data.role === "doctor") {
+          const { data: doctorRecord } = await supabase
+            .from("doctors")
+            .select("first_name, last_name")
+            .or(`user_id.eq.${userId},id.eq.${userId}`)
+            .maybeSingle();
+          if (doctorRecord) {
+            resolvedName = `${doctorRecord.first_name || ""} ${doctorRecord.last_name || ""}`.trim() || resolvedName;
+          }
+        }
+
         setCurrentUser({
           id:    userId,
-          name:  data.name,
+          name:  resolvedName,
           email: data.email,
           role:  data.role || "doctor",
         });
@@ -121,7 +153,6 @@ export function useAuth() {
       const msg = err instanceof Error ? err.message : "Failed to load profile.";
       console.error("[useAuth] ❌ Error in fetchProfile:", err);
       setError(msg);
-      // Still set a minimal user object to prevent the app from being stuck
       setCurrentUser({
         id: userId,
         name: "Doctor",
@@ -136,7 +167,7 @@ export function useAuth() {
   const login = async (
     email: string,
     password: string,
-    role: "doctor" | "assistant" = "doctor"
+    role: "doctor" | "assistant" | "admin" = "doctor"
   ): Promise<CurrentUser> => {
     setError(null);
     console.log(" Starting login for:", email, "as", role);
@@ -157,7 +188,7 @@ export function useAuth() {
       console.warn("️ Profile not found, creating from metadata...");
 
       const userName = data.user.user_metadata?.name || email.split("@")[0];
-      const userRole = data.user.user_metadata?.role || "doctor"; // Default to 'doctor' instead of 'patient'
+      const userRole = data.user.user_metadata?.role || role || "doctor";
 
       const { data: insertedProfile, error: createError } = await supabase
         .from("profiles")
@@ -174,10 +205,10 @@ export function useAuth() {
       if (createError) throw new Error(`Failed to create profile: ${createError.message}`);
 
       return {
-        id:    data.user.id,                    // ← UUID always set
+        id:    data.user.id,
         name:  insertedProfile?.name  || userName,
         email: insertedProfile?.email || data.user.email || email,
-        role:  (insertedProfile?.role as "doctor" | "assistant") || userRole,
+        role:  (insertedProfile?.role as "doctor" | "assistant" | "admin") || userRole,
       };
     }
 
@@ -186,19 +217,67 @@ export function useAuth() {
 
     let actualRole = profile.role || "doctor";
 
-    if (actualRole !== "doctor" && actualRole !== "assistant") {
-      const { data: doctorRecord } = await supabase
-        .from("doctors")
-        .select("id")
+    // 1. Admin login: fetch from admins table
+    if (actualRole === "admin") {
+      const { data: adminRecord } = await supabase
+        .from("admins")
+        .select("id, first_name, last_name")
         .eq("user_id", data.user.id)
         .maybeSingle();
 
-      if (doctorRecord) {
-        actualRole = "doctor";
-      }
+      const adminName = adminRecord
+        ? `${adminRecord.first_name || ""} ${adminRecord.last_name || ""}`.trim() || profile.name
+        : profile.name;
+
+      return {
+        id:    data.user.id,
+        name:  adminName,
+        email: profile.email,
+        role:  "admin",
+      };
     }
 
-    if (actualRole !== "doctor" && actualRole !== "assistant") {
+    // 2. Assistant login: fetch from assistants table
+    if (actualRole === "assistant") {
+      const { data: assistantRecord } = await supabase
+        .from("assistants")
+        .select("id, first_name, last_name")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      const assistantName = assistantRecord
+        ? `${assistantRecord.first_name || ""} ${assistantRecord.last_name || ""}`.trim() || profile.name
+        : profile.name;
+
+      return {
+        id:    data.user.id,
+        name:  assistantName,
+        email: profile.email,
+        role:  "assistant",
+      };
+    }
+
+    // 3. Doctor login: fetch from doctors table
+    if (actualRole === "doctor") {
+      const { data: doctorRecord } = await supabase
+        .from("doctors")
+        .select("id, first_name, last_name, role")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      const doctorName = doctorRecord
+        ? `${doctorRecord.first_name || ""} ${doctorRecord.last_name || ""}`.trim() || profile.name
+        : profile.name;
+
+      return {
+        id:    data.user.id,
+        name:  doctorName,
+        email: profile.email,
+        role:  "doctor",
+      };
+    }
+
+    if (actualRole !== "doctor" && actualRole !== "assistant" && actualRole !== "admin") {
       await supabase.auth.signOut();
       throw new Error(
         `This account is registered as a ${actualRole}, not a clinic staff member.`
@@ -206,7 +285,7 @@ export function useAuth() {
     }
 
     return {
-      id:    data.user.id,                      // ← UUID always set
+      id:    data.user.id,
       name:  profile.name,
       email: profile.email,
       role:  actualRole,
@@ -256,14 +335,12 @@ export function useAuth() {
 
     if (profileCreateError) {
       console.warn("[useAuth] ⚠️ Failed to create profile (non-fatal):", profileCreateError.message);
-      // Don't fail the entire registration if profile creation fails
-      // The fetchProfile() function will create it if needed
     } else {
       console.log("[useAuth] ✅ Profile created successfully");
     }
 
     return {
-      id:    data.user.id,                      // ← UUID always set
+      id:    data.user.id,
       name:  formData.name,
       email: normalizedEmail,
       role,

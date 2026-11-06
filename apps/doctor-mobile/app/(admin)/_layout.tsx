@@ -18,6 +18,7 @@ export default function AdminLayout() {
         return;
       }
 
+      // 1. Check profiles table
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("role")
@@ -29,6 +30,19 @@ export default function AdminLayout() {
       }
 
       let confirmed = profile?.role === "admin";
+
+      // 2. Check admins table directly
+      if (!confirmed) {
+        const { data: adminRecord } = await supabase
+          .from("admins")
+          .select("id, is_active")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+
+        if (adminRecord && adminRecord.is_active !== false) {
+          confirmed = true;
+        }
+      }
 
       // Admin rights come from the server, which re-checks the code entered at sign-in.
       if (!confirmed) {
@@ -74,15 +88,14 @@ export default function AdminLayout() {
 
   if (isAdmin === undefined) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" }}>
-        <ActivityIndicator size="large" color="#047857" />
+      <View style={{ flex: 1, backgroundColor: "#064E3B", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#34D399" />
       </View>
     );
   }
 
   if (!isAdmin) {
-    // Not an admin profile — never silently fall through to the doctor dashboard
-    return <Redirect href="/(doctor)/dashboard" />;
+    return <Redirect href="/" />;
   }
 
   return <Slot />;
