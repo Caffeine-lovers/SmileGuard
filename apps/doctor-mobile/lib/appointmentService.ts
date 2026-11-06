@@ -176,8 +176,9 @@ export async function getDoctorAppointments(
       let patientAvatar = null;
       let profile = null;
 
-      if (apt.dummy_patient_id && dummyPatientMap.has(apt.dummy_patient_id)) {
-        const dummy = dummyPatientMap.get(apt.dummy_patient_id);
+      const dummyId = apt.dummy_patient_id || apt.dummy_patient;
+      if (dummyId && dummyPatientMap.has(dummyId)) {
+        const dummy = dummyPatientMap.get(dummyId);
         patientName = dummy.name;
         profile = {
           id: dummy.id,
@@ -203,8 +204,8 @@ export async function getDoctorAppointments(
       }
 
       let medicalIntake = medicalIntakeMap.get(apt.patient_id);
-      if (!medicalIntake && (apt.dummy_patient_id || apt.patient_id)) {
-        const dummy = dummyPatientMap.get(apt.dummy_patient_id || apt.patient_id);
+      if (!medicalIntake && (dummyId || apt.patient_id)) {
+        const dummy = dummyPatientMap.get(dummyId || apt.patient_id);
         if (dummy) {
           medicalIntake = {
             allergies: dummy.allergies || 'None',
@@ -349,8 +350,9 @@ async function fallbackGetDoctorAppointments(
       let patientAvatar = null;
       let profile = null;
 
-      if (apt.dummy_patient_id && dummyPatientMap.has(apt.dummy_patient_id)) {
-        const dummy = dummyPatientMap.get(apt.dummy_patient_id);
+      const dummyId = apt.dummy_patient_id || apt.dummy_patient;
+      if (dummyId && dummyPatientMap.has(dummyId)) {
+        const dummy = dummyPatientMap.get(dummyId);
         patientName = dummy.name;
         profile = {
           id: dummy.id,
@@ -376,8 +378,8 @@ async function fallbackGetDoctorAppointments(
       }
 
       let medicalIntake = medicalIntakeMap.get(apt.patient_id);
-      if (!medicalIntake && (apt.dummy_patient_id || apt.patient_id)) {
-        const dummy = dummyPatientMap.get(apt.dummy_patient_id || apt.patient_id);
+      if (!medicalIntake && (dummyId || apt.patient_id)) {
+        const dummy = dummyPatientMap.get(dummyId || apt.patient_id);
         if (dummy) {
           medicalIntake = {
             allergies: dummy.allergies || 'None',
@@ -1110,6 +1112,7 @@ export async function createDirectAppointment(
 
     if (input.is_dummy) {
       payload.dummy_patient_id = input.patient_id;
+      payload.dummy_patient = input.patient_id;
       payload.patient_id = null;
     } else {
       payload.patient_id = input.patient_id;
@@ -1121,8 +1124,16 @@ export async function createDirectAppointment(
       .select()
       .single();
 
+    if (error && error.message?.includes('dummy_patient')) {
+      delete payload.dummy_patient;
+      const retry = await supabase.from('appointments').insert(payload).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error && (error.message?.includes('dummy_patient_id') || error.message?.includes('null value in column'))) {
       delete payload.dummy_patient_id;
+      delete payload.dummy_patient;
       payload.patient_id = input.patient_id;
       const retry = await supabase.from('appointments').insert(payload).select().single();
       data = retry.data;
@@ -1132,6 +1143,32 @@ export async function createDirectAppointment(
     if (error) {
       console.error('[createDirectAppointment] Error:', error);
       return { success: false, error: error.message };
+    }
+
+    // Safety fallback: ensure a billing row exists for the scheduled dummy appointment
+    if (data?.id && input.is_dummy) {
+      try {
+        const { data: existingBill } = await supabase
+          .from('billings')
+          .select('id')
+          .eq('appointment_id', data.id)
+          .maybeSingle();
+
+        if (!existingBill) {
+          // If trigger didn't run or is not yet applied, create billing row
+          await supabase.rpc('create_dummy_billing', {
+            p_patient_id: input.patient_id,
+            p_appointment_id: data.id,
+            p_amount: 1500,
+            p_discount_type: 'none',
+            p_discount_amount: 0,
+            p_final_amount: 1500,
+            p_payment_status: 'not_paid',
+          });
+        }
+      } catch (billSyncErr) {
+        console.warn('[createDirectAppointment] Billing safeguard sync error (non-fatal):', billSyncErr);
+      }
     }
 
     return { success: true, data };

@@ -527,7 +527,7 @@ export default function AddAppointmentModal({
         return false;
       }
       const matchId =
-        (selectedPatient.dummy && (a.dummy_patient_id === selectedPatient.id || a.dummy_account_id === selectedPatient.id)) ||
+        (selectedPatient.dummy && (a.dummy_patient_id === selectedPatient.id || a.dummy_patient === selectedPatient.id || a.dummy_account_id === selectedPatient.id)) ||
         a.patient_id === selectedPatient.id;
       const isActive = !isCancelledOrDeclined(a.status);
       return matchId && isActive;

@@ -467,7 +467,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
 
       // Check any missing IDs in both profiles and dummy_patients
       const missingIds = records
-        .map((b) => b.patient_id)
+        .map((b) => b.patient_id || b.dummy_patient_id || b.dummy_patient)
         .filter((id) => id && !patientInfoMap.has(id));
 
       if (missingIds.length > 0) {
@@ -486,12 +486,13 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
       }
 
       const billingsWithNames: BillingWithPatientName[] = records.map((b) => {
-        const info = patientInfoMap.get(b.patient_id);
+        const targetId = b.patient_id || b.dummy_patient_id || b.dummy_patient;
+        const info = patientInfoMap.get(targetId);
         return {
           ...b,
-          patient_name: info?.name || (b.patient_id ? `Patient (${b.patient_id.slice(0, 8)})` : 'Unknown Patient'),
+          patient_name: info?.name || (targetId ? `Patient (${targetId.slice(0, 8)})` : 'Unknown Patient'),
           patient_email: info?.email || '',
-          is_dummy: info?.is_dummy ?? false,
+          is_dummy: info?.is_dummy ?? (!!b.dummy_patient_id || !!b.dummy_patient),
         };
       });
 
