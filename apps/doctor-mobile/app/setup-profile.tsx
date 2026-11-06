@@ -17,46 +17,14 @@ export default function SetupProfilePage() {
   const router = useRouter();
   const [step, setStep] = useState<"profile" | "clinic">("profile");
 
-  // Immediate safeguard: if user is admin, bypass setup-profile completely
-  useEffect(() => {
-    (async () => {
-      const [savedRole, { data: { session } }] = await Promise.all([
-        AsyncStorage.getItem("@pending_user_role"),
-        supabase.auth.getSession(),
-      ]);
-
-      if (savedRole === "admin") {
-        console.log("[SetupProfile] Admin role detected, redirecting to /(admin)/dashboard");
-        router.replace("/(admin)/dashboard");
-        return;
-      }
-
-      if (session?.user?.id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (profile?.role === "admin") {
-          console.log("[SetupProfile] Admin DB profile detected, redirecting to /(admin)/dashboard");
-          router.replace("/(admin)/dashboard");
-          return;
-        }
-      }
-    })();
-  }, [router]);
-
   const handleProfileContinue = async () => {
     console.log("[SetupProfile] Profile setup complete, checking role...");
-    const savedRole = await AsyncStorage.getItem("@pending_user_role");
+    const [savedCode, savedRole] = await Promise.all([
+      AsyncStorage.getItem("@pending_doctor_access_code"),
+      AsyncStorage.getItem("@pending_user_role"),
+    ]);
 
-    if (savedRole === "admin") {
-      router.replace("/(admin)/dashboard");
-      return;
-    }
-
-    if (savedRole === "assistant") {
+    if (savedCode === "SMILEGUARD-STAFF" || savedRole === "assistant") {
       console.log("[SetupProfile] Assistant role detected, bypassing clinic setup directly to onboarding");
       router.replace("/onboarding");
       return;
