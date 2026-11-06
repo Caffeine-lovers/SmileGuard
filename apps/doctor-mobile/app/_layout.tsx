@@ -14,6 +14,7 @@ import { ClinicProvider } from "../contexts/ClinicContext";
 import { registerForPushNotificationsAsync } from "../lib/pushNotificationService";
 // Importing this module swaps the native Alert for the themed dialog app-wide
 import AppAlertHost from "../components/ui/AppAlertHost";
+import AppUpdateManager from "../components/ui/AppUpdateManager";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -296,6 +297,7 @@ export default function RootLayout() {
         <ClinicProvider>
           <Slot />
           <AppAlertHost />
+          <AppUpdateManager />
         </ClinicProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
