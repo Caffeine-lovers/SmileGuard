@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,12 +10,14 @@ import {
   LifeBuoy,
   ListChecks,
   LogOut,
+  Sparkles,
 } from "lucide-react-native";
 import AccessCodesTab from "../../components/admin/AccessCodesTab";
 import DentistAccountsTab from "../../components/admin/DentistAccountsTab";
 import PatientAccountsTab from "../../components/admin/PatientAccountsTab";
 import SupportRequestsTab from "../../components/admin/SupportRequestsTab";
 import AttemptLogTab from "../../components/admin/AttemptLogTab";
+import AdminTourModal from "../../components/admin/AdminTourModal";
 
 type AdminTab = "codes" | "dentists" | "patients" | "support" | "attempts";
 
@@ -29,6 +31,38 @@ const TABS: { id: AdminTab; label: string; icon: any }[] = [
 
 export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("codes");
+  const [showTour, setShowTour] = useState(false);
+
+  // Automatically check if the admin has seen the UI walkthrough tour
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        const key = userId ? `@has_seen_admin_tour_${userId}` : "@has_seen_admin_tour_default";
+        const hasSeen = await AsyncStorage.getItem(key);
+        if (!hasSeen) {
+          timer = setTimeout(() => setShowTour(true), 600);
+        }
+      } catch (err) {
+        console.warn("[AdminDashboard] Error checking tour status:", err);
+      }
+    })();
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleTourClose = async () => {
+    setShowTour(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      const key = userId ? `@has_seen_admin_tour_${userId}` : "@has_seen_admin_tour_default";
+      await AsyncStorage.setItem(key, "true");
+    } catch (err) {
+      console.warn("[AdminDashboard] Error persisting tour completion:", err);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
@@ -38,12 +72,21 @@ export default function AdminDashboardPage() {
         style: "destructive",
         onPress: async () => {
           try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
             await supabase.auth.signOut();
-            await AsyncStorage.multiRemove([
+            const keysToRemove = [
               "supabase.auth.token",
               "supabase.auth.refreshToken",
               "supabase.auth.user",
-            ]);
+              "@pending_doctor_access_code",
+              "@pending_user_role",
+              "@pending_is_admin",
+            ];
+            if (userId) {
+              keysToRemove.push(`@admin_authenticated_${userId}`);
+            }
+            await AsyncStorage.multiRemove(keysToRemove);
           } catch (err) {
             console.error("[AdminDashboard] Logout error:", err);
           }
@@ -59,9 +102,19 @@ export default function AdminDashboardPage() {
           <Text style={styles.topHeaderTitle}>ADMIN CONSOLE</Text>
           <Text style={styles.topHeaderSubtitle}>SmileGuard Clinic Administration</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.75}>
-          <LogOut size={16} color="#B91C1C" />
-        </TouchableOpacity>
+        <View style={styles.topHeaderActions}>
+          <TouchableOpacity
+            style={styles.tourBtn}
+            onPress={() => setShowTour(true)}
+            activeOpacity={0.75}
+          >
+            <Sparkles size={14} color="#047857" />
+            <Text style={styles.tourBtnText}>Tour</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.75}>
+            <LogOut size={16} color="#B91C1C" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -94,6 +147,13 @@ export default function AdminDashboardPage() {
         {activeTab === "support" && <SupportRequestsTab />}
         {activeTab === "attempts" && <AttemptLogTab />}
       </View>
+
+      {/* Admin UI Walkthrough & Interactive Tour Modal */}
+      <AdminTourModal
+        visible={showTour}
+        onClose={handleTourClose}
+        onSelectTab={(tab) => setActiveTab(tab)}
+      />
     </SafeAreaView>
   );
 }
@@ -123,6 +183,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#64748B",
     marginTop: 2,
+  },
+  topHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tourBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  tourBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#047857",
   },
   logoutBtn: {
     width: 36,

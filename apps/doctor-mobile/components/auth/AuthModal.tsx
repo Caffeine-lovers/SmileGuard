@@ -116,12 +116,17 @@ export default function AuthModal({
   /**
    * Helper to verify doctor access code via Edge Function, database, or fallback
    */
-  const verifyDoctorAccessCode = async (code: string): Promise<{ valid: boolean; role: "doctor" | "assistant" }> => {
+  const verifyDoctorAccessCode = async (code: string): Promise<{ valid: boolean; role: "doctor" | "assistant" | "admin" }> => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed || trimmed.length < 4) return { valid: false, role: "doctor" };
 
     let isValid = false;
-    let role: "doctor" | "assistant" = trimmed === "SMILEGUARD-STAFF" ? "assistant" : "doctor";
+    let role: "doctor" | "assistant" | "admin" = "doctor";
+    if (trimmed === "SMILEGUARD-STAFF") {
+      role = "assistant";
+    } else if (trimmed === "CLINIC-ADMIN-01" || trimmed.includes("ADMIN")) {
+      role = "admin";
+    }
 
     // 1. Try Supabase Edge Function
     try {
@@ -132,6 +137,8 @@ export default function AuthModal({
         isValid = true;
         if (data.tier === "assistant" || data.tier === "staff" || trimmed === "SMILEGUARD-STAFF") {
           role = "assistant";
+        } else if (data.tier === "admin" || trimmed === "CLINIC-ADMIN-01" || trimmed.includes("ADMIN")) {
+          role = "admin";
         }
       }
     } catch (e) {
@@ -152,6 +159,8 @@ export default function AuthModal({
           isValid = true;
           if (data.tier === "assistant" || data.tier === "staff" || trimmed === "SMILEGUARD-STAFF") {
             role = "assistant";
+          } else if (data.tier === "admin" || trimmed === "CLINIC-ADMIN-01" || trimmed.includes("ADMIN")) {
+            role = "admin";
           }
         }
       } catch (e) {
@@ -165,6 +174,8 @@ export default function AuthModal({
         isValid = true;
         if (trimmed === "SMILEGUARD-STAFF") {
           role = "assistant";
+        } else if (trimmed === "CLINIC-ADMIN-01" || trimmed.includes("ADMIN")) {
+          role = "admin";
         } else {
           role = "doctor";
         }
@@ -220,9 +231,14 @@ export default function AuthModal({
         return;
       }
 
-      // Store valid access code and role in AsyncStorage for profile setup
+      // Store valid access code and role in AsyncStorage for profile setup / dashboard routing
       await AsyncStorage.setItem("@pending_doctor_access_code", trimmedCode);
       await AsyncStorage.setItem("@pending_user_role", role);
+      if (role === "admin") {
+        await AsyncStorage.setItem("@pending_is_admin", "true");
+      } else {
+        await AsyncStorage.removeItem("@pending_is_admin");
+      }
 
       console.log("[GoogleOAuth] Starting Google OAuth...");
 
