@@ -1789,7 +1789,7 @@ export default function AddAppointmentModal({
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Date & Time</Text>
                   <Text style={styles.summaryValue}>
-                    {successCreatedAppointment?.date} at {successCreatedAppointment?.time}
+                    {formatDateLong(successCreatedAppointment?.date || "")} at {successCreatedAppointment?.time}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>

@@ -272,7 +272,10 @@ export default function PatientDashboard() {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr || dateStr === 'None scheduled') return 'None scheduled';
-    return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    const clean = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`;
+    const d = new Date(clean);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   // Categorise strictly by appointments.status (see migration 032):
@@ -528,7 +531,7 @@ export default function PatientDashboard() {
                     name={hasDoctor ? doctorNames[apt.dentist_id!] : (apt.clinic_name || DEFAULT_CLINIC_NAME)}
                     avatarUrl={hasDoctor ? doctorPictures[apt.dentist_id!] : undefined}
                     service={apt.service}
-                    date={apt.appointment_date}
+                    date={formatDate(apt.appointment_date)}
                     time={apt.appointment_time}
                     status={apt.status}
                     clinicName={apt.clinic_name}
@@ -554,7 +557,7 @@ export default function PatientDashboard() {
                   name={apt.clinic_name || DEFAULT_CLINIC_NAME}
                   avatarUrl={undefined}
                   service={apt.service}
-                  date={apt.appointment_date}
+                  date={formatDate(apt.appointment_date)}
                   time={apt.appointment_time}
                   status="pending"
                   clinicName={apt.clinic_name}
@@ -589,7 +592,7 @@ export default function PatientDashboard() {
                         )}
                       </div>
                       <p className="font-black text-sm text-slate-900">{apt.service}</p>
-                      <p className="text-xs text-slate-600 mt-0.5">Date: {apt.appointment_date} at {formatAppointmentTime(apt.appointment_time)}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">Date: {formatDate(apt.appointment_date)} at {formatAppointmentTime(apt.appointment_time)}</p>
                       {apt.dentist_id && (
                         <div className="flex items-center gap-1.5 mt-1">
                           {doctorPictures[apt.dentist_id] && (
@@ -718,7 +721,7 @@ export default function PatientDashboard() {
             <div className="bg-slate-50 border border-slate-200 rounded-sm p-3.5 space-y-2 text-xs mb-5 font-medium">
               <div className="flex justify-between">
                 <span className="text-slate-500">Date:</span>
-                <span className="font-bold text-slate-900">{selectedAppointment.appointment_date}</span>
+                <span className="font-bold text-slate-900">{formatDate(selectedAppointment.appointment_date)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Scheduled Time:</span>

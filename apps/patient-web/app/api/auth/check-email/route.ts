@@ -19,46 +19,16 @@ export async function POST(request: Request) {
 
     const normalizedEmail = rawEmail.trim().toLowerCase();
 
-    // 1. Try RPC check_email_context
     const { data: rpcData, error: rpcError } = await supabase.rpc('check_email_context', {
       p_email: normalizedEmail,
     });
 
-    if (!rpcError && rpcData) {
-      return NextResponse.json(rpcData);
+    if (rpcError || !rpcData) {
+      console.error('check_email_context failed:', rpcError?.message);
+      return NextResponse.json({ error: 'Could not check this email' }, { status: 503 });
     }
 
-    // 2. Direct fallback query if RPC is not installed yet
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, name, role')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
-
-    let hasIntake = false;
-    if (profile?.id) {
-      const { data: intake } = await supabase
-        .from('medical_intake')
-        .select('id, date_of_birth, gender, phone')
-        .eq('patient_id', profile.id)
-        .maybeSingle();
-
-      hasIntake = Boolean(
-        intake &&
-        ((intake.date_of_birth && intake.date_of_birth.trim() !== '') ||
-         (intake.gender && intake.gender.trim() !== '') ||
-         (intake.phone && intake.phone.trim() !== ''))
-      );
-    }
-
-    return NextResponse.json({
-      exists: Boolean(profile?.id),
-      has_profile: Boolean(profile?.id),
-      is_registered: Boolean(profile?.id && profile?.role === 'patient'),
-      has_medical_intake: hasIntake,
-      role: profile?.role || 'none',
-      name: profile?.name || '',
-    });
+    return NextResponse.json(rpcData);
   } catch (error: any) {
     console.error('Error in check-email API route:', error);
     return NextResponse.json(

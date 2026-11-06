@@ -189,7 +189,7 @@ export default function AppointmentsRequestTab({
       : []),
     {
       id: "requests-finish",
-      title: "You're All Set, Doctor!",
+      title: "You're All Set!",
       description: "You're now ready to manage your clinic's patient requests swiftly and efficiently. Enjoy a smooth triage workflow!",
       icon: ShieldCheck,
       placement: "center",
@@ -359,7 +359,7 @@ export default function AppointmentsRequestTab({
       const notification = createManualNotification(
         'appointment-updated',
         'Appointment Accepted',
-        `You accepted the appointment with ${request.name} for ${request.date}`,
+        `You accepted the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
         {
           appointmentId: request.id,
           patientId: request.patient_id,
@@ -408,7 +408,7 @@ export default function AppointmentsRequestTab({
       const notification = createManualNotification(
         'appointment-declined',
         'Appointment Declined',
-        `You declined the appointment with ${request.name} for ${request.date}`,
+        `You declined the appointment with ${request.name} for ${formatAppointmentDate(request.date)}`,
         {
           appointmentId: request.id,
           patientId: request.patient_id,

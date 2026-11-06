@@ -107,7 +107,7 @@ export function printRecord(title: string, rows: [string, string][], footer?: st
 h1{font-size:20px;margin:0 0 4px}p.sub{color:#475569;font-size:12px;margin:0 0 24px}
 table{width:100%;border-collapse:collapse;font-size:13px}td{padding:8px;border-bottom:1px solid #e2e8f0;vertical-align:top}
 td:first-child{color:#475569;width:40%}footer{margin-top:24px;font-size:11px;color:#64748b}</style></head>
-<body><h1>${esc(title)}</h1><p class="sub">SmileGuard · generated ${esc(new Date().toLocaleString())}</p>
+<body><h1>${esc(title)}</h1><p class="sub">SmileGuard · generated ${esc(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}</p>
 <table>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v || '—')}</td></tr>`).join('')}</table>
 ${footer ? `<footer>${esc(footer)}</footer>` : ''}
 <script>window.onload=function(){window.print()}</script></body></html>`);

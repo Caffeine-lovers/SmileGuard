@@ -170,7 +170,7 @@ export default function SupportRequestsTab() {
                       {req.requester_role ? ` (${req.requester_role})` : ""}
                     </Text>
                     <Text style={styles.metaText}>
-                      {[req.source_platform, new Date(req.created_at).toLocaleDateString()].filter(Boolean).join(" · ")}
+                      {[req.source_platform, new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })].filter(Boolean).join(" · ")}
                     </Text>
                   </View>
                   <View

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
 import { setPatientUserCookie } from '@/lib/auth-cookie';
+import { checkEmailContext, isStaffEmail } from '@/lib/email-context';
 
 import LegalModal, { type LegalDoc } from '@/components/legal/LegalModal';
 import { 
@@ -38,6 +39,15 @@ export default function SignupConfirmPage() {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const effectiveUser = currentAuthUser || authUser;
+
+      // This step writes role 'patient' to the profile, so it must never run on a staff account
+      const emailToCheck = authUser?.email || formData.email;
+      if (emailToCheck && isStaffEmail(await checkEmailContext(emailToCheck))) {
+        setLocalError('This email is already used by a clinic staff account. Please use a different email.');
+        setLoading(false);
+        return;
+      }
+
       const isOAuth = isOAuthFlow || (typeof window !== 'undefined' && localStorage.getItem('oauth_signup_flow') === 'true') || Boolean(authUser?.app_metadata?.provider === 'google');
 
       if (isOAuth && effectiveUser) {
@@ -226,7 +236,7 @@ export default function SignupConfirmPage() {
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Medical Summary</h3>
           <div className="bg-border-card/10 border border-border-card rounded-lg p-4 space-y-3 text-sm">
-            <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth} />
+            <ReviewField label="Date of Birth" value={formData.medicalIntake.date_of_birth ? new Date(formData.medicalIntake.date_of_birth + (formData.medicalIntake.date_of_birth.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not provided'} />
             <ReviewField label="Gender" value={formData.medicalIntake.gender ? (formData.medicalIntake.gender.charAt(0).toUpperCase() + formData.medicalIntake.gender.slice(1).toLowerCase()) : 'Not provided'} />
             <ReviewField label="Personal Phone" value={formData.medicalIntake.phone} />
             {formData.medicalIntake.gender === 'female' && (

@@ -223,7 +223,7 @@ export default function AccessCodesTab() {
                     <Text style={styles.tierPillText}>{item.tier.toUpperCase()}</Text>
                   </View>
                   <Text style={styles.createdDate}>
-                    Added {new Date(item.created_at).toLocaleDateString()}
+                    Added {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
                 </View>
 

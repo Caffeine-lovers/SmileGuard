@@ -14,12 +14,14 @@ import { ClinicProvider } from "../contexts/ClinicContext";
 import { registerForPushNotificationsAsync } from "../lib/pushNotificationService";
 // Importing this module swaps the native Alert for the themed dialog app-wide
 import AppAlertHost from "../components/ui/AppAlertHost";
+import AppUpdateManager from "../components/ui/AppUpdateManager";
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [ready, setReady] = useState(false);
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
 
   // Listen for deep links from OAuth redirects
   useEffect(() => {
@@ -35,10 +37,14 @@ export default function RootLayout() {
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log("[RootLayout] Deep link received:", url);
+      if (url.includes("reset-password") || url.includes("type=recovery")) {
+        console.log("[RootLayout] Password recovery deep link detected:", url);
+        setIsRecoveringPassword(true);
+        router.replace("/reset-password");
+        return;
+      }
       if (isOAuthUrl(url)) {
         console.log("[RootLayout] OAuth redirect detected");
-        // The session will be automatically set by Supabase auth listener
-        // Just log it so we know it arrived
       }
     });
 
@@ -117,7 +123,9 @@ export default function RootLayout() {
       (event: string, session: Session | null) => {
         console.log("[RootLayout] Auth state changed:", event, session ? "Session Found" : "No Session");
         if (event === "PASSWORD_RECOVERY") {
-          router.push("/reset-password");
+          console.log("[RootLayout] PASSWORD_RECOVERY event received, setting recovery state and routing to /reset-password");
+          setIsRecoveringPassword(true);
+          router.replace("/reset-password");
           return;
         }
         if (session?.user) {
@@ -152,7 +160,7 @@ export default function RootLayout() {
 
     // Routing is paused during password reset or initial onboarding tour
     // We only pause routing logic if on reset-password or onboarding
-    if (inResetPassword || inOnboarding) return;
+    if (isRecoveringPassword || inResetPassword || inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inAdminGroup || inSetupProfile) {
@@ -290,6 +298,7 @@ export default function RootLayout() {
         <ClinicProvider>
           <Slot />
           <AppAlertHost />
+          <AppUpdateManager />
         </ClinicProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

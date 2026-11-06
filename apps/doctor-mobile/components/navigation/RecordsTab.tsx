@@ -356,7 +356,7 @@ export default function RecordsTab({
     },
     {
       id: "records-finish",
-      title: "You're All Set, Doctor!",
+      title: "You're All Set!",
       description: "Patient records and digital charts are now organized and ready at your fingertips.",
       icon: ShieldCheck,
       placement: "center",

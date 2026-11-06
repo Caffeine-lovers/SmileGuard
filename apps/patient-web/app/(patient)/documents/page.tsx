@@ -98,18 +98,27 @@ const INTAKE_FIELDS: [string, string][] = [
   ['pregnancy_status', 'Pregnancy status'],
 ];
 
+function formatDocDate(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  const clean = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`;
+  const d = new Date(clean);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function receiptRows(r: NonNullable<DocItem['receipt']>): [string, string][] {
   const b = r.billing;
+  const apptDateStr = r.appointment?.appointment_date ? `${formatDocDate(r.appointment.appointment_date)} ${formatAppointmentTime(r.appointment.appointment_time) || ''}`.trim() : '—';
   return [
     ['Service', r.appointment?.service || '—'],
-    ['Appointment date', r.appointment ? `${r.appointment.appointment_date} ${formatAppointmentTime(r.appointment.appointment_time) || ''}` : '—'],
+    ['Appointment date', apptDateStr],
     ['Clinic', r.appointment?.clinic_name || '—'],
     ['Procedure fee', peso(b.amount)],
     ['Discount', b.discount_amount ? `${peso(b.discount_amount)} (${(b.discount_type || '').toUpperCase()})` : 'None'],
     ['Amount paid', peso(b.final_amount)],
     ['Payment method', (b.payment_method || '—').replace('_', ' ')],
     ['PayMongo reference', b.gateway_transaction_id || '—'],
-    ['Payment date', b.payment_date ? new Date(b.payment_date).toLocaleString() : '—'],
+    ['Payment date', b.payment_date ? new Date(b.payment_date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'],
   ];
 }
 
@@ -256,7 +265,7 @@ export default function DocumentsPage() {
         window.open(await getDocumentUrl(item.upload, true), '_blank', 'noopener');
       } else if (item.kind === 'scan' && item.scan) {
         printRecord(
-          `AI Oral Screening Report — ${new Date(item.scan.created_at).toLocaleString()}`,
+          `AI Oral Screening Report — ${new Date(item.scan.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
           [
             ['Model', item.scan.model],
             ['Findings', String(item.scan.detection_count)],
@@ -420,7 +429,7 @@ export default function DocumentsPage() {
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-500 mt-1 font-medium">
-                    <span className="font-mono">{new Date(item.date).toLocaleDateString()}</span>
+                    <span className="font-mono">{new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     <span>•</span>
                     <span className="truncate">{item.subtitle}</span>
                   </div>
@@ -482,7 +491,7 @@ export default function DocumentsPage() {
                   {KIND_LABELS[selected.kind]}
                 </span>
                 <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight mt-1 break-words">{selected.title}</h3>
-                <p className="text-xs text-slate-500">{new Date(selected.date).toLocaleString()}</p>
+                <p className="text-xs text-slate-500">{new Date(selected.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
               </div>
             </div>
 

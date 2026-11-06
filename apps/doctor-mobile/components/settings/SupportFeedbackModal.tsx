@@ -167,7 +167,7 @@ export default function SupportFeedbackModal({ visible, userId, onClose }: Suppo
                     </Text>
                   </View>
                   <Text style={styles.cardMessage}>{request.message}</Text>
-                  <Text style={styles.cardDate}>{new Date(request.created_at).toLocaleDateString()}</Text>
+                  <Text style={styles.cardDate}>{new Date(request.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                   {request.resolution_note ? (
                     <View style={styles.replyBox}>
                       <CheckCircle2 size={13} color="#047857" />

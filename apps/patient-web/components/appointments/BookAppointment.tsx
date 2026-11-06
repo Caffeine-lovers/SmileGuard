@@ -27,6 +27,7 @@ import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 import { showAlert } from '@/components/ui/AppDialog';
 import {
   busyIntervalsForDate,
+  freeUntil,
   formatAppointmentTime,
   formatDuration,
   formatMinutes,
@@ -105,6 +106,10 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
       const exists = prev.some(s => s.id === service.id || s.name.toLowerCase() === service.name.toLowerCase());
       if (exists) {
         return prev.filter(s => s.id !== service.id && s.name.toLowerCase() !== service.name.toLowerCase());
+      } else if (!selectedTime) {
+        // Before a time is chosen only one service can be picked; tapping another swaps it.
+        // More services can be added once the date and time are set and the time allows it.
+        return [service];
       } else {
         return [...prev, service];
       }
@@ -331,6 +336,35 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   // chosen appointment time, not counted backwards from the shift closing.
   const busyToday = selectedDate ? busyIntervalsForDate(blockedSlots, selectedDate) : [];
 
+  // Closing time (minutes) of the selected date, from the clinic schedule
+  const closingMinutes = (() => {
+    if (!selectedDate || !clinicSchedule) return NaN;
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
+      new Date(y, m - 1, d).getDay()
+    ] as keyof ClinicSchedule;
+    const day = clinicSchedule[dayName];
+    return day?.isOpen ? toMinutes(day.closing_time) : NaN;
+  })();
+
+  /** Minutes available from `time` until the next booking (or closing). 0 if the time is unavailable. */
+  const minutesFreeFrom = (time: string): number => {
+    if (isSlotTaken(blockedSlots, selectedDate, time)) return 0;
+    const start = toMinutes(time);
+    const limit = freeUntil(start, busyToday, closingMinutes);
+    return limit === null ? 0 : Math.max(limit - start, 0);
+  };
+
+  // Time budget for the services: from the chosen time, or the longest free stretch that day
+  const remainingMinutes: number | null = !Number.isFinite(closingMinutes)
+    ? null
+    : selectedTime
+      ? minutesFreeFrom(selectedTime)
+      : timeSlots.length > 0
+        ? Math.max(0, ...timeSlots.map(minutesFreeFrom))
+        : null;
+  const minutesLeftToAdd = remainingMinutes === null ? null : remainingMinutes - totalDuration;
+
   const isSlotDisabled = (date: string, time: string) => {
     // 1. Is this exact slot taken by an existing booking or clinic blockout?
     if (isSlotTaken(blockedSlots, date, time)) return true;
@@ -518,7 +552,7 @@ return (
       <div className="md:col-span-8 bg-bg-surface rounded-2xl border border-border-card shadow-sm p-4 sm:p-6">
         <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">
           <StepBadge n={1} done={step1Complete} />
-          Choose Services (Multi-Select Allowed)
+          {selectedTime ? 'Add More Services (if your time allows)' : 'Choose a Service'}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
@@ -526,13 +560,19 @@ return (
             const active = selectedServices.some(
               (s) => s.id === service.id || s.name.toLowerCase() === service.name.toLowerCase()
             );
+            // Greyed out when adding it would run past the next booking or closing time
+            const tooLong = !active && minutesLeftToAdd !== null && service.duration > minutesLeftToAdd;
             return (
               <button
                 type="button"
                 key={service.id}
                 onClick={() => toggleService(service)}
+                disabled={tooLong}
+                title={tooLong ? `Needs ${formatDuration(service.duration)} — only ${formatDuration(Math.max(minutesLeftToAdd ?? 0, 0))} left in this time` : undefined}
                 className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${active
                     ? 'border-brand-primary bg-brand-primary/5 shadow-md'
+                    : tooLong
+                      ? 'border-border-card opacity-45 cursor-not-allowed bg-slate-50'
                       : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
                   }`}
                 >
@@ -541,6 +581,7 @@ return (
           </p>
           <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">
             {formatDuration(service.duration)}
+            {tooLong && <span className="block text-amber-700 font-semibold">Not enough time left</span>}
           </p>
           <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
             ₱{service.price.toLocaleString()}
@@ -592,6 +633,75 @@ return (
             </div>
           )}
         </div>
+      </div>
+
+      {/* Step guide — fills the space under the booking summary */}
+      <div className="bg-bg-surface rounded-2xl border border-border-card shadow-sm px-3 py-2.5">
+        <ol className="space-y-1">
+          {[
+            {
+              n: 1,
+              done: step1Complete,
+              current: !step1Complete,
+              title: 'Choose one service',
+              hint: 'Start with the main service you came for.',
+            },
+            {
+              n: 2,
+              done: step2Complete,
+              current: step1Complete && !step2Complete,
+              title: 'Pick a date',
+              hint: 'Choose an open day on the calendar.',
+            },
+            {
+              n: 3,
+              done: step3Complete,
+              current: step2Complete && !step3Complete,
+              title: 'Pick a time',
+              hint: 'Your appointment starts at the time you tap.',
+            },
+          ].map((step) => (
+            <li
+              key={step.n}
+              className={`flex items-start gap-2 rounded-lg px-2 py-1 transition-colors ${
+                step.current ? 'bg-brand-primary/10' : ''
+              }`}
+            >
+              <StepBadge n={step.n} done={step.done} />
+              <div className="min-w-0">
+                <p className={`text-xs font-semibold leading-tight ${step.done ? 'text-text-secondary' : 'text-text-primary'}`}>
+                  {step.title}
+                </p>
+                {step.current && <p className="text-[11px] text-text-secondary leading-snug">{step.hint}</p>}
+              </div>
+            </li>
+          ))}
+
+          {/* Step 4 — the key step: more services once the time is known */}
+          <li
+            className={`flex items-start gap-2 rounded-lg px-2 py-1 transition-colors ${
+              step3Complete ? 'bg-emerald-50 ring-1 ring-emerald-400' : 'opacity-60'
+            }`}
+          >
+            <StepBadge n={4} done={false} />
+            <div className="min-w-0">
+              <p className="text-xs font-bold leading-tight text-text-primary">Add more services</p>
+              {step3Complete ? (
+                minutesLeftToAdd !== null && minutesLeftToAdd > 0 ? (
+                  <p className="text-[11px] text-emerald-800 font-semibold leading-snug">
+                    Room for up to {formatDuration(minutesLeftToAdd)} more. Pick any service that fits.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-700 font-semibold leading-snug">
+                    No room left. Choose another time to add more.
+                  </p>
+                )
+              ) : (
+                <p className="text-[11px] text-text-secondary leading-snug">Opens after you pick a time.</p>
+              )}
+            </div>
+          </li>
+        </ol>
       </div>
 
     </div>

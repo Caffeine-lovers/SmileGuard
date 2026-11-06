@@ -773,7 +773,7 @@ export default function AppointmentsTab({
     },
     {
       id: "appointments-finish",
-      title: "You're All Set, Doctor!",
+      title: "You're All Set!",
       description: "Your daily appointments and scheduling tools are ready. Enjoy a streamlined clinical day!",
       icon: ShieldCheck,
       placement: "center",

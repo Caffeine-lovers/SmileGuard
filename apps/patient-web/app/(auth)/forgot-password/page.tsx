@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { supabase } from '@smileguard/supabase-client';
-import { checkEmailContext } from '@/lib/email-context';
+import { checkEmailContext, friendlyEmailError, isStaffEmail } from '@/lib/email-context';
 import { ArrowLeft, UserPlus, AlertCircle } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
@@ -38,18 +38,29 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // Case B: Profile exists but registration is incomplete (missing medical intake)
-      if (context.has_profile && !context.has_medical_intake) {
+      // Case B: Clinic staff accounts are managed in the clinic app, not the patient portal
+      if (isStaffEmail(context)) {
+        setErrorLocal('This email belongs to a clinic staff account. Please reset your password from the SmileGuard clinic app.');
+        setLoading(false);
+        return;
+      }
+
+      // Case C: Account started but registration is incomplete (no profile or medical intake yet)
+      if (!context.has_profile || !context.has_medical_intake) {
         setErrorLocal('This account has not completed registration yet (medical intake missing). Please complete your registration first.');
         setActionLink({ text: 'Complete Registration', href: '/signup' });
         setLoading(false);
         return;
       }
 
-      // Case C: Valid registered account with medical intake
+      // Case D: Valid registered account with medical intake
       const redirectTo = typeof window !== 'undefined'
-        ? `${window.location.origin}/reset-password`
+        ? `${window.location.origin}/auth/callback?next=/reset-password&type=recovery`
         : undefined;
+
+      try {
+        localStorage.setItem('smileguard_auth_recovery_flow', 'true');
+      } catch { }
 
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo,
@@ -57,9 +68,7 @@ export default function ForgotPasswordPage() {
       if (error) throw error;
       setMessage('Password reset email sent! Please check your inbox.');
     } catch (err) {
-      setErrorLocal(
-        err instanceof Error ? err.message : 'Failed to send reset email. Please try again.'
-      );
+      setErrorLocal(friendlyEmailError(err, 'Failed to send reset email. Please try again.'));
     } finally {
       setLoading(false);
     }

@@ -76,7 +76,7 @@ export default function ScanHistory({ patientId, refreshKey = 0 }: { patientId?:
                     <div className="w-full aspect-video bg-slate-100 flex items-center justify-center text-[10px] text-slate-400">No image</div>
                   )}
                   <div className="p-2">
-                    <p className="text-[11px] font-bold text-slate-800">{new Date(scan.created_at).toLocaleString()}</p>
+                    <p className="text-[11px] font-bold text-slate-800">{new Date(scan.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
                     <p className={`text-[10px] font-semibold ${findings.length ? 'text-amber-700' : 'text-emerald-700'}`}>
                       {findings.length ? `${scan.detection_count} finding${scan.detection_count > 1 ? 's' : ''}: ${findings.join(', ')}` : 'No issues detected'}
                     </p>
@@ -94,7 +94,7 @@ export default function ScanHistory({ patientId, refreshKey = 0 }: { patientId?:
             <button type="button" onClick={() => setOpen(null)} className="absolute top-3 right-3 p-1 text-slate-400 hover:text-slate-700" title="Close">
               <X className="w-4 h-4" />
             </button>
-            <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 mb-1">Scan from {new Date(open.created_at).toLocaleString()}</h3>
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 mb-1">Scan from {new Date(open.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</h3>
             <p className="text-[11px] text-slate-500 mb-3">Model: {open.model}{open.confidence_threshold != null ? ` · threshold ${open.confidence_threshold}` : ''}</p>
             {open.imageUrl && <img src={open.imageUrl} alt="Annotated scan" className="w-full rounded-sm border border-slate-300 mb-3" />}
             {open.detections.length === 0 ? (
