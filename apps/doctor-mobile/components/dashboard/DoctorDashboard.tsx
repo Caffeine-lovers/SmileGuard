@@ -1701,29 +1701,30 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
                               onPress={() => handleOpenPatientDetails(apt)}
                               activeOpacity={0.8}
                             >
-                              <FileText size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
-                              <Text style={styles.agendaPrimaryBtnText}>OPEN CHART</Text>
+                              <FileText size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                              <Text style={styles.agendaPrimaryBtnText} numberOfLines={1}>OPEN PATIENT CHART</Text>
                             </TouchableOpacity>
 
-                            {/* Secondary: Update Status (Completed, In Progress, etc.) */}
-                            <TouchableOpacity
-                              style={styles.agendaSecondaryBtn}
-                              onPress={() => handleOpenStatusModal(apt)}
-                              activeOpacity={0.8}
-                            >
-                              <CheckCircle2 size={13} color="#047857" style={{ marginRight: 4 }} />
-                              <Text style={styles.agendaSecondaryBtnText}>STATUS</Text>
-                            </TouchableOpacity>
+                            {/* Secondary Row: Update Status & Reschedule */}
+                            <View style={styles.agendaSecondaryRow}>
+                              <TouchableOpacity
+                                style={styles.agendaSecondaryBtn}
+                                onPress={() => handleOpenStatusModal(apt)}
+                                activeOpacity={0.8}
+                              >
+                                <CheckCircle2 size={13} color="#047857" style={{ marginRight: 5 }} />
+                                <Text style={styles.agendaSecondaryBtnText} numberOfLines={1}>STATUS</Text>
+                              </TouchableOpacity>
 
-                            {/* Secondary: Reschedule appointment */}
-                            <TouchableOpacity
-                              style={styles.agendaSecondaryBtn}
-                              onPress={() => handleOpenStatusModal(apt)}
-                              activeOpacity={0.8}
-                            >
-                              <CalendarDays size={13} color="#475569" style={{ marginRight: 4 }} />
-                              <Text style={styles.agendaSecondaryBtnText}>RESCHEDULE</Text>
-                            </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.agendaSecondaryBtn}
+                                onPress={() => handleOpenStatusModal(apt)}
+                                activeOpacity={0.8}
+                              >
+                                <CalendarDays size={13} color="#475569" style={{ marginRight: 5 }} />
+                                <Text style={styles.agendaSecondaryBtnText} numberOfLines={1}>RESCHEDULE</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         </View>
                       );
@@ -3542,31 +3543,36 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   agendaActionRow: {
-    flexDirection: 'row',
     gap: 8,
     marginTop: 4,
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   agendaPrimaryBtn: {
-    flex: 1.4,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#047857',
-    borderRadius: 6,
+    borderRadius: 7,
     paddingVertical: 10,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#064E3B',
     borderBottomWidth: 2.5,
     borderBottomColor: '#022C22',
   },
   agendaPrimaryBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
+  },
+  agendaSecondaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+    width: '100%',
   },
   agendaSecondaryBtn: {
     flex: 1,
@@ -3574,8 +3580,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
-    borderRadius: 6,
-    paddingVertical: 10,
+    borderRadius: 7,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
     borderBottomWidth: 2.5,
@@ -3585,7 +3592,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#1E293B',
-    letterSpacing: 0.4,
+    letterSpacing: 0.2,
   },
   emptyAgendaCard: {
     padding: 28,
