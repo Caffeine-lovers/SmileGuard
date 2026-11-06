@@ -39,7 +39,7 @@ export function getServiceDuration(name: string): number {
   const norm = name.toLowerCase();
   if (norm.includes('root') || norm.includes('canal')) return 90;
   if (norm.includes('whiten') || norm.includes('brace') || norm.includes('implant')) return 60;
-  if (norm.includes('fill')) return 45;
+  if (norm.includes('fill')) return 60;
   if (norm.includes('clean') || norm.includes('extract')) return 30;
   // Minimum appointment length is 30 minutes (check-ups, X-rays, consultations, etc.)
   return 30;
@@ -48,7 +48,7 @@ export function getServiceDuration(name: string): number {
 export const FALLBACK_DEFAULT_SERVICES: ServiceOption[] = [
   { id: 'cleaning',   name: 'Cleaning',             duration: 30, price: 1500 },
   { id: 'whitening',  name: 'Whitening',             duration: 60, price: 5000 },
-  { id: 'fillings',   name: 'Fillings',              duration: 45, price: 2000 },
+  { id: 'fillings',   name: 'Fillings',              duration: 60, price: 2000 },
   { id: 'root-canal', name: 'Root Canal',            duration: 90, price: 8000 },
   { id: 'extraction', name: 'Extraction',            duration: 30, price: 1500 },
   { id: 'braces',     name: 'Braces Consultation',   duration: 60, price: 35000 },

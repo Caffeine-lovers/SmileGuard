@@ -9,8 +9,8 @@
 export const SERVICE_DURATIONS: Record<string, number> = {
   Cleaning: 30,
   Whitening: 60,
-  Fillings: 45,
-  Filling: 45,
+  Fillings: 60,
+  Filling: 60,
   'Root Canal': 90,
   Extraction: 30,
   'Braces Consultation': 60,
