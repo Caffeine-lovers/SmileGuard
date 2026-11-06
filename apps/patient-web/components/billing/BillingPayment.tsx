@@ -573,16 +573,7 @@ export default function BillingPayment({
         <div className="lg:col-span-4 flex">
           {/* Clinic Header Banner */}
           <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm px-4 py-3 sm:px-5 sm:py-4 text-white border-2 border-emerald-950 shadow-md w-full flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400">
-                <ShieldCheck className="w-3 h-3 text-emerald-950" />
-                Clinic Billing Portal
-              </span>
-            </div>
             <h1 className="text-lg sm:text-2xl font-black uppercase tracking-tight">Billing</h1>
-            <p className="text-emerald-100 text-[10px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
-              Settle procedure balances and review financial ledgers
-            </p>
           </div>
         </div>
         <div className="lg:col-span-8">
@@ -593,7 +584,6 @@ export default function BillingPayment({
                 <div className="skeuo-card p-3 sm:p-4 border-2 border-red-300 bg-red-50/40 rounded-sm">
                   <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Outstanding Balance</span>
                   <p className="text-xl sm:text-2xl font-black tracking-tight text-red-700 mt-1">₱{outstandingBalance?.toFixed(2)}</p>
-                  <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Current Balance Due</p>
                 </div>
               </Link>
               <div className="skeuo-card p-3 sm:p-4 border-2 border-slate-300 rounded-sm">
@@ -630,7 +620,6 @@ export default function BillingPayment({
                     </>
                   )}
                 </div>
-                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Your current payment status</p>
               </div>
             </div>
           )}
@@ -645,13 +634,11 @@ export default function BillingPayment({
             <div>
               <p className="text-sm font-black uppercase tracking-wider text-emerald-950">Payment Confirmed!</p>
               <p className="text-xs text-emerald-800 mt-0.5">
-                Your payment via PayMongo has been successfully processed and verified.
                 {confirmedPaymentInfo && (
                   <span className="font-bold ml-1 text-emerald-950">
                     Amount Paid: ₱{confirmedPaymentInfo.amount.toFixed(2)}.
                   </span>
-                )}{' '}
-                Your procedure is marked PAID and your outstanding balance is updated.
+                )}
               </p>
               {confirmedPaymentInfo?.referenceId && (
                 <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-emerald-200 text-xs">
@@ -684,7 +671,7 @@ export default function BillingPayment({
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             <div>
               <p className="text-xs font-black uppercase tracking-wider">Payment Cancelled</p>
-              <p className="text-xs text-amber-700">The PayMongo checkout process was cancelled. No funds were deducted. You can retry anytime.</p>
+              <p className="text-xs text-amber-700">No charge was made.</p>
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -772,7 +759,7 @@ export default function BillingPayment({
             <div className="space-y-3">
               <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Statutory Discount (RA 9994 / RA 10754)
+                  Discount
                 </label>
                 {isPwdApproved && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-xs border border-emerald-300 w-fit">
@@ -839,7 +826,7 @@ export default function BillingPayment({
                   <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="text-xs text-emerald-950">
                     <span className="font-bold">Discount Approved: </span>
-                    The clinic has approved your {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} verification. A 20% deduction is applied to your billing.
+                    20% off applied.
                   </div>
                 </div>
               )}
@@ -852,7 +839,7 @@ export default function BillingPayment({
                     ID Verification Submitted to Doctor
                   </div>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Your ID was sent to the clinic for verification. Statutory discounts activate immediately once the doctor approves your request on the clinic mobile app. Standard rate applies in the interim.
+                    Standard rate applies until the clinic approves your ID.
                   </p>
                 </div>
               )}
@@ -865,7 +852,7 @@ export default function BillingPayment({
                     Verification Declined by Doctor
                   </div>
                   <p className="text-[11px] text-red-800 leading-relaxed">
-                    Your previous ID could not be validated. Please click below to submit a clear, valid ID.
+                    Please submit a clear, valid ID.
                   </p>
                   <button
                     type="button"
@@ -895,10 +882,6 @@ export default function BillingPayment({
                       ✕
                     </button>
                   </div>
-
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    To ensure genuine entitlement under Philippine RA 9994 / RA 10754, upload your ID below. It will be sent directly to the clinic for verification. Once approved on the doctor mobile portal, your account will receive the 20% discount permanently.
-                  </p>
 
                   {/* ID Type Choice */}
                   <div className="flex items-center gap-4 text-xs font-bold text-slate-800">
@@ -949,7 +932,7 @@ export default function BillingPayment({
                   {((selectedVerificationType === 'pwd' && isPwdPendingReview) || (selectedVerificationType === 'senior' && isSeniorPendingReview)) && (
                     <div className="p-3 bg-amber-50 border border-amber-300 rounded-sm text-xs text-amber-900 font-semibold flex items-center gap-2">
                       <Clock className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>Your {selectedVerificationType === 'senior' ? 'Snr. Cit.' : 'PWD'} ID is currently under doctor review. Uploading is disabled to prevent duplicate queue submissions.</span>
+                      <span>Your ID is already under review.</span>
                     </div>
                   )}
 
