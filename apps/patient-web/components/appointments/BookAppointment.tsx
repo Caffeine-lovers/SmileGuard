@@ -766,15 +766,36 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
                 timeSlots.map((time) => {
                   const disabled = isSlotDisabled(selectedDate, time);
                   const active   = selectedTime === time;
+                  // The stretch this appointment will occupy, starting at the time the patient tapped
+                  const slotStart = toMinutes(time);
+                  const blockStart = selectedTime ? toMinutes(selectedTime) : NaN;
+                  const covered =
+                    !active &&
+                    Number.isFinite(blockStart) &&
+                    totalDuration > 0 &&
+                    slotStart > blockStart &&
+                    slotStart < blockStart + totalDuration;
+                  const tooLateForService =
+                    disabled && !isSlotTaken(blockedSlots, selectedDate, time) &&
+                    Number.isFinite(closingMinutes) && slotStart + totalDuration > closingMinutes;
                   return (
                     <button
                       type="button"
                       key={time}
                       onClick={() => setSelectedTime(time)}
-                      disabled={!step2Complete || disabled}
+                      disabled={!step2Complete || (disabled && !covered)}
+                      title={
+                        covered
+                          ? `Part of your appointment (${formatAppointmentTime(selectedTime)} – ${endTimeLabel ?? ''})`
+                          : tooLateForService
+                            ? 'Not enough time before closing for your selected services'
+                            : undefined
+                      }
                       className={`py-2 px-1 rounded-xl text-xs font-semibold transition-all duration-150 ${
                         active
                           ? 'bg-brand-primary text-white shadow-sm'
+                          : covered
+                            ? 'bg-brand-primary/25 text-brand-primary ring-2 ring-brand-primary/50'
                           : disabled
                             ? 'bg-border-card text-text-secondary cursor-not-allowed line-through opacity-50'
                             : 'bg-brand-primary/10 text-text-primary hover:bg-brand-primary/20'

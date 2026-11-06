@@ -24,7 +24,7 @@ export const SERVICE_DURATIONS: Record<string, number> = {
 };
 
 /** Used for appointments whose service name we don't recognize (e.g. created elsewhere). */
-export const DEFAULT_APPOINTMENT_MINUTES = 60;
+export const DEFAULT_APPOINTMENT_MINUTES = 30;
 
 function durationOfOne(name: string): number {
   const n = name.trim().toLowerCase();
