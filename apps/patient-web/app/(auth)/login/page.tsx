@@ -119,6 +119,15 @@ export default function LoginPage() {
         return;
       }
 
+      // Intercept password recovery flows arriving on /login via query params or hash
+      if (search.includes('type=recovery') || search.includes('next=/reset-password') || hash.includes('type=recovery')) {
+        try {
+          localStorage.removeItem('smileguard_auth_recovery_flow');
+        } catch { }
+        router.replace(`/reset-password${search}${hash}`);
+        return;
+      }
+
       if (hash.includes('access_token')) {
         if (hash.includes('type=recovery') || localStorage.getItem('smileguard_auth_recovery_flow') === 'true') {
           try {
@@ -148,13 +157,22 @@ export default function LoginPage() {
         router.replace('/reset-password');
         return;
       }
-      if (currentUser.role === 'patient') {
-        router.replace('/dashboard');
-      } else {
-        // Incomplete or non-patient session: purge session and cookie
-        supabase.auth.signOut().catch(() => { });
-        clearPatientUserCookie();
-      }
+
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const isRecoverySession = Boolean((session as any)?.amr?.some?.((a: any) => a.method === 'recovery' || a.method === 'otp'));
+        if (isRecoverySession) {
+          router.replace('/reset-password');
+          return;
+        }
+
+        if (currentUser.role === 'patient') {
+          router.replace('/dashboard');
+        } else {
+          // Incomplete or non-patient session: purge session and cookie
+          supabase.auth.signOut().catch(() => { });
+          clearPatientUserCookie();
+        }
+      });
     }
   }, [currentUser, loading, router]);
 
