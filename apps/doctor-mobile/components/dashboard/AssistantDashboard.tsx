@@ -476,25 +476,19 @@ export default function AssistantDashboard({
       },
     },
     {
-      id: "chairside-prep",
-      target: "chairside-prep",
-      title: "Patient Details & Alerts",
+      id: "reschedule-requests",
+      target: "reschedule-requests",
+      title: "Reschedule Requests",
       description:
-        "See important health alerts like allergies, call the patient, or change appointment times.",
-      icon: HeartPulse,
+        "Patients requesting to change their appointment time appear right upfront. Review the requested time and confirm or update.",
+      icon: CalendarDays,
       padding: 6,
       radius: 14,
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
         setDashboardView("today");
-        const yOffset =
-          (dashboardColumnsLayoutY.current || 280) + (patientDetailsLayoutY.current || 180) - 12;
-        try {
-          dashboardScrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset), animated: false });
-        } catch (e) { }
       },
-      delay: 350,
     },
     {
       id: "finish",
@@ -1420,7 +1414,7 @@ export default function AssistantDashboard({
 
               </View>
 
-              {/* MAIN 2-COLUMN DASHBOARD LAYOUT */}
+              {/* MAIN DASHBOARD LAYOUT (RESCHEDULE FORWARD, TODAY'S APPOINTMENTS) */}
               <View
                 style={styles.dashboardColumns}
                 onLayout={(e) => {
@@ -1428,440 +1422,35 @@ export default function AssistantDashboard({
                 }}
               >
                 {/* ─────────────────────────────────────────────────────────────
-                    LEFT COLUMN: APPOINTMENT REQUESTS & TODAY'S APPOINTMENTS
+                    SECTION 1: RESCHEDULE REQUESTS (PUT FORWARD AT THE TOP)
                 ───────────────────────────────────────────────────────────── */}
                 <View
-                  ref={tour.register("today-queue")}
+                  ref={tour.register("reschedule-requests")}
                   collapsable={false}
                   style={styles.column}
                 >
-                  {/* ─────────────────────────────────────────────────────────────
-                      SECTION 2: TODAY'S APPOINTMENTS (BELOW APPOINTMENT REQUESTS)
-                  ───────────────────────────────────────────────────────────── */}
-                  <View style={[styles.sectionHeaderRow, { marginTop: 0, marginBottom: 8 }]}>
+                  <View style={[styles.sectionHeaderRow, { marginTop: 0, marginBottom: 10 }]}>
                     <View style={styles.sectionTitleGroup}>
-                      <Calendar size={16} color="#047857" />
-                      <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
-                      <View style={styles.pillCountBadge}>
-                        <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => navigateToTab("appointments")}
-                      style={styles.seeAllBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.seeAllBtnText}>View all</Text>
-                      <ChevronRight size={14} color="#047857" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Queue Filter Tabs: All, Scheduled, Done */}
-                  <View style={styles.queueFilterRow}>
-                    <TouchableOpacity
-                      style={[styles.queueFilterPill, queueFilter === "all" && styles.queueFilterPillActive]}
-                      onPress={() => setQueueFilter("all")}
-                    >
-                      <Text style={[styles.queueFilterPillText, queueFilter === "all" && styles.queueFilterPillTextActive]}>
-                        All ({todayAppointments.length})
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.queueFilterPill, queueFilter === "scheduled" && styles.queueFilterPillActive]}
-                      onPress={() => setQueueFilter("scheduled")}
-                    >
-                      <Text style={[styles.queueFilterPillText, queueFilter === "scheduled" && styles.queueFilterPillTextActive]}>
-                        Scheduled ({todayScheduledCount})
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.queueFilterPill, queueFilter === "completed" && styles.queueFilterPillActive]}
-                      onPress={() => setQueueFilter("completed")}
-                    >
-                      <Text style={[styles.queueFilterPillText, queueFilter === "completed" && styles.queueFilterPillTextActive]}>
-                        Done ({todayCompletedCount})
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Today's Appointments List */}
-                  {filteredQueueAppointments.length === 0 ? (
-                    <View style={styles.emptyQueueBox}>
-                      <Calendar size={26} color="#94A3B8" style={{ marginBottom: 6 }} />
-                      <Text style={styles.emptyQueueTitle}>No visits scheduled for today</Text>
-                      <Text style={styles.emptyQueueSubtitle}>
-                        Today's arriving patients will appear here. Tap any patient to view their record on the right.
-                      </Text>
-                    </View>
-                  ) : (
-                    filteredQueueAppointments.map((apt) => {
-                      const isSelected = selectedPatient?.id === apt.id;
-                      return (
-                        <TouchableOpacity
-                          key={apt.id}
-                          activeOpacity={0.8}
+                      <CalendarDays size={16} color="#2563EB" />
+                      <Text style={[styles.sectionHeaderTitle, { color: "#1E3A8A" }]}>RESCHEDULE REQUESTS</Text>
+                      <View
+                        style={[
+                          styles.pillCountBadge,
+                          {
+                            backgroundColor: rescheduleRequests.length > 0 ? "#DBEAFE" : "#F1F5F9",
+                          },
+                        ]}
+                      >
+                        <Text
                           style={[
-                            styles.queueCard,
-                            isSelected && styles.queueCardSelected,
+                            styles.pillCountText,
+                            {
+                              color: rescheduleRequests.length > 0 ? "#1D4ED8" : "#64748B",
+                            },
                           ]}
-                          onPress={() => setSelectedPatient(apt)}
                         >
-                          <Image
-                            source={
-                              typeof apt.imageUrl === "string" && apt.imageUrl.length > 0
-                                ? { uri: apt.imageUrl }
-                                : require("../../assets/images/user.png")
-                            }
-                            style={styles.queueAvatar}
-                          />
-
-                          <View style={{ flex: 1, marginRight: 8 }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                              <Text style={styles.queuePatientName} numberOfLines={1}>
-                                {apt.name}
-                              </Text>
-
-                            </View>
-
-                            <Text style={styles.queueService} numberOfLines={1}>
-                              {apt.service || "General Dental Consultation"}
-                            </Text>
-
-                            <View style={styles.queueMetaRow}>
-                              {apt.time ? (
-                                <View style={styles.queueMetaItem}>
-                                  <Clock size={11} color="#047857" style={{ marginRight: 3 }} />
-                                  <Text style={[styles.queueMetaText, { color: "#047857", fontWeight: "700" }]}>
-                                    {formatAppointmentTime(apt.time)}
-                                  </Text>
-                                </View>
-                              ) : null}
-                            </View>
-                          </View>
-
-                          <View
-                            style={[
-                              styles.queueStatusBadge,
-                              {
-                                backgroundColor: getStatusBgColor(apt.status || "scheduled"),
-                                borderColor: getStatusColor(apt.status || "scheduled"),
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.queueStatusText,
-                                { color: getStatusColor(apt.status || "scheduled") },
-                              ]}
-                            >
-                              {apt.status === "completed"
-                                ? "DONE"
-                                : apt.status === "no-show"
-                                  ? "NO-SHOW"
-                                  : (apt.status || "SCHEDULED").toUpperCase()}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
-                  )}
-                </View>
-
-                {/* ─────────────────────────────────────────
-                    RIGHT COLUMN: SELECTED PATIENT DETAILS
-                ───────────────────────────────────────── */}
-                <View style={styles.column}>
-                  <View
-                    ref={tour.register("chairside-prep")}
-                    collapsable={false}
-                    onLayout={(e) => {
-                      patientDetailsLayoutY.current = e.nativeEvent.layout.y;
-                    }}
-                  >
-                    <View style={styles.sectionHeaderRow}>
-                      <View style={styles.sectionTitleGroup}>
-                        <HeartPulse size={15} color="#047857" />
-                        <Text style={styles.sectionHeaderTitle}>PATIENT DETAILS</Text>
-                      </View>
-                    </View>
-
-                    {!selectedPatient ? (
-                      <View style={styles.emptyPrepCard}>
-                        <View style={styles.emptyPrepIconBox}>
-                          <Users size={22} color="#047857" />
-                        </View>
-                        <Text style={styles.emptyPrepTitle}>NO PATIENT SELECTED</Text>
-                        <Text style={styles.emptyPrepDesc}>
-                          Tap any patient from the list on the left to see their details, notes, and medical alerts.
+                          {rescheduleRequests.length}
                         </Text>
-                      </View>
-                    ) : (
-                      <View style={[styles.detailsCard, styles.shadow]}>
-                        {/* Status Badge in Corner */}
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 12,
-                            right: 12,
-                            paddingHorizontal: 8,
-                            paddingVertical: 3.5,
-                            borderRadius: 4,
-                            borderWidth: 1,
-                            borderColor: getStatusColor(selectedPatient.status || "scheduled"),
-                            backgroundColor: getStatusBgColor(
-                              selectedPatient.status || "scheduled"
-                            ),
-                            zIndex: 10,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontWeight: "bold",
-                              color: getStatusColor(selectedPatient.status || "scheduled"),
-                              fontSize: 10,
-                              letterSpacing: 0.6,
-                            }}
-                          >
-                            {selectedPatient.status === "completed"
-                              ? "DONE"
-                              : selectedPatient.status === "no-show"
-                                ? "NO-SHOW"
-                                : (selectedPatient.status || "scheduled").toUpperCase()}
-                          </Text>
-                        </View>
-
-                        {/* Patient Header */}
-                        <View style={styles.prepPatientHeader}>
-                          <Image
-                            source={
-                              typeof selectedPatient.imageUrl === "string" &&
-                                selectedPatient.imageUrl.length > 0
-                                ? { uri: selectedPatient.imageUrl }
-                                : require("../../assets/images/user.png")
-                            }
-                            style={styles.prepAvatar}
-                          />
-                          <Text style={styles.prepPatientName}>{selectedPatient.name}</Text>
-
-                          {/* Contact & Phone call button */}
-                          <View style={styles.prepContactRow}>
-                            {selectedPatient.contact ? (
-                              <TouchableOpacity
-                                style={styles.prepCallBtn}
-                                onPress={() => {
-                                  Linking.openURL(`tel:${selectedPatient.contact}`);
-                                }}
-                                activeOpacity={0.8}
-                              >
-                                <Phone size={12} color="#047857" style={{ marginRight: 4 }} />
-                                <Text style={styles.prepCallBtnText}>
-                                  Call {selectedPatient.contact}
-                                </Text>
-                              </TouchableOpacity>
-                            ) : selectedPatient.email ? (
-                              <Text style={styles.prepEmailText}>{selectedPatient.email}</Text>
-                            ) : null}
-                          </View>
-
-                          {/* Senior / PWD Tag */}
-                          {((selectedPatient as any).pwd_status === "approved" ||
-                            (selectedPatient as any).medicalIntake?.pwd_status === "approved") && (
-                              <View style={styles.pwdApprovedBadge}>
-                                <Text style={styles.pwdApprovedText}>
-                                  ✓ {(selectedPatient as any).pwd_type === "senior"
-                                    ? "Senior Citizen"
-                                    : "PWD"}
-                                </Text>
-                              </View>
-                            )}
-                          {((selectedPatient as any).pwd_status === "pending" ||
-                            (selectedPatient as any).medicalIntake?.pwd_status === "pending") && (
-                              <View style={styles.pwdPendingBadge}>
-                                <Text style={styles.pwdPendingText}>
-                                  ⚠️ Senior / PWD Under Review
-                                </Text>
-                              </View>
-                            )}
-                        </View>
-
-                        {/* IMPORTANT HEALTH ALERTS */}
-                        <View style={styles.medicalAlertBox}>
-                          <View style={styles.alertBoxHeader}>
-                            <AlertTriangle size={14} color="#B45309" />
-                            <Text style={styles.alertBoxTitle}>
-                              IMPORTANT HEALTH ALERTS
-                            </Text>
-                          </View>
-
-                          {/* Allergies Alert */}
-                          {selectedPatient.medicalIntake?.allergies ? (
-                            <View style={styles.allergyWarningCard}>
-                              <Text style={styles.allergyWarningLabel}>⚠️ ALLERGIES:</Text>
-                              <Text style={styles.allergyWarningValue}>
-                                {selectedPatient.medicalIntake.allergies}
-                              </Text>
-                            </View>
-                          ) : (
-                            <View style={styles.safeIntakeRow}>
-                              <CheckCircle2 size={13} color="#059669" />
-                              <Text style={styles.safeIntakeText}>
-                                No known allergies reported
-                              </Text>
-                            </View>
-                          )}
-
-                          {/* Medical conditions */}
-                          {selectedPatient.medicalIntake?.medicalConditions ? (
-                            <View style={{ marginTop: 6 }}>
-                              <Text style={styles.conditionLabel}>Medical Conditions:</Text>
-                              <Text style={styles.conditionValue}>
-                                {selectedPatient.medicalIntake.medicalConditions}
-                              </Text>
-                            </View>
-                          ) : null}
-
-                          {/* Emergency Contact */}
-                          {selectedPatient.medicalIntake?.emergencyContactName ||
-                            selectedPatient.medicalIntake?.emergencyContactPhone ? (
-                            <View style={styles.emergencyContactRow}>
-                              <Text style={styles.emergencyLabel}>Emergency Contact:</Text>
-                              <Text style={styles.emergencyValue}>
-                                {selectedPatient.medicalIntake.emergencyContactName || "Family Member"}{" "}
-                                ({selectedPatient.medicalIntake.emergencyContactPhone || "No number"})
-                              </Text>
-                            </View>
-                          ) : null}
-                        </View>
-
-                        {/* APPOINTMENT DETAILS */}
-                        <View style={styles.appointmentDetailsBox}>
-                          <View style={styles.detailsBoxHeader}>
-                            <Calendar size={13} color="#047857" />
-                            <Text style={styles.detailsBoxTitle}>APPOINTMENT DETAILS</Text>
-                          </View>
-
-                          <DetailRow
-                            label="Service"
-                            value={selectedPatient.service || "General Dental"}
-                          />
-                          <DetailRow
-                            label="Time"
-                            value={
-                              selectedPatient.time
-                                ? formatAppointmentTime(selectedPatient.time)
-                                : "Not set"
-                            }
-                            isHighlight={true}
-                          />
-                          <DetailRow
-                            label="Date"
-                            value={
-                              formatAppointmentDate(selectedPatient.date) || "Not set"
-                            }
-                          />
-                          {selectedPatient.notes ? (
-                            <DetailRow label="Notes" value={selectedPatient.notes} />
-                          ) : null}
-                        </View>
-
-                        {/* ACTION BUTTONS: DEDICATED ACCEPT OR DECLINE SECTION */}
-                        {selectedPatient.status === "pending" ? (
-                          <View style={styles.decisionSectionCard}>
-                            <View style={styles.decisionHeader}>
-                              <ShieldCheck size={15} color="#047857" style={{ marginRight: 6 }} />
-                              <Text style={styles.decisionTitle}>CONFIRM OR DECLINE REQUEST</Text>
-                            </View>
-                            <Text style={styles.decisionSubtitle}>
-                              Confirm booking for {selectedPatient.name} or decline with a note.
-                            </Text>
-
-                            <View style={styles.decisionBtnRow}>
-                              <TouchableOpacity
-                                style={styles.decisionAcceptBtn}
-                                onPress={() => handleAcceptAppointmentRequest(selectedPatient)}
-                                activeOpacity={0.85}
-                              >
-                                <Check size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-                                <Text style={styles.decisionAcceptText}>Accept Booking</Text>
-                              </TouchableOpacity>
-
-                              <TouchableOpacity
-                                style={styles.decisionDeclineBtn}
-                                onPress={() => {
-                                  setPromptAppointment(selectedPatient);
-                                  setShowPromptModal(true);
-                                }}
-                                activeOpacity={0.85}
-                              >
-                                <X size={14} color="#E11D48" style={{ marginRight: 5 }} />
-                                <Text style={styles.decisionDeclineText}>Decline</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ) : (
-                          <>
-                            <View style={styles.actionButtonRow}>
-                              <TouchableOpacity
-                                style={styles.fullRecordBtn}
-                                onPress={() => handleOpenPatientDetails(selectedPatient)}
-                                activeOpacity={0.8}
-                              >
-                                <FileText size={13} color="#FFFFFF" />
-                                <Text style={styles.fullRecordBtnText}>VIEW FULL RECORD</Text>
-                              </TouchableOpacity>
-
-                              <TouchableOpacity
-                                style={styles.updateStatusBtn}
-                                onPress={() => handleOpenStatusModal(selectedPatient)}
-                                activeOpacity={0.8}
-                              >
-                                <Clock size={13} color="#1E293B" />
-                                <Text style={styles.updateStatusBtnText}>CHANGE STATUS</Text>
-                              </TouchableOpacity>
-                            </View>
-
-                            {/* FAST 1-TAP STATUS BUTTONS */}
-                            <View style={styles.quickStatusRow}>
-                              <TouchableOpacity
-                                style={[styles.quickStatusBtn, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}
-                                onPress={() => handleQuickStatusChange(selectedPatient, "completed")}
-                                activeOpacity={0.8}
-                              >
-                                <CheckCircle2 size={12} color="#047857" />
-                                <Text style={[styles.quickStatusBtnText, { color: "#047857" }]}>
-                                  Mark as Done
-                                </Text>
-                              </TouchableOpacity>
-
-                              <TouchableOpacity
-                                style={[styles.quickStatusBtn, { backgroundColor: "#FFF1F2", borderColor: "#FECDD3" }]}
-                                onPress={() => handleQuickStatusChange(selectedPatient, "no-show")}
-                                activeOpacity={0.8}
-                              >
-                                <AlertCircle size={12} color="#E11D48" />
-                                <Text style={[styles.quickStatusBtnText, { color: "#E11D48" }]}>
-                                  Did Not Show
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    )}
-                  </View>
-
-                  {/* ─────────────────────────────────────────────────────────────
-                      RESCHEDULE REQUESTS SECTION
-                  ───────────────────────────────────────────────────────────── */}
-                  <View style={[styles.sectionHeaderRow, { marginTop: 22, marginBottom: 10 }]}>
-                    <View style={styles.sectionTitleGroup}>
-                      <CalendarDays size={16} color="#475569" />
-                      <Text style={styles.sectionHeaderTitle}>RESCHEDULE REQUESTS</Text>
-                      <View style={styles.pillCountBadge}>
-                        <Text style={styles.pillCountText}>{rescheduleRequests.length}</Text>
                       </View>
                     </View>
                   </View>
@@ -1943,12 +1532,141 @@ export default function AssistantDashboard({
                       <Text style={styles.emptyRescheduleText}>No pending reschedule requests</Text>
                     </View>
                   )}
+                </View>
 
+                {/* ─────────────────────────────────────────────────────────────
+                    SECTION 2: TODAY'S APPOINTMENTS
+                ───────────────────────────────────────────────────────────── */}
+                <View
+                  ref={tour.register("today-queue")}
+                  collapsable={false}
+                  style={styles.column}
+                >
+                  <View style={[styles.sectionHeaderRow, { marginTop: 12, marginBottom: 8 }]}>
+                    <View style={styles.sectionTitleGroup}>
+                      <Calendar size={16} color="#047857" />
+                      <Text style={styles.sectionHeaderTitle}>TODAY'S APPOINTMENTS</Text>
+                      <View style={styles.pillCountBadge}>
+                        <Text style={styles.pillCountText}>{todayAppointments.length}</Text>
+                      </View>
+                    </View>
 
+                    <TouchableOpacity
+                      onPress={() => navigateToTab("appointments")}
+                      style={styles.seeAllBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.seeAllBtnText}>View all</Text>
+                      <ChevronRight size={14} color="#047857" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Queue Filter Tabs: All, Scheduled, Done */}
+                  <View style={styles.queueFilterRow}>
+                    <TouchableOpacity
+                      style={[styles.queueFilterPill, queueFilter === "all" && styles.queueFilterPillActive]}
+                      onPress={() => setQueueFilter("all")}
+                    >
+                      <Text style={[styles.queueFilterPillText, queueFilter === "all" && styles.queueFilterPillTextActive]}>
+                        All ({todayAppointments.length})
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.queueFilterPill, queueFilter === "scheduled" && styles.queueFilterPillActive]}
+                      onPress={() => setQueueFilter("scheduled")}
+                    >
+                      <Text style={[styles.queueFilterPillText, queueFilter === "scheduled" && styles.queueFilterPillTextActive]}>
+                        Scheduled ({todayScheduledCount})
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.queueFilterPill, queueFilter === "completed" && styles.queueFilterPillActive]}
+                      onPress={() => setQueueFilter("completed")}
+                    >
+                      <Text style={[styles.queueFilterPillText, queueFilter === "completed" && styles.queueFilterPillTextActive]}>
+                        Done ({todayCompletedCount})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Today's Appointments List */}
+                  {filteredQueueAppointments.length === 0 ? (
+                    <View style={styles.emptyQueueBox}>
+                      <Calendar size={26} color="#94A3B8" style={{ marginBottom: 6 }} />
+                      <Text style={styles.emptyQueueTitle}>No visits scheduled for today</Text>
+                      <Text style={styles.emptyQueueSubtitle}>
+                        Today's arriving patients will appear here. Tap any patient to view their record.
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredQueueAppointments.map((apt) => (
+                      <TouchableOpacity
+                        key={apt.id}
+                        activeOpacity={0.8}
+                        style={styles.queueCard}
+                        onPress={() => handleOpenPatientDetails(apt)}
+                      >
+                        <Image
+                          source={
+                            typeof apt.imageUrl === "string" && apt.imageUrl.length > 0
+                              ? { uri: apt.imageUrl }
+                              : require("../../assets/images/user.png")
+                          }
+                          style={styles.queueAvatar}
+                        />
+
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={styles.queuePatientName} numberOfLines={1}>
+                              {apt.name}
+                            </Text>
+                          </View>
+
+                          <Text style={styles.queueService} numberOfLines={1}>
+                            {apt.service || "General Dental Consultation"}
+                          </Text>
+
+                          <View style={styles.queueMetaRow}>
+                            {apt.time ? (
+                              <View style={styles.queueMetaItem}>
+                                <Clock size={11} color="#047857" style={{ marginRight: 3 }} />
+                                <Text style={[styles.queueMetaText, { color: "#047857", fontWeight: "700" }]}>
+                                  {formatAppointmentTime(apt.time)}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.queueStatusBadge,
+                            {
+                              backgroundColor: getStatusBgColor(apt.status || "scheduled"),
+                              borderColor: getStatusColor(apt.status || "scheduled"),
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.queueStatusText,
+                              { color: getStatusColor(apt.status || "scheduled") },
+                            ]}
+                          >
+                            {apt.status === "completed"
+                              ? "DONE"
+                              : apt.status === "no-show"
+                                ? "NO-SHOW"
+                                : (apt.status || "SCHEDULED").toUpperCase()}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  )}
                 </View>
               </View>
-
-
             </View>
           </ScrollView>
 </KeyboardAvoidingView>
