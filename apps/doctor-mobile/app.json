@@ -51,6 +51,12 @@
         "projectId": "7380953f-ba09-42e5-8ab0-952c205fa3d1"
       }
     },
-    "owner": "lee_duois"
+    "owner": "lee_duois",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7380953f-ba09-42e5-8ab0-952c205fa3d1"
+    }
   }
 }

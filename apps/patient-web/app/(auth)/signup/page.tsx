@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
-import { Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, ArrowRight } from 'lucide-react';
 
 export default function SignupMethodPage() {
   const router = useRouter();
@@ -76,16 +76,9 @@ export default function SignupMethodPage() {
   return (
     <div className="skeuo-panel p-5 sm:p-8 border-2 border-slate-300 max-w-md mx-auto">
       <div className="text-center mb-6">
-        <span className="skeuo-badge skeuo-badge-mint mb-3 inline-flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-          Patient Intake
-        </span>
         <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">
           Create Patient Account
         </h2>
-        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider mt-1">
-          Access your digital health chart & appointments
-        </p>
       </div>
 
       {localError && (

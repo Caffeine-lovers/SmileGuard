@@ -229,19 +229,22 @@ export default function AccessCodesTab() {
 
                 {/* Action Row */}
                 <View style={styles.cardActions}>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.btnRegenerate]}
-                    onPress={() => handleRegenerate(item)}
-                    disabled={regeneratingId === item.id}
-                    activeOpacity={0.75}
-                  >
-                    {regeneratingId === item.id ? (
-                      <ActivityIndicator size="small" color="#047857" />
-                    ) : (
-                      <RefreshCw size={13} color="#047857" />
-                    )}
-                    <Text style={[styles.actionBtnText, { color: "#047857" }]}>Re-generate</Text>
-                  </TouchableOpacity>
+                  {/* Only the admin code can be regenerated; doctor and assistant codes cannot */}
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.btnRegenerate]}
+                      onPress={() => handleRegenerate(item)}
+                      disabled={regeneratingId === item.id}
+                      activeOpacity={0.75}
+                    >
+                      {regeneratingId === item.id ? (
+                        <ActivityIndicator size="small" color="#047857" />
+                      ) : (
+                        <RefreshCw size={13} color="#047857" />
+                      )}
+                      <Text style={[styles.actionBtnText, { color: "#047857" }]}>Re-generate</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {!isAdmin && (
                     <TouchableOpacity

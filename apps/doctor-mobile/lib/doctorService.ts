@@ -200,8 +200,15 @@ export async function createDoctorProfile(
     if (!doctor.user_id) throw new Error("Missing required field: user_id");
     if (!firstName) throw new Error("Missing required field: first_name");
     if (!lastName) throw new Error("Missing required field: last_name");
-    if (!doctor.specialization) throw new Error("Missing required field: specialization");
-    if (!doctor.license_number) throw new Error("Missing required field: license_number");
+    const isAssistantProfile = doctor.role === "assistant";
+    if (!isAssistantProfile) {
+      if (!doctor.specialization) throw new Error("Missing required field: specialization");
+      if (!doctor.license_number) throw new Error("Missing required field: license_number");
+    }
+    // Assistants have no PRC license, specialty or dentist bio
+    const specialization = isAssistantProfile ? null : doctor.specialization;
+    const licenseNumber = isAssistantProfile ? null : doctor.license_number;
+    const bio = isAssistantProfile ? null : doctor.bio || null;
 
     console.log("[DoctorService] Creating/updating doctor profile with data:", {
       user_id: doctor.user_id,
@@ -254,9 +261,9 @@ export async function createDoctorProfile(
         p_first_name: firstName,
         p_middle_name: middleName || null,
         p_last_name: lastName,
-        p_specialization: doctor.specialization,
-        p_license_number: doctor.license_number,
-        p_bio: doctor.bio || null,
+        p_specialization: specialization,
+        p_license_number: licenseNumber,
+        p_bio: bio,
         p_profile_picture_url: doctor.profile_picture_url || null,
         p_gender: doctor.gender ? doctor.gender.trim() : null,
       });
@@ -276,9 +283,9 @@ export async function createDoctorProfile(
           p_first_name: firstName,
           p_middle_name: middleName || null,
           p_last_name: lastName,
-          p_specialization: doctor.specialization,
-          p_license_number: doctor.license_number,
-          p_bio: doctor.bio || null,
+          p_specialization: specialization,
+          p_license_number: licenseNumber,
+          p_bio: bio,
           p_profile_picture_url: doctor.profile_picture_url || null,
         });
       }
@@ -296,9 +303,9 @@ export async function createDoctorProfile(
         rpcResponse = await supabase.rpc("complete_doctor_registration", {
           p_code: accessCode.trim(),
           p_doctor_name: fullName,
-          p_specialization: doctor.specialization,
-          p_license_number: doctor.license_number,
-          p_bio: doctor.bio || null,
+          p_specialization: specialization,
+          p_license_number: licenseNumber,
+          p_bio: bio,
           p_profile_picture_url: doctor.profile_picture_url || null,
         });
       }
@@ -344,7 +351,7 @@ export async function createDoctorProfile(
         const yearsExp = doctor.years_of_experience !== undefined && doctor.years_of_experience !== null
           ? Number(doctor.years_of_experience)
           : 0;
-        postRegUpdates.years_of_experience = isNaN(yearsExp) ? 0 : yearsExp;
+        postRegUpdates.years_of_experience = isAssistant ? null : isNaN(yearsExp) ? 0 : yearsExp;
 
         postRegUpdates.office_hours = doctor.office_hours || EMPTY_DOCTOR.office_hours;
         postRegUpdates.role = isAssistant ? "assistant" : "doctor";
@@ -426,7 +433,10 @@ export async function createDoctorProfile(
       last_name: lastName,
       gender: doctor.gender ? doctor.gender.trim() : null,
       doctor_phone: doctor.doctor_phone ? doctor.doctor_phone.trim() : null,
-      years_of_experience: Number(doctor.years_of_experience) || 0,
+      license_number: licenseNumber,
+      specialization,
+      bio,
+      years_of_experience: isAssistantProfile ? null : Number(doctor.years_of_experience) || 0,
       office_hours: doctor.office_hours || EMPTY_DOCTOR.office_hours,
     };
     delete cleanDoctor.doctor_name;

@@ -4,6 +4,7 @@ import { isCancelledAppointment, isPendingAppointment } from '@/lib/database';
 import { getBillings } from '@/lib/paymentService';
 import { getPatientAppointments } from '@/lib/appointmentService';
 import { SERVICE_PRICES, getServicePrice, getServicePriceForClinic } from '@/lib/pricing';
+import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
 // Re-exported so existing imports keep working; the implementations live in lib/pricing.ts
 export { SERVICE_PRICES, getServicePrice, getServicePriceForClinic };
@@ -60,13 +61,12 @@ export async function fetchClinicLookup(): Promise<{
         const info: ClinicInfo = {
           id: row.id,
           user_id: row.user_id,
-          clinic_name: row.clinic_name || "Kyler's Clinic",
+          clinic_name: row.clinic_name || DEFAULT_CLINIC_NAME,
           services: normalizedServices,
         };
         clinicMap.set(row.user_id, info);
         clinicMap.set(row.id, info);
-        // Prioritize Kyler's Clinic as default
-        if (info.clinic_name.toLowerCase().includes('kyler') || !defaultClinic) {
+        if (!defaultClinic) {
           defaultClinic = info;
         }
       }
@@ -79,7 +79,7 @@ export async function fetchClinicLookup(): Promise<{
     defaultClinic = {
       id: "6572586e-f38b-4d1e-894c-52f038228282",
       user_id: "7c9b5331-3f19-4560-8256-44c7742e11ad",
-      clinic_name: "Kyler's Clinic",
+      clinic_name: DEFAULT_CLINIC_NAME,
       services: [],
     };
   }
@@ -127,7 +127,7 @@ export function buildAppointmentBillingLedger(
 
   return appts.map((a) => {
     const clinic = (a.dentist_id ? clinicMap.get(a.dentist_id) : null) || defaultClinic;
-    const clinicName = clinic?.clinic_name || "Kyler's Clinic";
+    const clinicName = clinic?.clinic_name || DEFAULT_CLINIC_NAME;
     const listPrice = getServicePriceForClinic(a.service, clinic?.services);
     const billing = a.id ? billingByAppt.get(a.id) : undefined;
     const isPaid = billing?.payment_status === 'paid';

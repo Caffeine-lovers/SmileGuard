@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 export const LEGAL_EFFECTIVE_DATE = 'November 3, 2026';
 export const LEGAL_CONTACT = {
   dpoEmail: 'dpo@smileguard.example', // replace with the real Data Protection Officer email
-  clinicName: 'SmileGuard partner clinic',
+  clinicName: 'Dra. Ivy King Clinic',
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

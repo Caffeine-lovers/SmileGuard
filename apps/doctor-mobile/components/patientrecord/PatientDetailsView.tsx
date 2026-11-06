@@ -48,6 +48,7 @@ import AppointmentHistory from "../appointments/appointmentHistory";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import { getStatusColor, getStatusBgColor, getStatusLabel } from "../../lib/statusHelpers";
 import { formatDateOfBirth, formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
+import { formatCurrency } from "../../lib/currencyFormatters";
 
 export type AppointmentType = {
   id: string;
@@ -463,7 +464,7 @@ export default function PatientDetailsView({
                 <View style={styles.metricItem}>
                   <Text style={styles.metricLabel}>TOTAL PAID</Text>
                   <Text style={[styles.metricValue, { color: '#10B981' }]}>
-                    ₱{billingInfo ? billingInfo.paidAmount.toLocaleString('en-US') : '0'}
+                    {formatCurrency(billingInfo?.paidAmount ?? 0)}
                   </Text>
                 </View>
               </View>
@@ -884,24 +885,24 @@ export default function PatientDetailsView({
                   <>
                     <DetailRow
                       label="Total Charges"
-                      value={`₱${billingInfo.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      value={formatCurrency(billingInfo.totalAmount)}
                     />
                     <DetailRow
                       label="Amount Paid"
-                      value={`₱${billingInfo.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      value={formatCurrency(billingInfo.paidAmount)}
                       isHighlight={true}
                     />
                     {billingInfo.pendingAmount > 0 && (
                       <DetailRow
                         label="Pending Balance"
-                        value={`₱${billingInfo.pendingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        value={formatCurrency(billingInfo.pendingAmount)}
                         isAlert={true}
                       />
                     )}
                     {billingInfo.overdueAmount > 0 && (
                       <DetailRow
                         label="Overdue Balance"
-                        value={`₱${billingInfo.overdueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        value={formatCurrency(billingInfo.overdueAmount)}
                         isAlert={true}
                       />
                     )}

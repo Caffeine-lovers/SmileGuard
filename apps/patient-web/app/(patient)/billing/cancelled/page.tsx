@@ -12,7 +12,7 @@ import {
 
 export default function BillingCancelledPage() {
   return (
-    <div className="p-3 sm:p-4 md:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6 w-full">
+    <div className="py-3 sm:py-4 md:py-6 space-y-4 sm:space-y-6 w-full">
       {/* Clinic Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 rounded-sm p-4 sm:p-6 text-white border-2 border-slate-950 shadow-md w-full">
         <div className="flex items-center gap-3 mb-1">
@@ -25,7 +25,7 @@ export default function BillingCancelledPage() {
           Payment Cancelled
         </h1>
         <p className="text-slate-300 text-xs font-semibold tracking-wide uppercase mt-0.5">
-          Ivy King Dental Clinic &bull; Accounts & Settlement Notice
+          Ivy King Dental Clinic &bull; Billing Notice
         </p>
       </div>
 
@@ -57,8 +57,8 @@ export default function BillingCancelledPage() {
               <span className="font-bold text-slate-900">Active &bull; Retained on Schedule</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="font-semibold text-slate-600">Settlement Status:</span>
-              <span className="font-bold text-amber-700 uppercase">Pending Due</span>
+              <span className="font-semibold text-slate-600">Payment Status:</span>
+              <span className="font-bold text-amber-700 uppercase">Payment Due</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-slate-100">
               <span className="font-semibold text-slate-600">Payment Gateway:</span>
@@ -66,7 +66,7 @@ export default function BillingCancelledPage() {
             </div>
           </div>
           <p className="text-[11px] text-slate-500 pt-1">
-            You can settle this procedure online at any time before your appointment, or arrange settlement directly with clinic staff upon arrival.
+            You can pay online at any time before your appointment, or pay at the clinic when you arrive.
           </p>
         </div>
 

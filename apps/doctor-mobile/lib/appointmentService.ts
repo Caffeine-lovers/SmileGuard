@@ -1,4 +1,5 @@
 import { toMinutes } from './scheduling';
+import { isAppointmentUndecidedAndEclipsed } from './dateFormatters';
 import { supabase } from '@smileguard/supabase-client';
 export async function cancelAppointment(
   appointmentId: string
@@ -930,12 +931,37 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
       }
     }
 
-    // Clean out any cancelled, declined, or completed appointments
+    // Clean out cancelled, declined, completed, or eclipsed undecided appointments
     if (appointmentsData && appointmentsData.length > 0) {
+      const pastUndecidedIds: string[] = [];
       appointmentsData = appointmentsData.filter((apt: any) => {
         const s = (apt.status || '').toLowerCase();
-        return !['cancelled', 'declined', 'completed', 'no-show'].includes(s);
+        if (['cancelled', 'declined', 'completed', 'no-show'].includes(s)) {
+          return false;
+        }
+        if (isAppointmentUndecidedAndEclipsed(apt.appointment_date, s)) {
+          if (apt.id) pastUndecidedIds.push(apt.id);
+          return false;
+        }
+        return true;
       });
+
+      if (pastUndecidedIds.length > 0) {
+        (async () => {
+          try {
+            await supabase
+              .from('appointments')
+              .update({
+                status: 'cancelled',
+                notes: 'Automatically cancelled: remained undecided after appointment date passed',
+                updated_at: new Date().toISOString()
+              })
+              .in('id', pastUndecidedIds);
+          } catch (e) {
+            console.warn('⚠️ Auto-cancel expired requests in DB warning:', e);
+          }
+        })();
+      }
     }
 
     if (!appointmentsData || appointmentsData.length === 0) {

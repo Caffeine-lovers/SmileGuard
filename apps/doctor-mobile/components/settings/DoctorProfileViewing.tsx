@@ -77,7 +77,8 @@ export default function DoctorProfileView({
     );
   }
 
-  const doctorTitle = getDoctorTitleName(doctor) || "Doctor";
+  const isAssistant = doctor.role === "assistant";
+  const doctorTitle = getDoctorTitleName(doctor) || (isAssistant ? "Clinic Assistant" : "Doctor");
   const experienceYears = doctor.years_of_experience || 0;
   const rawDoctorId = doctor.id || doctor.user_id || "";
   const doctorId = rawDoctorId
@@ -92,7 +93,7 @@ export default function DoctorProfileView({
       {/* Module Top Header (Clean - No Badge) */}
       <View style={styles.topHeader}>
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.topHeaderTitle}>DOCTOR PROFILE</Text>
+          <Text style={styles.topHeaderTitle}>{isAssistant ? "MY PROFILE" : "DOCTOR PROFILE"}</Text>
         </View>
 
         <View style={styles.headerActionsRow}>
@@ -149,14 +150,15 @@ export default function DoctorProfileView({
               <View style={styles.bannerSpecialtyPill}>
                 <Stethoscope size={11} color="#047857" />
                 <Text style={styles.bannerSpecialtyText}>
-                  {doctor.specialization || "General Dentistry"}
+                  {isAssistant ? "Clinic Assistant" : doctor.specialization || "General Dentistry"}
                 </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Floating 2-Metric Strip */}
+        {/* Floating 2-Metric Strip (dentists only) */}
+        {!isAssistant && (
         <View style={styles.statStripCard}>
           <View style={styles.statCol}>
             <Text style={styles.statValue}>
@@ -174,6 +176,7 @@ export default function DoctorProfileView({
             <Text style={styles.statLabel}>LICENSE NO.</Text>
           </View>
         </View>
+        )}
 
         {/* Direct Contact Card */}
         <View style={styles.sectionHeaderRow}>
@@ -195,7 +198,9 @@ export default function DoctorProfileView({
           </View>
         </View>
 
-        {/* Clinical Statement & Biography Card */}
+        {/* Clinical Statement & Biography Card (dentists only) */}
+        {!isAssistant && (
+        <>
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionLabel}>DOCTOR'S BIOGRAPHY</Text>
         </View>
@@ -211,12 +216,14 @@ export default function DoctorProfileView({
             <Text style={styles.bioSignoffText}>{doctorTitle}</Text>
           </View>
         </View>
+        </>
+        )}
 
         {/* Registration Audit & System ID Strip */}
         <View style={styles.auditCard}>
           <View style={styles.auditIdRow}>
             <ShieldCheck size={13} color="#047857" />
-            <Text style={styles.auditLabel}>Doctor ID:</Text>
+            <Text style={styles.auditLabel}>{isAssistant ? "Staff ID:" : "Doctor ID:"}</Text>
             <Text style={styles.auditIdValue} numberOfLines={1} selectable>
               {doctorId}
             </Text>

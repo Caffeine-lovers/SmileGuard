@@ -9,22 +9,22 @@
 export const SERVICE_DURATIONS: Record<string, number> = {
   Cleaning: 30,
   Whitening: 60,
-  Fillings: 45,
-  Filling: 45,
+  Fillings: 60,
+  Filling: 60,
   'Root Canal': 90,
   Extraction: 30,
   'Braces Consultation': 60,
   Braces: 60,
   'Implants Consultation': 60,
   Implants: 60,
-  'X-Ray': 15,
-  'Check-up': 20,
-  Checkup: 20,
+  'X-Ray': 30,
+  'Check-up': 30,
+  Checkup: 30,
   Consultation: 30,
 };
 
 /** Used for appointments whose service name we don't recognize (e.g. created elsewhere). */
-export const DEFAULT_APPOINTMENT_MINUTES = 60;
+export const DEFAULT_APPOINTMENT_MINUTES = 30;
 
 function durationOfOne(name: string): number {
   const n = name.trim().toLowerCase();
@@ -72,19 +72,49 @@ export interface Interval {
   end: number;
 }
 
-/** Busy intervals on a date from booked appointments ({ date, time, service }). */
+export function mergeIntervals(intervals: Interval[]): Interval[] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const result: Interval[] = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const last = result[result.length - 1];
+    const curr = sorted[i];
+    if (curr.start <= last.end) {
+      last.end = Math.max(last.end, curr.end);
+    } else {
+      result.push(curr);
+    }
+  }
+  return result;
+}
+
+/** Busy intervals on a date from booked appointments ({ date, time, service, duration }). */
 export function busyIntervalsForDate(
-  booked: { date: string; time: string; service?: string | null }[],
+  booked: { date: string; time: string; service?: string | null; duration?: number }[],
   date: string
 ): Interval[] {
-  return booked
+  const intervals = booked
     .filter((b) => b.date === date && b.service !== 'blocked' && b.time !== 'ALL_DAY')
     .map((b) => {
       const start = toMinutes(b.time);
-      return { start, end: start + getServiceDuration(b.service) };
+      const dur = b.duration ?? (b.service ? getServiceDuration(b.service) : DEFAULT_APPOINTMENT_MINUTES);
+      return { start, end: start + Math.max(dur, DEFAULT_APPOINTMENT_MINUTES) };
     })
-    .filter((i) => Number.isFinite(i.start))
-    .sort((a, b) => a.start - b.start);
+    .filter((i) => Number.isFinite(i.start));
+
+  return mergeIntervals(intervals);
+}
+
+/** True when [start, start + duration) does not collide with any existing booking in busy */
+export function slotFitsWithBookings(start: number, duration: number, busy: Interval[]): boolean {
+  if (!Number.isFinite(start)) return false;
+  const end = start + Math.max(duration, DEFAULT_APPOINTMENT_MINUTES);
+  for (const b of busy) {
+    if (start < b.end && b.start < end) {
+      return false; // overlaps an existing booking
+    }
+  }
+  return true;
 }
 
 /**

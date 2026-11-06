@@ -28,9 +28,9 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="profile-card"]',
     badge: 'Step 1 of 7 • Patient Profile',
     title: 'Dental Chart & Statutory Status',
-    description: 'Your patient identity and verification hub. Once Dr. Kyler approves your PWD or Snr. Cit. ID, a verified badge will appear here to activate your statutory 20% discount on clinic billings.',
+    description: 'Your patient identity and verification hub. Once the clinic approves your PWD or Snr. Cit. ID, a verified badge will appear here to activate your statutory 20% discount on clinic billings.',
     features: [
-      'Real-time synchronization with Kyler\'s Clinic',
+      'Real-time synchronization with your clinic',
       'Verified PWD / Senior Citizen badge indicator',
       'Encrypted dental chart & medical intake data'
     ]

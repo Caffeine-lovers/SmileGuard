@@ -150,8 +150,7 @@ export default function AppTour({
 
   const cardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
-  const holeAnim = useRef(new Animated.Value(1)).current;
-  const displayRectRef = useRef<TourRect | null>(null);
+  const spotlightFadeAnim = useRef(new Animated.Value(1)).current;
 
   // Keep latest steps without re-triggering the step effect on every parent render
   const stepsRef = useRef(steps);
@@ -170,7 +169,7 @@ export default function AppTour({
     return () => backSub.remove();
   }, [visible, onSkip]);
 
-  // Pulsing ring around the spotlight
+  // Pulsing ring around the spotlight (100% on Native Driver)
   useEffect(() => {
     if (!visible) return;
     const loop = Animated.loop(
@@ -183,38 +182,32 @@ export default function AppTour({
     return () => loop.stop();
   }, [visible, pulseAnim]);
 
-  // Position the spotlight hole on the target rect safely without rapid SVG re-allocations
-  const animateHoleTo = useCallback(
-    (next: TourRect | null) => {
-      holeAnim.stopAnimation();
-      holeAnim.removeAllListeners();
-      displayRectRef.current = next;
-      setDisplayRect(next);
-    },
-    [holeAnim]
-  );
-
-  // Run each step: prepare UI → wait → measure → reveal card
+  // Run each step: fade out -> prepare UI -> measure -> update rect -> fade/spring in on Native Driver
   useEffect(() => {
     if (!visible) return;
     const current = stepsRef.current[index];
     if (!current) return;
 
     let cancelled = false;
+
+    // Smooth quick fade out before changing targets
+    Animated.parallel([
+      Animated.timing(spotlightFadeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
+      Animated.timing(cardAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
+    ]).start();
+
     setReady(false);
-    cardAnim.setValue(0);
     current.onEnter?.();
 
-    // Default delay: 400ms if onEnter exists (drawer transitions), else 120ms
-    const waitMs = current.delay ?? (current.onEnter ? 400 : 120);
+    // Default delay: 280ms if onEnter exists (drawer/view transitions), else 80ms
+    const waitMs = current.delay ?? (current.onEnter ? 280 : 80);
 
     const timer = setTimeout(async () => {
       let rect: TourRect | null = null;
       if (current.target) {
         rect = await measureTarget(current.target);
-        // Retry once in case layout was still settling
         if (!rect) {
-          await new Promise((r) => setTimeout(r, 200));
+          await new Promise((r) => setTimeout(r, 120));
           rect = await measureTarget(current.target);
         }
       }
@@ -230,27 +223,34 @@ export default function AppTour({
           }
         : null;
 
+      // Update state ONCE per step change (eliminates 60 FPS JS thread re-renders)
       setTargetRect(padded);
-      animateHoleTo(padded);
+      setDisplayRect(padded);
       setReady(true);
-      Animated.spring(cardAnim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 70 }).start();
+
+      // Hardware-accelerated entrance on Native Driver
+      Animated.parallel([
+        Animated.timing(spotlightFadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(cardAnim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 75 }),
+      ]).start();
     }, waitMs);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [visible, index, measureTarget, animateHoleTo, cardAnim]);
+  }, [visible, index, measureTarget, cardAnim, spotlightFadeAnim]);
 
   // Reset visuals when the tour closes
   useEffect(() => {
     if (!visible) {
-      displayRectRef.current = null;
       setDisplayRect(null);
       setTargetRect(null);
       setReady(false);
+      spotlightFadeAnim.setValue(1);
+      cardAnim.setValue(0);
     }
-  }, [visible]);
+  }, [visible, spotlightFadeAnim, cardAnim]);
 
   const goNext = () => {
     if (isLast) onFinish();
@@ -283,27 +283,22 @@ export default function AppTour({
     const arrowLeft = Math.max(28, Math.min(currentW - 56, targetRect.x + targetRect.width / 2 - 8)) - 16;
 
     if (spaceBelow >= estimatedCardHeight + CARD_GAP) {
-      // Room below target
       cardPositionStyle = { top: targetRect.y + targetRect.height + CARD_GAP };
       arrowStyle = { top: -7, left: arrowLeft };
     } else if (spaceAbove >= estimatedCardHeight + CARD_GAP) {
-      // Room above target
       cardPositionStyle = { bottom: currentH - targetRect.y + CARD_GAP };
       arrowStyle = { bottom: -7, left: arrowLeft };
     } else {
-      // Target is tall (e.g. sidebar drawer or long column):
-      // Safely pin card near bottom with safe area padding so nothing is cut off
       cardPositionStyle = { bottom: Math.max(insets.bottom, 16) + 10 };
       arrowStyle = null;
     }
   } else if (placement === "bottom") {
     cardPositionStyle = { bottom: Math.max(insets.bottom, 16) + 10 };
   } else {
-    // Center placement
     cardPositionStyle = { top: Math.max(insets.top + 40, (currentH - 240) / 2) };
   }
 
-  const cardTranslate = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const cardTranslate = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
   const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.10] });
   const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] });
 
@@ -318,40 +313,56 @@ export default function AppTour({
         }
       }}
     >
-      {/* Dimmed SVG backdrop with cutout hole */}
-      <Svg width={currentW} height={currentH} style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Defs>
-          <Mask id="tour-spotlight-mask" x="0" y="0" width={currentW} height={currentH}>
-            <Rect x="0" y="0" width={currentW} height={currentH} fill="white" />
-            {displayRect && (
-              <Rect
-                x={displayRect.x}
-                y={displayRect.y}
-                width={displayRect.width}
-                height={displayRect.height}
-                rx={radius}
-                ry={radius}
-                fill="black"
-              />
-            )}
-          </Mask>
-        </Defs>
-        <Rect
-          x="0"
-          y="0"
-          width={currentW}
-          height={currentH}
-          fill={placement === "bottom" ? LIGHT_OVERLAY_COLOR : OVERLAY_COLOR}
-          mask="url(#tour-spotlight-mask)"
+      {/* Dimmed backdrop with cutout hole */}
+      {!displayRect ? (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: placement === "bottom" ? LIGHT_OVERLAY_COLOR : OVERLAY_COLOR },
+          ]}
+          pointerEvents="none"
         />
-      </Svg>
+      ) : (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { opacity: spotlightFadeAnim }]}
+          pointerEvents="none"
+        >
+          <Svg width={currentW} height={currentH} style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Defs>
+              <Mask id="tour-spotlight-mask" x="0" y="0" width={currentW} height={currentH}>
+                <Rect x="0" y="0" width={currentW} height={currentH} fill="white" />
+                <Rect
+                  x={displayRect.x}
+                  y={displayRect.y}
+                  width={displayRect.width}
+                  height={displayRect.height}
+                  rx={radius}
+                  ry={radius}
+                  fill="black"
+                />
+              </Mask>
+            </Defs>
+            <Rect
+              x="0"
+              y="0"
+              width={currentW}
+              height={currentH}
+              fill={placement === "bottom" ? LIGHT_OVERLAY_COLOR : OVERLAY_COLOR}
+              mask="url(#tour-spotlight-mask)"
+            />
+          </Svg>
+        </Animated.View>
+      )}
 
       {/* Block touches underneath the tour overlay */}
       <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} />
 
       {/* Spotlight border ring and tap-to-continue hitbox */}
       {displayRect && (
-        <>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { opacity: spotlightFadeAnim }]}
+          pointerEvents="box-none"
+        >
           <View
             pointerEvents="none"
             style={{
@@ -392,7 +403,7 @@ export default function AppTour({
               borderRadius: radius,
             }}
           />
-        </>
+        </Animated.View>
       )}
 
       {/* Tooltip Card */}
@@ -456,7 +467,7 @@ export default function AppTour({
                 <Text style={styles.nextText}>
                   {isLast ? "Get started" : index === 0 ? "Start Walkthrough" : "Next"}
                 </Text>
-                {!isLast && <ChevronRight size={16} color="#FFFFFF" />}
+                <ChevronRight size={16} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>

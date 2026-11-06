@@ -551,7 +551,7 @@ export default function SignupMedicalPage() {
                 onChange={(e) => updateMedicalField('notes', e.target.value)}
                 rows={3}
                 className="skeuo-input w-full text-sm resize-none"
-                placeholder="Any special dental fears, tooth sensitivity, or comments for Dr. Kyler..."
+                placeholder="Any special dental fears, tooth sensitivity, or comments for your dentist..."
               />
             </div>
           </div>

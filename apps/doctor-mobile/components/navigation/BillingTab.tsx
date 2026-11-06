@@ -42,15 +42,12 @@ import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
 import { isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
 import { AppColors } from '../../constants/theme';
 
-export function formatCurrency(amount: number | string | null | undefined): string {
-  if (amount === null || amount === undefined || amount === '') return '₱0.00';
-  const num = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/[^0-9.-]/g, ''));
-  if (isNaN(num)) return '₱0.00';
-  return `₱${num.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
+import {
+  formatCurrency,
+  formatNumberWithCommas,
+  parseCurrencyInput,
+} from '../../lib/currencyFormatters';
+export { formatCurrency, formatNumberWithCommas, parseCurrencyInput };
 
 interface Patient {
   id: string;
@@ -585,9 +582,9 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
   // ─────────────────────────────────────────
   const handleOpenEditModal = (item: BillingWithPatientName) => {
     setEditingBilling(item);
-    setEditAmount(item.amount ? item.amount.toString() : '');
+    setEditAmount(item.amount ? formatNumberWithCommas(item.amount) : '');
     setEditDiscountType(item.discount_type || 'none');
-    setEditDiscountAmount(item.discount_amount ? item.discount_amount.toString() : '0');
+    setEditDiscountAmount(item.discount_amount ? formatNumberWithCommas(item.discount_amount) : '0.00');
     setEditPaymentStatus(item.payment_status || 'not_paid');
     setEditPaymentMethod(item.payment_method || 'cash');
     setShowEditModal(true);
@@ -595,28 +592,41 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
 
   const handleEditDiscountTypeChange = (type: string) => {
     setEditDiscountType(type);
-    const numAmount = parseFloat(editAmount) || 0;
+    const numAmount = parseCurrencyInput(editAmount);
     if (type === 'pwd' || type === 'senior') {
       const disc = (numAmount * 0.20).toFixed(2);
-      setEditDiscountAmount(disc);
+      setEditDiscountAmount(formatNumberWithCommas(disc));
     } else if (type === 'none') {
-      setEditDiscountAmount('0');
+      setEditDiscountAmount('0.00');
     }
   };
 
   const handleEditAmountChange = (text: string) => {
     setEditAmount(text);
-    const numAmount = parseFloat(text) || 0;
+    const numAmount = parseCurrencyInput(text);
     if (editDiscountType === 'pwd' || editDiscountType === 'senior') {
       const disc = (numAmount * 0.20).toFixed(2);
       setEditDiscountAmount(disc);
     }
   };
 
+  const handleEditAmountBlur = () => {
+    if (!editAmount) return;
+    const num = parseCurrencyInput(editAmount);
+    if (num > 0) setEditAmount(formatNumberWithCommas(num));
+  };
+
+  const handleEditDiscountBlur = () => {
+    if (!editDiscountAmount) return;
+    const num = parseCurrencyInput(editDiscountAmount);
+    setEditDiscountAmount(formatNumberWithCommas(num));
+  };
+
+
   const handleSaveEditDummyBilling = async () => {
     if (!editingBilling) return;
-    const parsedAmount = parseFloat(editAmount) || 0;
-    const parsedDiscount = parseFloat(editDiscountAmount) || 0;
+    const parsedAmount = parseCurrencyInput(editAmount);
+    const parsedDiscount = parseCurrencyInput(editDiscountAmount);
 
     if (parsedAmount <= 0) {
       Alert.alert('Validation Error', 'Please enter a valid billing amount greater than 0.');
@@ -1428,7 +1438,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                   <Text style={[localStyles.calcLabel, { fontWeight: '800', color: '#0F172A' }]}>Final Settled Amount</Text>
                   <Text style={[localStyles.calcValue, { fontWeight: '900', color: '#047857', fontSize: 16 }]}>
                     {formatCurrency(
-                      Math.max(0, (parseFloat(editAmount) || 0) - (parseFloat(editDiscountAmount) || 0))
+                      Math.max(0, parseCurrencyInput(editAmount) - parseCurrencyInput(editDiscountAmount))
                     )}
                   </Text>
                 </View>
@@ -1534,6 +1544,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
 </KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
+
 
 
 

@@ -21,14 +21,11 @@ export default function ErrorBoundary({
         <div className="w-14 h-14 bg-red-50 rounded-sm border-2 border-red-300 flex items-center justify-center mx-auto mb-4 shadow-inner">
           <AlertTriangle className="w-7 h-7 text-red-600" />
         </div>
-        <span className="skeuo-badge mb-2 bg-red-100 text-red-800 border-red-300">
-          Application Error
-        </span>
-        <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 mt-2 mb-2">
-          Service Interrupted
+        <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 mb-2">
+          Something Went Wrong
         </h2>
-        <p className="text-xs font-semibold text-slate-600 mb-6 uppercase tracking-wider">
-          An unexpected issue occurred while rendering this page.
+        <p className="text-sm font-semibold text-slate-600 mb-6">
+          This page couldn&apos;t load. Please try again.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">

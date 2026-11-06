@@ -32,3 +32,38 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 export { SupabaseClient } from "@supabase/supabase-js";
+
+export interface MySupportRequest {
+  id: string;
+  subject: string | null;
+  message: string | null;
+  status: "open" | "in_progress" | "resolved";
+  resolution_note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export async function submitSupportRequest(request: {
+  userId: string;
+  subject: string;
+  message: string;
+  platform: "mobile" | "web";
+}): Promise<void> {
+  const { error } = await supabase.from("support_requests").insert({
+    requester_id: request.userId,
+    subject: request.subject.trim(),
+    message: request.message.trim(),
+    source_platform: request.platform,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function listMySupportRequests(userId: string): Promise<MySupportRequest[]> {
+  const { data, error } = await supabase
+    .from("support_requests")
+    .select("id, subject, message, status, resolution_note, created_at, resolved_at")
+    .eq("requester_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as MySupportRequest[];
+}

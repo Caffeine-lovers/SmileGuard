@@ -269,18 +269,22 @@ export default function DoctorProfileSetup({
   };
 
   const isFormValid = () => {
+    const credentialsValid =
+      isAssistantRole ||
+      (isValidLicenseNumber(doctorData.license_number || "") &&
+        isLicenseVerified &&
+        !licenseDuplicateError &&
+        !isCheckingLicense &&
+        (doctorData.specialization || "").trim() !== "" &&
+        yearsOfExperienceStr.trim() !== "" &&
+        !isNaN(Number(yearsOfExperienceStr)) &&
+        (doctorData.gender || "").trim() !== "");
+
     return (
       accessCode.trim().length > 0 &&
-      isValidLicenseNumber(doctorData.license_number || "") &&
-      isLicenseVerified &&
-      !licenseDuplicateError &&
-      !isCheckingLicense &&
-      (doctorData.specialization || "").trim() !== "" &&
-      yearsOfExperienceStr.trim() !== "" &&
-      !isNaN(Number(yearsOfExperienceStr)) &&
+      credentialsValid &&
       (doctorData.first_name || "").trim() !== "" &&
       (doctorData.last_name || "").trim() !== "" &&
-      (doctorData.gender || "").trim() !== "" &&
       phoneDigits.trim().length === 10
     );
   };
@@ -317,23 +321,23 @@ export default function DoctorProfileSetup({
 
       if (!accessCode.trim()) {
         errorMsg = "Clinic Access Code is missing or invalid.";
-      } else if (!isValidLicenseNumber(doctorData.license_number || "")) {
+      } else if (!isAssistantRole && !isValidLicenseNumber(doctorData.license_number || "")) {
         errorMsg = "Medical License Number must be 1 to 7 numeric digits (e.g. 0123456).";
-      } else if (isCheckingLicense) {
+      } else if (!isAssistantRole && isCheckingLicense) {
         errorMsg = "Please wait while your license number is being verified...";
-      } else if (licenseDuplicateError) {
+      } else if (!isAssistantRole && licenseDuplicateError) {
         errorMsg = licenseDuplicateError;
-      } else if (!isLicenseVerified) {
+      } else if (!isAssistantRole && !isLicenseVerified) {
         errorMsg = "Please enter your license number and tap outside the field to complete verification.";
-      } else if ((doctorData.specialization || "").trim() === "") {
+      } else if (!isAssistantRole && (doctorData.specialization || "").trim() === "") {
         errorMsg = "Please select a specialization.";
-      } else if (yearsOfExperienceStr.trim() === "" || isNaN(Number(yearsOfExperienceStr))) {
+      } else if (!isAssistantRole && (yearsOfExperienceStr.trim() === "" || isNaN(Number(yearsOfExperienceStr)))) {
         errorMsg = "Please enter your years of experience.";
       } else if ((doctorData.first_name || "").trim() === "") {
         errorMsg = "Please enter your first name.";
       } else if ((doctorData.last_name || "").trim() === "") {
         errorMsg = "Please enter your last name.";
-      } else if ((doctorData.gender || "").trim() === "") {
+      } else if (!isAssistantRole && (doctorData.gender || "").trim() === "") {
         errorMsg = "Please select your gender / honorific.";
       } else if (phoneDigits.trim().length !== 10) {
         errorMsg = "Please enter a valid 10-digit phone number after +63 (e.g., 912-345-6789).";
@@ -353,7 +357,7 @@ export default function DoctorProfileSetup({
       const paddedLicense = formatLicenseNumber(doctorData.license_number || "");
 
       // Pre-flight duplicate check against doctors table
-      const duplicateExists = await doctorLicenseExists(paddedLicense, data.user.id);
+      const duplicateExists = isAssistantRole ? false : await doctorLicenseExists(paddedLicense, data.user.id);
       if (duplicateExists) {
         setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
         Alert.alert(
@@ -412,8 +416,10 @@ export default function DoctorProfileSetup({
         last_name: (doctorData.last_name || "").trim(),
         doctor_phone: fullPhoneNumber,
         role: assignedRole,
-        years_of_experience: Number(yearsOfExperienceStr) || 0,
-        license_number: paddedLicense,
+        years_of_experience: isAssistantRole ? 0 : Number(yearsOfExperienceStr) || 0,
+        license_number: isAssistantRole ? "" : paddedLicense,
+        specialization: isAssistantRole ? "" : doctorData.specialization,
+        bio: isAssistantRole ? "" : doctorData.bio,
         profile_picture_url: profileImageUrl || undefined,
       };
 
@@ -489,7 +495,7 @@ export default function DoctorProfileSetup({
               <Stethoscope size={18} color="#047857" strokeWidth={2.3} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>{isAssistantRole ? "Assistant Profile & License" : "Doctor Profile & License"}</Text>
+              <Text style={styles.heroTitle}>{isAssistantRole ? "Assistant Profile" : "Doctor Profile & License"}</Text>
               <Text style={styles.heroSubtitle}>
                 {isAssistantRole
                   ? "Complete your assistant registration to activate your SmileGuard staff account."
@@ -543,7 +549,7 @@ export default function DoctorProfileSetup({
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <User size={13} color="#047857" />
-            <Text style={styles.formSectionTitle}>DOCTOR PORTRAIT</Text>
+            <Text style={styles.formSectionTitle}>{isAssistantRole ? "PROFILE PHOTO" : "DOCTOR PORTRAIT"}</Text>
           </View>
 
           <View style={styles.formCard}>
@@ -576,7 +582,9 @@ export default function DoctorProfileSetup({
               <View style={styles.avatarInfoCol}>
                 <Text style={styles.avatarTitle}>Profile Picture</Text>
                 <Text style={styles.avatarSubtitle}>
-                  Displayed to patients on appointment bookings and medical receipts.
+                  {isAssistantRole
+                    ? "Shown next to your name inside the clinic app."
+                    : "Displayed to patients on appointment bookings and medical receipts."}
                 </Text>
               </View>
             </View>
@@ -587,7 +595,7 @@ export default function DoctorProfileSetup({
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <User size={13} color="#047857" />
-            <Text style={styles.formSectionTitle}>DOCTOR IDENTITY</Text>
+            <Text style={styles.formSectionTitle}>{isAssistantRole ? "STAFF IDENTITY" : "DOCTOR IDENTITY"}</Text>
           </View>
 
           <View style={styles.formCard}>
@@ -600,7 +608,7 @@ export default function DoctorProfileSetup({
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g. Mart"
+                  placeholder="First name"
                   placeholderTextColor="#94A3B8"
                   value={doctorData.first_name || ""}
                   onChangeText={(text) => updateDoctorData("first_name", sanitizeName(text))}
@@ -615,7 +623,7 @@ export default function DoctorProfileSetup({
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g. Yanga"
+                  placeholder="Last name"
                   placeholderTextColor="#94A3B8"
                   value={doctorData.last_name || ""}
                   onChangeText={(text) => updateDoctorData("last_name", sanitizeName(text))}
@@ -637,7 +645,8 @@ export default function DoctorProfileSetup({
               />
             </View>
 
-            {/* Honorific Prefix / Gender */}
+            {/* Honorific Prefix / Gender (dentists only) */}
+            {!isAssistantRole && (
             <View style={[styles.inputGroup, { marginBottom: 0 }]}>
               <View style={styles.labelRow}>
                 <Text style={styles.inputLabel}>HONORIFIC PREFIX</Text>
@@ -665,10 +674,12 @@ export default function DoctorProfileSetup({
                 })}
               </View>
             </View>
+            )}
           </View>
         </View>
 
-        {/* Section 4: PRC Credentials & Practice */}
+        {/* Section 4: PRC Credentials & Practice (dentists only) */}
+        {!isAssistantRole && (
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <ShieldCheck size={13} color="#047857" />
@@ -779,6 +790,8 @@ export default function DoctorProfileSetup({
           </View>
         </View>
 
+        )}
+
         {/* Section 5: Direct Contact */}
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
@@ -821,7 +834,8 @@ export default function DoctorProfileSetup({
           </View>
         </View>
 
-        {/* Section 6: Professional Bio */}
+        {/* Section 6: Professional Bio (dentists only) */}
+        {!isAssistantRole && (
         <View style={styles.formSection}>
           <View style={styles.sectionHeaderWrap}>
             <FileText size={13} color="#047857" />
@@ -843,6 +857,7 @@ export default function DoctorProfileSetup({
             </View>
           </View>
         </View>
+        )}
 
         {/* Submit Action Card */}
         <View style={styles.actionCard}>

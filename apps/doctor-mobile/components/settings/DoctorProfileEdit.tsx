@@ -55,6 +55,7 @@ export default function DoctorProfileEdit({
   onCancel,
 }: DoctorProfileEditProps) {
   const [doctorData, setDoctorData] = useState<Doctor>(doctor || EMPTY_DOCTOR);
+  const isAssistant = doctor?.role === "assistant" || doctorData.role === "assistant";
   const [selectedImage, setSelectedImage] = useState<ImagePickerResult | null>(null);
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(
     doctor?.profile_picture_url || null
@@ -360,17 +361,19 @@ export default function DoctorProfileEdit({
     const lastName = (doctorData.last_name || "").trim();
     if (!lastName) return "Last Name is required.";
 
-    const license = (doctorData.license_number || "").trim();
-    if (!license) return "Medical License Number is required.";
-    if (!isValidLicenseNumber(license)) {
-      return "Medical License Number must be 1 to 7 numeric digits.";
-    }
-    if (licenseDuplicateError) {
-      return licenseDuplicateError;
-    }
+    if (!isAssistant) {
+      const license = (doctorData.license_number || "").trim();
+      if (!license) return "Medical License Number is required.";
+      if (!isValidLicenseNumber(license)) {
+        return "Medical License Number must be 1 to 7 numeric digits.";
+      }
+      if (licenseDuplicateError) {
+        return licenseDuplicateError;
+      }
 
-    const spec = (doctorData.specialization || "").trim();
-    if (!spec) return "Please select a specialization.";
+      const spec = (doctorData.specialization || "").trim();
+      if (!spec) return "Please select a specialization.";
+    }
 
     if (phoneDigits.length > 0 && phoneDigits.length !== 10) {
       return "Please enter a valid 10-digit phone number after +63 (e.g., 912-345-6789).";
@@ -390,7 +393,7 @@ export default function DoctorProfileEdit({
     try {
       const paddedLicense = formatLicenseNumber(doctorData.license_number || "");
       const ownId = doctor?.id || doctor?.user_id;
-      const isDuplicate = await doctorLicenseExists(paddedLicense, ownId);
+      const isDuplicate = isAssistant ? false : await doctorLicenseExists(paddedLicense, ownId);
       if (isDuplicate) {
         setLicenseDuplicateError("This PRC License Number is already registered to another doctor.");
         Alert.alert(
@@ -438,6 +441,12 @@ export default function DoctorProfileEdit({
         profile_picture_url: finalPictureUrl,
       };
 
+      if (isAssistant) {
+        delete (updatedPayload as any).license_number;
+        delete (updatedPayload as any).specialization;
+        delete (updatedPayload as any).years_of_experience;
+        delete (updatedPayload as any).bio;
+      }
       delete (updatedPayload as any).is_available;
       delete (updatedPayload as any).doctor_name;
 
@@ -503,7 +512,7 @@ export default function DoctorProfileEdit({
       {/* Module Top Header (No Badge) */}
       <View style={styles.topHeader}>
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.topHeaderTitle}>EDIT DOCTOR PROFILE</Text>
+          <Text style={styles.topHeaderTitle}>{isAssistant ? "EDIT PROFILE" : "EDIT DOCTOR PROFILE"}</Text>
         </View>
 
         <TouchableOpacity
@@ -678,7 +687,7 @@ export default function DoctorProfileEdit({
 
         {/* Section: Doctor Identification (2-Column Split Row) */}
         <View style={styles.formSection}>
-          <Text style={styles.formSectionTitle}>DOCTOR IDENTITY</Text>
+          <Text style={styles.formSectionTitle}>{isAssistant ? "STAFF IDENTITY" : "DOCTOR IDENTITY"}</Text>
 
           <View style={styles.formCard}>
             {/* Split Row: First Name & Last Name */}
@@ -721,7 +730,8 @@ export default function DoctorProfileEdit({
               />
             </View>
 
-            {/* Gender Honorific Selector */}
+            {/* Gender Honorific Selector (dentists only) */}
+            {!isAssistant && (
             <View style={[styles.inputGroup, { marginBottom: 0 }]}>
               <Text style={styles.inputLabel}>HONORIFIC PREFIX</Text>
               <View style={styles.genderRow}>
@@ -759,10 +769,12 @@ export default function DoctorProfileEdit({
                 })}
               </View>
             </View>
+            )}
           </View>
         </View>
 
-        {/* Section: Medical Credentials & License */}
+        {/* Section: Medical Credentials & License (dentists only) */}
+        {!isAssistant && (
         <View style={styles.formSection}>
           <Text style={styles.formSectionTitle}>PRC LICENSE & PRACTICE</Text>
 
@@ -867,13 +879,15 @@ export default function DoctorProfileEdit({
           </View>
         </View>
 
+        )}
+
         {/* Section: Communication & Contact */}
         <View style={styles.formSection}>
           <Text style={styles.formSectionTitle}>CONTACT NUMBER</Text>
 
           <View style={styles.formCard}>
             <View style={[styles.inputGroup, { marginBottom: 0 }]}>
-              <Text style={styles.inputLabel}>DOCTOR MOBILE PHONE</Text>
+              <Text style={styles.inputLabel}>{isAssistant ? "MOBILE PHONE" : "DOCTOR MOBILE PHONE"}</Text>
               <View
                 style={[
                   styles.phoneContainer,
@@ -902,7 +916,8 @@ export default function DoctorProfileEdit({
           </View>
         </View>
 
-        {/* Section: Clinical Bio */}
+        {/* Section: Clinical Bio (dentists only) */}
+        {!isAssistant && (
         <View style={styles.formSection}>
           <Text style={styles.formSectionTitle}>DOCTOR'S BIOGRAPHY</Text>
 
@@ -921,6 +936,7 @@ export default function DoctorProfileEdit({
             </View>
           </View>
         </View>
+        )}
 
         {/* Sticky Action Footer */}
         <View style={styles.actionFooter}>

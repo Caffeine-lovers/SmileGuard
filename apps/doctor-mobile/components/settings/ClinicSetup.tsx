@@ -46,6 +46,8 @@ import {
   uploadMultipleClinicGalleryImages,
 } from '../../lib/imageUploadService';
 
+import { formatCurrency } from '../../lib/currencyFormatters';
+
 const APP_LOGO = require('../../assets/images/SmileGuard-Doc-Logo.png');
 
 export interface ClinicSetupProps {
@@ -1395,7 +1397,7 @@ export default function ClinicSetup({
 
                       <View style={styles.ratePill}>
                         <Text style={styles.ratePillText}>
-                          ₱{(service.price ?? 1500).toLocaleString()}
+                          {formatCurrency(service.price ?? 1500)}
                         </Text>
                       </View>
                     </View>

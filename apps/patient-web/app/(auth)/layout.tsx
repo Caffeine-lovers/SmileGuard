@@ -1,6 +1,7 @@
 'use client';
 
 import LegalFooter from '@/components/legal/LegalFooter';
+import Wordmark from '@/components/ui/Wordmark';
 
 export default function AuthLayout({
   children,
@@ -12,7 +13,9 @@ export default function AuthLayout({
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-12 bg-brand-primary">
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-text-on-avatar mb-4">SmileGuard</h1>
+          <h1 className="mb-4">
+            <Wordmark className="text-5xl font-bold text-text-on-avatar" smileClassName="text-white" />
+          </h1>
           <p className="text-text-on-avatar/80 text-lg">
             Your trusted partner for dental health
           </p>

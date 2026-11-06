@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { getServicePrice } from '@/lib/pricing';
 import { formatAppointmentTime, formatDuration, formatMinutes, getServiceDuration, toMinutes } from '@/lib/scheduling';
+import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
 export default function TreatmentsPage() {
   const { currentUser } = useAuth();
@@ -106,7 +107,7 @@ export default function TreatmentsPage() {
   };
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 max-w-6xl mx-auto space-y-4 sm:space-y-6">
+    <div className="py-3 sm:py-4 md:py-6 space-y-4 sm:space-y-6">
       {/* Clinic Header Banner */}
       <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 rounded-sm p-4 sm:p-6 text-white border-2 border-emerald-950 shadow-md">
         <span className="skeuo-badge skeuo-badge-mint text-[9px] sm:text-[10px] text-emerald-950 bg-emerald-300 border-emerald-400 mb-2">
@@ -173,7 +174,7 @@ export default function TreatmentsPage() {
                     ['Date', new Date(appointment.appointment_date).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })],
                     ['Time', timeRange],
                     ['Duration', formatDuration(duration)],
-                    ['Clinic', appointment.clinic_name || "Kyler's Clinic"],
+                    ['Clinic', appointment.clinic_name || DEFAULT_CLINIC_NAME],
                     ['Fee', `₱${fee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`],
                     ['Requested on', appointment.created_at ? new Date(appointment.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'],
                   ];

@@ -3,6 +3,7 @@ import { busyIntervalsForDate, getServiceDuration, toMinutes } from '@/lib/sched
 import { supabase } from '@smileguard/supabase-client';
 import { formatDoctorDisplayName, getDoctorTitleName, Doctor } from '@smileguard/shared-types';
 import { getServicePrice } from './pricing';
+import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
 export let TOTAL_SLOTS_PER_DAY = 4; // matches TIME_SLOTS.length in BookAppointment (10 AM - 2 PM with 1-hour intervals)
 
@@ -59,7 +60,7 @@ function parse12HourTime(timeString: string): { hour: number; minute: number } {
   return { hour, minute };
 }
 
-export const DEFAULT_CLINIC_NAME = "Kyler's Clinic";
+export { DEFAULT_CLINIC_NAME };
 export const DEFAULT_DOCTOR_ID = "7c9b5331-3f19-4560-8256-44c7742e11ad";
 
 export interface ClinicServiceItem {
@@ -78,7 +79,7 @@ export interface ClinicDetails {
   schedule: ClinicSchedule;
 }
 
-const FALLBACK_KYLER_CLINIC: ClinicDetails = {
+const FALLBACK_CLINIC: ClinicDetails = {
   id: "6572586e-f38b-4d1e-894c-52f038228282",
   user_id: DEFAULT_DOCTOR_ID,
   clinic_name: DEFAULT_CLINIC_NAME,
@@ -106,23 +107,18 @@ const FALLBACK_KYLER_CLINIC: ClinicDetails = {
   },
 };
 
-// Get full clinic setup — defaults to Kyler's Clinic
+// Get the clinic setup (there is only one clinic)
 export async function getFullClinicSetup(): Promise<ClinicDetails | null> {
   try {
     const clinics = await getAllClinicsSetup();
-    if (clinics.length > 0) {
-      // Prioritize Kyler's Clinic
-      const kyler = clinics.find((c) => c.clinic_name.toLowerCase().includes('kyler') || c.clinic_name.toLowerCase().includes('kiler'));
-      return kyler || clinics[0];
-    }
-    return FALLBACK_KYLER_CLINIC;
+    return clinics[0] ?? FALLBACK_CLINIC;
   } catch (error) {
     console.error('❌ Error getting full clinic setup:', error);
-    return FALLBACK_KYLER_CLINIC;
+    return FALLBACK_CLINIC;
   }
 }
 
-// Get all clinics registered in clinic_setup, ordered with Kyler's Clinic first
+// Get all clinics registered in clinic_setup
 export async function getAllClinicsSetup(): Promise<ClinicDetails[]> {
   try {
     const { data, error } = await supabase
@@ -130,7 +126,7 @@ export async function getAllClinicsSetup(): Promise<ClinicDetails[]> {
       .select('id, user_id, clinic_name, address, services, schedule');
 
     if (error || !data || data.length === 0) {
-      return [FALLBACK_KYLER_CLINIC];
+      return [FALLBACK_CLINIC];
     }
 
     const list: ClinicDetails[] = data.map((row: any) => {
@@ -174,21 +170,14 @@ export async function getAllClinicsSetup(): Promise<ClinicDetails[]> {
         clinic_name: row.clinic_name || DEFAULT_CLINIC_NAME,
         address: row.address,
         services: normalizedServices,
-        schedule: row.schedule || FALLBACK_KYLER_CLINIC.schedule,
+        schedule: row.schedule || FALLBACK_CLINIC.schedule,
       };
-    });
-
-    // Sort Kyler / Kiler's Clinic first by default
-    list.sort((a, b) => {
-      const aKyler = (a.clinic_name.toLowerCase().includes('kyler') || a.clinic_name.toLowerCase().includes('kiler')) ? -1 : 1;
-      const bKyler = (b.clinic_name.toLowerCase().includes('kyler') || b.clinic_name.toLowerCase().includes('kiler')) ? -1 : 1;
-      return aKyler - bKyler;
     });
 
     return list;
   } catch (error) {
     console.error('❌ Error getting all clinics:', error);
-    return [FALLBACK_KYLER_CLINIC];
+    return [FALLBACK_CLINIC];
   }
 }
 
@@ -220,9 +209,18 @@ export async function getClinicSetup(): Promise<ClinicSchedule | null> {
   }
 }
 
+/** Gap between selectable start times. Change this (e.g. 15, 20, 60) to alter the booking grid. */
+export const BOOKING_INTERVAL_MINUTES = 30;
+
 // Generate available time slots based on clinic hours
 // Returns array of time strings like ['09:00', '09:30', '10:00', ...]
-export function generateTimeSlots(clinicSchedule: ClinicSchedule | null, year: number, month: number, day: number): string[] {
+export function generateTimeSlots(
+  clinicSchedule: ClinicSchedule | null,
+  year: number,
+  month: number,
+  day: number,
+  intervalMinutes: number = BOOKING_INTERVAL_MINUTES
+): string[] {
   if (!clinicSchedule) {
     console.warn('⚠️ No clinic schedule provided, returning empty slots');
     return [];
@@ -243,18 +241,12 @@ export function generateTimeSlots(clinicSchedule: ClinicSchedule | null, year: n
   const closingTime = parse12HourTime(daySchedule.closing_time);
   
   const slots: string[] = [];
-  let currentHour = openingTime.hour;
-  let currentMinute = openingTime.minute;
-  
-  // Generate slots in 30-minute intervals until closing
-  while (currentHour < closingTime.hour || (currentHour === closingTime.hour && currentMinute < closingTime.minute)) {
-    slots.push(`${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`);
-    
-    currentMinute += 30;
-    if (currentMinute >= 60) {
-      currentHour += Math.floor(currentMinute / 60);
-      currentMinute = currentMinute % 60;
-    }
+  const closeMin = closingTime.hour * 60 + closingTime.minute;
+
+  // Fixed-interval start times; a start is offered while at least one interval remains before closing.
+  // Whether a given service actually fits is checked separately (duration-aware) in the booking UI.
+  for (let t = openingTime.hour * 60 + openingTime.minute; t + intervalMinutes <= closeMin; t += intervalMinutes) {
+    slots.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
   }
 
   console.log(`📊 Generated ${slots.length} time slots for ${dayName} (${daySchedule.opening_time} - ${daySchedule.closing_time}):`, slots);
@@ -469,10 +461,12 @@ export async function cancelAppointment(
 // 5. GET ALL BLOCKED SLOTS (date + time pairs)
 // ─────────────────────────────────────────
 export interface BlockedSlot {
+  id?: string;
   date: string;
   time: string;
   patientId: string;
   service?: string;
+  duration?: number;
 }
 
 export interface BlockoutDate {
@@ -591,7 +585,7 @@ export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null)
   // ✅ PRIORITY 2: Fetch booked appointments (only for dates NOT in blockout)
   const { data: appointments, error: appointmentError } = await supabase
     .from('appointments')
-    .select('appointment_date, appointment_time, patient_id, service')
+    .select('id, appointment_date, appointment_time, patient_id, service')
     .not('status', 'in', '(cancelled,declined)')
     .order('appointment_date', { ascending: true });
 
@@ -602,14 +596,36 @@ export async function getAllBlockedSlots(clinicSchedule?: ClinicSchedule | null)
   }
 
   // Only add booked appointments for dates that are NOT already blocked
-  const bookedSlots = (appointments || [])
-    .filter(a => !blockedDateSet.has(a.appointment_date)) // Skip blocked dates
-    .map((a: any) => ({
-      date: a.appointment_date,
-      time: a.appointment_time,
-      patientId: a.patient_id,
-      service: a.service,
-    }));
+  const bookedSlots: BlockedSlot[] = [];
+  for (const a of (appointments || [])) {
+    if (blockedDateSet.has(a.appointment_date)) continue;
+    const startMin = toMinutes(a.appointment_time);
+    const duration = getServiceDuration(a.service);
+    if (!Number.isFinite(startMin) || duration <= BOOKING_INTERVAL_MINUTES) {
+      bookedSlots.push({
+        id: a.id,
+        date: a.appointment_date,
+        time: a.appointment_time,
+        patientId: a.patient_id,
+        service: a.service,
+        duration: BOOKING_INTERVAL_MINUTES,
+      });
+      continue;
+    }
+    // Expand every 30-min block that this service coverage occupies starting from the booked time
+    for (let m = startMin; m < startMin + duration; m += BOOKING_INTERVAL_MINUTES) {
+      const hh = String(Math.floor(m / 60)).padStart(2, '0');
+      const mm = String(m % 60).padStart(2, '0');
+      bookedSlots.push({
+        id: a.id,
+        date: a.appointment_date,
+        time: `${hh}:${mm}`,
+        patientId: a.patient_id,
+        service: a.service,
+        duration: BOOKING_INTERVAL_MINUTES,
+      });
+    }
+  }
 
   // Combine: blockout dates (high priority) + booked appointments
   const combined = [...blockoutSlots, ...bookedSlots];
@@ -631,11 +647,11 @@ export function isSlotTaken(
     if (slot.date !== date) return false;
     if (slot.time === 'ALL_DAY') return true;
     if (slot.time === time) return true;
-    if (slot.service === 'blocked') return slot.time === time;
-    const start = toMinutes(slot.time);
-    if (isNaN(start) || isNaN(targetMin)) return false;
-    const dur = getServiceDuration(slot.service);
-    return targetMin >= start && targetMin < start + dur;
+    if (Number.isFinite(targetMin)) {
+      const slotMin = toMinutes(slot.time);
+      return Number.isFinite(slotMin) && slotMin === targetMin;
+    }
+    return false;
   });
 }
 

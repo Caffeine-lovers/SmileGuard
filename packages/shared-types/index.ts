@@ -172,9 +172,10 @@ export const EMPTY_DOCTOR: Doctor = {
  * Returns "Dra." when gender is female.
  */
 export function getDoctorPrefix(
-  doctorOrGender?: { gender?: string | null } | string | null,
+  doctorOrGender?: { gender?: string | null; role?: string | null } | string | null,
   options?: { withDot?: boolean }
 ): string {
+  if (typeof doctorOrGender === "object" && doctorOrGender?.role === "assistant") return "";
   const withDot = options?.withDot !== false;
   const rawGender =
     typeof doctorOrGender === "string"
@@ -225,6 +226,7 @@ export function getDoctorTitleName(
     doctor_name?: string;
     name?: string;
     gender?: string;
+    role?: string | null;
   },
   options?: { withDot?: boolean }
 ): string {

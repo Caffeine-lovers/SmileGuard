@@ -11,6 +11,7 @@
 import { supabase } from '@smileguard/supabase-client';
 import { Notification, NotificationType } from '../types/notifications';
 import { formatAppointmentDate, formatAppointmentTime } from './dateFormatters';
+import { formatCurrency } from './currencyFormatters';
 
 let notificationId = 0;
 
@@ -119,10 +120,7 @@ async function generateNotification(
       }
 
       const amount = Number(newRecord.final_amount ?? newRecord.amount ?? 0);
-      const formattedAmount = `₱${amount.toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
+      const formattedAmount = formatCurrency(amount);
 
       const rawMethod = newRecord.payment_method || 'Online';
       const cleanMethod = String(rawMethod)
@@ -408,10 +406,7 @@ export function notifyBillPaid(
   billId?: string,
   patientId?: string
 ): Notification {
-  const formattedAmount = `₱${amount.toLocaleString('en-PH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  const formattedAmount = formatCurrency(amount);
   const code = billId ? billId.substring(0, 8).toUpperCase() : '';
 
   return createManualNotification(

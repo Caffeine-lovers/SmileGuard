@@ -297,9 +297,9 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+    <div className="w-full py-4 sm:py-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-border-card">
-        <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+        <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1">
           <div className="flex flex-col items-center shrink-0">
             <div className="w-18 h-18 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-border-card bg-bg-surface-secondary flex items-center justify-center shadow-xs">
               {profileImageUrl ? (
@@ -346,11 +346,10 @@ export default function ProfilePage() {
               </label>
             )}
           </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary truncate">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary break-words leading-tight">
               {currentUser?.name || 'Patient Profile'}
             </h1>
-            <p className="text-xs sm:text-sm text-text-secondary mt-0.5">SmileGuard Patient Portal</p>
           </div>
         </div>
         {!isEditing && (

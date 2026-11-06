@@ -8,12 +8,11 @@ export default function NotFound() {
         <div className="w-16 h-16 bg-emerald-50 rounded-sm border-2 border-emerald-300 flex items-center justify-center mx-auto mb-5 shadow-inner">
           <Stethoscope className="w-8 h-8 text-emerald-700" />
         </div>
-        <span className="skeuo-badge skeuo-badge-mint mb-2">404 Exception</span>
-        <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 mt-2 mb-2">
-          Page Not Located
+        <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 mb-2">
+          Page Not Found
         </h1>
-        <p className="text-xs font-semibold text-slate-600 mb-6 uppercase tracking-wider">
-          The requested dental portal endpoint does not exist or has been relocated.
+        <p className="text-sm font-semibold text-slate-600 mb-6">
+          This page doesn&apos;t exist or has moved.
         </p>
         <Link 
           href="/dashboard"

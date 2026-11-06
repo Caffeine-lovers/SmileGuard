@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isPayMongoConfigured, getPayMongoAuthHeader, PAYMONGO_API_BASE } from '@/lib/paymongo';
 import { getAuthedUserId, getServiceClient, getUserClient } from '@/lib/serverSupabase';
 import { computeCheckoutTotal, resolveBaseAmount, getServicePrice, type ClinicService } from '@/lib/pricing';
+import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Clinic name + price list for this appointment's doctor
-    let clinicName = "Kyler's Clinic";
+    let clinicName = DEFAULT_CLINIC_NAME;
     let clinicServices: ClinicService[] = [];
     let clinicQuery = supabase.from('clinic_setup').select('clinic_name, services');
     clinicQuery = appointment.dentist_id ? clinicQuery.eq('user_id', appointment.dentist_id) : clinicQuery.limit(1);
