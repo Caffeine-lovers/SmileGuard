@@ -579,7 +579,7 @@ export default function BillingPayment({
                 Clinic Billing Portal
               </span>
             </div>
-            <h1 className="text-lg sm:text-2xl font-black uppercase tracking-tight">Accounts & Settlement</h1>
+            <h1 className="text-lg sm:text-2xl font-black uppercase tracking-tight">Billing</h1>
             <p className="text-emerald-100 text-[10px] sm:text-xs font-semibold tracking-wide uppercase mt-0.5">
               Settle procedure balances and review financial ledgers
             </p>
@@ -616,21 +616,21 @@ export default function BillingPayment({
                 </p>
               </div>
               <div className="skeuo-card p-3 sm:p-4 border-2 border-emerald-300 bg-emerald-50/40 rounded-sm">
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Account Standing</span>
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Payment Status</span>
                 <div className="flex items-center gap-2 mt-1">
                   {outstandingBalance === 0 && unpaidAppointments.length === 0 ? (
                     <>
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                      <p className="text-base sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Settled</p>
+                      <p className="text-base sm:text-xl font-black tracking-tight text-emerald-700 uppercase">Paid</p>
                     </>
                   ) : (
                     <>
                       <Clock className="w-5 h-5 text-amber-600" />
-                      <p className="text-base sm:text-xl font-black tracking-tight text-amber-700 uppercase">Pending Due</p>
+                      <p className="text-base sm:text-xl font-black tracking-tight text-amber-700 uppercase">Payment Due</p>
                     </>
                   )}
                 </div>
-                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Clinical Settlement Status</p>
+                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 mt-1">Your current payment status</p>
               </div>
             </div>
           )}
@@ -643,7 +643,7 @@ export default function BillingPayment({
           <div className="flex items-start sm:items-center gap-3">
             <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
             <div>
-              <p className="text-sm font-black uppercase tracking-wider text-emerald-950">Payment Confirmed & Invoice Settled!</p>
+              <p className="text-sm font-black uppercase tracking-wider text-emerald-950">Payment Confirmed!</p>
               <p className="text-xs text-emerald-800 mt-0.5">
                 Your payment via PayMongo has been successfully processed and verified.
                 {confirmedPaymentInfo && (
@@ -838,7 +838,7 @@ export default function BillingPayment({
                 <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-sm flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="text-xs text-emerald-950">
-                    <span className="font-bold">Verified Statutory Discount Active: </span>
+                    <span className="font-bold">Discount Approved: </span>
                     The clinic has approved your {currentUser?.pwd_type === 'senior' ? 'Senior Citizen' : 'PWD'} verification. A 20% deduction is applied to your billing.
                   </div>
                 </div>
@@ -993,7 +993,7 @@ export default function BillingPayment({
                   </div>
                 )}
                 <div className="flex justify-between text-slate-700">
-                  <span>Clinic Procedure Fee:</span>
+                  <span>Service Fee:</span>
                   <span className="font-mono font-bold">₱{amount.toFixed(2)}</span>
                 </div>
                 {discountAmount > 0 && (
@@ -1003,7 +1003,7 @@ export default function BillingPayment({
                   </div>
                 )}
                 <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-sm sm:text-base font-black text-slate-900">
-                  <span className="uppercase tracking-wide">Net Settlement:</span>
+                  <span className="uppercase tracking-wide">Total:</span>
                   <span className="font-mono text-emerald-800">₱{finalAmount.toFixed(2)}</span>
                 </div>
               </div>
@@ -1020,7 +1020,7 @@ export default function BillingPayment({
           {unpaidAppointments.length === 0 ? (
             <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>All accounts are settled. No payments pending.</span>
+              <span>You are all paid up. No payments due.</span>
             </div>
           ) : (
             <button
