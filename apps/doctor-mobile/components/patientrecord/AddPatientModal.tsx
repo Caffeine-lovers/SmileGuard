@@ -27,6 +27,7 @@ import {
   Pencil,
 } from "lucide-react-native";
 import { createWalkInPatient, updateWalkInPatient } from "../../lib/profilesPatients";
+import { formatDateOfBirth } from "../../lib/dateFormatters";
 
 interface AddPatientModalProps {
   visible: boolean;
@@ -1083,7 +1084,7 @@ export default function AddPatientModal({
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Date of Birth</Text>
-                  <Text style={styles.summaryValue}>{successCreatedPatient?.dob}</Text>
+                  <Text style={styles.summaryValue}>{formatDateOfBirth(successCreatedPatient?.dob || "")}</Text>
                 </View>
                 <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.summaryLabel}>Emergency Contact</Text>

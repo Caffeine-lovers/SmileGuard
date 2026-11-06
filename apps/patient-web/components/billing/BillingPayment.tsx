@@ -151,7 +151,7 @@ export default function BillingPayment({
       setConfirmedPaymentInfo({
         amount: settledAmount,
         aptId: settledAptId,
-        date: new Date().toLocaleDateString(),
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         referenceId: refId,
         method: method,
       });
@@ -250,7 +250,7 @@ export default function BillingPayment({
             setConfirmedPaymentInfo({
               amount: paidAmount,
               aptId: resolvedAptId,
-              date: new Date().toLocaleDateString(),
+              date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
               referenceId: refId,
               method: method,
             });
@@ -786,7 +786,7 @@ export default function BillingPayment({
                               </span>
                             </div>
                             <p className="text-xs font-mono text-slate-500 mt-0.5">
-                              {new Date(apt.appointment_date).toLocaleDateString()} @ {formatAppointmentTime(apt.appointment_time)}
+                              {new Date(apt.appointment_date + (apt.appointment_date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} @ {formatAppointmentTime(apt.appointment_time)}
                             </p>
                           </div>
                         </div>
@@ -1230,7 +1230,7 @@ export default function BillingPayment({
                     <div className="flex items-center gap-1.5 text-xs text-slate-600">
                       <CalendarDays className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                       <span className="font-mono">
-                        {new Date(row.appointment_date).toLocaleDateString()} · {formatAppointmentTime(row.appointment_time)}
+                        {new Date(row.appointment_date + (row.appointment_date.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {formatAppointmentTime(row.appointment_time)}
                       </span>
                     </div>
 

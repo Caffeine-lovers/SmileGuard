@@ -1361,37 +1361,6 @@ export default function AssistantDashboard({
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
 <ScrollView keyboardShouldPersistTaps="handled" ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
             <View style={styles.container}>
-              {/* Friendly Assistant Header Banner */}
-              <View style={styles.clinicBanner}>
-                <View style={styles.clinicBannerBevel} />
-                <View style={styles.clinicBannerContent}>
-                  <View style={styles.clinicBannerIconBox}>
-                    <Stethoscope size={24} color="#A7F3D0" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.clinicBannerBadgeRow}>
-                      <View style={styles.clinicBannerBadge}>
-                        <ShieldCheck size={11} color="#022C22" style={{ marginRight: 4 }} />
-                        <Text style={styles.clinicBannerBadgeText}>
-                          SMILEGUARD ASSISTANT
-                        </Text>
-                      </View>
-                      <View style={styles.liveDutyBadge}>
-                        <View style={styles.liveDutyDot} />
-                        <Text style={styles.liveDutyText}>ACTIVE TODAY</Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.clinicBannerDoctorName} numberOfLines={1}>
-                      Assistant {assistantDisplayName}
-                    </Text>
-                    <Text style={styles.clinicBannerSubtitle} numberOfLines={1}>
-                      Clinic Assistant • Helping Patients & Dentists
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
               {/* TODAY'S OVERVIEW STATS */}
               <View
                 ref={tour.register("stats-panel")}

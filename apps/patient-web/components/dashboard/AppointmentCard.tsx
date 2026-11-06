@@ -2,7 +2,7 @@
 
 import { formatAppointmentTime } from '@/lib/scheduling';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface AppointmentCardProps {
   name: string;
@@ -31,6 +31,16 @@ export default function AppointmentCard({
 }: AppointmentCardProps) {
   const [imgError, setImgError] = useState(false);
   const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SG';
+  const displayDate = useMemo(() => {
+    if (!date) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+      const d = new Date(date.includes('T') ? date : `${date}T00:00:00`);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    }
+    return date;
+  }, [date]);
 
   return (
     <div
@@ -107,7 +117,7 @@ export default function AppointmentCard({
         </div>
       </div>
       <div className="text-right flex flex-col items-end shrink-0 pl-1">
-        {date && <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">{date}</span>}
+        {displayDate && <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">{displayDate}</span>}
         <span className="text-[11px] sm:text-xs font-black text-emerald-700 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-sm border border-emerald-300 whitespace-nowrap">
           {formatAppointmentTime(time)}
         </span>

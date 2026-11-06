@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { checkEmailContext } from '@/lib/email-context';
+import { checkEmailContext, isEmailInUse, isStaffEmail } from '@/lib/email-context';
 import { AlertCircle, LogIn } from 'lucide-react';
 import { supabase } from '@smileguard/supabase-client';
 import { useSignup } from '@/lib/signup-context';
@@ -119,10 +119,19 @@ export default function SignupRegisterPage() {
 
     // Confirm email context: Check if email is already registered with completed medical intake
     if (formData.email) {
-      const context = await checkEmailContext(formData.email);
-      if (context.is_registered && context.has_medical_intake) {
-        setLocalError('This email is already registered. Please sign in to your account.');
-        setActionLink({ text: 'Sign In to Account', href: '/login' });
+      try {
+        const context = await checkEmailContext(formData.email);
+        if (isEmailInUse(context)) {
+          setLocalError(
+            isStaffEmail(context)
+              ? 'This email is already used by a clinic staff account. Please use a different email.'
+              : 'This email is already registered. Please sign in to your account.'
+          );
+          setActionLink({ text: 'Sign In to Account', href: '/login' });
+          return;
+        }
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : 'Could not check this email. Please try again.');
         return;
       }
     }

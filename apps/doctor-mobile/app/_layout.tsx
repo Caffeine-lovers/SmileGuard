@@ -36,6 +36,7 @@ export default function RootLayout() {
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log("[RootLayout] Deep link received:", url);
+
       if (isOAuthUrl(url)) {
         console.log("[RootLayout] OAuth redirect detected");
       }
@@ -111,10 +112,7 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: string, session: Session | null) => {
         console.log("[RootLayout] Auth state changed:", event, session ? "Session Found" : "No Session");
-        if (event === "PASSWORD_RECOVERY") {
-          router.push("/reset-password");
-          return;
-        }
+
         if (session?.user) {
           console.log("[RootLayout] Setting user from auth state:", session.user.email);
           setUser({
@@ -138,15 +136,14 @@ export default function RootLayout() {
 
     const inDoctorGroup = segments[0] === "(doctor)";
     const inAdminGroup = segments[0] === "(admin)";
-    const inResetPassword = segments[0] === "reset-password";
     const inSetupProfile = segments[0] === "setup-profile";
     const inOAuthRedirect = segments[0] === "oauth-redirect";
     const inOnboarding = segments[0] === "onboarding";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // Routing is paused during password reset or initial onboarding tour
-    if (inResetPassword || inOnboarding) return;
+    // Routing is paused during initial onboarding tour
+    if (inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inAdminGroup || inSetupProfile) {
