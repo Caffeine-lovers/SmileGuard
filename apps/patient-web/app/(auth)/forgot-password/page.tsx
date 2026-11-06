@@ -55,8 +55,12 @@ export default function ForgotPasswordPage() {
 
       // Case D: Valid registered account with medical intake
       const redirectTo = typeof window !== 'undefined'
-        ? `${window.location.origin}/reset-password`
+        ? `${window.location.origin}/auth/callback?next=/reset-password&type=recovery`
         : undefined;
+
+      try {
+        localStorage.setItem('smileguard_auth_recovery_flow', 'true');
+      } catch { }
 
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo,

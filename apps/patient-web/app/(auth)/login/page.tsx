@@ -120,6 +120,14 @@ export default function LoginPage() {
       }
 
       if (hash.includes('access_token')) {
+        if (hash.includes('type=recovery') || localStorage.getItem('smileguard_auth_recovery_flow') === 'true') {
+          try {
+            localStorage.removeItem('smileguard_auth_recovery_flow');
+          } catch { }
+          window.history.replaceState(null, '', window.location.pathname);
+          router.replace(`/reset-password${hash}`);
+          return;
+        }
         // Forward token to /auth/callback and clear hash from /login
         window.history.replaceState(null, '', window.location.pathname);
         router.replace(`/auth/callback${hash}`);
@@ -135,6 +143,11 @@ export default function LoginPage() {
 
     // Only redirect to dashboard if verified patient to prevent dashboard-login loop
     if (!loading && currentUser) {
+      if (localStorage.getItem('smileguard_auth_recovery_flow') === 'true') {
+        localStorage.removeItem('smileguard_auth_recovery_flow');
+        router.replace('/reset-password');
+        return;
+      }
       if (currentUser.role === 'patient') {
         router.replace('/dashboard');
       } else {
