@@ -27,6 +27,7 @@ import { Check, CheckCircle2, Clock, ArrowUp, Building2 } from 'lucide-react';
 import { showAlert } from '@/components/ui/AppDialog';
 import {
   busyIntervalsForDate,
+  freeUntil,
   formatAppointmentTime,
   formatDuration,
   formatMinutes,
@@ -331,6 +332,35 @@ export default function BookAppointment({ onSuccess, onCancel }: BookAppointment
   // chosen appointment time, not counted backwards from the shift closing.
   const busyToday = selectedDate ? busyIntervalsForDate(blockedSlots, selectedDate) : [];
 
+  // Closing time (minutes) of the selected date, from the clinic schedule
+  const closingMinutes = (() => {
+    if (!selectedDate || !clinicSchedule) return NaN;
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
+      new Date(y, m - 1, d).getDay()
+    ] as keyof ClinicSchedule;
+    const day = clinicSchedule[dayName];
+    return day?.isOpen ? toMinutes(day.closing_time) : NaN;
+  })();
+
+  /** Minutes available from `time` until the next booking (or closing). 0 if the time is unavailable. */
+  const minutesFreeFrom = (time: string): number => {
+    if (isSlotTaken(blockedSlots, selectedDate, time)) return 0;
+    const start = toMinutes(time);
+    const limit = freeUntil(start, busyToday, closingMinutes);
+    return limit === null ? 0 : Math.max(limit - start, 0);
+  };
+
+  // Time budget for the services: from the chosen time, or the longest free stretch that day
+  const remainingMinutes: number | null = !Number.isFinite(closingMinutes)
+    ? null
+    : selectedTime
+      ? minutesFreeFrom(selectedTime)
+      : timeSlots.length > 0
+        ? Math.max(0, ...timeSlots.map(minutesFreeFrom))
+        : null;
+  const minutesLeftToAdd = remainingMinutes === null ? null : remainingMinutes - totalDuration;
+
   const isSlotDisabled = (date: string, time: string) => {
     // 1. Is this exact slot taken by an existing booking or clinic blockout?
     if (isSlotTaken(blockedSlots, date, time)) return true;
@@ -526,13 +556,19 @@ return (
             const active = selectedServices.some(
               (s) => s.id === service.id || s.name.toLowerCase() === service.name.toLowerCase()
             );
+            // Greyed out when adding it would run past the next booking or closing time
+            const tooLong = !active && minutesLeftToAdd !== null && service.duration > minutesLeftToAdd;
             return (
               <button
                 type="button"
                 key={service.id}
                 onClick={() => toggleService(service)}
+                disabled={tooLong}
+                title={tooLong ? `Needs ${formatDuration(service.duration)} — only ${formatDuration(Math.max(minutesLeftToAdd ?? 0, 0))} left in this time` : undefined}
                 className={`relative p-3 sm:p-4 rounded-xl border-2 text-left transition-all duration-200 ${active
                     ? 'border-brand-primary bg-brand-primary/5 shadow-md'
+                    : tooLong
+                      ? 'border-border-card opacity-45 cursor-not-allowed bg-slate-50'
                       : 'border-border-card hover:border-brand-primary/40 hover:shadow-sm'
                   }`}
                 >
@@ -541,6 +577,7 @@ return (
           </p>
           <p className="text-[11px] sm:text-xs text-text-secondary mt-0.5">
             {formatDuration(service.duration)}
+            {tooLong && <span className="block text-amber-700 font-semibold">Not enough time left</span>}
           </p>
           <p className={`text-xs font-bold mt-1.5 ${active ? 'text-brand-primary' : 'text-text-secondary'}`}>
             ₱{service.price.toLocaleString()}
