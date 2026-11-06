@@ -10,9 +10,11 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { supabase } from "@smileguard/supabase-client";
-import { LifeBuoy, X } from "lucide-react-native";
+import { LifeBuoy, X, CheckCircle2, Clock, AlertCircle } from "lucide-react-native";
 import {
   SupportRequest,
   listSupportRequests,
@@ -22,7 +24,12 @@ import {
 
 type FilterStatus = "all" | SupportRequest["status"];
 
-const STATUS_FILTERS: FilterStatus[] = ["all", "open", "in_progress", "resolved"];
+const STATUS_FILTERS: { id: FilterStatus; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "open", label: "Open" },
+  { id: "in_progress", label: "In Progress" },
+  { id: "resolved", label: "Resolved" },
+];
 
 export default function SupportRequestsTab() {
   const [requests, setRequests] = useState<SupportRequest[]>([]);
@@ -88,183 +95,551 @@ export default function SupportRequestsTab() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-        {STATUS_FILTERS.map((status) => {
-          const isActive = filter === status;
-          return (
-            <TouchableOpacity
-              key={status}
-              style={[styles.filterPill, isActive && styles.filterPillActive]}
-              onPress={() => setFilter(status)}
-            >
-              <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
-                {status.replace("_", " ").toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+    <View style={styles.container}>
+      {/* Horizontal Status Filter Bar */}
+      <View style={styles.filterBarContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
+          {STATUS_FILTERS.map((item) => {
+            const isActive = filter === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.filterPill, isActive && styles.filterPillActive]}
+                onPress={() => setFilter(item.id)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
+        showsVerticalScrollIndicator={false}
       >
+        <View style={styles.headerBar}>
+          <Text style={styles.sectionTitle}>Helpdesk Tickets</Text>
+          <Text style={styles.sectionSubtitle}>
+            {requests.length} {requests.length === 1 ? "ticket" : "tickets"} in queue
+          </Text>
+        </View>
+
         {requests.length === 0 ? (
-          <Text style={styles.emptyText}>No support requests in this queue.</Text>
+          <View style={styles.emptyCard}>
+            <LifeBuoy size={32} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>No Inquiries</Text>
+            <Text style={styles.emptySub}>
+              No support tickets found under the &quot;{filter.replace("_", " ")}&quot; filter.
+            </Text>
+          </View>
         ) : (
-          requests.map((request) => (
-            <View key={request.id} style={styles.card}>
-              <View style={styles.cardRow}>
-                <View style={styles.iconBox}>
-                  <LifeBuoy size={16} color="#047857" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{request.subject || "Untitled Request"}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {request.requester_role ? request.requester_role.toUpperCase() : "UNKNOWN"} ·{" "}
-                    {new Date(request.created_at).toLocaleDateString()}
-                  </Text>
-                </View>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>{request.status.replace("_", " ").toUpperCase()}</Text>
-                </View>
-              </View>
+          requests.map((req) => {
+            const isOpen = req.status === "open";
+            const isInProgress = req.status === "in_progress";
+            const isResolved = req.status === "resolved";
 
-              {request.message ? <Text style={styles.messageText}>{request.message}</Text> : null}
-
-              {request.status !== "resolved" && (
-                <View style={styles.actionsRow}>
-                  {request.status === "open" && (
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => handleMarkInProgress(request)}>
-                      <Text style={styles.actionBtnText}>Mark In Progress</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.resolveBtn]}
-                    onPress={() => {
-                      setResolvingRequest(request);
-                      setResolutionNote("");
-                    }}
+            return (
+              <View key={req.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconBox, isResolved && styles.iconBoxResolved]}>
+                    <LifeBuoy size={17} color={isResolved ? "#047857" : "#D97706"} />
+                  </View>
+                  <View style={styles.ticketInfo}>
+                    <Text style={styles.subjectText}>{req.subject || "No Subject"}</Text>
+                    <Text style={styles.metaText}>
+                      From {req.requester_role || "User"} · {new Date(req.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      isOpen && styles.badgeOpen,
+                      isInProgress && styles.badgeInProgress,
+                      isResolved && styles.badgeResolved,
+                    ]}
                   >
-                    <Text style={[styles.actionBtnText, { color: "#FFFFFF" }]}>Resolve</Text>
-                  </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        isOpen && styles.statusTextOpen,
+                        isInProgress && styles.statusTextInProgress,
+                        isResolved && styles.statusTextResolved,
+                      ]}
+                    >
+                      {req.status.replace("_", " ").toUpperCase()}
+                    </Text>
+                  </View>
                 </View>
-              )}
 
-              {request.status === "resolved" && request.resolution_note ? (
-                <View style={styles.resolutionBox}>
-                  <Text style={styles.resolutionLabel}>RESOLUTION</Text>
-                  <Text style={styles.resolutionText}>{request.resolution_note}</Text>
+                {/* Message Body */}
+                <View style={styles.messageBox}>
+                  <Text style={styles.messageText}>{req.message || "No content provided."}</Text>
                 </View>
-              ) : null}
-            </View>
-          ))
+
+                {/* If resolved, show resolution summary */}
+                {isResolved && req.resolution_note && (
+                  <View style={styles.resolutionBox}>
+                    <Text style={styles.resolutionLabel}>Resolution Note:</Text>
+                    <Text style={styles.resolutionText}>{req.resolution_note}</Text>
+                  </View>
+                )}
+
+                {/* Action Buttons for Open & In-Progress */}
+                {!isResolved && (
+                  <View style={styles.actionsRow}>
+                    {isOpen && (
+                      <TouchableOpacity
+                        style={styles.inProgressBtn}
+                        onPress={() => handleMarkInProgress(req)}
+                        activeOpacity={0.75}
+                      >
+                        <Clock size={13} color="#2563EB" />
+                        <Text style={styles.inProgressBtnText}>In Progress</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.resolveBtn}
+                      onPress={() => setResolvingRequest(req)}
+                      activeOpacity={0.8}
+                    >
+                      <CheckCircle2 size={13} color="#FFFFFF" />
+                      <Text style={styles.resolveBtnText}>Resolve Ticket</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })
         )}
       </ScrollView>
 
-      <Modal visible={!!resolvingRequest} animationType="slide" transparent onRequestClose={() => setResolvingRequest(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Resolve Request</Text>
-              <TouchableOpacity onPress={() => setResolvingRequest(null)}>
-                <X size={18} color="#64748B" />
-              </TouchableOpacity>
+      {/* Redesigned Modal: Resolve Request */}
+      <Modal
+        visible={!!resolvingRequest}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setResolvingRequest(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Resolve Support Ticket</Text>
+                  <Text style={styles.modalSubtitle}>Document resolution and close inquiry</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => setResolvingRequest(null)}
+                >
+                  <X size={18} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {resolvingRequest && (
+                <View style={styles.ticketSummaryBox}>
+                  <Text style={styles.summarySubject}>{resolvingRequest.subject || "Inquiry"}</Text>
+                  <Text style={styles.summaryDetails} numberOfLines={2}>
+                    {resolvingRequest.message}
+                  </Text>
+                </View>
+              )}
+
+              <Text style={styles.inputLabel}>RESOLUTION NOTE</Text>
+              <TextInput
+                style={styles.textArea}
+                value={resolutionNote}
+                onChangeText={setResolutionNote}
+                placeholder="Explain the steps taken to resolve this ticket..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={4}
+              />
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setResolvingRequest(null)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalSubmitBtn}
+                  onPress={handleResolve}
+                  disabled={saving}
+                  activeOpacity={0.85}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} color="#FFFFFF" />
+                      <Text style={styles.modalSubmitText}>Confirm Resolution</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.inputLabel}>RESOLUTION NOTE</Text>
-            <TextInput
-              style={styles.textArea}
-              value={resolutionNote}
-              onChangeText={setResolutionNote}
-              placeholder="Describe how this was resolved..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              numberOfLines={4}
-            />
-            <TouchableOpacity style={styles.submitBtn} onPress={handleResolve} disabled={saving} activeOpacity={0.85}>
-              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitBtnText}>Mark Resolved</Text>}
-            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centerFill: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC" },
-  filterBar: { backgroundColor: "#FFFFFF", paddingVertical: 10, borderBottomWidth: 1.5, borderBottomColor: "#E2E8F0" },
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  centerFill: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+  },
+  filterBarContainer: {
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  filterScroll: {
+    gap: 8,
+    paddingHorizontal: 14,
+  },
   filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 9999,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 8,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  filterPillActive: { backgroundColor: "#047857", borderColor: "#047857" },
-  filterPillText: { fontSize: 11, fontWeight: "700", color: "#64748B" },
-  filterPillTextActive: { color: "#FFFFFF" },
-  emptyText: { textAlign: "center", color: "#94A3B8", marginTop: 32, fontSize: 13 },
+  filterPillActive: {
+    backgroundColor: "#047857",
+    borderColor: "#047857",
+  },
+  filterPillText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  filterPillTextActive: {
+    color: "#FFFFFF",
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
+  },
+  headerBar: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 20,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  emptySub: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderTopColor: "#FFFFFF",
-    borderLeftColor: "#E2E8F0",
-    borderRightColor: "#CBD5E1",
-    borderBottomColor: "#CBD5E1",
-    padding: 12,
-    marginBottom: 10,
-  },
-  cardRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    backgroundColor: "#ECFDF5",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "#E2E8F0",
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  iconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
-  cardSubtitle: { fontSize: 11, color: "#64748B", marginTop: 2 },
-  statusBadge: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  statusBadgeText: { fontSize: 9, fontWeight: "800", color: "#64748B" },
-  messageText: { fontSize: 12, color: "#334155", marginTop: 10, lineHeight: 18 },
-  actionsRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  actionBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  iconBoxResolved: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  ticketInfo: {
+    flex: 1,
+  },
+  subjectText: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  metaText: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  statusBadge: {
     borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+  badgeOpen: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+  },
+  badgeInProgress: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  badgeResolved: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  statusBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+  },
+  statusTextOpen: {
+    color: "#B45309",
+  },
+  statusTextInProgress: {
+    color: "#1D4ED8",
+  },
+  statusTextResolved: {
+    color: "#047857",
+  },
+  messageBox: {
     backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  messageText: {
+    fontSize: 12.5,
+    color: "#334155",
+    lineHeight: 18,
+  },
+  resolutionBox: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  resolutionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#047857",
+    marginBottom: 2,
+  },
+  resolutionText: {
+    fontSize: 12,
+    color: "#065F46",
+    lineHeight: 17,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  inProgressBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  inProgressBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  resolveBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#047857",
+  },
+  resolveBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalBackdrop: {
+    width: "100%",
+    maxWidth: 440,
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ticketSummaryBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    marginBottom: 12,
   },
-  resolveBtn: { backgroundColor: "#047857", borderColor: "#047857" },
-  actionBtnText: { fontSize: 12, fontWeight: "700", color: "#047857" },
-  resolutionBox: { marginTop: 10, padding: 10, backgroundColor: "#F8FAFC", borderRadius: 6, borderWidth: 1, borderColor: "#E2E8F0" },
-  resolutionLabel: { fontSize: 10, fontWeight: "800", color: "#64748B", marginBottom: 4 },
-  resolutionText: { fontSize: 12, color: "#334155" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  inputLabel: { fontSize: 11, fontWeight: "800", color: "#64748B", letterSpacing: 0.5, marginBottom: 6 },
+  summarySubject: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 2,
+  },
+  summaryDetails: {
+    fontSize: 11.5,
+    color: "#64748B",
+    lineHeight: 16,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#475569",
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
   textArea: {
     borderWidth: 1.5,
     borderColor: "#E2E8F0",
-    borderRadius: 6,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
     color: "#0F172A",
-    minHeight: 100,
+    minHeight: 90,
     textAlignVertical: "top",
+    backgroundColor: "#FFFFFF",
     marginBottom: 16,
   },
-  submitBtn: { backgroundColor: "#047857", borderRadius: 6, paddingVertical: 13, alignItems: "center" },
-  submitBtnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
+  modalBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  modalSubmitBtn: {
+    flex: 1.6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#047857",
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  modalSubmitText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });
