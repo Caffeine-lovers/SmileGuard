@@ -12,6 +12,8 @@ import { CurrentUser } from "../types/index";
 import { Session } from "@supabase/supabase-js";
 import { ClinicProvider } from "../contexts/ClinicContext";
 import { registerForPushNotificationsAsync } from "../lib/pushNotificationService";
+// Importing this module swaps the native Alert for the themed dialog app-wide
+import AppAlertHost from "../components/ui/AppAlertHost";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -293,6 +295,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ClinicProvider>
           <Slot />
+          <AppAlertHost />
         </ClinicProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
