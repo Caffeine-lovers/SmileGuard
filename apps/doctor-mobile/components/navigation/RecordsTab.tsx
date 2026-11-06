@@ -55,6 +55,7 @@ interface RecordsTabProps {
   startTourTrigger?: number;
   userRole?: string;
   refreshTrigger?: number;
+  doctorId?: string;
 }
 
 const ITEMS_PER_PAGE = 4;
@@ -74,10 +75,12 @@ export default function RecordsTab({
   startTourTrigger,
   userRole,
   refreshTrigger,
+  doctorId,
 }: RecordsTabProps) {
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const router = useRouter();
   const currentUser = useCurrentUser();
+  const activeUserId = doctorId || currentUser?.id;
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
   const [loadingSupabase, setLoadingSupabase] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -91,10 +94,21 @@ export default function RecordsTab({
 
   // Fetch profiles patients on initial load
   useEffect(() => {
+    let isMounted = true;
+
     const fetchSupabasePatients = async () => {
+      // Resolve user id from props, hook, or direct session fallback
+      let idToUse = activeUserId;
+      if (!idToUse) {
+        const { data: { session } } = await supabase.auth.getSession();
+        idToUse = session?.user?.id;
+      }
+      if (!idToUse) return;
+
       setLoadingSupabase(true);
       try {
-        const result = await dashboardService.fetchDoctorPatients(currentUser?.id || '');
+        const result = await dashboardService.fetchDoctorPatients(idToUse);
+        if (!isMounted) return;
         console.log('RecordsTab - Received profiles patients:', result.data);
 
         const mapped: AppointmentType[] = (result.data || []).map((patient: any) => ({
@@ -120,14 +134,16 @@ export default function RecordsTab({
       } catch (error) {
         console.error('Error fetching profiles patients:', error);
       } finally {
-        setLoadingSupabase(false);
+        if (isMounted) setLoadingSupabase(false);
       }
     };
 
-    if (currentUser?.id) {
-      fetchSupabasePatients();
-    }
-  }, [currentUser?.id]);
+    fetchSupabasePatients();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeUserId]);
 
   // Reset to first page when search query, type filter, or sort order changes
   useEffect(() => {
@@ -195,14 +211,20 @@ export default function RecordsTab({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Verify user is logged in via currentUser hook
-      if (!currentUser?.id) {
-        console.error('❌ No authenticated user for refresh');
+      // Resolve user id from props, hook, or direct session fallback
+      let idToUse = activeUserId;
+      if (!idToUse) {
+        const { data: { session } } = await supabase.auth.getSession();
+        idToUse = session?.user?.id;
+      }
+
+      if (!idToUse) {
+        console.log('⏳ [RecordsTab] Waiting for user session to initialize before refreshing');
         setIsRefreshing(false);
         return;
       }
 
-      console.log('🔄 Refreshing patient data for user:', currentUser.id);
+      console.log('🔄 Refreshing patient data for user:', idToUse);
 
       // Fetch Supabase patients
       const supabaseData = await getAllPatients();
@@ -348,15 +370,15 @@ export default function RecordsTab({
 
   const handleFinishTour = async () => {
     setTourVisible(false);
-    if (currentUser?.id) {
-      await markDoctorGuideCompleted(currentUser.id, "records");
+    if (activeUserId) {
+      await markDoctorGuideCompleted(activeUserId, "records");
     }
   };
 
   const handleSkipTour = async () => {
     setTourVisible(false);
-    if (currentUser?.id) {
-      await markDoctorGuideCompleted(currentUser.id, "records");
+    if (activeUserId) {
+      await markDoctorGuideCompleted(activeUserId, "records");
     }
   };
 
@@ -367,15 +389,15 @@ export default function RecordsTab({
 
   // Auto-prompt walkthrough on first visit to RecordsTab
   useEffect(() => {
-    if (!currentUser?.id || loadingSupabase) return;
+    if (!activeUserId || loadingSupabase) return;
 
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
-        const alreadyDone = await isDoctorGuideCompleted(currentUser.id, "records");
+        const alreadyDone = await isDoctorGuideCompleted(activeUserId, "records");
         if (alreadyDone) return;
 
-        const key = `@smileguard_doctor_records_walkthrough_completed_${currentUser.id}`;
+        const key = `@smileguard_doctor_records_walkthrough_completed_${activeUserId}`;
         const hasCompleted = await AsyncStorage.getItem(key);
         if (!hasCompleted && isMounted) {
           const timer = setTimeout(() => {
@@ -395,7 +417,7 @@ export default function RecordsTab({
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.id, loadingSupabase]);
+  }, [activeUserId, loadingSupabase]);
 
   // Support triggering walkthrough from parent (e.g. Settings tab)
   useEffect(() => {

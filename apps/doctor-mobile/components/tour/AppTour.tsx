@@ -150,7 +150,6 @@ export default function AppTour({
 
   const cardAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
-  const spotlightFadeAnim = useRef(new Animated.Value(1)).current;
 
   // Keep latest steps without re-triggering the step effect on every parent render
   const stepsRef = useRef(steps);
@@ -191,10 +190,7 @@ export default function AppTour({
     let cancelled = false;
 
     // Smooth quick fade out before changing targets
-    Animated.parallel([
-      Animated.timing(spotlightFadeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
-      Animated.timing(cardAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
-    ]).start();
+    Animated.timing(cardAnim, { toValue: 0, duration: 100, useNativeDriver: true }).start();
 
     setReady(false);
     current.onEnter?.();
@@ -229,17 +225,14 @@ export default function AppTour({
       setReady(true);
 
       // Hardware-accelerated entrance on Native Driver
-      Animated.parallel([
-        Animated.timing(spotlightFadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(cardAnim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 75 }),
-      ]).start();
+      Animated.spring(cardAnim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 75 }).start();
     }, waitMs);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [visible, index, measureTarget, cardAnim, spotlightFadeAnim]);
+  }, [visible, index, measureTarget, cardAnim]);
 
   // Reset visuals when the tour closes
   useEffect(() => {
@@ -247,10 +240,9 @@ export default function AppTour({
       setDisplayRect(null);
       setTargetRect(null);
       setReady(false);
-      spotlightFadeAnim.setValue(1);
       cardAnim.setValue(0);
     }
-  }, [visible, spotlightFadeAnim, cardAnim]);
+  }, [visible, cardAnim]);
 
   const goNext = () => {
     if (isLast) onFinish();
@@ -314,53 +306,40 @@ export default function AppTour({
       }}
     >
       {/* Dimmed backdrop with cutout hole */}
-      {!displayRect ? (
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: placement === "bottom" ? LIGHT_OVERLAY_COLOR : OVERLAY_COLOR },
-          ]}
-          pointerEvents="none"
+      <Svg width={currentW} height={currentH} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <Mask id="tour-spotlight-mask" x="0" y="0" width={currentW} height={currentH}>
+            <Rect x="0" y="0" width={currentW} height={currentH} fill="white" />
+            {displayRect && (
+              <Rect
+                x={displayRect.x}
+                y={displayRect.y}
+                width={displayRect.width}
+                height={displayRect.height}
+                rx={radius}
+                ry={radius}
+                fill="black"
+              />
+            )}
+          </Mask>
+        </Defs>
+        <Rect
+          x="0"
+          y="0"
+          width={currentW}
+          height={currentH}
+          fill={placement === "bottom" ? LIGHT_OVERLAY_COLOR : OVERLAY_COLOR}
+          mask="url(#tour-spotlight-mask)"
         />
-      ) : (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { opacity: spotlightFadeAnim }]}
-          pointerEvents="none"
-        >
-          <Svg width={currentW} height={currentH} style={StyleSheet.absoluteFill} pointerEvents="none">
-            <Defs>
-              <Mask id="tour-spotlight-mask" x="0" y="0" width={currentW} height={currentH}>
-                <Rect x="0" y="0" width={currentW} height={currentH} fill="white" />
-                <Rect
-                  x={displayRect.x}
-                  y={displayRect.y}
-                  width={displayRect.width}
-                  height={displayRect.height}
-                  rx={radius}
-                  ry={radius}
-                  fill="black"
-                />
-              </Mask>
-            </Defs>
-            <Rect
-              x="0"
-              y="0"
-              width={currentW}
-              height={currentH}
-              fill={placement === "bottom" ? LIGHT_OVERLAY_COLOR : OVERLAY_COLOR}
-              mask="url(#tour-spotlight-mask)"
-            />
-          </Svg>
-        </Animated.View>
-      )}
+      </Svg>
 
       {/* Block touches underneath the tour overlay */}
       <Pressable style={StyleSheet.absoluteFill} onPress={() => {}} />
 
       {/* Spotlight border ring and tap-to-continue hitbox */}
       {displayRect && (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { opacity: spotlightFadeAnim }]}
+        <View
+          style={StyleSheet.absoluteFill}
           pointerEvents="box-none"
         >
           <View
@@ -403,7 +382,7 @@ export default function AppTour({
               borderRadius: radius,
             }}
           />
-        </Animated.View>
+        </View>
       )}
 
       {/* Tooltip Card */}

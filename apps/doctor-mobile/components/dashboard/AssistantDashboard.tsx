@@ -1725,6 +1725,7 @@ export default function AssistantDashboard({
             styles={styles}
             startTourTrigger={recordsTourTrigger}
             refreshTrigger={recordsRefreshTrigger}
+            doctorId={user?.id}
             userRole="assistant"
           />
         ) : activeTab === "appointments" ? (

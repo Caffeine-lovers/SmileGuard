@@ -27,8 +27,8 @@ const listeners = new Set<(q: AlertRequest[]) => void>();
 const emit = () => listeners.forEach((l) => l([...queue]));
 
 function guessTone(title: string, message: string | undefined, buttons: AlertButton[]): Tone {
-  if (buttons.some((b) => b.style === "destructive")) return "warning";
-  const text = `${title} ${message ?? ""}`.toLowerCase();
+  if (Array.isArray(buttons) && buttons.some((b) => b?.style === "destructive")) return "warning";
+  const text = `${title || ""} ${message ?? ""}`.toLowerCase();
   if (/(fail|error|could not|couldn't|unable|invalid|denied|blocked|not found|wrong)/.test(text)) return "error";
   if (/(success|saved|sent|updated|approved|confirmed|created|complete|done|added|removed|deleted)/.test(text)) return "success";
   if (/(please|required|missing|must|warning|are you sure|confirm)/.test(text)) return "warning";
@@ -41,7 +41,7 @@ const themedAlert = (
   buttons?: AlertButton[],
   options?: AlertOptions
 ) => {
-  const list = buttons && buttons.length > 0 ? buttons : [{ text: "OK" }];
+  const list = Array.isArray(buttons) && buttons.length > 0 ? buttons : [{ text: "OK" }];
   queue.push({
     id: nextId++,
     title: title ?? "",
@@ -84,7 +84,7 @@ export default function AppAlertHost() {
 
   if (!current) return null;
 
-  const tone = TONE[current.tone];
+  const tone = TONE[current.tone] || TONE.info;
   const cancelButton = current.buttons.find((b) => b.style === "cancel");
   const stacked = current.buttons.length > 2;
 

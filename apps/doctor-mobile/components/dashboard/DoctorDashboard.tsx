@@ -1707,6 +1707,8 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               styles={styles}
               startTourTrigger={recordsTourTrigger}
               refreshTrigger={recordsRefreshTrigger}
+              doctorId={user?.id}
+              userRole={user?.role}
             />
           ) : activeTab === 'appointments' ? (
             <AppointmentsTab

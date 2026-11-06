@@ -47,6 +47,8 @@ export default function RootLayout() {
       if (isOAuthUrl(url)) {
         console.log("[RootLayout] App opened via deep link:", url);
       }
+    }).catch((err) => {
+      console.warn("[RootLayout] Linking.getInitialURL error:", err);
     });
 
     return () => subscription.remove();
@@ -81,6 +83,8 @@ export default function RootLayout() {
         const data = response.notification.request.content.data;
         handleNotificationData(data);
       }
+    }).catch((err) => {
+      console.warn("[RootLayout] getLastNotificationResponseAsync error:", err);
     });
 
     return () => {
