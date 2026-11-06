@@ -123,3 +123,40 @@ export const formatAppointmentTime = (timeStr?: string): string => {
 
   return trimmed;
 };
+
+/**
+ * Returns today's local date in 'YYYY-MM-DD' format.
+ */
+export const getTodayDateString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Checks whether an appointment is undecided and its appointment date has eclipsed (passed).
+ * An appointment remains undecided if its status is 'pending' or unset.
+ * If the appointment date is strictly before today (in local date), the date has eclipsed
+ * and the appointment should be removed by default.
+ */
+export const isAppointmentUndecidedAndEclipsed = (
+  appointmentDate?: string | null,
+  status?: string | null
+): boolean => {
+  const s = (status || '').toLowerCase().trim();
+  const isUndecided = s === 'pending' || s === '';
+  if (!isUndecided || !appointmentDate) return false;
+
+  let aptDateStr = appointmentDate.split('T')[0].trim();
+  if (aptDateStr.includes('/')) {
+    const parts = aptDateStr.split('/');
+    if (parts.length === 3) {
+      aptDateStr = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+    }
+  }
+
+  const todayStr = getTodayDateString();
+  return aptDateStr < todayStr;
+};

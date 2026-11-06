@@ -51,10 +51,10 @@ import { supabase } from "@smileguard/supabase-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { getStatusColor, getStatusBgColor } from "../../lib/statusHelpers";
-import {
-  formatAppointmentDate,
+import { formatAppointmentDate,
   formatAppointmentTime,
-} from "../../lib/dateFormatters";
+  isAppointmentUndecidedAndEclipsed,
+  getTodayDateString } from "../../lib/dateFormatters";
 import { useNotifications } from "../../hooks/useNotifications";
 import { Notification, NotificationType } from "../../types/notifications";
 import { CurrentUser } from "@smileguard/shared-types";
@@ -710,7 +710,7 @@ export default function AssistantDashboard({
   }, [selectedPatient?.id, selectedPatient?.patient_id]);
 
   // Booking requests in the order they were made: first come, first served
-  const deckRequests = useMemo(() => {
+    const deckRequests = useMemo(() => {
     const requestedAt = (item: DashboardAppointment) => {
       if (item.created_at) {
         const parsed = new Date(item.created_at).getTime();
@@ -722,10 +722,18 @@ export default function AssistantDashboard({
       }
       return 0;
     };
-    return [...appointmentRequests].sort((a, b) => {
-      const diff = requestedAt(a) - requestedAt(b);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name);
-    });
+    return [...appointmentRequests]
+      .filter((item) => {
+        // If undecided and the appointment date has eclipsed (passed), remove by default
+        if (isAppointmentUndecidedAndEclipsed(item.date, item.status)) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const diff = requestedAt(a) - requestedAt(b);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      });
   }, [appointmentRequests]);
 
   // Helper to open full patient chart
