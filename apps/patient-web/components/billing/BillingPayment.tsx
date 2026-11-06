@@ -341,6 +341,51 @@ export default function BillingPayment({
     fetchBillingData();
   }, [currentUser?.id, baseAmount]);
 
+  // Keep the list current: when the clinic marks a procedure completed (or a payment lands),
+  // it should appear here without the patient having to reload the page.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const userId = currentUser.id;
+    let cancelled = false;
+
+    const sync = async () => {
+      try {
+        const data = await fetchBillingDataForDashboard(userId);
+        if (cancelled) return;
+        setOutstandingBalance(data.outstandingBalance);
+        setBillingHistory(data.billingHistory);
+        setUnpaidAppointments(data.unpaidAppointments);
+        setLedger(data.ledger);
+      } catch (err) {
+        console.warn('[BillingPayment] Background refresh failed:', err);
+      }
+    };
+
+    const channel = supabase
+      .channel(`billing_sync_${userId}_${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `patient_id=eq.${userId}` }, sync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'billings', filter: `patient_id=eq.${userId}` }, sync)
+      .subscribe();
+
+    // Fallbacks in case realtime isn't enabled for these tables: refresh on tab focus and every 30s
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') sync();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', sync);
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') sync();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', sync);
+      clearInterval(timer);
+    };
+  }, [currentUser?.id]);
+
   const handleAppointmentSelect = (apt: Appointment) => {
     setSelectedAppointment(apt);
     const newAmount = apt.price ?? getServicePrice(apt.service);

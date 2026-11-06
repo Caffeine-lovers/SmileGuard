@@ -27,10 +27,12 @@ export interface AppointmentBillingRow extends Appointment {
 
 /** Appointment is still awaiting clinic approval (incl. legacy rows with no dentist assigned) */
 export const isPendingAppointment = (apt: Pick<Appointment, 'status' | 'dentist_id'>): boolean => {
-  const norm = (apt.status || '').toLowerCase();
+  const norm = (apt.status || '').toLowerCase().trim();
+  // A finished procedure is never "awaiting approval", whatever spelling the clinic app used
+  const isFinished = /^(complete|completed|done|finished)$/.test(norm);
   return (
     norm === 'pending' ||
-    (!apt.dentist_id && !['cancelled', 'declined', 'completed', 'no-show'].includes(norm))
+    (!apt.dentist_id && !isFinished && !['cancelled', 'declined', 'no-show', 'no_show', 'noshow'].includes(norm))
   );
 };
 
