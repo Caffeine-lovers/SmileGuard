@@ -80,17 +80,41 @@ export default function CompleteProfile() {
 
       const savedRole = await AsyncStorage.getItem("@pending_user_role");
       if (savedRole === "assistant") {
-        console.log("[CompleteProfile] Upserting assistant profile...");
-        const { error: astErr } = await supabase.from("assistants").upsert([
+        console.log("[CompleteProfile] Upserting assistant profile into doctors table...");
+        const { error: docErr } = await supabase.from("doctors").upsert([
           {
             user_id: user?.id,
             first_name: firstName,
             last_name: lastName,
             gender: formData.gender,
-            phone: formData.phoneNumber,
+            doctor_phone: formData.phoneNumber,
+            role: "assistant",
+            license_number: null,
+            specialization: null,
+            years_of_experience: null,
+            bio: null,
+            updated_at: new Date().toISOString(),
           },
         ], { onConflict: "user_id" });
-        if (astErr) throw astErr;
+        if (docErr) {
+          console.warn("[CompleteProfile] Notice upserting to doctors table:", docErr.message);
+        }
+
+        try {
+          await supabase.from("assistants").upsert([
+            {
+              user_id: user?.id,
+              first_name: firstName,
+              last_name: lastName,
+              gender: formData.gender,
+              phone: formData.phoneNumber,
+              updated_at: new Date().toISOString(),
+            },
+          ], { onConflict: "user_id" });
+        } catch (e) {
+          console.warn("[CompleteProfile] Assistants mirror notice:", e);
+        }
+
         console.log("✅ Assistant profile completed successfully");
         Alert.alert("Success", "Assistant profile updated successfully!");
         router.replace("/(doctor)/dashboard");

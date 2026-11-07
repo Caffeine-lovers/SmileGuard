@@ -134,94 +134,96 @@ BEGIN
     email = COALESCE(NULLIF(public.profiles.email, ''), v_user_email, public.profiles.email),
     updated_at = now();
 
-  -- 4. INSERT INTO APPROPRIATE TABLE:
-  -- If assistants table exists, use it. Otherwise, fallback cleanly to doctors without PRC fields.
+  -- 4. INSERT INTO public.doctors FOR ASSISTANT (no PRC credentials required)
   IF v_role = 'assistant' THEN
+    INSERT INTO public.doctors (
+      user_id,
+      first_name,
+      middle_name,
+      last_name,
+      gender,
+      role,
+      specialization,
+      license_number,
+      bio,
+      profile_picture_url,
+      years_of_experience,
+      office_hours,
+      created_at,
+      updated_at
+    ) VALUES (
+      v_user_id,
+      TRIM(p_first_name),
+      NULLIF(TRIM(COALESCE(p_middle_name, '')), ''),
+      TRIM(p_last_name),
+      NULLIF(TRIM(COALESCE(p_gender, '')), ''),
+      'assistant',
+      NULL,
+      NULL,
+      NULL,
+      p_profile_picture_url,
+      NULL,
+      v_default_hours,
+      now(),
+      now()
+    )
+    ON CONFLICT (user_id) DO UPDATE SET
+      first_name = EXCLUDED.first_name,
+      middle_name = EXCLUDED.middle_name,
+      last_name = EXCLUDED.last_name,
+      gender = COALESCE(EXCLUDED.gender, public.doctors.gender),
+      role = 'assistant',
+      specialization = NULL,
+      license_number = NULL,
+      bio = NULL,
+      profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, public.doctors.profile_picture_url),
+      years_of_experience = NULL,
+      office_hours = COALESCE(public.doctors.office_hours, v_default_hours),
+      updated_at = now()
+    RETURNING id INTO v_entity_id;
+
+    -- Also mirror to assistants table if it exists
     IF EXISTS (
       SELECT 1 FROM information_schema.tables 
       WHERE table_schema = 'public' AND table_name = 'assistants'
     ) THEN
-      INSERT INTO public.assistants (
-        user_id,
-        first_name,
-        middle_name,
-        last_name,
-        phone,
-        gender,
-        profile_picture_url,
-        created_at,
-        updated_at
-      ) VALUES (
-        v_user_id,
-        TRIM(p_first_name),
-        NULLIF(TRIM(COALESCE(p_middle_name, '')), ''),
-        TRIM(p_last_name),
-        NULL,
-        NULLIF(TRIM(COALESCE(p_gender, '')), ''),
-        NULLIF(TRIM(COALESCE(p_profile_picture_url, '')), ''),
-        now(),
-        now()
-      )
-      ON CONFLICT (user_id) DO UPDATE SET
-        first_name = TRIM(p_first_name),
-        middle_name = NULLIF(TRIM(COALESCE(p_middle_name, '')), ''),
-        last_name = TRIM(p_last_name),
-        gender = COALESCE(NULLIF(TRIM(COALESCE(p_gender, '')), ''), public.assistants.gender),
-        profile_picture_url = COALESCE(NULLIF(TRIM(COALESCE(p_profile_picture_url, '')), ''), public.assistants.profile_picture_url),
-        updated_at = now()
-      RETURNING id INTO v_entity_id;
-    ELSE
-      -- Fallback to doctors table: PRC credentials must NOT be set
-      INSERT INTO public.doctors (
-        user_id,
-        first_name,
-        middle_name,
-        last_name,
-        gender,
-        role,
-        specialization,
-        license_number,
-        bio,
-        profile_picture_url,
-        years_of_experience,
-        office_hours,
-        created_at,
-        updated_at
-      ) VALUES (
-        v_user_id,
-        TRIM(p_first_name),
-        NULLIF(TRIM(COALESCE(p_middle_name, '')), ''),
-        TRIM(p_last_name),
-        NULLIF(TRIM(COALESCE(p_gender, '')), ''),
-        'assistant',
-        NULL,
-        NULL,
-        NULL,
-        p_profile_picture_url,
-        NULL,
-        v_default_hours,
-        now(),
-        now()
-      )
-      ON CONFLICT (user_id) DO UPDATE SET
-        first_name = EXCLUDED.first_name,
-        middle_name = EXCLUDED.middle_name,
-        last_name = EXCLUDED.last_name,
-        gender = COALESCE(EXCLUDED.gender, public.doctors.gender),
-        role = 'assistant',
-        specialization = NULL,
-        license_number = NULL,
-        bio = NULL,
-        profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, public.doctors.profile_picture_url),
-        years_of_experience = NULL,
-        office_hours = COALESCE(public.doctors.office_hours, v_default_hours),
-        updated_at = now()
-      RETURNING id INTO v_entity_id;
+      BEGIN
+        INSERT INTO public.assistants (
+          user_id,
+          first_name,
+          middle_name,
+          last_name,
+          phone,
+          gender,
+          profile_picture_url,
+          created_at,
+          updated_at
+        ) VALUES (
+          v_user_id,
+          TRIM(p_first_name),
+          NULLIF(TRIM(COALESCE(p_middle_name, '')), ''),
+          TRIM(p_last_name),
+          NULL,
+          NULLIF(TRIM(COALESCE(p_gender, '')), ''),
+          NULLIF(TRIM(COALESCE(p_profile_picture_url, '')), ''),
+          now(),
+          now()
+        )
+        ON CONFLICT (user_id) DO UPDATE SET
+          first_name = TRIM(p_first_name),
+          middle_name = NULLIF(TRIM(COALESCE(p_middle_name, '')), ''),
+          last_name = TRIM(p_last_name),
+          gender = COALESCE(NULLIF(TRIM(COALESCE(p_gender, '')), ''), public.assistants.gender),
+          profile_picture_url = COALESCE(NULLIF(TRIM(COALESCE(p_profile_picture_url, '')), ''), public.assistants.profile_picture_url),
+          updated_at = now();
+      EXCEPTION WHEN OTHERS THEN
+        -- Non-blocking mirror
+      END;
     END IF;
 
     RETURN jsonb_build_object(
       'success', TRUE,
-      'message', 'Clinic assistant profile registered successfully.',
+      'message', 'Clinic assistant profile registered successfully in doctors table.',
       'doctor_id', v_entity_id,
       'role', 'assistant'
     );

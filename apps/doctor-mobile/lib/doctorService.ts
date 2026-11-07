@@ -24,6 +24,22 @@ export async function getDoctorProfile(userId: string): Promise<Doctor | null> {
       .maybeSingle();
 
     if (profile?.role === "assistant") {
+      // 1a. Check doctors table first for assistant record
+      const { data: doc } = await supabase
+        .from("doctors")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (doc) {
+        return {
+          ...doc,
+          role: "assistant",
+          doctor_name: doc.doctor_name || `${doc.first_name || ""} ${doc.last_name || ""}`.trim(),
+        } as Doctor;
+      }
+
+      // 1b. Fallback to assistants table
       const { data: ast } = await supabase
         .from("assistants")
         .select("*")
@@ -266,7 +282,8 @@ export interface AdminProfileData {
 
 /**
  * Create or update an assistant profile (idempotent via UPSERT)
- * Strictly inserts/updates public.assistants and public.profiles. Never touches public.doctors.
+ * Registers the assistant in public.doctors (role='assistant' without PRC credentials) and public.profiles.
+ * Also mirrors to public.assistants if table exists.
  */
 export async function createAssistantProfile(
   assistant: AssistantProfileData,
@@ -289,7 +306,7 @@ export async function createAssistantProfile(
       has_access_code: !!accessCode,
     });
 
-    // 1. Sync public.profiles
+    // 1. Sync public.profiles with assistant role
     const { error: profileError } = await supabase.from("profiles").upsert(
       [
         {
@@ -329,10 +346,10 @@ export async function createAssistantProfile(
       }
     }
 
-    // 3. Upsert directly into public.assistants
-    let astData: any = null;
-    const { data: upsertData, error: astError } = await supabase
-      .from("assistants")
+    // 3. ALWAYS upsert into public.doctors table (with role = 'assistant' and without PRC credentials)
+    let docRecordId: string | undefined = rpcAssistantId;
+    const { data: docData, error: docError } = await supabase
+      .from("doctors")
       .upsert(
         [
           {
@@ -340,11 +357,14 @@ export async function createAssistantProfile(
             first_name: firstName,
             middle_name: middleName || null,
             last_name: lastName,
-            phone: assistant.phone || null,
+            doctor_phone: assistant.phone || null,
             gender: assistant.gender || null,
+            role: "assistant",
             profile_picture_url: assistant.profile_picture_url || null,
-            clinic_name: assistant.clinic_name || "SmileGuard Dental Clinic",
-            is_active: true,
+            license_number: null,
+            specialization: null,
+            years_of_experience: null,
+            bio: null,
             updated_at: new Date().toISOString(),
           },
         ],
@@ -353,13 +373,17 @@ export async function createAssistantProfile(
       .select()
       .maybeSingle();
 
-    astData = upsertData;
-
-    // If assistants table is missing or errors, fallback to doctors table without PRC fields
-    if (astError) {
-      if (astError.code === "42P01" || astError.message?.includes("assistants")) {
-        console.warn("[DoctorService] Assistants table not present, falling back to public.doctors (without PRC credentials):", astError.message);
-        const { data: docData, error: docError } = await supabase
+    if (docError) {
+      console.warn("[DoctorService] Initial upsert to doctors table encountered error:", docError.message);
+      // If legacy table still enforces NOT NULL constraints on specialization or license_number, retry with empty fallback
+      if (
+        docError.message?.includes("null value in column") ||
+        docError.code === "23502" ||
+        docError.message?.includes("specialization") ||
+        docError.message?.includes("license_number")
+      ) {
+        console.warn("[DoctorService] Retrying doctors upsert with blank fallback for legacy NOT NULL constraints...");
+        const { data: retryDoc, error: retryError } = await supabase
           .from("doctors")
           .upsert(
             [
@@ -372,10 +396,10 @@ export async function createAssistantProfile(
                 gender: assistant.gender || null,
                 role: "assistant",
                 profile_picture_url: assistant.profile_picture_url || null,
-                license_number: null,
-                specialization: null,
-                years_of_experience: null,
-                bio: null,
+                license_number: "",
+                specialization: "Clinic Assistant",
+                years_of_experience: 0,
+                bio: "",
                 updated_at: new Date().toISOString(),
               },
             ],
@@ -384,18 +408,45 @@ export async function createAssistantProfile(
           .select()
           .maybeSingle();
 
-        if (docError) {
-          console.error("[DoctorService] Fallback to doctors table failed:", docError);
-          throw new Error(`Database error: ${docError.message}`);
+        if (retryError) {
+          console.error("[DoctorService] Fallback upsert to doctors table failed:", retryError);
+          throw new Error(`Database error on doctors table: ${retryError.message}`);
         }
-        astData = docData;
+        if (retryDoc?.id) docRecordId = retryDoc.id;
       } else {
-        console.error("[DoctorService] Error upserting to assistants table:", astError);
-        throw new Error(`Database error: ${astError.message}`);
+        console.error("[DoctorService] Error upserting to doctors table:", docError);
+        throw new Error(`Database error on doctors table: ${docError.message}`);
       }
+    } else if (docData?.id) {
+      docRecordId = docData.id;
     }
 
-    // 4. Update auth user metadata
+    // 4. Also mirror to public.assistants if table exists
+    try {
+      await supabase
+        .from("assistants")
+        .upsert(
+          [
+            {
+              user_id: assistant.user_id,
+              first_name: firstName,
+              middle_name: middleName || null,
+              last_name: lastName,
+              phone: assistant.phone || null,
+              gender: assistant.gender || null,
+              profile_picture_url: assistant.profile_picture_url || null,
+              clinic_name: assistant.clinic_name || "SmileGuard Dental Clinic",
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            },
+          ],
+          { onConflict: "user_id" }
+        );
+    } catch (astEx) {
+      console.warn("[DoctorService] Assistants table mirror notice:", astEx);
+    }
+
+    // 5. Update auth user metadata
     try {
       await supabase.auth.updateUser({
         data: {
@@ -409,7 +460,7 @@ export async function createAssistantProfile(
 
     return {
       success: true,
-      id: astData?.id || rpcAssistantId,
+      id: docRecordId,
     };
   } catch (err) {
     console.error("[DoctorService] Exception in createAssistantProfile:", err);

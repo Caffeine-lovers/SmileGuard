@@ -455,7 +455,7 @@ export default function DoctorProfileSetup({
       const middleName = (doctorData.middle_name || "").trim();
       const lastName = (doctorData.last_name || "").trim();
 
-      // ── ASSISTANT REGISTRATION: STRICT ISOLATION TO ASSISTANTS TABLE
+      // ── ASSISTANT REGISTRATION: REGISTERS IN DOCTORS TABLE (ROLE='ASSISTANT') AND PROFILES
       if (assignedRole === "assistant") {
         const result = await createAssistantProfile(
           {
@@ -474,7 +474,7 @@ export default function DoctorProfileSetup({
           throw new Error("Failed to save assistant profile. Please try again.");
         }
 
-        await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+        await AsyncStorage.removeItem("@pending_doctor_access_code");
         onContinue();
         return;
       }
@@ -493,7 +493,7 @@ export default function DoctorProfileSetup({
           throw new Error("Failed to save admin profile. Please try again.");
         }
 
-        await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+        await AsyncStorage.removeItem("@pending_doctor_access_code");
         onContinue();
         return;
       }
@@ -519,7 +519,7 @@ export default function DoctorProfileSetup({
         throw new Error("Failed to save doctor profile. Please try again.");
       }
 
-      await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
+      await AsyncStorage.removeItem("@pending_doctor_access_code");
       onContinue();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save profile. Please try again.";

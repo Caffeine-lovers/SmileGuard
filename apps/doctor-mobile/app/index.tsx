@@ -36,7 +36,9 @@ export default function LandingPage() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AuthModal
         visible={true}
-        onClose={handleBackPress}
+        onClose={() => {
+          // Modal is the full page view on LandingPage; navigation is handled by root layout
+        }}
         onSuccess={() => {}} // root layout handles redirect
         showCloseButton={false}
       />

@@ -63,9 +63,9 @@ export default function AuthModal({
     return true;
   }, []);
 
-  // Intercept Android hardware back button
+  // Intercept Android hardware back button when displayed as a dismissible modal
   React.useEffect(() => {
-    if (!visible) return;
+    if (!visible || !showCloseButton) return;
 
     const backSubscription = BackHandler.addEventListener(
       "hardwareBackPress",
@@ -73,7 +73,7 @@ export default function AuthModal({
     );
 
     return () => backSubscription.remove();
-  }, [visible, handleBackPress]);
+  }, [visible, showCloseButton, handleBackPress]);
 
   // Reset state when modal re-opens
   React.useEffect(() => {

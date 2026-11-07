@@ -37,16 +37,25 @@ export default function OAuthRedirect() {
           return;
         }
 
-        // Exchange authorization code for a session (PKCE flow)
-        if (searchParams.code) {
+        // Check if session is already established (e.g. from WebBrowser.openAuthSessionAsync)
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        if (existingSession?.user) {
+          console.log("[OAuthRedirect] Session already active, proceeding with existing session.");
+          setStatus("Signing you in...");
+        } else if (searchParams.code) {
+          // Exchange authorization code for a session (PKCE flow)
           console.log("[OAuthRedirect] Exchanging code for session...");
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(searchParams.code);
           if (exchangeError) {
-            console.error("❌ Error exchanging code for session:", exchangeError);
-            setStatus("Sign-in failed. Please try again.");
-            setHasError(true);
-            errorTimer = setTimeout(() => router.replace("/"), 2500);
-            return;
+            // Re-check session in case concurrent auth listener completed the exchange
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (!retrySession?.user) {
+              console.error("❌ Error exchanging code for session:", exchangeError);
+              setStatus("Sign-in failed. Please try again.");
+              setHasError(true);
+              errorTimer = setTimeout(() => router.replace("/"), 2500);
+              return;
+            }
           }
         }
 
@@ -68,13 +77,12 @@ export default function OAuthRedirect() {
               }
 
               if (savedRole === "assistant") {
-                const { data: ast } = await supabase
-                  .from("assistants")
-                  .select("id")
-                  .eq("user_id", session.user.id)
-                  .maybeSingle();
+                const [{ data: doc }, { data: ast }] = await Promise.all([
+                  supabase.from("doctors").select("id").eq("user_id", session.user.id).maybeSingle(),
+                  supabase.from("assistants").select("id").eq("user_id", session.user.id).maybeSingle(),
+                ]);
 
-                if (ast) {
+                if (doc || ast) {
                   console.log("[OAuthRedirect] Fallback routing to assistant dashboard");
                   router.replace("/(doctor)/dashboard");
                 } else {

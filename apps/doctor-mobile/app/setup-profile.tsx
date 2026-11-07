@@ -49,14 +49,36 @@ export default function SetupProfilePage() {
 
   const handleProfileContinue = async () => {
     console.log("[SetupProfile] Profile setup complete, checking role...");
-    const savedRole = await AsyncStorage.getItem("@pending_user_role");
+    const [savedRole, { data: { session } }] = await Promise.all([
+      AsyncStorage.getItem("@pending_user_role"),
+      supabase.auth.getSession(),
+    ]);
 
-    if (savedRole === "admin") {
+    let effectiveRole = savedRole;
+    if (!effectiveRole && session?.user?.id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (profile?.role) {
+        effectiveRole = profile.role;
+      } else {
+        const [{ data: doc }, { data: ast }] = await Promise.all([
+          supabase.from("doctors").select("id, role").eq("user_id", session.user.id).maybeSingle(),
+          supabase.from("assistants").select("id").eq("user_id", session.user.id).maybeSingle(),
+        ]);
+        if (doc?.role === "assistant" || ast) effectiveRole = "assistant";
+      }
+    }
+
+    if (effectiveRole === "admin") {
       router.replace("/(admin)/dashboard");
       return;
     }
 
-    if (savedRole === "assistant") {
+    if (effectiveRole === "assistant") {
       console.log("[SetupProfile] Assistant role detected, bypassing clinic setup directly to onboarding");
       router.replace("/onboarding");
       return;

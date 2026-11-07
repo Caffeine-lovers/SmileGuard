@@ -15,19 +15,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { CurrentUser, Doctor, EMPTY_DOCTOR, getDoctorFullName, getDoctorPrefix } from '@smileguard/shared-types';
 import {
-  Settings as SettingsIcon,
   ChevronRight,
-  ChevronLeft,
   CreditCard,
   Compass,
   Sparkles,
   Users,
   Calendar,
-  ShieldCheck,
   Building,
-  Bell,
-  Type,
-  HelpCircle,
   Lock,
   FileCheck,
   PhoneCall,
@@ -38,6 +32,7 @@ import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import SupportFeedbackModal from '../settings/SupportFeedbackModal';
 import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
+import LegalDocumentModal, { LegalDocType } from '../settings/LegalDocumentModal';
 import { triggerManualUpdateCheck } from '../ui/AppUpdateManager';
 import { useAuth } from '../../hooks/useAuth';
 import { getDoctorProfile, updateDoctorProfile } from '../../lib/doctorService';
@@ -54,13 +49,11 @@ interface SettingsTabProps {
 }
 
 type Theme = 'light' | 'dark';
-type FontSize = 'small' | 'medium' | 'large';
 
 interface AppSettings {
   appointmentReminders: boolean;
   newPatientRequests: boolean;
   theme: Theme;
-  fontSize: FontSize;
 }
 
 export default function SettingsTab({
@@ -80,6 +73,7 @@ export default function SettingsTab({
   const [editingClinic, setEditingClinic] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
+  const [activeLegalDoc, setActiveLegalDoc] = useState<LegalDocType | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
   const [doctorData, setDoctorData] = useState<Doctor>(EMPTY_DOCTOR);
   const [loadingDoctor, setLoadingDoctor] = useState(false);
@@ -89,7 +83,6 @@ export default function SettingsTab({
     appointmentReminders: true,
     newPatientRequests: true,
     theme: 'light',
-    fontSize: 'medium',
   });
 
   // Fetch doctor profile when modal opens
@@ -195,15 +188,6 @@ export default function SettingsTab({
     }
   };
 
-  const updateFontSize = (newSize: FontSize) => {
-    setAppSettings(prev => ({
-      ...prev,
-      fontSize: newSize,
-    }));
-  };
-
-  const fontSizeValues = { small: 12, medium: 14, large: 16 };
-
   return (
     <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
       {/* Module Top Header */}
@@ -298,37 +282,6 @@ export default function SettingsTab({
               </View>
             </View>
           </TouchableOpacity>
-        </View>
-
-        {/* Text Size Selection */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={localStyles.sectionLabel}>DISPLAY TEXT SIZE</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(['small', 'medium', 'large'] as const).map((sizeOption) => {
-              const isSelected = appSettings.fontSize === sizeOption;
-              return (
-                <TouchableOpacity
-                  key={sizeOption}
-                  style={[
-                    localStyles.fontSizeBtn,
-                    isSelected && localStyles.fontSizeBtnActive,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => updateFontSize(sizeOption)}
-                >
-                  <Text
-                    style={[
-                      localStyles.fontSizeBtnText,
-                      isSelected && localStyles.fontSizeBtnTextActive,
-                      { fontSize: fontSizeValues[sizeOption] },
-                    ]}
-                  >
-                    {sizeOption.toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         </View>
 
         {/* Interactive Walkthroughs Section */}
@@ -435,7 +388,11 @@ export default function SettingsTab({
         <View style={{ marginBottom: 16 }}>
           <Text style={localStyles.sectionLabel}>SUPPORT & COMPLIANCE</Text>
 
-          <TouchableOpacity style={localStyles.skeuoCard} activeOpacity={0.75}>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            activeOpacity={0.75}
+            onPress={() => setActiveLegalDoc('privacy')}
+          >
             <View style={localStyles.cardContentRow}>
               <View style={localStyles.iconBox}>
                 <Lock size={18} color="#047857" />
@@ -450,7 +407,11 @@ export default function SettingsTab({
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={localStyles.skeuoCard} activeOpacity={0.75}>
+          <TouchableOpacity
+            style={localStyles.skeuoCard}
+            activeOpacity={0.75}
+            onPress={() => setActiveLegalDoc('terms')}
+          >
             <View style={localStyles.cardContentRow}>
               <View style={localStyles.iconBox}>
                 <FileCheck size={18} color="#047857" />
@@ -582,6 +543,13 @@ export default function SettingsTab({
       <PayMongoDoctorGuideModal
         visible={showPayMongoGuide}
         onClose={() => setShowPayMongoGuide(false)}
+      />
+
+      {/* Privacy Policy & Terms Modal */}
+      <LegalDocumentModal
+        visible={!!activeLegalDoc}
+        docType={activeLegalDoc}
+        onClose={() => setActiveLegalDoc(null)}
       />
     </View>
   );
@@ -730,37 +698,6 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-
-  // Text Size Buttons
-  fontSizeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderTopColor: '#FFFFFF',
-    borderLeftColor: '#E2E8F0',
-    borderRightColor: '#CBD5E1',
-    borderBottomColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fontSizeBtnActive: {
-    backgroundColor: '#047857',
-    borderTopColor: '#047857',
-    borderLeftColor: '#047857',
-    borderRightColor: '#064E3B',
-    borderBottomColor: '#022C22',
-    borderBottomWidth: 2.5,
-  },
-  fontSizeBtnText: {
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.5,
-  },
-  fontSizeBtnTextActive: {
-    color: '#FFFFFF',
   },
 
   // Footer

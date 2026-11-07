@@ -81,6 +81,8 @@ export default function RootLayout() {
         const data = response.notification.request.content.data;
         handleNotificationData(data);
       }
+    }).catch((err) => {
+      console.warn("[RootLayout] Error fetching last notification response:", err);
     });
 
     return () => {
@@ -142,8 +144,8 @@ export default function RootLayout() {
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // Routing is paused during initial onboarding tour
-    if (inOnboarding) return;
+    // Routing is paused during initial onboarding tour or oauth-redirect
+    if (inOnboarding || inOAuthRedirect) return;
 
     if (!user) {
       if (inDoctorGroup || inAdminGroup || inSetupProfile) {
@@ -214,16 +216,23 @@ export default function RootLayout() {
               return;
             }
 
-            // Case B: ASSISTANT LOGIN -> fetches from assistants table
+            // Case B: ASSISTANT LOGIN -> check doctors table (role='assistant') or assistants table
             if (effectiveRole === "assistant") {
-              console.log("[RootLayout] Querying assistants table for user_id:", user.id);
-              const { data: assistantRecord } = await supabase
-                .from("assistants")
-                .select("*")
-                .eq("user_id", user.id)
-                .maybeSingle();
+              console.log("[RootLayout] Querying doctors & assistants tables for user_id:", user.id);
+              const [{ data: docAssistantRecord }, { data: assistantRecord }] = await Promise.all([
+                supabase
+                  .from("doctors")
+                  .select("*")
+                  .or(`user_id.eq.${user.id},id.eq.${user.id}`)
+                  .maybeSingle(),
+                supabase
+                  .from("assistants")
+                  .select("*")
+                  .eq("user_id", user.id)
+                  .maybeSingle(),
+              ]);
 
-              if (!assistantRecord) {
+              if (!docAssistantRecord && !assistantRecord) {
                 console.log("[RootLayout] No assistant profile found, routing to /setup-profile");
                 router.replace("/setup-profile");
                 return;
