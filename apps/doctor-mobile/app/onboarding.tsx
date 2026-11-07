@@ -41,16 +41,18 @@ export default function DoctorOnboardingWizard() {
   useEffect(() => {
     (async () => {
       try {
-        const [pendingRole, { data: { session } }] = await Promise.all([
+        const [activeRole, pendingRole, { data: { session } }] = await Promise.all([
+          AsyncStorage.getItem("@active_session_role"),
           AsyncStorage.getItem("@pending_user_role"),
           supabase.auth.getSession(),
         ]);
+        const currentRole = activeRole || pendingRole;
 
-        if (pendingRole === "assistant") {
+        if (currentRole === "assistant") {
           setUserRole("assistant");
-        }
-
-        if (session?.user?.id) {
+        } else if (currentRole === "doctor") {
+          setUserRole("doctor");
+        } else if (session?.user?.id) {
           setUserId(session.user.id);
           const { data: profile } = await supabase
             .from("profiles")

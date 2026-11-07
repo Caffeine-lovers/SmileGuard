@@ -151,46 +151,33 @@ export default function RootLayout() {
         router.replace("/");
       }
     } else {
-      if (inAdminGroup) return; // (admin)/_layout.tsx owns its own guard
+      if (inAdminGroup) {
+        (async () => {
+          const [activeRole, pendingRole] = await Promise.all([
+            AsyncStorage.getItem("@active_session_role"),
+            AsyncStorage.getItem("@pending_user_role"),
+          ]);
+          const currentRole = activeRole || pendingRole;
+          if (currentRole && currentRole !== "admin") {
+            console.log("[RootLayout] User in admin group with non-admin token, routing to /(doctor)/dashboard");
+            router.replace("/(doctor)/dashboard");
+          }
+        })();
+        return;
+      }
 
       if (!inDoctorGroup && !inSetupProfile) {
         console.log("[RootLayout] User exists, checking profile before dashboard...");
         (async () => {
           try {
-            const [savedCodeRaw, savedRole] = await Promise.all([
+            const [savedCodeRaw, savedRole, activeRoleRaw, activeCodeRaw] = await Promise.all([
               AsyncStorage.getItem("@pending_doctor_access_code"),
               AsyncStorage.getItem("@pending_user_role"),
+              AsyncStorage.getItem("@active_session_role"),
+              AsyncStorage.getItem("@active_access_code"),
             ]);
-            const savedCode = (savedCodeRaw || "").trim().toUpperCase();
-
-            const handleAccessBlock = (message: string) => {
-              Alert.alert(
-                "Access Blocked",
-                message,
-                [
-                  {
-                    text: "OK",
-                    onPress: async () => {
-                      try {
-                        await supabase.auth.signOut();
-                        await AsyncStorage.multiRemove([
-                          "supabase.auth.token",
-                          "supabase.auth.refreshToken",
-                          "supabase.auth.user",
-                          "@pending_doctor_access_code",
-                          "@pending_user_role",
-                        ]);
-                      } catch (e) {
-                        console.warn("[RootLayout] Sign out error on access block:", e);
-                      } finally {
-                        router.replace("/");
-                      }
-                    },
-                  },
-                ],
-                { cancelable: false }
-              );
-            };
+            const savedCode = (savedCodeRaw || activeCodeRaw || "").trim().toUpperCase();
+            const tokenRole = savedRole || activeRoleRaw;
 
             // 0. Check profiles table first
             const { data: profile } = await supabase
@@ -199,23 +186,41 @@ export default function RootLayout() {
               .eq("id", user.id)
               .maybeSingle();
 
-            const effectiveRole = savedRole || profile?.role;
+            // The access code token acts on which dashboard is showing!
+            const effectiveRole = tokenRole || profile?.role || "doctor";
 
-            // Case A: ADMIN LOGIN -> fetches from admins table
-            if (effectiveRole === "admin" || profile?.role === "admin") {
-              const { data: adminRecord } = await supabase
-                .from("admins")
-                .select("id")
-                .eq("user_id", user.id)
-                .maybeSingle();
+            // Case A: ADMIN LOGIN -> token is admin
+            if (effectiveRole === "admin") {
+              await AsyncStorage.setItem("@active_session_role", "admin");
+              if (savedCode) {
+                await AsyncStorage.setItem("@active_access_code", savedCode);
+                try {
+                  await supabase.rpc("claim_admin_access", {
+                    p_code: savedCode,
+                    p_platform: Platform.OS,
+                  });
+                } catch (e) {
+                  console.warn("[RootLayout] claim_admin_access note:", e);
+                }
+              }
 
+              if (profile?.role !== "admin") {
+                await supabase.from("profiles").update({ role: "admin" }).eq("id", user.id);
+              }
+
+              await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
               console.log("[RootLayout] Admin user detected, routing to /(admin)/dashboard");
               router.replace("/(admin)/dashboard");
               return;
             }
 
-            // Case B: ASSISTANT LOGIN -> fetches from assistants table
+            // Case B: ASSISTANT LOGIN -> token is assistant
             if (effectiveRole === "assistant") {
+              await AsyncStorage.setItem("@active_session_role", "assistant");
+              if (savedCode) {
+                await AsyncStorage.setItem("@active_access_code", savedCode);
+              }
+
               console.log("[RootLayout] Querying assistants table for user_id:", user.id);
               const { data: assistantRecord } = await supabase
                 .from("assistants")
@@ -229,20 +234,20 @@ export default function RootLayout() {
                 return;
               }
 
-              // Verify access code alignment: doctor code used for assistant account
-              if (savedCode.length > 0 && savedRole === "doctor") {
-                console.warn("[RootLayout] Access Blocked: Doctor code entered for assistant account");
-                handleAccessBlock(
-                  "This account is registered as a Clinic Assistant. Please use your Assistant Access Code to log in."
-                );
-                return;
+              // Synchronize profiles table role so it reflects the assistant token for this session
+              if (profile?.role !== "assistant") {
+                await supabase.from("profiles").update({ role: "assistant" }).eq("id", user.id);
               }
 
               if (savedCode) {
-                await supabase.rpc("record_code_sign_in", {
-                  p_code: savedCode,
-                  p_platform: Platform.OS,
-                });
+                try {
+                  await supabase.rpc("record_code_sign_in", {
+                    p_code: savedCode,
+                    p_platform: Platform.OS,
+                  });
+                } catch (e) {
+                  console.warn("[RootLayout] record_code_sign_in note:", e);
+                }
               }
               await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
               console.log("[RootLayout] Assistant profile confirmed, routing to /(doctor)/dashboard");
@@ -250,7 +255,12 @@ export default function RootLayout() {
               return;
             }
 
-            // Case C: DOCTOR LOGIN -> fetches from doctors table
+            // Case C: DOCTOR LOGIN -> token is doctor
+            await AsyncStorage.setItem("@active_session_role", "doctor");
+            if (savedCode) {
+              await AsyncStorage.setItem("@active_access_code", savedCode);
+            }
+
             console.log("[RootLayout] Querying doctors table for user_id:", user.id);
             const { data: doctorRecord, error: doctorErr } = await supabase
               .from("doctors")
@@ -263,37 +273,14 @@ export default function RootLayout() {
             }
 
             if (!doctorRecord) {
-              // Also check if user is in assistants table
-              const { data: isAssistantRecord } = await supabase
-                .from("assistants")
-                .select("id")
-                .eq("user_id", user.id)
-                .maybeSingle();
-
-              if (isAssistantRecord) {
-                console.log("[RootLayout] User found in assistants table, routing to /(doctor)/dashboard");
-                router.replace("/(doctor)/dashboard");
-                return;
-              }
-
               console.log("[RootLayout] No doctor profile found in doctors table, routing to /setup-profile");
               router.replace("/setup-profile");
               return;
             }
 
-            const doctorTableRole = (
-              doctorRecord.role ||
-              (doctorRecord as any)?.ROLE ||
-              ""
-            ).toString().trim().toLowerCase();
-
-            // Verify access code alignment
-            if (savedCode.length > 0 && savedRole === "assistant" && doctorTableRole === "doctor") {
-              console.warn("[RootLayout] Access Blocked: assistant code entered for doctor role in doctors table");
-              handleAccessBlock(
-                "This account is registered as a Doctor. Please use your Doctor Clinic Access Code to log in."
-              );
-              return;
+            // Synchronize profiles table role so it reflects the doctor token for this session
+            if (profile?.role !== "doctor") {
+              await supabase.from("profiles").update({ role: "doctor" }).eq("id", user.id);
             }
 
             if (savedCode) {

@@ -20,18 +20,21 @@ export default function SetupProfilePage() {
   // Immediate safeguard: if user is admin, bypass setup-profile completely
   useEffect(() => {
     (async () => {
-      const [savedRole, { data: { session } }] = await Promise.all([
+      const [activeRole, savedRole, { data: { session } }] = await Promise.all([
+        AsyncStorage.getItem("@active_session_role"),
         AsyncStorage.getItem("@pending_user_role"),
         supabase.auth.getSession(),
       ]);
 
-      if (savedRole === "admin") {
+      const currentRole = activeRole || savedRole;
+
+      if (currentRole === "admin") {
         console.log("[SetupProfile] Admin role detected, redirecting to /(admin)/dashboard");
         router.replace("/(admin)/dashboard");
         return;
       }
 
-      if (session?.user?.id) {
+      if (!currentRole && session?.user?.id) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
@@ -49,14 +52,18 @@ export default function SetupProfilePage() {
 
   const handleProfileContinue = async () => {
     console.log("[SetupProfile] Profile setup complete, checking role...");
-    const savedRole = await AsyncStorage.getItem("@pending_user_role");
+    const [activeRole, savedRole] = await Promise.all([
+      AsyncStorage.getItem("@active_session_role"),
+      AsyncStorage.getItem("@pending_user_role"),
+    ]);
+    const currentRole = activeRole || savedRole;
 
-    if (savedRole === "admin") {
+    if (currentRole === "admin") {
       router.replace("/(admin)/dashboard");
       return;
     }
 
-    if (savedRole === "assistant") {
+    if (currentRole === "assistant") {
       console.log("[SetupProfile] Assistant role detected, bypassing clinic setup directly to onboarding");
       router.replace("/onboarding");
       return;
@@ -91,6 +98,8 @@ export default function SetupProfilePage() {
         "supabase.auth.user",
         "@pending_doctor_access_code",
         "@pending_user_role",
+        "@active_session_role",
+        "@active_access_code",
       ]);
     } catch (err) {
       console.warn("[SetupProfile] Error during signOut on cancel:", err);

@@ -162,6 +162,8 @@ export default function AuthModal({
       // Store valid access code and role in AsyncStorage for profile setup / dashboard routing
       await AsyncStorage.setItem("@pending_doctor_access_code", trimmedCode);
       await AsyncStorage.setItem("@pending_user_role", role);
+      await AsyncStorage.setItem("@active_access_code", trimmedCode);
+      await AsyncStorage.setItem("@active_session_role", role);
 
       console.log("[GoogleOAuth] Starting Google OAuth...");
 

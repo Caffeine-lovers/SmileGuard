@@ -35,9 +35,7 @@ import {
   CalendarDays,
 } from "lucide-react-native";
 import { supabase } from "@smileguard/supabase-client";
-import { fetchWalkInPatients } from "../../lib/profilesPatients";
 import { createDirectAppointment, getDoctorAppointmentsByDate } from "../../lib/appointmentService";
-import AddPatientModal from "../patientrecord/AddPatientModal";
 import { useClinic } from "../../contexts/ClinicContext";
 
 interface AddAppointmentModalProps {
@@ -62,17 +60,74 @@ const DEFAULT_SERVICES = [
   "Dentures / Prosthetics",
 ];
 
+// Standard fallback times (both hourly and 30-minute intervals)
 const STANDARD_TIMES = [
   "08:00 AM",
+  "08:30 AM",
   "09:00 AM",
+  "09:30 AM",
   "10:00 AM",
+  "10:30 AM",
   "11:00 AM",
+  "11:30 AM",
+  "12:00 PM",
+  "12:30 PM",
   "01:00 PM",
+  "01:30 PM",
   "02:00 PM",
+  "02:30 PM",
   "03:00 PM",
+  "03:30 PM",
   "04:00 PM",
+  "04:30 PM",
   "05:00 PM",
 ];
+
+// Service duration dictionary derived from website
+const SERVICE_DURATIONS: Record<string, number> = {
+  Cleaning: 30,
+  Whitening: 60,
+  Fillings: 60,
+  Filling: 60,
+  "Root Canal": 90,
+  Extraction: 30,
+  "Braces Consultation": 60,
+  Braces: 60,
+  "Implants Consultation": 60,
+  Implants: 60,
+  "X-Ray": 30,
+  "Check-up": 30,
+  Checkup: 30,
+  Consultation: 30,
+};
+
+function getServiceDuration(name?: string | null): number {
+  if (!name) return 30;
+  const norm = name.trim().toLowerCase();
+  for (const [k, d] of Object.entries(SERVICE_DURATIONS)) {
+    if (norm === k.toLowerCase() || norm.includes(k.toLowerCase()) || k.toLowerCase().includes(norm)) {
+      return d;
+    }
+  }
+  return 30; // default 30 minutes
+}
+
+function formatDuration(minutes?: number | null): string {
+  if (!minutes || minutes <= 0) return "30 mins";
+  if (minutes < 60) return `${minutes} mins`;
+  const hrs = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  if (rem === 0) return `${hrs} hr${hrs > 1 ? "s" : ""}`;
+  return `${hrs} hr${hrs > 1 ? "s" : ""} ${rem} mins`;
+}
+
+function formatMinutes(totalMins: number): string {
+  const h24 = Math.floor(totalMins / 60) % 24;
+  const min = totalMins % 60;
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${String(h12).padStart(2, "0")}:${String(min).padStart(2, "0")} ${period}`;
+}
 
 const MONTH_NAMES = [
   "January",
@@ -148,6 +203,26 @@ function format12HourTime(hour: number, minute: number): string {
   return `${String(displayHour).padStart(2, "0")}:${displayMinute} ${period}`;
 }
 
+function toMinutes(t: string): number {
+  if (!t) return NaN;
+  const cleaned = t.trim();
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!match) return NaN;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const period = match[3]?.toUpperCase();
+  if (period === "PM" && h < 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+function getEndTimeLabel(timeStr: string, serviceName: string): string {
+  const startMin = toMinutes(timeStr);
+  if (isNaN(startMin)) return "";
+  const duration = getServiceDuration(serviceName);
+  return formatMinutes(startMin + duration);
+}
+
 function normalizeTimeString(t: string): string {
   if (!t) return "";
   const cleaned = t.trim().toUpperCase();
@@ -185,6 +260,7 @@ export default function AddAppointmentModal({
     email?: string;
     contact?: string;
     dummy?: boolean;
+    avatar_url?: string;
   } | null>(null);
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(defaultDoctorId || null);
@@ -199,15 +275,19 @@ export default function AddAppointmentModal({
   const [appointmentTime, setAppointmentTime] = useState<string>("");
   const [notes, setNotes] = useState("");
 
+  // Time Interval Filter: "all" (both hourly and 30m), "60m" (hourly only), "30m" (:30 only)
+  const [timeIntervalFilter, setTimeIntervalFilter] = useState<"all" | "60m" | "30m">("all");
+
   // Blockout Dates state
   const [blockoutDates, setBlockoutDates] = useState<any[]>(propBlockoutDates || []);
 
-  // Patients Picker State (ONLY DUMMY PATIENTS)
+  // Patients Picker State (ALL PATIENTS: Registered & Walk-in Records)
   const [patientsList, setPatientsList] = useState<any[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [showPatientPicker, setShowPatientPicker] = useState(false);
-  const [showCreatePatientModal, setShowCreatePatientModal] = useState(false);
+  const [patientPage, setPatientPage] = useState(1);
+  const PATIENTS_PER_PAGE = 5;
 
   // Doctors list
   const [doctorsList, setDoctorsList] = useState<any[]>([]);
@@ -301,23 +381,79 @@ export default function AddAppointmentModal({
     }
   }, []);
 
-  // Fetch ONLY Dummy Patients
-  const fetchDummyPatients = useCallback(async () => {
+  // Fetch ALL Patients: Registered Patients (profiles) + Walk-in Records (dummy_patients)
+  const fetchAllPatientsList = useCallback(async () => {
     setLoadingPatients(true);
     try {
-      const walkInPatients = await fetchWalkInPatients();
-      const dummyList = (walkInPatients || []).map((w: any) => ({
+      // 1. Fetch registered patients from profiles table
+      const { data: profilePatients, error: profError } = await supabase
+        .from("profiles")
+        .select("id, name, email, phone_number, role, created_at, avatar_url")
+        .eq("role", "patient")
+        .order("name", { ascending: true });
+
+      if (profError) {
+        console.warn("[AddAppointmentModal] Error fetching profile patients:", profError);
+      }
+
+      // 2. Fetch medical intake for additional contact details
+      const { data: medicalData } = await supabase
+        .from("medical_intake")
+        .select("patient_id, phone, allergies, gender");
+
+      const medicalMap = (medicalData || []).reduce((acc: any, m: any) => {
+        if (m.patient_id) {
+          acc[m.patient_id] = m;
+        }
+        return acc;
+      }, {});
+
+      // 3. Fetch walk-in / dummy patients
+      let walkIns: any[] = [];
+      try {
+        const { data: dummyData } = await supabase
+          .from("dummy_patients")
+          .select("*")
+          .order("name", { ascending: true });
+        if (dummyData) {
+          walkIns = dummyData;
+        }
+      } catch {
+        // Fallback if table unavailable
+      }
+
+      const registeredList = (profilePatients || []).map((p: any) => {
+        const med = medicalMap[p.id] || {};
+        return {
+          id: p.id,
+          name: p.name || "Patient",
+          email: p.email || "",
+          contact: p.phone_number || med.phone || "",
+          allergies: med.allergies || "None",
+          dummy: false,
+          avatar_url: p.avatar_url,
+          created_at: p.created_at,
+        };
+      });
+
+      const walkInList = (walkIns || []).map((w: any) => ({
         id: w.id,
-        name: w.name,
+        name: w.name || "Walk-in Patient",
         email: w.email || "",
-        phone: w.phone || "",
+        contact: w.phone || "",
         allergies: w.allergies || "None",
         dummy: true,
+        created_at: w.created_at,
       }));
-      setPatientsList(dummyList);
-      return dummyList;
+
+      const combined = [...registeredList, ...walkInList].sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "")
+      );
+
+      setPatientsList(combined);
+      return combined;
     } catch (err) {
-      console.error("[AddAppointmentModal] Error fetching dummy patients:", err);
+      console.error("[AddAppointmentModal] Error fetching patients:", err);
       return [];
     } finally {
       setLoadingPatients(false);
@@ -398,7 +534,7 @@ export default function AddAppointmentModal({
   // On modal open
   useEffect(() => {
     if (visible) {
-      fetchDummyPatients();
+      fetchAllPatientsList();
       fetchDoctors();
       fetchBlockoutDates();
       fetchDayAppointments(appointmentDate);
@@ -406,7 +542,7 @@ export default function AddAppointmentModal({
     }
   }, [
     visible,
-    fetchDummyPatients,
+    fetchAllPatientsList,
     fetchDoctors,
     fetchBlockoutDates,
     fetchDayAppointments,
@@ -429,7 +565,7 @@ export default function AddAppointmentModal({
     }
   }, [visible, showDatePicker, pickerCalendarMonth, fetchMonthAppointments]);
 
-  // Compute Time Slots based on Clinic Setup Operating Hours for the Day
+  // Compute Time Slots in 30-minute intervals (hourly and 30-minute interval from website)
   const availableTimeSlots = useMemo(() => {
     if (!appointmentDate || !/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) {
       return STANDARD_TIMES;
@@ -441,17 +577,18 @@ export default function AddAppointmentModal({
       return [];
     }
 
-    const openTime = parse12HourTime(sched.opening_time || "10:00 AM");
-    const closeTime = parse12HourTime(sched.closing_time || "03:00 PM");
+    const openTime = parse12HourTime(sched.opening_time || "08:00 AM");
+    const closeTime = parse12HourTime(sched.closing_time || "05:00 PM");
 
     const slots: string[] = [];
-    let curH = openTime.hour;
-    let curM = openTime.minute;
+    const openMin = openTime.hour * 60 + openTime.minute;
+    const closeMin = closeTime.hour * 60 + closeTime.minute;
 
-    // Generate slots in 1-hour increments up to closing hour
-    while (curH < closeTime.hour || (curH === closeTime.hour && curM < closeTime.minute)) {
-      slots.push(format12HourTime(curH, curM));
-      curH += 1;
+    // Generate slots in 30-minute intervals down to closing time
+    for (let t = openMin; t + 30 <= closeMin; t += 30) {
+      const h = Math.floor(t / 60);
+      const m = t % 60;
+      slots.push(format12HourTime(h, m));
     }
 
     if (slots.length === 0) {
@@ -459,6 +596,23 @@ export default function AddAppointmentModal({
     }
     return slots;
   }, [appointmentDate, clinicSchedule]);
+
+  // Filtered slots according to interval selection (All 30m vs Hourly only vs 30m only)
+  const displayedTimeSlots = useMemo(() => {
+    if (timeIntervalFilter === "60m") {
+      return availableTimeSlots.filter((slot) => {
+        const { minute } = parse12HourTime(slot);
+        return minute === 0;
+      });
+    }
+    if (timeIntervalFilter === "30m") {
+      return availableTimeSlots.filter((slot) => {
+        const { minute } = parse12HourTime(slot);
+        return minute === 30;
+      });
+    }
+    return availableTimeSlots;
+  }, [availableTimeSlots, timeIntervalFilter]);
 
   // When availableTimeSlots change (e.g. date changed), clear appointmentTime if it's no longer valid
   useEffect(() => {
@@ -518,7 +672,7 @@ export default function AddAppointmentModal({
     );
   };
 
-  // 4. Block out if dummy patient is already scheduled on this date
+  // 4. Block out if patient is already scheduled on this date
   const patientExistingAppointment = useMemo(() => {
     if (!selectedPatient || !dayAppointments || dayAppointments.length === 0) return null;
     return dayAppointments.find((a) => {
@@ -536,37 +690,68 @@ export default function AddAppointmentModal({
 
   const isPatientScheduledOnDate = !!patientExistingAppointment;
 
-  // 5. Booked Time Slots Check (for any appointment or this patient)
-  // Make the time slot available if the status of the appointment is cancelled or declined
-  const bookedSlotTimes = useMemo(() => {
-    const set = new Set<string>();
+  // 5. Booked Time Intervals & Duration-Aware Collision Check (derived from website)
+  const busyIntervals = useMemo(() => {
+    const intervals: Array<{ start: number; end: number; timeStr: string }> = [];
     (dayAppointments || []).forEach((a) => {
       const apptDate = (a.appointment_date || a.date || "").split("T")[0].split(" ")[0];
       if (apptDate && appointmentDate && apptDate !== appointmentDate) {
-        return; // Skip appointments from other dates
+        return;
       }
-      // If the appointment is cancelled, declined, or no-show, NEVER book the slot!
       if (isCancelledOrDeclined(a.status)) {
         return;
       }
-      // Only active statuses (scheduled, pending, confirmed) book the slot
       const status = String(a.status || "").toLowerCase().trim();
       if (status && status !== "scheduled" && status !== "pending" && status !== "confirmed" && status !== "completed") {
         return;
       }
       const rawTime = a.appointment_time || a.time;
-      if (rawTime) {
-        set.add(normalizeTimeString(rawTime));
-      }
+      if (!rawTime) return;
+      const startMin = toMinutes(rawTime);
+      if (isNaN(startMin)) return;
+      const duration = a.duration || getServiceDuration(a.service);
+      intervals.push({ start: startMin, end: startMin + duration, timeStr: rawTime });
     });
-    return set;
+    return intervals;
   }, [dayAppointments, appointmentDate]);
 
   const isTimeSlotBooked = useCallback(
     (slotStr: string) => {
-      return bookedSlotTimes.has(normalizeTimeString(slotStr));
+      const slotMin = toMinutes(slotStr);
+      if (isNaN(slotMin)) return false;
+
+      // 1. Is slot inside an existing appointment's occupied duration?
+      for (const b of busyIntervals) {
+        if (slotMin >= b.start && slotMin < b.end) {
+          return true;
+        }
+      }
+
+      // 2. Does scheduling current service starting at slotMin overlap an existing appointment?
+      const curDuration = getServiceDuration(service);
+      const curEnd = slotMin + curDuration;
+      for (const b of busyIntervals) {
+        if (slotMin < b.end && curEnd > b.start) {
+          return true;
+        }
+      }
+
+      // 3. Does it exceed clinic closing time?
+      if (appointmentDate && clinicSchedule) {
+        const dayName = getDayName(appointmentDate);
+        const sched = clinicSchedule[dayName];
+        if (sched && sched.closing_time) {
+          const closing = parse12HourTime(sched.closing_time);
+          const closeMin = closing.hour * 60 + closing.minute;
+          if (curEnd > closeMin) {
+            return true;
+          }
+        }
+      }
+
+      return false;
     },
-    [bookedSlotTimes]
+    [busyIntervals, service, appointmentDate, clinicSchedule]
   );
 
   const isSelectedTimeBooked = useMemo(() => {
@@ -574,10 +759,34 @@ export default function AddAppointmentModal({
     return isTimeSlotBooked(appointmentTime);
   }, [appointmentTime, isTimeSlotBooked]);
 
+  // Patient records pagination state & filtering
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch.trim()) return patientsList;
+    const q = patientSearch.toLowerCase().trim();
+    return patientsList.filter((p) => {
+      const nameMatch = p.name?.toLowerCase().includes(q);
+      const emailMatch = p.email?.toLowerCase().includes(q);
+      const phoneMatch = (p.contact || p.phone)?.includes(q);
+      return nameMatch || emailMatch || phoneMatch;
+    });
+  }, [patientsList, patientSearch]);
+
+  const totalPatientPages = Math.max(1, Math.ceil(filteredPatients.length / PATIENTS_PER_PAGE));
+  const paginatedPatients = useMemo(() => {
+    const start = (patientPage - 1) * PATIENTS_PER_PAGE;
+    return filteredPatients.slice(start, start + PATIENTS_PER_PAGE);
+  }, [filteredPatients, patientPage]);
+
+  // Keep patientPage within bounds
+  useEffect(() => {
+    if (patientPage > totalPatientPages) {
+      setPatientPage(totalPatientPages);
+    }
+  }, [totalPatientPages, patientPage]);
+
   // 6. Master Validation Rule: Is OK to Schedule Appointment
   const isOkToSchedule = useMemo(() => {
     if (!selectedPatient) return false;
-    if (!selectedPatient.dummy) return false;
     const finalService = service.trim();
     if (!finalService) return false;
     if (!appointmentDate || !/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) return false;
@@ -602,16 +811,18 @@ export default function AddAppointmentModal({
     appointmentTime,
     isSelectedTimeBooked,
   ]);
-
   const resetForm = () => {
     setSelectedPatient(null);
     setService(availableServices[0] || DEFAULT_SERVICES[0]);
     setAppointmentDate(initialDate || new Date().toISOString().split("T")[0]);
     setAppointmentTime("");
+    setTimeIntervalFilter("all");
     setNotes("");
     setErrorMessage(null);
     setShowPatientPicker(false);
     setShowDatePicker(false);
+    setPatientSearch("");
+    setPatientPage(1);
   };
 
   const handleClose = () => {
@@ -621,7 +832,7 @@ export default function AddAppointmentModal({
 
   const handleSubmit = async () => {
     if (!selectedPatient) {
-      setErrorMessage("Please select a dummy patient for this appointment.");
+      setErrorMessage("Please select a patient for this appointment.");
       return;
     }
     const finalDate = appointmentDate.trim();
@@ -674,7 +885,7 @@ export default function AddAppointmentModal({
     try {
       const result = await createDirectAppointment({
         patient_id: selectedPatient.id,
-        is_dummy: true,
+        is_dummy: !!selectedPatient.dummy,
         dentist_id: selectedDoctorId || null,
         service: finalService,
         appointment_date: finalDate,
@@ -710,16 +921,6 @@ export default function AddAppointmentModal({
     }
   };
 
-  const filteredPatients = patientsList.filter((p) => {
-    if (!patientSearch.trim()) return true;
-    const q = patientSearch.toLowerCase();
-    return (
-      p.name?.toLowerCase().includes(q) ||
-      p.email?.toLowerCase().includes(q) ||
-      p.phone?.includes(q)
-    );
-  });
-
   return (
     <Modal
       visible={visible}
@@ -743,7 +944,7 @@ export default function AddAppointmentModal({
                 <Text style={styles.assistantBadgeText}>CLINIC BOOKING</Text>
               </View>
             </View>
-            <Text style={styles.subtitle}>Directly schedule appointments for walk-in dummy patients</Text>
+            <Text style={styles.subtitle}>Directly schedule appointments for patients</Text>
           </View>
           <TouchableOpacity
             style={styles.closeBtn}
@@ -773,24 +974,17 @@ export default function AddAppointmentModal({
             showsVerticalScrollIndicator={false}
           >
             {/* ───────────────────────────────────────── */}
-            {/* 1. DUMMY PATIENT SELECTION                */}
+            {/* 1. PATIENT SELECTION                      */}
             {/* ───────────────────────────────────────── */}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
                 <View style={styles.labelGroup}>
                   <User size={15} color="#047857" />
                   <Text style={styles.label}>
-                    Dummy Patient <Text style={styles.required}>*</Text>
+                    Patient <Text style={styles.required}>*</Text>
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.quickAddPatientBtn}
-                  onPress={() => setShowCreatePatientModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <Plus size={13} color="#047857" />
-                  <Text style={styles.quickAddPatientBtnText}>New Dummy</Text>
-                </TouchableOpacity>
+                {/* Notice: "+ New dummy" button removed per requirement */}
               </View>
 
               <TouchableOpacity
@@ -810,8 +1004,10 @@ export default function AddAppointmentModal({
                         <Text style={styles.selectedPatientName} numberOfLines={1}>
                           {selectedPatient.name}
                         </Text>
-                        <View style={styles.dummyBadge}>
-                          <Text style={styles.dummyBadgeText}>DUMMY</Text>
+                        <View style={selectedPatient.dummy ? styles.walkInBadge : styles.patientBadge}>
+                          <Text style={selectedPatient.dummy ? styles.walkInBadgeText : styles.patientBadgeText}>
+                            {selectedPatient.dummy ? "WALK-IN" : "PATIENT"}
+                          </Text>
                         </View>
                       </View>
 
@@ -833,7 +1029,10 @@ export default function AddAppointmentModal({
                   </View>
                 ) : (
                   <View style={styles.emptyPatientRow}>
-                    <Text style={styles.emptyPatientText}>Tap to choose a dummy patient...</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <User size={16} color="#047857" />
+                      <Text style={styles.emptyPatientText}>Choose existing patient</Text>
+                    </View>
                     <ChevronDown size={18} color="#94A3B8" />
                   </View>
                 )}
@@ -984,7 +1183,7 @@ export default function AddAppointmentModal({
                 </View>
               )}
 
-              {/* Time Slots (Operating Hours) */}
+              {/* Time Slots (Operating Hours & 30-Minute/Hourly Intervals) */}
               <View style={[styles.cardHeaderRow, { marginTop: 16 }]}>
                 <View style={styles.labelGroup}>
                   <Clock size={15} color="#047857" />
@@ -999,7 +1198,74 @@ export default function AddAppointmentModal({
                 </Text>
               </View>
 
-              {!isDayClosed && availableTimeSlots.length > 0 && !appointmentTime && (
+              {/* Interval Filter Tabs (Website-derived: All 30m / Hourly intervals) */}
+              <View style={styles.intervalFilterRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.intervalFilterTab,
+                    timeIntervalFilter === "all" && styles.intervalFilterTabActive,
+                  ]}
+                  onPress={() => setTimeIntervalFilter("all")}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.intervalFilterTabText,
+                      timeIntervalFilter === "all" && styles.intervalFilterTabTextActive,
+                    ]}
+                  >
+                    All Slots (30m)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.intervalFilterTab,
+                    timeIntervalFilter === "60m" && styles.intervalFilterTabActive,
+                  ]}
+                  onPress={() => setTimeIntervalFilter("60m")}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.intervalFilterTabText,
+                      timeIntervalFilter === "60m" && styles.intervalFilterTabTextActive,
+                    ]}
+                  >
+                    Hourly (:00)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.intervalFilterTab,
+                    timeIntervalFilter === "30m" && styles.intervalFilterTabActive,
+                  ]}
+                  onPress={() => setTimeIntervalFilter("30m")}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.intervalFilterTabText,
+                      timeIntervalFilter === "30m" && styles.intervalFilterTabTextActive,
+                    ]}
+                  >
+                    30-Minute (:30)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Selected Time & Duration Summary Banner */}
+              {appointmentTime && service ? (
+                <View style={styles.selectedTimeSummaryBanner}>
+                  <Clock size={13} color="#047857" style={{ marginRight: 6 }} />
+                  <Text style={styles.selectedTimeSummaryText}>
+                    Selected: {appointmentTime} – {getEndTimeLabel(appointmentTime, service)} ({formatDuration(getServiceDuration(service))})
+                  </Text>
+                </View>
+              ) : null}
+
+              {!isDayClosed && displayedTimeSlots.length > 0 && !appointmentTime && (
                 <Text style={styles.timeSelectHintText}>
                   Please tap an available time slot below:
                 </Text>
@@ -1009,13 +1275,13 @@ export default function AddAppointmentModal({
                 <View style={styles.noSlotsBox}>
                   <Text style={styles.noSlotsText}>Clinic is closed on this day.</Text>
                 </View>
-              ) : availableTimeSlots.length === 0 ? (
+              ) : displayedTimeSlots.length === 0 ? (
                 <View style={styles.noSlotsBox}>
-                  <Text style={styles.noSlotsText}>No operating hours configured for this day.</Text>
+                  <Text style={styles.noSlotsText}>No time slots match the selected interval.</Text>
                 </View>
               ) : (
                 <View style={styles.pillGroup}>
-                  {availableTimeSlots.map((t) => {
+                  {displayedTimeSlots.map((t) => {
                     const isBooked = isTimeSlotBooked(t);
                     const isSelected = appointmentTime === t;
                     const isPatientSlot =
@@ -1120,7 +1386,7 @@ export default function AddAppointmentModal({
               <AlertCircle size={14} color="#D97706" style={{ marginRight: 6 }} />
               <Text style={styles.validationNoticeText}>
                 {!selectedPatient
-                  ? "Please choose a dummy patient."
+                  ? "Please choose a patient."
                   : isDateBlockedOut
                   ? `Cannot schedule: Date is blocked (${blockoutReason}).`
                   : isDayClosed
@@ -1128,7 +1394,7 @@ export default function AddAppointmentModal({
                   : isDateFull
                   ? "Cannot schedule: Date is FULL (3/3 scheduled)."
                   : isPatientScheduledOnDate
-                  ? "Cannot schedule: Dummy patient already scheduled on this date."
+                  ? "Cannot schedule: Patient already scheduled on this date."
                   : !appointmentTime || isSelectedTimeBooked
                   ? "Please select an available time slot."
                   : "Please complete all required fields."}
@@ -1175,7 +1441,7 @@ export default function AddAppointmentModal({
         </View>
 
         {/* ───────────────────────────────────────── */}
-        {/* MODAL: CHOOSE DUMMY PATIENT               */}
+        {/* MODAL: CHOOSE EXISTING PATIENT            */}
         {/* ───────────────────────────────────────── */}
         <Modal
           visible={showPatientPicker}
@@ -1186,8 +1452,8 @@ export default function AddAppointmentModal({
           <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }} edges={["top", "bottom"]}>
             <View style={styles.pickerHeader}>
               <View>
-                <Text style={styles.pickerTitle}>CHOOSE DUMMY PATIENT</Text>
-                <Text style={styles.pickerSubtitle}>Select a dummy patient profile for this appointment</Text>
+                <Text style={styles.pickerTitle}>CHOOSE EXISTING PATIENT</Text>
+                <Text style={styles.pickerSubtitle}>Select an existing patient profile for this appointment</Text>
               </View>
               <TouchableOpacity
                 style={styles.closeBtn}
@@ -1204,97 +1470,183 @@ export default function AddAppointmentModal({
                 placeholder="Search by name, email, or phone..."
                 placeholderTextColor="#94A3B8"
                 value={patientSearch}
-                onChangeText={setPatientSearch}
+                onChangeText={(text) => {
+                  setPatientSearch(text);
+                  setPatientPage(1);
+                }}
                 autoFocus
               />
               {patientSearch ? (
-                <TouchableOpacity onPress={() => setPatientSearch("")}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setPatientSearch("");
+                    setPatientPage(1);
+                  }}
+                >
                   <X size={16} color="#94A3B8" />
                 </TouchableOpacity>
               ) : null}
             </View>
 
-            <View style={styles.newPatientShortcutRow}>
-              <TouchableOpacity
-                style={styles.newPatientShortcutBtn}
-                onPress={() => {
-                  setShowPatientPicker(false);
-                  setShowCreatePatientModal(true);
-                }}
-                activeOpacity={0.8}
-              >
-                <Plus size={15} color="#047857" style={{ marginRight: 6 }} />
-                <Text style={styles.newPatientShortcutText}>Register New Dummy Patient</Text>
-              </TouchableOpacity>
+            {/* Patients Count & Pagination Meta Header */}
+            <View style={styles.patientMetaHeader}>
+              <Text style={styles.patientMetaText}>
+                {filteredPatients.length} patient{filteredPatients.length === 1 ? "" : "s"} found
+                {filteredPatients.length > 0 ? ` • Page ${patientPage} of ${totalPatientPages}` : ""}
+              </Text>
             </View>
 
             {loadingPatients ? (
               <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color="#047857" />
-                <Text style={{ marginTop: 10, fontSize: 13, color: "#64748B" }}>Loading dummy patients...</Text>
+                <Text style={{ marginTop: 10, fontSize: 13, color: "#64748B" }}>Loading patients...</Text>
               </View>
             ) : filteredPatients.length === 0 ? (
               <View style={styles.centerContainer}>
                 <User size={36} color="#CBD5E1" />
                 <Text style={{ marginTop: 10, fontSize: 14, fontWeight: "700", color: "#64748B" }}>
-                  No dummy patients found
+                  No patients found
                 </Text>
                 <Text style={{ marginTop: 4, fontSize: 12, color: "#94A3B8" }}>
-                  Try a different search or register a new dummy patient
+                  Try a different search query
                 </Text>
               </View>
             ) : (
-              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
-                {filteredPatients.map((p) => {
-                  const isCurrent = selectedPatient?.id === p.id;
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[styles.patientItemRow, isCurrent && styles.patientItemRowSelected]}
-                      onPress={() => {
-                        setSelectedPatient({
-                          id: p.id,
-                          name: p.name || "Dummy Patient",
-                          email: p.email || "",
-                          contact: p.phone,
-                          dummy: true,
-                        });
-                        setShowPatientPicker(false);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.patientItemAvatar}>
-                        <Text style={styles.patientItemAvatarText}>
-                          {(p.name || "D").charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text style={styles.patientItemName}>{p.name}</Text>
-                          <View style={styles.dummyBadge}>
-                            <Text style={styles.dummyBadgeText}>DUMMY</Text>
-                          </View>
-                        </View>
-
-                        {/* Display Email Prominently */}
-                        <View style={styles.patientEmailRow}>
-                          <Mail size={12} color="#047857" style={{ marginRight: 4 }} />
-                          <Text style={styles.patientItemEmail} numberOfLines={1}>
-                            {p.email ? p.email : "No email registered"}
+              <View style={{ flex: 1 }}>
+                <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                  {paginatedPatients.map((p) => {
+                    const isCurrent = selectedPatient?.id === p.id;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[styles.patientItemRow, isCurrent && styles.patientItemRowSelected]}
+                        onPress={() => {
+                          setSelectedPatient({
+                            id: p.id,
+                            name: p.name || "Patient",
+                            email: p.email || "",
+                            contact: p.contact || p.phone,
+                            dummy: !!p.dummy,
+                          });
+                          setShowPatientPicker(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.patientItemAvatar}>
+                          <Text style={styles.patientItemAvatarText}>
+                            {(p.name || "P").charAt(0).toUpperCase()}
                           </Text>
                         </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={styles.patientItemName}>{p.name}</Text>
+                            <View style={p.dummy ? styles.walkInBadge : styles.patientBadge}>
+                              <Text style={p.dummy ? styles.walkInBadgeText : styles.patientBadgeText}>
+                                {p.dummy ? "WALK-IN" : "PATIENT"}
+                              </Text>
+                            </View>
+                          </View>
 
-                        {p.phone ? (
-                          <Text style={styles.patientItemMeta}>Phone: {p.phone}</Text>
+                          {/* Display Email Prominently */}
+                          <View style={styles.patientEmailRow}>
+                            <Mail size={12} color="#047857" style={{ marginRight: 4 }} />
+                            <Text style={styles.patientItemEmail} numberOfLines={1}>
+                              {p.email ? p.email : "No email registered"}
+                            </Text>
+                          </View>
+
+                          {p.contact || p.phone ? (
+                            <Text style={styles.patientItemMeta}>Phone: {p.contact || p.phone}</Text>
+                          ) : null}
+                        </View>
+                        {isCurrent ? (
+                          <Check size={18} color="#047857" strokeWidth={2.5} />
                         ) : null}
-                      </View>
-                      {isCurrent ? (
-                        <Check size={18} color="#047857" strokeWidth={2.5} />
-                      ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Pagination Controls */}
+                {totalPatientPages > 1 && (
+                  <View style={styles.paginationRow}>
+                    <TouchableOpacity
+                      style={[styles.pageNavBtn, patientPage === 1 && styles.pageNavBtnDisabled]}
+                      onPress={() => setPatientPage((prev) => Math.max(1, prev - 1))}
+                      disabled={patientPage === 1}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronLeft size={16} color={patientPage === 1 ? "#94A3B8" : "#047857"} />
+                      <Text style={[styles.pageNavBtnText, patientPage === 1 && styles.pageNavBtnTextDisabled]}>
+                        Prev
+                      </Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+
+                    <View style={styles.pageNumbersRow}>
+                      {Array.from({ length: totalPatientPages }).map((_, idx) => {
+                        const pageNum = idx + 1;
+                        if (
+                          totalPatientPages > 6 &&
+                          Math.abs(pageNum - patientPage) > 2 &&
+                          pageNum !== 1 &&
+                          pageNum !== totalPatientPages
+                        ) {
+                          if (pageNum === 2 || pageNum === totalPatientPages - 1) {
+                            return (
+                              <Text key={`dot-${pageNum}`} style={styles.pageEllipsis}>
+                                •••
+                              </Text>
+                            );
+                          }
+                          return null;
+                        }
+
+                        const isSelected = pageNum === patientPage;
+                        return (
+                          <TouchableOpacity
+                            key={pageNum}
+                            style={[styles.pageNumberBtn, isSelected && styles.pageNumberBtnActive]}
+                            onPress={() => setPatientPage(pageNum)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.pageNumberText,
+                                isSelected && styles.pageNumberTextActive,
+                              ]}
+                            >
+                              {pageNum}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.pageNavBtn,
+                        patientPage === totalPatientPages && styles.pageNavBtnDisabled,
+                      ]}
+                      onPress={() => setPatientPage((prev) => Math.min(totalPatientPages, prev + 1))}
+                      disabled={patientPage === totalPatientPages}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.pageNavBtnText,
+                          patientPage === totalPatientPages && styles.pageNavBtnTextDisabled,
+                        ]}
+                      >
+                        Next
+                      </Text>
+                      <ChevronRight
+                        size={16}
+                        color={patientPage === totalPatientPages ? "#94A3B8" : "#047857"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             )}
           </SafeAreaView>
         </Modal>
@@ -1523,28 +1875,6 @@ export default function AddAppointmentModal({
         </Modal>
 
         {/* ───────────────────────────────────────── */}
-        {/* EMBEDDED ADD PATIENT MODAL (CREATE DUMMY) */}
-        {/* ───────────────────────────────────────── */}
-        <AddPatientModal
-          visible={showCreatePatientModal}
-          onClose={() => setShowCreatePatientModal(false)}
-          onPatientAdded={async (newId) => {
-            setShowCreatePatientModal(false);
-            const dummyList = await fetchDummyPatients();
-            const found = dummyList?.find((p: any) => p.id === newId) as any;
-            if (found) {
-              setSelectedPatient({
-                id: found.id,
-                name: found.name,
-                email: found.email || "",
-                contact: found.phone,
-                dummy: true,
-              });
-            }
-          }}
-        />
-
-        {/* ───────────────────────────────────────── */}
         {/* SUCCESS CONFIRMATION MODAL                */}
         {/* ───────────────────────────────────────── */}
         <Modal
@@ -1569,7 +1899,7 @@ export default function AddAppointmentModal({
 
               <View style={styles.successSummaryCard}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Dummy Patient</Text>
+                  <Text style={styles.summaryLabel}>Patient</Text>
                   <Text style={styles.summaryValue}>{successCreatedAppointment?.patientName}</Text>
                 </View>
                 {successCreatedAppointment?.patientEmail ? (
@@ -1796,18 +2126,32 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0F172A",
   },
-  dummyBadge: {
-    backgroundColor: "#F3E8FF",
+  patientBadge: {
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#D8B4FE",
+    borderColor: "#A7F3D0",
     borderRadius: 4,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
   },
-  dummyBadgeText: {
+  patientBadgeText: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#7E22CE",
+    color: "#047857",
+    letterSpacing: 0.3,
+  },
+  walkInBadge: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  walkInBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#475569",
     letterSpacing: 0.3,
   },
   patientEmailRow: {
@@ -2038,6 +2382,48 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "800",
   },
+  intervalFilterRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 10,
+  },
+  intervalFilterTab: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  intervalFilterTabActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  intervalFilterTabText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  intervalFilterTabTextActive: {
+    color: "#047857",
+    fontWeight: "800",
+  },
+  selectedTimeSummaryBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  selectedTimeSummaryText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#047857",
+  },
   timePill: {
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -2217,24 +2603,80 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#0F172A",
   },
-  newPatientShortcutRow: {
+  patientMetaHeader: {
     paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingVertical: 7,
+    backgroundColor: "#F1F5F9",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
   },
-  newPatientShortcutBtn: {
+  patientMetaText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  paginationRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ECFDF5",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
   },
-  newPatientShortcutText: {
+  pageNavBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  pageNavBtnDisabled: {
+    opacity: 0.4,
+  },
+  pageNavBtnText: {
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#047857",
+  },
+  pageNavBtnTextDisabled: {
+    color: "#94A3B8",
+  },
+  pageNumbersRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  pageNumberBtn: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 6,
+  },
+  pageNumberBtnActive: {
+    backgroundColor: "#047857",
+  },
+  pageNumberText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  pageNumberTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  pageEllipsis: {
+    fontSize: 10,
+    color: "#94A3B8",
+    paddingHorizontal: 2,
   },
   centerContainer: {
     flex: 1,

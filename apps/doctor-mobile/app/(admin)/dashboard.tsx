@@ -87,6 +87,8 @@ export default function AdminDashboardPage() {
               "supabase.auth.user",
               "@pending_doctor_access_code",
               "@pending_user_role",
+              "@active_session_role",
+              "@active_access_code",
             ];
             await AsyncStorage.multiRemove(keysToRemove);
           } catch (err) {

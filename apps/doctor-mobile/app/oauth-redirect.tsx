@@ -42,17 +42,22 @@ export default function OAuthRedirect() {
       if (isCancelled) return;
       try {
         console.log("[OAuthRedirect] Resolving role and destination for user:", userId);
-        const [savedCodeRaw, savedRole, { data: profile }] = await Promise.all([
+        const [savedCodeRaw, savedRole, activeRoleRaw, activeCodeRaw, { data: profile }] = await Promise.all([
           AsyncStorage.getItem("@pending_doctor_access_code"),
           AsyncStorage.getItem("@pending_user_role"),
+          AsyncStorage.getItem("@active_session_role"),
+          AsyncStorage.getItem("@active_access_code"),
           supabase.from("profiles").select("role").eq("id", userId).maybeSingle(),
         ]);
-        const savedCode = (savedCodeRaw || "").trim().toUpperCase();
-        const effectiveRole = savedRole || profile?.role;
+        const savedCode = (savedCodeRaw || activeCodeRaw || "").trim().toUpperCase();
+        const tokenRole = activeRoleRaw || savedRole;
+        const effectiveRole = tokenRole || profile?.role || "doctor";
 
-        // Helper to record access code use and clean up temporary storage
-        const finalizeAuth = async () => {
+        // Helper to record access code use and persist active session role
+        const finalizeAuth = async (confirmedRole: string) => {
+          await AsyncStorage.setItem("@active_session_role", confirmedRole);
           if (savedCode) {
+            await AsyncStorage.setItem("@active_access_code", savedCode);
             try {
               await supabase.rpc("record_code_sign_in", {
                 p_code: savedCode,
@@ -68,14 +73,31 @@ export default function OAuthRedirect() {
           ]).catch(() => {});
         };
 
-        if (effectiveRole === "admin" || profile?.role === "admin") {
+        if (effectiveRole === "admin") {
           console.log("[OAuthRedirect] Admin detected -> /(admin)/dashboard");
-          await finalizeAuth();
+          if (savedCode) {
+            try {
+              await supabase.rpc("claim_admin_access", {
+                p_code: savedCode,
+                p_platform: Platform.OS,
+              });
+            } catch (e) {
+              console.warn("[OAuthRedirect] claim_admin_access note:", e);
+            }
+          }
+          if (profile?.role !== "admin") {
+            await supabase.from("profiles").update({ role: "admin" }).eq("id", userId);
+          }
+          await finalizeAuth("admin");
           router.replace("/(admin)/dashboard");
           return;
         }
 
         if (effectiveRole === "assistant") {
+          if (profile?.role !== "assistant") {
+            await supabase.from("profiles").update({ role: "assistant" }).eq("id", userId);
+          }
+
           const { data: ast } = await supabase
             .from("assistants")
             .select("id")
@@ -84,16 +106,21 @@ export default function OAuthRedirect() {
 
           if (ast) {
             console.log("[OAuthRedirect] Assistant profile confirmed -> /(doctor)/dashboard");
-            await finalizeAuth();
+            await finalizeAuth("assistant");
             router.replace("/(doctor)/dashboard");
           } else {
             console.log("[OAuthRedirect] Assistant profile missing -> /setup-profile");
+            await AsyncStorage.setItem("@active_session_role", "assistant");
             router.replace("/setup-profile");
           }
           return;
         }
 
         // Doctor check
+        if (profile?.role !== "doctor") {
+          await supabase.from("profiles").update({ role: "doctor" }).eq("id", userId);
+        }
+
         const { data: doc } = await supabase
           .from("doctors")
           .select("id")
@@ -102,26 +129,13 @@ export default function OAuthRedirect() {
 
         if (doc) {
           console.log("[OAuthRedirect] Doctor profile confirmed -> /(doctor)/dashboard");
-          await finalizeAuth();
-          router.replace("/(doctor)/dashboard");
-          return;
-        }
-
-        // Fallback: check if registered as assistant
-        const { data: isAst } = await supabase
-          .from("assistants")
-          .select("id")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (isAst) {
-          console.log("[OAuthRedirect] Assistant record found -> /(doctor)/dashboard");
-          await finalizeAuth();
+          await finalizeAuth("doctor");
           router.replace("/(doctor)/dashboard");
           return;
         }
 
         console.log("[OAuthRedirect] Profile not yet created -> /setup-profile");
+        await AsyncStorage.setItem("@active_session_role", "doctor");
         router.replace("/setup-profile");
       } catch (navErr) {
         console.error("[OAuthRedirect] Navigation resolution error:", navErr);

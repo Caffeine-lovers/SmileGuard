@@ -8,28 +8,48 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export default function AdminLayout() {
   // undefined = still checking, null = not an admin, true = confirmed admin
   const [isAdmin, setIsAdmin] = useState<boolean | undefined>(undefined);
+  const [hasSession, setHasSession] = useState<boolean>(false);
 
   useEffect(() => {
     let mounted = true;
 
     const checkAdmin = async (session: Session | null) => {
+      if (mounted) setHasSession(!!session?.user);
       if (!session?.user) {
         if (mounted) setIsAdmin(false);
         return;
       }
 
-      // 1. Check profiles table
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
+      // If the user's active session token is explicitly for assistant or doctor, they must not access admin layout
+      const [activeRole, savedRole, savedCode] = await Promise.all([
+        AsyncStorage.getItem("@active_session_role"),
+        AsyncStorage.getItem("@pending_user_role"),
+        AsyncStorage.getItem("@pending_doctor_access_code"),
+      ]);
+      const tokenRole = activeRole || savedRole;
 
-      if (error) {
-        console.warn("[AdminLayout] Error checking admin role:", error);
+      if (tokenRole && tokenRole !== "admin") {
+        console.log("[AdminLayout] Non-admin token active:", tokenRole);
+        if (mounted) setIsAdmin(false);
+        return;
       }
 
-      let confirmed = profile?.role === "admin";
+      let confirmed = tokenRole === "admin";
+
+      // 1. Check profiles table
+      if (!confirmed) {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn("[AdminLayout] Error checking admin role:", error);
+        }
+
+        confirmed = profile?.role === "admin";
+      }
 
       // 2. Check admins table directly
       if (!confirmed) {
@@ -46,11 +66,6 @@ export default function AdminLayout() {
 
       // Admin rights come from the server, which re-checks the code entered at sign-in.
       if (!confirmed) {
-        const [savedCode, savedRole] = await Promise.all([
-          AsyncStorage.getItem("@pending_doctor_access_code"),
-          AsyncStorage.getItem("@pending_user_role"),
-        ]);
-
         if (savedCode && savedRole === "admin") {
           const { data: granted, error: claimError } = await supabase.rpc("claim_admin_access", {
             p_code: savedCode,
@@ -64,6 +79,7 @@ export default function AdminLayout() {
       }
 
       if (confirmed) {
+        await AsyncStorage.setItem("@active_session_role", "admin");
         await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
       }
 
@@ -95,7 +111,7 @@ export default function AdminLayout() {
   }
 
   if (!isAdmin) {
-    return <Redirect href="/" />;
+    return <Redirect href={hasSession ? "/(doctor)/dashboard" : "/"} />;
   }
 
   return <Slot />;

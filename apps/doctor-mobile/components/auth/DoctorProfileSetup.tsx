@@ -116,9 +116,14 @@ export default function DoctorProfileSetup({
   // Pre-fill access code if stored during welcome screen
   useEffect(() => {
     (async () => {
-      const stores = await AsyncStorage.multiGet(["@pending_doctor_access_code", "@pending_user_role"]);
-      const savedCode = stores[0]?.[1];
-      const pendingRole = stores[1]?.[1];
+      const stores = await AsyncStorage.multiGet([
+        "@pending_doctor_access_code",
+        "@pending_user_role",
+        "@active_access_code",
+        "@active_session_role",
+      ]);
+      const savedCode = stores[0]?.[1] || stores[2]?.[1];
+      const pendingRole = stores[3]?.[1] || stores[1]?.[1];
       setIsAssistantRole(pendingRole === "assistant");
       if (savedCode) {
         setAccessCode(savedCode.trim().toUpperCase());
@@ -433,11 +438,14 @@ export default function DoctorProfileSetup({
         return;
       }
 
-      const pendingRole = await AsyncStorage.getItem("@pending_user_role");
+      const [activeRole, pendingRole] = await Promise.all([
+        AsyncStorage.getItem("@active_session_role"),
+        AsyncStorage.getItem("@pending_user_role"),
+      ]);
       const assignedRole: "doctor" | "assistant" | "admin" =
-        pendingRole === "admin"
+        (activeRole === "admin" || pendingRole === "admin")
           ? "admin"
-          : (isAssistantRole || pendingRole === "assistant")
+          : (isAssistantRole || activeRole === "assistant" || pendingRole === "assistant")
           ? "assistant"
           : "doctor";
 
@@ -474,6 +482,7 @@ export default function DoctorProfileSetup({
           throw new Error("Failed to save assistant profile. Please try again.");
         }
 
+        await AsyncStorage.setItem("@active_session_role", "assistant");
         await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
         onContinue();
         return;
@@ -493,6 +502,7 @@ export default function DoctorProfileSetup({
           throw new Error("Failed to save admin profile. Please try again.");
         }
 
+        await AsyncStorage.setItem("@active_session_role", "admin");
         await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
         onContinue();
         return;
@@ -519,6 +529,7 @@ export default function DoctorProfileSetup({
         throw new Error("Failed to save doctor profile. Please try again.");
       }
 
+      await AsyncStorage.setItem("@active_session_role", "doctor");
       await AsyncStorage.multiRemove(["@pending_doctor_access_code", "@pending_user_role"]);
       onContinue();
     } catch (err) {

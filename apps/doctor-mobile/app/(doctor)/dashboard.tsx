@@ -25,6 +25,10 @@ export default function DoctorDashboardPage() {
         "supabase.auth.token",
         "supabase.auth.refreshToken",
         "supabase.auth.user",
+        "@pending_doctor_access_code",
+        "@pending_user_role",
+        "@active_session_role",
+        "@active_access_code",
       ]);
     } catch (error) {
       console.error("Logout error:", error);

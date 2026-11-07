@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@smileguard/supabase-client";
 import { CurrentUser } from "../types/index";
 import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
@@ -16,14 +17,21 @@ export function useCurrentUser(): CurrentUser | null {
       let resolvedRole = sessionUser.user_metadata?.role || "doctor";
 
       try {
-        // 1. Check profiles table first to determine account role
+        // The token/access code acts on which dashboard is showing and active role!
+        const [activeRole, pendingRole] = await Promise.all([
+          AsyncStorage.getItem("@active_session_role"),
+          AsyncStorage.getItem("@pending_user_role"),
+        ]);
+        const tokenRole = activeRole || pendingRole;
+
+        // 1. Check profiles table
         const { data: profile } = await supabase
           .from("profiles")
           .select("role, name")
           .eq("id", sessionUser.id)
           .maybeSingle();
 
-        const roleCandidate = profile?.role || sessionUser.user_metadata?.role;
+        const roleCandidate = tokenRole || profile?.role || sessionUser.user_metadata?.role;
 
         // 2. Admin: fetch from admins table
         if (roleCandidate === "admin") {
@@ -40,7 +48,7 @@ export function useCurrentUser(): CurrentUser | null {
           setUser({
             id: sessionUser.id,
             email: sessionUser.email!,
-            name: adminName,
+            name: adminName || "Clinic Admin",
             role: "admin",
           });
           return;
@@ -80,7 +88,9 @@ export function useCurrentUser(): CurrentUser | null {
           ""
         ).toString().trim().toLowerCase();
 
-        if (doctorTableRole === "assistant") {
+        if (roleCandidate === "doctor") {
+          resolvedRole = "doctor";
+        } else if (doctorTableRole === "assistant") {
           resolvedRole = "assistant";
         } else if (doctorTableRole === "doctor" || doctorRecord) {
           resolvedRole = "doctor";

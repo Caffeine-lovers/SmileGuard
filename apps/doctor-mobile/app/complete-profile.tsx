@@ -78,7 +78,12 @@ export default function CompleteProfile() {
       const firstName = nameParts[0] || "Doctor";
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-      const savedRole = await AsyncStorage.getItem("@pending_user_role");
+      const [activeRole, pendingRole] = await Promise.all([
+        AsyncStorage.getItem("@active_session_role"),
+        AsyncStorage.getItem("@pending_user_role"),
+      ]);
+      const savedRole = activeRole || pendingRole;
+
       if (savedRole === "assistant") {
         console.log("[CompleteProfile] Upserting assistant profile...");
         const { error: astErr } = await supabase.from("assistants").upsert([
@@ -91,6 +96,7 @@ export default function CompleteProfile() {
           },
         ], { onConflict: "user_id" });
         if (astErr) throw astErr;
+        await AsyncStorage.setItem("@active_session_role", "assistant");
         console.log("✅ Assistant profile completed successfully");
         Alert.alert("Success", "Assistant profile updated successfully!");
         router.replace("/(doctor)/dashboard");
@@ -108,6 +114,7 @@ export default function CompleteProfile() {
           },
         ], { onConflict: "user_id" });
         if (admErr) throw admErr;
+        await AsyncStorage.setItem("@active_session_role", "admin");
         console.log("✅ Admin profile completed successfully");
         Alert.alert("Success", "Admin profile updated successfully!");
         router.replace("/(admin)/dashboard");
@@ -137,6 +144,7 @@ export default function CompleteProfile() {
       Alert.alert("Success", "Profile updated successfully!");
 
       // Navigate to dashboard
+      await AsyncStorage.setItem("@active_session_role", "doctor");
       console.log("[CompleteProfile] Routing to dashboard");
       router.replace("/(doctor)/dashboard");
     } catch (error) {
