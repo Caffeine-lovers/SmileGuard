@@ -310,6 +310,7 @@ export default function AssistantDashboard({
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
+  const [billingRefreshTrigger, setBillingRefreshTrigger] = useState(0);
 
   // Doctors map for resolving doctor names on appointments
   const [doctorsMap, setDoctorsMap] = useState<Record<string, string>>({});
@@ -334,6 +335,12 @@ export default function AssistantDashboard({
     },
     [activeTab]
   );
+
+  useEffect(() => {
+    if (activeTab === "billing") {
+      setBillingRefreshTrigger((prev) => prev + 1);
+    }
+  }, [activeTab]);
 
   const handleGoBack = useCallback(() => {
     if (sidebarOpen) {
@@ -1689,6 +1696,7 @@ export default function AssistantDashboard({
             doctorId={user?.id || ""}
             styles={styles}
             startTourTrigger={billingTourTrigger}
+            refreshTrigger={billingRefreshTrigger}
             userRole="assistant"
           />
         ) : activeTab === "settings" ? (

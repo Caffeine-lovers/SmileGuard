@@ -330,7 +330,8 @@ export async function createAssistantProfile(
     }
 
     // 3. Upsert directly into public.assistants
-    const { data: astData, error: astError } = await supabase
+    let astData: any = null;
+    const { data: upsertData, error: astError } = await supabase
       .from("assistants")
       .upsert(
         [
@@ -352,9 +353,46 @@ export async function createAssistantProfile(
       .select()
       .maybeSingle();
 
+    astData = upsertData;
+
+    // If assistants table is missing or errors, fallback to doctors table without PRC fields
     if (astError) {
-      console.error("[DoctorService] Error upserting to assistants table:", astError);
-      throw new Error(`Database error: ${astError.message}`);
+      if (astError.code === "42P01" || astError.message?.includes("assistants")) {
+        console.warn("[DoctorService] Assistants table not present, falling back to public.doctors (without PRC credentials):", astError.message);
+        const { data: docData, error: docError } = await supabase
+          .from("doctors")
+          .upsert(
+            [
+              {
+                user_id: assistant.user_id,
+                first_name: firstName,
+                middle_name: middleName || null,
+                last_name: lastName,
+                doctor_phone: assistant.phone || null,
+                gender: assistant.gender || null,
+                role: "assistant",
+                profile_picture_url: assistant.profile_picture_url || null,
+                license_number: null,
+                specialization: null,
+                years_of_experience: null,
+                bio: null,
+                updated_at: new Date().toISOString(),
+              },
+            ],
+            { onConflict: "user_id" }
+          )
+          .select()
+          .maybeSingle();
+
+        if (docError) {
+          console.error("[DoctorService] Fallback to doctors table failed:", docError);
+          throw new Error(`Database error: ${docError.message}`);
+        }
+        astData = docData;
+      } else {
+        console.error("[DoctorService] Error upserting to assistants table:", astError);
+        throw new Error(`Database error: ${astError.message}`);
+      }
     }
 
     // 4. Update auth user metadata
@@ -558,9 +596,11 @@ export async function createDoctorProfile(
         ...doctor,
         id: astResult.id || doctor.id,
         role: "assistant",
-        specialization: "Clinic Assistant",
-        license_number: "",
-      } as Doctor;
+        specialization: undefined,
+        license_number: undefined,
+        years_of_experience: undefined,
+        bio: undefined,
+      } as unknown as Doctor;
     }
 
     // Strictly route admin registration to dedicated table
@@ -798,18 +838,19 @@ export async function createDoctorProfile(
 
     // Fallback UPSERT: For existing doctors or environments without access code requirement
     const { is_available, ...rawCleanDoctor } = doctor as any;
+    const isAssistant = (doctor as any).role === "assistant";
     const cleanDoctor = {
       ...rawCleanDoctor,
-      role: "doctor",
+      role: doctor.role || "doctor",
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
       gender: doctor.gender ? doctor.gender.trim() : null,
       doctor_phone: doctor.doctor_phone ? doctor.doctor_phone.trim() : null,
-      license_number: licenseNumber,
-      specialization,
-      bio,
-      years_of_experience: Number(doctor.years_of_experience) || 0,
+      license_number: isAssistant ? null : (licenseNumber || null),
+      specialization: isAssistant ? null : (specialization || null),
+      bio: isAssistant ? null : (bio || null),
+      years_of_experience: isAssistant ? null : (Number(doctor.years_of_experience) || 0),
       office_hours: doctor.office_hours || EMPTY_DOCTOR.office_hours,
     };
     delete cleanDoctor.doctor_name;

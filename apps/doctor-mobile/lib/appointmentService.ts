@@ -1,3 +1,4 @@
+import { toMinutes, getCatalogPriceForService } from './scheduling';
 import { isAppointmentUndecidedAndEclipsed } from './dateFormatters';
 import { supabase } from '@smileguard/supabase-client';
 export async function cancelAppointment(
@@ -1122,6 +1123,19 @@ export async function createDirectAppointment(
   input: CreateDirectAppointmentInput
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (input.appointment_date < todayStr) {
+      return { success: false, error: 'Cannot schedule appointment for a past date.' };
+    }
+    if (input.appointment_date === todayStr && input.appointment_time) {
+      const slotMin = toMinutes(input.appointment_time);
+      const now = new Date();
+      const currentMin = now.getHours() * 60 + now.getMinutes();
+      if (!isNaN(slotMin) && slotMin <= currentMin) {
+        return { success: false, error: 'Cannot schedule appointment for a past time slot. Please choose a future time.' };
+      }
+    }
+
     const payload: any = {
       dentist_id: input.dentist_id || null,
       service: input.service || 'General',
@@ -1158,6 +1172,49 @@ export async function createDirectAppointment(
     if (error) {
       console.error('[createDirectAppointment] Error:', error);
       return { success: false, error: error.message };
+    }
+
+    // Safety fallback: ensure a billing row exists for the scheduled dummy appointment
+    if (data?.id && input.is_dummy) {
+      try {
+        const { data: existingBill } = await supabase
+          .from('billings')
+          .select('id')
+          .eq('appointment_id', data.id)
+          .maybeSingle();
+
+        if (!existingBill) {
+          const servicePrice = getCatalogPriceForService(input.service);
+          // Try inserting directly with dummy_patient_id support
+          const { error: insertBillError } = await supabase.from('billings').insert({
+            patient_id: input.patient_id,
+            dummy_patient_id: input.patient_id,
+            appointment_id: data.id,
+            amount: servicePrice,
+            discount_type: 'none',
+            discount_amount: 0,
+            final_amount: servicePrice,
+            payment_status: 'not_paid',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+          if (insertBillError) {
+            // Fallback to create_dummy_billing RPC
+            await supabase.rpc('create_dummy_billing', {
+              p_patient_id: input.patient_id,
+              p_appointment_id: data.id,
+              p_amount: servicePrice,
+              p_discount_type: 'none',
+              p_discount_amount: 0,
+              p_final_amount: servicePrice,
+              p_payment_status: 'not_paid',
+            });
+          }
+        }
+      } catch (billSyncErr) {
+        console.warn('[createDirectAppointment] Billing safeguard sync error (non-fatal):', billSyncErr);
+      }
     }
 
     return { success: true, data };

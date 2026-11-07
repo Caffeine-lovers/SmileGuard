@@ -311,6 +311,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const [recordsTourTrigger, setRecordsTourTrigger] = useState(0);
   const [appointmentsTourTrigger, setAppointmentsTourTrigger] = useState(0);
   const [billingTourTrigger, setBillingTourTrigger] = useState(0);
+  const [billingRefreshTrigger, setBillingRefreshTrigger] = useState(0);
 
   // Hierarchical back handler & tab navigation
   const navigateToTab = useCallback((nextTab: 'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings') => {
@@ -323,6 +324,12 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       return [...filtered, activeTab];
     });
     setActiveTab(nextTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'billing') {
+      setBillingRefreshTrigger(prev => prev + 1);
+    }
   }, [activeTab]);
 
   const handleGoBack = useCallback(() => {
@@ -1754,6 +1761,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
               doctorId={user.id || ''}
               styles={styles}
               startTourTrigger={billingTourTrigger}
+              refreshTrigger={billingRefreshTrigger}
             />
           ) : (
             <SettingsTab

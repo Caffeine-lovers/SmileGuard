@@ -11,7 +11,14 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
-import * as Updates from 'expo-updates';
+// Safely load expo-updates: in Expo Go or dev environments where the native
+// module is not linked, requireNativeModule('ExpoUpdates') throws an uncaught exception.
+let Updates: typeof import('expo-updates') | null = null;
+try {
+  Updates = require('expo-updates');
+} catch {
+  Updates = null;
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import {
@@ -102,8 +109,8 @@ export default function AppUpdateManager() {
     isCheckingRef.current = true;
     setIsInteractive(interactive);
 
-    // 1. If in development mode
-    if (__DEV__) {
+    // 1. If in development mode or native module is not linked (e.g. Expo Go)
+    if (__DEV__ || !Updates) {
       isCheckingRef.current = false;
       if (interactive) {
         setStatus('up-to-date');
@@ -169,6 +176,13 @@ export default function AppUpdateManager() {
   useEffect(() => {
     globalTriggerCheck = checkAndApplyUpdates;
 
+    if (!Updates || __DEV__) {
+      return () => {
+        clearHideTimer();
+        globalTriggerCheck = null;
+      };
+    }
+
     const startTimer = setTimeout(() => {
       checkAndApplyUpdates(false);
     }, 1500);
@@ -182,6 +196,7 @@ export default function AppUpdateManager() {
 
   // 2. Trigger check when navigating into the main app (e.g. from registration/login into dashboard)
   useEffect(() => {
+    if (!Updates || __DEV__) return;
     const currentGroup = segments[0];
     const isEnteringAppGroup =
       (currentGroup === '(doctor)' || currentGroup === '(admin)') &&
@@ -200,6 +215,7 @@ export default function AppUpdateManager() {
 
   // 3. Trigger check when app returns from background to foreground (active)
   useEffect(() => {
+    if (!Updates || __DEV__) return;
     let lastResumeCheck = Date.now();
 
     const sub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
@@ -219,6 +235,7 @@ export default function AppUpdateManager() {
 
   // 4. Routine background polling while inside the app (every 8 minutes)
   useEffect(() => {
+    if (!Updates || __DEV__) return;
     const interval = setInterval(() => {
       console.log('[AppUpdateManager] Running routine background update check...');
       checkAndApplyUpdates(false);
@@ -230,7 +247,9 @@ export default function AppUpdateManager() {
   const handleRestartNow = async () => {
     try {
       setShowReadyModal(false);
-      await Updates.reloadAsync();
+      if (Updates) {
+        await Updates.reloadAsync();
+      }
     } catch (err: any) {
       console.error('[AppUpdateManager] Reload failed:', err);
       setShowReadyModal(false);
@@ -368,10 +387,10 @@ export default function AppUpdateManager() {
 
             <View style={styles.modalMetaRow}>
               <Text style={styles.modalMetaText}>
-                Channel: <Text style={{ fontWeight: '700' }}>{Updates.channel || 'preview'}</Text>
+                Channel: <Text style={{ fontWeight: '700' }}>{Updates?.channel || 'preview'}</Text>
               </Text>
               <Text style={styles.modalMetaText}>
-                Version: <Text style={{ fontWeight: '700' }}>{Updates.runtimeVersion || '1.0.0'}</Text>
+                Version: <Text style={{ fontWeight: '700' }}>{Updates?.runtimeVersion || '1.0.0'}</Text>
               </Text>
             </View>
 
