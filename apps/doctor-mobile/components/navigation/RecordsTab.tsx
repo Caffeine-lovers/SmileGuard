@@ -30,9 +30,7 @@ import {
   ShieldCheck,
   Layers,
   X,
-  UserPlus,
 } from "lucide-react-native";
-import AddPatientModal from "../patientrecord/AddPatientModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AppTour, { useTourTargets, TourStep } from "../tour/AppTour";
 import { isDoctorGuideCompleted, markDoctorGuideCompleted } from "../../lib/doctorService";
@@ -73,7 +71,6 @@ export default function RecordsTab({
   startTourTrigger,
   userRole,
 }: RecordsTabProps) {
-  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const router = useRouter();
   const currentUser = useCurrentUser();
   const [supabasePatients, setSupabasePatients] = useState<AppointmentType[]>([]);
@@ -423,19 +420,7 @@ export default function RecordsTab({
             </View>
           </View>
 
-          <View style={localStyles.headerActionsRow}>
-            {userRole === "assistant" && (
-              <TouchableOpacity
-                onPress={() => setShowAddPatientModal(true)}
-                style={localStyles.addPatientHeaderBtn}
-                activeOpacity={0.8}
-                accessibilityLabel="Add Patient"
-              >
-                <UserPlus size={14} color="#FFFFFF" strokeWidth={2.2} style={{ marginRight: 5 }} />
-                <Text style={localStyles.addPatientHeaderBtnText}>Add Patient</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <View style={localStyles.headerActionsRow} />
         </View>
 
         {/* Search & Sort Filter Section */}
@@ -849,17 +834,6 @@ export default function RecordsTab({
           onFinish={handleFinishTour}
           onSkip={handleSkipTour}
         />
-
-        {/* Add Patient Modal (Assistant Only) */}
-        {userRole === "assistant" && (
-          <AddPatientModal
-            visible={showAddPatientModal}
-            onClose={() => setShowAddPatientModal(false)}
-            onPatientAdded={async () => {
-              await handleRefresh();
-            }}
-          />
-        )}
       </View>
     </View>
   );
@@ -904,25 +878,6 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  addPatientHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#047857',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  addPatientHeaderBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
   },
   skeuoActionBtn: {
     width: 38,
