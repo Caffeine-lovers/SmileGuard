@@ -1114,6 +1114,7 @@ export interface CreateDirectAppointmentInput {
   appointment_date: string;
   appointment_time: string;
   notes?: string;
+  note?: string;
   doctor_note?: string;
   status?: 'scheduled' | 'pending';
 }
@@ -1122,14 +1123,14 @@ export async function createDirectAppointment(
   input: CreateDirectAppointmentInput
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
+    const noteContent = (input.notes || input.note || input.doctor_note || '').trim();
     const payload: any = {
       dentist_id: input.dentist_id || null,
       service: input.service || 'General',
       appointment_date: input.appointment_date,
       appointment_time: input.appointment_time,
       status: input.status || 'scheduled',
-      notes: input.notes || '',
-      doctor_note: input.doctor_note || '',
+      notes: noteContent || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -1150,6 +1151,15 @@ export async function createDirectAppointment(
     if (error && (error.message?.includes('dummy_patient_id') || error.message?.includes('null value in column'))) {
       delete payload.dummy_patient_id;
       payload.patient_id = input.patient_id;
+      const retry = await supabase.from('appointments').insert(payload).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // Resilient fallback in case column is 'note' instead of 'notes'
+    if (error && (error.message?.includes("'notes'") || error.message?.includes('column appointments.notes does not exist'))) {
+      delete payload.notes;
+      payload.note = noteContent || null;
       const retry = await supabase.from('appointments').insert(payload).select().single();
       data = retry.data;
       error = retry.error;

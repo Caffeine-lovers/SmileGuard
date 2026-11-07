@@ -275,9 +275,6 @@ export default function AddAppointmentModal({
   const [appointmentTime, setAppointmentTime] = useState<string>("");
   const [notes, setNotes] = useState("");
 
-  // Time Interval Filter: "all" (both hourly and 30m), "60m" (hourly only), "30m" (:30 only)
-  const [timeIntervalFilter, setTimeIntervalFilter] = useState<"all" | "60m" | "30m">("all");
-
   // Blockout Dates state
   const [blockoutDates, setBlockoutDates] = useState<any[]>(propBlockoutDates || []);
 
@@ -597,29 +594,10 @@ export default function AddAppointmentModal({
     return slots;
   }, [appointmentDate, clinicSchedule]);
 
-  // Filtered slots according to interval selection (All 30m vs Hourly only vs 30m only)
-  const displayedTimeSlots = useMemo(() => {
-    if (timeIntervalFilter === "60m") {
-      return availableTimeSlots.filter((slot) => {
-        const { minute } = parse12HourTime(slot);
-        return minute === 0;
-      });
-    }
-    if (timeIntervalFilter === "30m") {
-      return availableTimeSlots.filter((slot) => {
-        const { minute } = parse12HourTime(slot);
-        return minute === 30;
-      });
-    }
-    return availableTimeSlots;
-  }, [availableTimeSlots, timeIntervalFilter]);
-
-  // When availableTimeSlots change (e.g. date changed), clear appointmentTime if it's no longer valid
-  useEffect(() => {
-    if (appointmentTime && !availableTimeSlots.includes(appointmentTime)) {
-      setAppointmentTime("");
-    }
-  }, [availableTimeSlots, appointmentTime]);
+  // Service duration in minutes (e.g. 30, 60, 90 mins)
+  const currentDuration = useMemo(() => {
+    return getServiceDuration(service);
+  }, [service]);
 
   // ─────────────────────────────────────────
   // VALIDATION & CLINIC CONNECTIVITY RULES
@@ -715,49 +693,94 @@ export default function AddAppointmentModal({
     return intervals;
   }, [dayAppointments, appointmentDate]);
 
-  const isTimeSlotBooked = useCallback(
+  // Closing time in minutes from clinicSchedule
+  const closingMinutes = useMemo(() => {
+    if (!appointmentDate || !clinicSchedule) return NaN;
+    const dayName = getDayName(appointmentDate);
+    const sched = clinicSchedule[dayName];
+    if (!sched || sched.isOpen === false || !sched.closing_time) return NaN;
+    const closing = parse12HourTime(sched.closing_time);
+    return closing.hour * 60 + closing.minute;
+  }, [appointmentDate, clinicSchedule]);
+
+  // 1. Is a specific 30-min slot occupied by an existing booking?
+  const isSlotOccupied = useCallback(
     (slotStr: string) => {
       const slotMin = toMinutes(slotStr);
       if (isNaN(slotMin)) return false;
-
-      // 1. Is slot inside an existing appointment's occupied duration?
       for (const b of busyIntervals) {
         if (slotMin >= b.start && slotMin < b.end) {
           return true;
         }
       }
-
-      // 2. Does scheduling current service starting at slotMin overlap an existing appointment?
-      const curDuration = getServiceDuration(service);
-      const curEnd = slotMin + curDuration;
-      for (const b of busyIntervals) {
-        if (slotMin < b.end && curEnd > b.start) {
-          return true;
-        }
-      }
-
-      // 3. Does it exceed clinic closing time?
-      if (appointmentDate && clinicSchedule) {
-        const dayName = getDayName(appointmentDate);
-        const sched = clinicSchedule[dayName];
-        if (sched && sched.closing_time) {
-          const closing = parse12HourTime(sched.closing_time);
-          const closeMin = closing.hour * 60 + closing.minute;
-          if (curEnd > closeMin) {
-            return true;
-          }
-        }
-      }
-
       return false;
     },
-    [busyIntervals, service, appointmentDate, clinicSchedule]
+    [busyIntervals]
+  );
+
+  // 2. Does scheduling current service starting at slotStr fit before closing and overlap NO booking?
+  const doesSlotFitService = useCallback(
+    (slotStr: string) => {
+      const slotMin = toMinutes(slotStr);
+      if (isNaN(slotMin)) return false;
+      const endMin = slotMin + currentDuration;
+
+      // Cannot start inside an existing booking
+      for (const b of busyIntervals) {
+        if (slotMin >= b.start && slotMin < b.end) {
+          return false;
+        }
+      }
+
+      // Cannot overlap an existing booking
+      for (const b of busyIntervals) {
+        if (slotMin < b.end && endMin > b.start) {
+          return false;
+        }
+      }
+
+      // Cannot exceed clinic closing time
+      if (Number.isFinite(closingMinutes) && endMin > closingMinutes) {
+        return false;
+      }
+
+      return true;
+    },
+    [busyIntervals, currentDuration, closingMinutes]
+  );
+
+  // 3. Is slot covered by the currently selected appointment start time & estimated duration?
+  const isSlotCovered = useCallback(
+    (slotStr: string) => {
+      if (!appointmentTime) return false;
+      const slotMin = toMinutes(slotStr);
+      const startMin = toMinutes(appointmentTime);
+      if (isNaN(slotMin) || isNaN(startMin)) return false;
+      return slotMin > startMin && slotMin < startMin + currentDuration;
+    },
+    [appointmentTime, currentDuration]
+  );
+
+  const isTimeSlotBooked = useCallback(
+    (slotStr: string) => {
+      return isSlotOccupied(slotStr) || !doesSlotFitService(slotStr);
+    },
+    [isSlotOccupied, doesSlotFitService]
   );
 
   const isSelectedTimeBooked = useMemo(() => {
     if (!appointmentTime) return false;
-    return isTimeSlotBooked(appointmentTime);
-  }, [appointmentTime, isTimeSlotBooked]);
+    return isSlotOccupied(appointmentTime) || !doesSlotFitService(appointmentTime);
+  }, [appointmentTime, isSlotOccupied, doesSlotFitService]);
+
+  // When availableTimeSlots change or service duration changes, clear appointmentTime if it no longer fits
+  useEffect(() => {
+    if (appointmentTime) {
+      if (!availableTimeSlots.includes(appointmentTime) || !doesSlotFitService(appointmentTime)) {
+        setAppointmentTime("");
+      }
+    }
+  }, [availableTimeSlots, doesSlotFitService, appointmentTime]);
 
   // Patient records pagination state & filtering
   const filteredPatients = useMemo(() => {
@@ -816,7 +839,6 @@ export default function AddAppointmentModal({
     setService(availableServices[0] || DEFAULT_SERVICES[0]);
     setAppointmentDate(initialDate || new Date().toISOString().split("T")[0]);
     setAppointmentTime("");
-    setTimeIntervalFilter("all");
     setNotes("");
     setErrorMessage(null);
     setShowPatientPicker(false);
@@ -1198,76 +1220,31 @@ export default function AddAppointmentModal({
                 </Text>
               </View>
 
-              {/* Interval Filter Tabs (Website-derived: All 30m / Hourly intervals) */}
-              <View style={styles.intervalFilterRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.intervalFilterTab,
-                    timeIntervalFilter === "all" && styles.intervalFilterTabActive,
-                  ]}
-                  onPress={() => setTimeIntervalFilter("all")}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.intervalFilterTabText,
-                      timeIntervalFilter === "all" && styles.intervalFilterTabTextActive,
-                    ]}
-                  >
-                    All Slots (30m)
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.intervalFilterTab,
-                    timeIntervalFilter === "60m" && styles.intervalFilterTabActive,
-                  ]}
-                  onPress={() => setTimeIntervalFilter("60m")}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.intervalFilterTabText,
-                      timeIntervalFilter === "60m" && styles.intervalFilterTabTextActive,
-                    ]}
-                  >
-                    Hourly (:00)
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.intervalFilterTab,
-                    timeIntervalFilter === "30m" && styles.intervalFilterTabActive,
-                  ]}
-                  onPress={() => setTimeIntervalFilter("30m")}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.intervalFilterTabText,
-                      timeIntervalFilter === "30m" && styles.intervalFilterTabTextActive,
-                    ]}
-                  >
-                    30-Minute (:30)
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
               {/* Selected Time & Duration Summary Banner */}
               {appointmentTime && service ? (
                 <View style={styles.selectedTimeSummaryBanner}>
-                  <Clock size={13} color="#047857" style={{ marginRight: 6 }} />
-                  <Text style={styles.selectedTimeSummaryText}>
-                    Selected: {appointmentTime} – {getEndTimeLabel(appointmentTime, service)} ({formatDuration(getServiceDuration(service))})
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 8 }}>
+                      <Clock size={14} color="#047857" style={{ marginRight: 6 }} />
+                      <Text style={styles.selectedTimeSummaryText}>
+                        Selected: {appointmentTime} – {getEndTimeLabel(appointmentTime, service)}
+                      </Text>
+                    </View>
+                    <View style={styles.serviceDurationBadge}>
+                      <Text style={styles.serviceDurationBadgeText}>{formatDuration(currentDuration)}</Text>
+                    </View>
+                  </View>
+                  {currentDuration > 30 ? (
+                    <Text style={styles.selectedTimeSlotsSubtext}>
+                      Estimated visit covers {Math.ceil(currentDuration / 30)} consecutive 30-minute slots starting at {appointmentTime}
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
 
-              {!isDayClosed && displayedTimeSlots.length > 0 && !appointmentTime && (
+              {!isDayClosed && availableTimeSlots.length > 0 && !appointmentTime && (
                 <Text style={styles.timeSelectHintText}>
-                  Please tap an available time slot below:
+                  Tap an available start time (30-min intervals • {formatDuration(currentDuration)} needed):
                 </Text>
               )}
 
@@ -1275,15 +1252,18 @@ export default function AddAppointmentModal({
                 <View style={styles.noSlotsBox}>
                   <Text style={styles.noSlotsText}>Clinic is closed on this day.</Text>
                 </View>
-              ) : displayedTimeSlots.length === 0 ? (
+              ) : availableTimeSlots.length === 0 ? (
                 <View style={styles.noSlotsBox}>
-                  <Text style={styles.noSlotsText}>No time slots match the selected interval.</Text>
+                  <Text style={styles.noSlotsText}>No time slots available for this day.</Text>
                 </View>
               ) : (
                 <View style={styles.pillGroup}>
-                  {displayedTimeSlots.map((t) => {
-                    const isBooked = isTimeSlotBooked(t);
+                  {availableTimeSlots.map((t) => {
                     const isSelected = appointmentTime === t;
+                    const covered = isSlotCovered(t);
+                    const occupied = isSlotOccupied(t);
+                    const fits = doesSlotFitService(t);
+                    const disabled = occupied || (!fits && !covered);
                     const isPatientSlot =
                       isPatientScheduledOnDate &&
                       normalizeTimeString(patientExistingAppointment?.appointment_time || patientExistingAppointment?.time) ===
@@ -1295,29 +1275,39 @@ export default function AddAppointmentModal({
                         style={[
                           styles.timePill,
                           isSelected && styles.timePillActive,
-                          isBooked && !isSelected && styles.timePillBooked,
+                          covered && styles.timePillCovered,
+                          occupied && !isSelected && styles.timePillBooked,
+                          !occupied && !fits && !covered && styles.timePillDisabled,
                         ]}
                         onPress={() => {
-                          if (!isBooked) {
+                          if (!occupied && fits) {
                             setAppointmentTime(t);
                           }
                         }}
-                        disabled={isBooked}
+                        disabled={disabled}
                         activeOpacity={0.7}
                       >
                         <Text
                           style={[
                             styles.timePillText,
                             isSelected && styles.timePillTextActive,
-                            isBooked && styles.timePillTextBooked,
+                            covered && styles.timePillTextCovered,
+                            occupied && styles.timePillTextBooked,
+                            !occupied && !fits && !covered && styles.timePillTextDisabled,
                           ]}
                         >
                           {t}
                         </Text>
-                        {isBooked ? (
+                        {isSelected ? (
+                          <Text style={styles.timePillActiveTag}>Start</Text>
+                        ) : covered ? (
+                          <Text style={styles.timePillCoveredTag}>Covered</Text>
+                        ) : occupied ? (
                           <Text style={styles.timePillBookedTag}>
                             {isPatientSlot ? "Patient" : "Booked"}
                           </Text>
+                        ) : !fits ? (
+                          <Text style={styles.timePillDisabledTag}>Unavailable</Text>
                         ) : null}
                       </TouchableOpacity>
                     );
@@ -2409,20 +2399,37 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   selectedTimeSummaryBanner: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginBottom: 10,
   },
   selectedTimeSummaryText: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: "700",
     color: "#047857",
+  },
+  serviceDurationBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "#D1FAE5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  serviceDurationBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#047857",
+  },
+  selectedTimeSlotsSubtext: {
+    fontSize: 11,
+    color: "#059669",
+    marginTop: 4,
+    fontWeight: "600",
   },
   timePill: {
     paddingHorizontal: 12,
@@ -2432,15 +2439,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     alignItems: "center",
+    minWidth: 72,
   },
   timePillActive: {
     backgroundColor: "#047857",
     borderColor: "#047857",
   },
+  timePillCovered: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#10B981",
+    borderWidth: 1.5,
+  },
   timePillBooked: {
     backgroundColor: "#FEE2E2",
     borderColor: "#FECACA",
     opacity: 0.6,
+  },
+  timePillDisabled: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+    opacity: 0.45,
   },
   timePillText: {
     fontSize: 12,
@@ -2450,14 +2468,42 @@ const styles = StyleSheet.create({
   timePillTextActive: {
     color: "#FFFFFF",
   },
+  timePillTextCovered: {
+    color: "#047857",
+    fontWeight: "700",
+  },
   timePillTextBooked: {
     color: "#DC2626",
     textDecorationLine: "line-through",
+  },
+  timePillTextDisabled: {
+    color: "#94A3B8",
+  },
+  timePillActiveTag: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  timePillCoveredTag: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#059669",
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
   timePillBookedTag: {
     fontSize: 8,
     fontWeight: "800",
     color: "#DC2626",
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  timePillDisabledTag: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: "#94A3B8",
     marginTop: 2,
     letterSpacing: 0.2,
   },
