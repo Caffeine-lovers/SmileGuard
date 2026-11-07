@@ -33,6 +33,7 @@ import AppointmentsTab from "../navigation/AppointmentsTab";
 import AppointmentsRequestTab from "../navigation/AppointmentsRequestTab";
 import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
+import { triggerManualUpdateCheck } from "../ui/AppUpdateManager";
 import { updateDoctorAppointmentStatus, getDoctorAppointments, getAppointmentRequests, getAppointmentById, confirmAppointmentReschedule } from "../../lib/appointmentService";
 import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
@@ -949,6 +950,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
     } finally {
       // Re-fetch doctor info to ensure prefix and gender remain fresh
       fetchDoctorInfo();
+      triggerManualUpdateCheck(false).catch(() => {});
       setLoadingAppointments(false);
       setLoadingPatients(false);
       setIsRefreshing(false);

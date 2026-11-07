@@ -8,14 +8,17 @@ import {
   Animated,
   Platform,
   Modal,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import * as Updates from 'expo-updates';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSegments } from 'expo-router';
 import {
   Sparkles,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  ArrowDownCircle,
   X,
 } from 'lucide-react-native';
 
@@ -45,12 +48,22 @@ export const triggerManualUpdateCheck = (interactive = true) => {
 };
 
 export default function AppUpdateManager() {
+  const insets = useSafeAreaInsets();
+  const segments = useSegments();
+
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [showReadyModal, setShowReadyModal] = useState<boolean>(false);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
-  const slideAnim = useRef(new Animated.Value(-80)).current;
+
+  const slideAnim = useRef(new Animated.Value(-160)).current;
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSegmentGroupRef = useRef<string | undefined>(undefined);
+  const isCheckingRef = useRef<boolean>(false);
+
+  const topOffset = insets.top > 0
+    ? insets.top + (Platform.OS === 'android' ? 6 : 8)
+    : (Platform.OS === 'android' ? 36 : 48);
 
   const showBanner = () => {
     Animated.spring(slideAnim, {
@@ -63,11 +76,12 @@ export default function AppUpdateManager() {
 
   const hideBanner = () => {
     Animated.timing(slideAnim, {
-      toValue: -120,
+      toValue: -160,
       duration: 250,
       useNativeDriver: true,
     }).start(() => {
-      setStatus('idle');
+      // Only reset to idle if not currently in 'ready' state
+      setStatus((current) => (current === 'ready' ? 'ready' : 'idle'));
       setStatusMessage('');
     });
   };
@@ -80,10 +94,17 @@ export default function AppUpdateManager() {
   };
 
   const checkAndApplyUpdates = async (interactive = false) => {
+    if (isCheckingRef.current) {
+      console.log('[AppUpdateManager] Update check already in progress, skipping duplicate.');
+      return;
+    }
+
+    isCheckingRef.current = true;
     setIsInteractive(interactive);
 
-    // 1. If in development or updates disabled natively
+    // 1. If in development mode
     if (__DEV__) {
+      isCheckingRef.current = false;
       if (interactive) {
         setStatus('up-to-date');
         setStatusMessage('Development mode: Over-The-Air updates are disabled.');
@@ -93,7 +114,9 @@ export default function AppUpdateManager() {
       return;
     }
 
+    // 2. If updates not natively enabled
     if (!Updates.isEnabled) {
+      isCheckingRef.current = false;
       if (interactive) {
         setStatus('error');
         setStatusMessage('EAS Updates are not enabled in this build.');
@@ -131,19 +154,21 @@ export default function AppUpdateManager() {
         hideTimerRef.current = setTimeout(hideBanner, interactive ? 3000 : 1500);
       }
     } catch (err: any) {
-      console.warn('[AppUpdateManager] Update check failed:', err);
+      console.warn('[AppUpdateManager] Update check error:', err);
       const errMsg = err?.message || 'Could not reach update server';
       setStatus('error');
       setStatusMessage(`Update check failed: ${errMsg}`);
       notifyUpdateListeners('error', errMsg);
       hideTimerRef.current = setTimeout(hideBanner, 4000);
+    } finally {
+      isCheckingRef.current = false;
     }
   };
 
+  // 1. Check automatically on app startup
   useEffect(() => {
     globalTriggerCheck = checkAndApplyUpdates;
 
-    // Check automatically on app startup
     const startTimer = setTimeout(() => {
       checkAndApplyUpdates(false);
     }, 1500);
@@ -153,6 +178,53 @@ export default function AppUpdateManager() {
       clearHideTimer();
       globalTriggerCheck = null;
     };
+  }, []);
+
+  // 2. Trigger check when navigating into the main app (e.g. from registration/login into dashboard)
+  useEffect(() => {
+    const currentGroup = segments[0];
+    const isEnteringAppGroup =
+      (currentGroup === '(doctor)' || currentGroup === '(admin)') &&
+      lastSegmentGroupRef.current !== currentGroup;
+
+    if (isEnteringAppGroup) {
+      console.log(`[AppUpdateManager] Route entered ${currentGroup}, checking for updates in dashboard...`);
+      const timer = setTimeout(() => {
+        checkAndApplyUpdates(false);
+      }, 1500);
+      lastSegmentGroupRef.current = currentGroup;
+      return () => clearTimeout(timer);
+    }
+    lastSegmentGroupRef.current = currentGroup;
+  }, [segments]);
+
+  // 3. Trigger check when app returns from background to foreground (active)
+  useEffect(() => {
+    let lastResumeCheck = Date.now();
+
+    const sub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        const now = Date.now();
+        // At least 45 seconds between automated foreground checks to prevent excessive calls
+        if (now - lastResumeCheck > 45000) {
+          lastResumeCheck = now;
+          console.log('[AppUpdateManager] App resumed to foreground, checking for clinical updates...');
+          checkAndApplyUpdates(false);
+        }
+      }
+    });
+
+    return () => sub.remove();
+  }, []);
+
+  // 4. Routine background polling while inside the app (every 8 minutes)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('[AppUpdateManager] Running routine background update check...');
+      checkAndApplyUpdates(false);
+    }, 8 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleRestartNow = async () => {
@@ -169,12 +241,13 @@ export default function AppUpdateManager() {
 
   return (
     <>
-      {/* Top Floating Notification Banner */}
+      {/* Top Floating Status Banner (Checking, Downloading, Error, Up to date) */}
       {isBannerVisible && (
         <Animated.View
           style={[
             styles.bannerContainer,
             {
+              top: topOffset,
               transform: [{ translateY: slideAnim }],
             },
           ]}
@@ -243,11 +316,42 @@ export default function AppUpdateManager() {
         </Animated.View>
       )}
 
+      {/* Persistent Floating Reminder Pill When Update is Downloaded & Ready */}
+      {status === 'ready' && !showReadyModal && (
+        <View style={[styles.reminderPillContainer, { top: topOffset }]}>
+          <TouchableOpacity
+            style={styles.reminderPill}
+            activeOpacity={0.9}
+            onPress={() => setShowReadyModal(true)}
+            accessibilityLabel="Clinical update ready. Tap to view or restart."
+          >
+            <View style={styles.reminderIconBadge}>
+              <Sparkles size={14} color="#047857" />
+            </View>
+            <View style={{ flex: 1, paddingHorizontal: 8 }}>
+              <Text style={styles.reminderPillTitle}>Clinical Update Ready</Text>
+              <Text style={styles.reminderPillSubtitle} numberOfLines={1}>
+                Tap to restart and apply new features
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.reminderRestartMiniBtn}
+              onPress={handleRestartNow}
+              activeOpacity={0.8}
+            >
+              <RefreshCw size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={styles.reminderRestartMiniText}>Restart</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Update Ready Modal with One-Tap Reload */}
       <Modal
         visible={showReadyModal}
         transparent={true}
         animationType="fade"
+        statusBarTranslucent={true}
         onRequestClose={() => setShowReadyModal(false)}
       >
         <View style={styles.modalOverlay}>
@@ -299,11 +403,10 @@ export default function AppUpdateManager() {
 const styles = StyleSheet.create({
   bannerContainer: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 36 : 48,
     left: 12,
     right: 12,
-    zIndex: 9999,
-    elevation: 10,
+    zIndex: 99999,
+    elevation: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -354,6 +457,68 @@ const styles = StyleSheet.create({
     padding: 4,
     marginLeft: 8,
   },
+  // Persistent Reminder Pill
+  reminderPillContainer: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    zIndex: 99999,
+    elevation: 25,
+    alignItems: 'center',
+  },
+  reminderPill: {
+    width: '100%',
+    maxWidth: 420,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#064E3B',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: '#34D399',
+    borderBottomWidth: 3,
+    borderBottomColor: '#022C22',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  reminderIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reminderPillTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#ECFDF5',
+    letterSpacing: 0.2,
+  },
+  reminderPillSubtitle: {
+    fontSize: 11,
+    color: '#A7F3D0',
+    marginTop: 1,
+  },
+  reminderRestartMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#047857',
+  },
+  reminderRestartMiniText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   // Ready Modal
   modalOverlay: {
     flex: 1,
@@ -361,7 +526,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    zIndex: 10000,
+    zIndex: 100000,
   },
   modalCard: {
     width: '100%',
