@@ -1,4 +1,4 @@
-import { Alert, Platform } from "react-native";
+import { Alert, Platform, View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
 import { useEffect, useState } from "react";
@@ -43,11 +43,15 @@ export default function RootLayout() {
     });
 
     // Also check if app was launched FROM a deep link (cold start)
-    Linking.getInitialURL().then((url) => {
-      if (isOAuthUrl(url)) {
-        console.log("[RootLayout] App opened via deep link:", url);
-      }
-    });
+    Linking.getInitialURL()
+      .then((url) => {
+        if (isOAuthUrl(url)) {
+          console.log("[RootLayout] App opened via deep link:", url);
+        }
+      })
+      .catch((err) => {
+        console.warn("[RootLayout] getInitialURL error:", err);
+      });
 
     return () => subscription.remove();
   }, []);
@@ -75,13 +79,17 @@ export default function RootLayout() {
     });
 
     // 2. Cold start (app was fully closed when notification tapped)
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) {
-        console.log("[RootLayout] Cold start notification response:", response.notification.request.content);
-        const data = response.notification.request.content.data;
-        handleNotificationData(data);
-      }
-    });
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) {
+          console.log("[RootLayout] Cold start notification response:", response.notification.request.content);
+          const data = response.notification.request.content.data;
+          handleNotificationData(data);
+        }
+      })
+      .catch((err) => {
+        console.warn("[RootLayout] getLastNotificationResponseAsync error:", err);
+      });
 
     return () => {
       responseSubscription.remove();
@@ -96,18 +104,24 @@ export default function RootLayout() {
   }, [user?.id]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      console.log("[RootLayout] Initial session check:", session ? "Found" : "Null");
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          name: session.user.user_metadata?.name,
-          role: session.user.user_metadata?.role || "doctor",
-        });
-      }
-      setReady(true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }: { data: { session: Session | null } }) => {
+        console.log("[RootLayout] Initial session check:", session ? "Found" : "Null");
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email!,
+            name: session.user.user_metadata?.name,
+            role: session.user.user_metadata?.role || "doctor",
+          });
+        }
+        setReady(true);
+      })
+      .catch((err) => {
+        console.warn("[RootLayout] Initial getSession error:", err);
+        setReady(true);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: string, session: Session | null) => {
@@ -318,3 +332,50 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <View style={errorStyles.container}>
+      <Text style={errorStyles.title}>Something went wrong</Text>
+      <Text style={errorStyles.message}>{error?.message || "An unexpected error occurred."}</Text>
+      <TouchableOpacity style={errorStyles.button} onPress={retry} activeOpacity={0.8}>
+        <Text style={errorStyles.buttonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "#ffffff",
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  message: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  button: {
+    backgroundColor: "#00B4A0",
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+});

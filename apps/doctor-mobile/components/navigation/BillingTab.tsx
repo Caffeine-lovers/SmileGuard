@@ -238,8 +238,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
         {
           id: "billing-first-card",
           target: "billing-first-card",
-          title: "Invoice Details & Dummy Editing",
-          description: "Inspect invoice items, settlement status, discounts, and edit billing details directly for dummy walk-in patients.",
+          title: "Invoice Details & Walk-in Editing",
+          description: "Inspect invoice items, settlement status, discounts, and edit billing details directly for walk-in patients.",
           icon: Receipt,
           padding: 6,
           radius: 12,
@@ -721,13 +721,13 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
         }
       }
 
-      Alert.alert('Success', 'Dummy patient billing record updated successfully!');
+      Alert.alert('Success', 'Walk-in patient billing record updated successfully!');
       setShowEditModal(false);
       setEditingBilling(null);
       await loadBillings();
     } catch (err: any) {
       console.error('Error saving dummy billing update:', err);
-      Alert.alert('Update Failed', err.message || 'Could not update dummy billing record.');
+      Alert.alert('Update Failed', err.message || 'Could not update walk-in billing record.');
     } finally {
       setSavingEdit(false);
     }
@@ -769,7 +769,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
 
   const handleSaveCreateDummyBilling = async () => {
     if (!createPatientId) {
-      Alert.alert('Selection Error', 'Please select a walk-in / dummy patient.');
+      Alert.alert('Selection Error', 'Please select a walk-in patient.');
       return;
     }
     const parsedAmount = parseCurrencyInput(createAmount);
@@ -822,7 +822,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
       await loadBillings();
     } catch (err: any) {
       console.error('Error creating dummy billing:', err);
-      Alert.alert('Creation Failed', err.message || 'Could not create dummy billing record.');
+      Alert.alert('Creation Failed', err.message || 'Could not create walk-in billing record.');
     } finally {
       setSavingCreate(false);
     }
@@ -888,7 +888,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                 activeOpacity={0.8}
               >
                 <Plus size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <Text style={localStyles.createInvoiceBtnText}>Dummy Bill</Text>
+                <Text style={localStyles.createInvoiceBtnText}>Walk-in Bill</Text>
               </TouchableOpacity>
             )}
 
@@ -1197,7 +1197,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                               activeOpacity={0.8}
                             >
                               <Pencil size={13} color="#047857" style={{ marginRight: 6 }} />
-                              <Text style={localStyles.editCardBtnText}>Edit Dummy Billing</Text>
+                              <Text style={localStyles.editCardBtnText}>Edit Walk-in Billing</Text>
                             </TouchableOpacity>
                           </View>
                         )}
@@ -1521,7 +1521,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <View style={localStyles.modalHeader}>
               <View>
-                <Text style={localStyles.modalTitle}>EDIT DUMMY BILLING</Text>
+                <Text style={localStyles.modalTitle}>EDIT WALK-IN BILLING</Text>
                 <Text style={localStyles.modalSubtitle}>
                   {editingBilling ? `BILL #${editingBilling.id?.slice(0, 8).toUpperCase()} • ${editingBilling.patient_name}` : ''}
                 </Text>
@@ -1755,7 +1755,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
             <View style={localStyles.modalHeader}>
               <View>
-                <Text style={localStyles.modalTitle}>CREATE DUMMY INVOICE</Text>
+                <Text style={localStyles.modalTitle}>CREATE WALK-IN INVOICE</Text>
                 <Text style={localStyles.modalSubtitle}>Issue a ledger invoice for a walk-in patient</Text>
               </View>
               <TouchableOpacity
@@ -1772,7 +1772,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
 <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
               {/* Patient Selection */}
               <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Select Walk-in / Dummy Patient</Text>
+                <Text style={localStyles.formLabel}>Select Walk-in Patient</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {dummyPatientsList.map((dp) => {

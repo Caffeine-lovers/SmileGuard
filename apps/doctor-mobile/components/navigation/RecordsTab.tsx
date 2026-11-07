@@ -435,7 +435,7 @@ export default function RecordsTab({
               style={localStyles.searchInput}
               placeholder={
                 patientTypeFilter === 'dummy'
-                  ? "Search dummy patients..."
+                  ? "Search walk-in patients..."
                   : patientTypeFilter === 'patient'
                   ? "Search registered patients..."
                   : "Search by patient name..."
@@ -470,7 +470,7 @@ export default function RecordsTab({
                 else setPatientTypeFilter('all');
               }}
               activeOpacity={0.7}
-              accessibilityLabel={`Filter: currently ${patientTypeFilter}. Tap to switch between All, Patient, and Dummy`}
+              accessibilityLabel={`Filter: currently ${patientTypeFilter}. Tap to switch between All, Patient, and Walk-in`}
             >
               <View
                 style={[
@@ -492,12 +492,12 @@ export default function RecordsTab({
                     : localStyles.searchToggleTextAll,
                 ]}
               >
-                {patientTypeFilter === 'dummy' ? 'DUMMY' : patientTypeFilter === 'patient' ? 'PATIENT' : 'ALL'}
+                {patientTypeFilter === 'dummy' ? 'WALK-IN' : patientTypeFilter === 'patient' ? 'PATIENT' : 'ALL'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* View Filter Options (All / Patients / Dummy) */}
+          {/* View Filter Options (All / Patients / Walk-in) */}
           <View style={localStyles.typeFilterRow}>
             <Text style={localStyles.typeFilterLabel}>VIEW:</Text>
             <TouchableOpacity
@@ -550,7 +550,7 @@ export default function RecordsTab({
                   patientTypeFilter === 'dummy' ? localStyles.typeTabBtnTextActiveDummy : localStyles.typeTabBtnTextInactive,
                 ]}
               >
-                Dummy ({dummyOnlyCount})
+                Walk-in ({dummyOnlyCount})
               </Text>
             </TouchableOpacity>
           </View>
@@ -643,7 +643,7 @@ export default function RecordsTab({
               <Text style={localStyles.emptyTitle}>NO MATCHES FOUND</Text>
               <Text style={localStyles.emptySubtitle}>
                 {patientTypeFilter === 'dummy'
-                  ? `No dummy patient records found${quickSearchQuery ? ` matching "${quickSearchQuery}"` : ""}.`
+                  ? `No walk-in patient records found${quickSearchQuery ? ` matching "${quickSearchQuery}"` : ""}.`
                   : patientTypeFilter === 'patient'
                   ? `No registered patient records found${quickSearchQuery ? ` matching "${quickSearchQuery}"` : ""}.`
                   : `No patient records match "${quickSearchQuery}". Try a different patient name.`}
@@ -728,7 +728,7 @@ export default function RecordsTab({
                           ) : null}
                           {patient.dummy ? (
                             <View style={localStyles.dummyBadge}>
-                              <Text style={localStyles.dummyBadgeText}>DUMMY</Text>
+                              <Text style={localStyles.dummyBadgeText}>WALK-IN</Text>
                             </View>
                           ) : (
                             <View style={localStyles.patientBadge}>

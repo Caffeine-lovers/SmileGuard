@@ -128,17 +128,21 @@ export default function AppUpdateManager() {
 
     try {
       clearHideTimer();
-      setStatus('checking');
-      setStatusMessage('Checking for clinic updates...');
-      notifyUpdateListeners('checking', 'Checking for clinic updates...');
-      showBanner();
+      if (interactive) {
+        setStatus('checking');
+        setStatusMessage('Checking for clinic updates...');
+        notifyUpdateListeners('checking', 'Checking for clinic updates...');
+        showBanner();
+      }
 
       const check = await Updates.checkForUpdateAsync();
 
       if (check.isAvailable) {
-        setStatus('downloading');
-        setStatusMessage('Downloading new clinical update...');
-        notifyUpdateListeners('downloading', 'Downloading new clinical update...');
+        if (interactive) {
+          setStatus('downloading');
+          setStatusMessage('Downloading new clinical update...');
+          notifyUpdateListeners('downloading', 'Downloading new clinical update...');
+        }
 
         await Updates.fetchUpdateAsync();
 
@@ -148,30 +152,38 @@ export default function AppUpdateManager() {
         setShowReadyModal(true);
         hideBanner();
       } else {
-        setStatus('up-to-date');
-        setStatusMessage('App is up to date with the latest clinical features.');
-        notifyUpdateListeners('up-to-date', 'App is up to date.');
-        hideTimerRef.current = setTimeout(hideBanner, interactive ? 3000 : 1500);
+        if (interactive) {
+          setStatus('up-to-date');
+          setStatusMessage('App is up to date with the latest clinical features.');
+          notifyUpdateListeners('up-to-date', 'App is up to date.');
+          hideTimerRef.current = setTimeout(hideBanner, 3000);
+        } else {
+          setStatus('idle');
+        }
       }
     } catch (err: any) {
       console.warn('[AppUpdateManager] Update check error:', err);
-      const errMsg = err?.message || 'Could not reach update server';
-      setStatus('error');
-      setStatusMessage(`Update check failed: ${errMsg}`);
-      notifyUpdateListeners('error', errMsg);
-      hideTimerRef.current = setTimeout(hideBanner, 4000);
+      if (interactive) {
+        const errMsg = err?.message || 'Could not reach update server';
+        setStatus('error');
+        setStatusMessage(`Update check failed: ${errMsg}`);
+        notifyUpdateListeners('error', errMsg);
+        hideTimerRef.current = setTimeout(hideBanner, 4000);
+      } else {
+        setStatus('idle');
+      }
     } finally {
       isCheckingRef.current = false;
     }
   };
 
-  // 1. Check automatically on app startup
+  // 1. Check automatically on app startup (delayed so cold-start rendering is unaffected)
   useEffect(() => {
     globalTriggerCheck = checkAndApplyUpdates;
 
     const startTimer = setTimeout(() => {
       checkAndApplyUpdates(false);
-    }, 1500);
+    }, 10000);
 
     return () => {
       clearTimeout(startTimer);

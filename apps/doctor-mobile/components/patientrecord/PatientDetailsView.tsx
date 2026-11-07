@@ -355,7 +355,7 @@ export default function PatientDetailsView({
               style={styles.topAppBarEditBtn}
               onPress={() => setShowEditPatientModal(true)}
               activeOpacity={0.7}
-              accessibilityLabel="Edit dummy patient record"
+              accessibilityLabel="Edit walk-in patient record"
             >
               <Text style={styles.topAppBarEditBtnText}>Edit</Text>
             </TouchableOpacity>
@@ -396,7 +396,7 @@ export default function PatientDetailsView({
                   <View style={styles.heroBadgeRow}>
                     {((patient as any).dummy || patientProfile?.dummy) ? (
                       <View style={styles.dummyBadge}>
-                        <Text style={styles.dummyBadgeText}>DUMMY</Text>
+                        <Text style={styles.dummyBadgeText}>WALK-IN</Text>
                       </View>
                     ) : (
                       <View style={styles.patientBadge}>
@@ -1078,7 +1078,7 @@ export default function PatientDetailsView({
         </View>
       </Modal>
 
-      {/* Edit Dummy Patient Record Modal */}
+      {/* Edit Walk-in Patient Record Modal */}
       {isDummyPatient && (
         <AddPatientModal
           visible={showEditPatientModal}
