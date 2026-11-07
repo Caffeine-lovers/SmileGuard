@@ -225,17 +225,7 @@ export default function PatientDashboard() {
         setAppointments(enrichedAppts);
         setOutstandingBalance(balance);
 
-        // If no scheduled visits exist but pending requests do, default to the pending tab
-        const pendingCount = (enrichedAppts || []).filter(isPendingAppointment).length;
-        const scheduledCount = (enrichedAppts || []).filter(
-          (apt) => !isPendingAppointment(apt) && !isCancelledAppointment(apt)
-        ).length;
-        if (typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search);
-          if (!params.get('tab') && scheduledCount === 0 && pendingCount > 0) {
-            setActiveTab('pending');
-          }
-        }
+        // Default to scheduled visits as priority view
 
         // Fetch doctor names and pictures with fast timeout
         const doctorIds = Array.from(new Set(
@@ -476,7 +466,7 @@ export default function PatientDashboard() {
                   : 'text-slate-700 hover:text-slate-900 bg-white/60'
               }`}
             >
-              Scheduled ({scheduledAppointments.length})
+              SCHEDULED ({scheduledAppointments.length})
             </button>
             <button
               onClick={() => handleTabChange('pending')}
@@ -486,7 +476,7 @@ export default function PatientDashboard() {
                   : 'text-slate-700 hover:text-slate-900 bg-white/60'
               }`}
             >
-              Pending ({pendingAppointments.length})
+              PENDING ({pendingAppointments.length})
             </button>
             <button
               onClick={() => handleTabChange('cancelled')}
@@ -496,7 +486,7 @@ export default function PatientDashboard() {
                   : 'text-slate-700 hover:text-slate-900 bg-white/60'
               }`}
             >
-              Cancelled ({cancelledAppointments.length})
+              CANCELLED ({cancelledAppointments.length})
             </button>
           </div>
         </div>
