@@ -173,7 +173,7 @@ export async function getDoctorAppointments(
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
-      let patientName = 'Unknown Patient';
+      let patientName = apt.patient_name || 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
@@ -189,7 +189,7 @@ export async function getDoctorAppointments(
         };
       } else if (apt.patient_id && profileMap.has(apt.patient_id)) {
         profile = profileMap.get(apt.patient_id);
-        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       } else if (apt.patient_id && dummyPatientMap.has(apt.patient_id)) {
         const dummy = dummyPatientMap.get(apt.patient_id);
@@ -346,7 +346,7 @@ async function fallbackGetDoctorAppointments(
 
     // Transform and return
     return allAppointments.map((apt: any) => {
-      let patientName = 'Unknown Patient';
+      let patientName = apt.patient_name || 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
@@ -362,7 +362,7 @@ async function fallbackGetDoctorAppointments(
         };
       } else if (apt.patient_id && profileMap.has(apt.patient_id)) {
         profile = profileMap.get(apt.patient_id);
-        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       } else if (apt.patient_id && dummyPatientMap.has(apt.patient_id)) {
         const dummy = dummyPatientMap.get(apt.patient_id);
@@ -490,13 +490,13 @@ export async function getDoctorAppointmentsByDate(
 
     // Step 6: Transform appointments with patient names and avatars
     const transformedData = filteredAppointments.map((apt: any) => {
-      let patientName = 'Unknown Patient';
+      let patientName = apt.patient_name || 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
       if (apt.patient_id) {
         profile = profileMap.get(apt.patient_id);
-        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 
@@ -602,13 +602,13 @@ async function fallbackGetAppointmentsByDate(
     });
 
     return allAppointments.map((apt: any) => {
-      let patientName = 'Unknown Patient';
+      let patientName = apt.patient_name || 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
       if (apt.patient_id) {
         profile = profileMap.get(apt.patient_id);
-        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 
@@ -1009,13 +1009,13 @@ export async function getAppointmentRequests(): Promise<DoctorAppointment[]> {
 
     // Transform appointments with patient names and avatars
     const transformedData = appointmentsData.map((apt: any) => {
-      let patientName = 'Unknown Patient';
+      let patientName = apt.patient_name || 'Unknown Patient';
       let patientAvatar = null;
       let profile = null;
 
       if (apt.patient_id) {
         profile = profileMap.get(apt.patient_id);
-        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_id;
+        patientName = profile?.full_name || profile?.name || profile?.user_name || apt.patient_name || apt.patient_id;
         patientAvatar = profile?.avatar_url || profile?.avatar || profile?.profile_picture || profile?.image_url || null;
       }
 

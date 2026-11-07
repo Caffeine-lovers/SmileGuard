@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,11 @@ import {
   resolveSupportRequest,
   setSupportRequestStatus,
 } from "../../lib/adminService";
+import {
+  AdminPagination,
+  AdminCountHeader,
+  ADMIN_ITEMS_PER_PAGE,
+} from "./AdminPagination";
 
 type FilterStatus = "all" | SupportRequest["status"];
 
@@ -39,6 +44,35 @@ export default function SupportRequestsTab() {
   const [resolvingRequest, setResolvingRequest] = useState<SupportRequest | null>(null);
   const [resolutionNote, setResolutionNote] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const totalPages = Math.max(1, Math.ceil(requests.length / ADMIN_ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ADMIN_ITEMS_PER_PAGE;
+  const paginatedRequests = requests.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback
+      }
+    }
+  };
+
+  const handleFilterChange = (newFilter: FilterStatus) => {
+    setFilter(newFilter);
+    setCurrentPage(1);
+  };
 
   const fetchRequests = useCallback(async (status: FilterStatus) => {
     const data = await listSupportRequests(status === "all" ? undefined : status);
@@ -124,7 +158,7 @@ export default function SupportRequestsTab() {
               <TouchableOpacity
                 key={item.id}
                 style={[styles.filterPill, isActive && styles.filterPillActive]}
-                onPress={() => setFilter(item.id)}
+                onPress={() => handleFilterChange(item.id)}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
@@ -137,6 +171,7 @@ export default function SupportRequestsTab() {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
@@ -147,7 +182,17 @@ export default function SupportRequestsTab() {
             <Text style={styles.emptyTitle}>No Inquiries</Text>
           </View>
         ) : (
-          requests.map((req, index) => {
+          <>
+            <AdminCountHeader
+              startIndex={startIndex}
+              endIndex={Math.min(startIndex + ADMIN_ITEMS_PER_PAGE, requests.length)}
+              totalItems={requests.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemLabel="support tickets"
+            />
+
+            {paginatedRequests.map((req, index) => {
             const isOpen = req.status === "open";
             const isInProgress = req.status === "in_progress";
             const isResolved = req.status === "resolved";
@@ -232,7 +277,14 @@ export default function SupportRequestsTab() {
                 )}
               </Animated.View>
             );
-          })
+          })}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </>
         )}
       </ScrollView>
 

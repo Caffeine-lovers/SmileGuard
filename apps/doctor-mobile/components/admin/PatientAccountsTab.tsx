@@ -14,6 +14,11 @@ import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { User, Search, Trash2, Mail, Calendar, X } from "lucide-react-native";
 import { AdminPatientRow, listPatients, deletePatientAccount } from "../../lib/adminService";
 import PatientDetailModal from "./PatientDetailModal";
+import {
+  AdminPagination,
+  AdminCountHeader,
+  ADMIN_ITEMS_PER_PAGE,
+} from "./AdminPagination";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -24,6 +29,30 @@ export default function PatientAccountsTab() {
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<AdminPatientRow | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const totalPages = Math.max(1, Math.ceil(patients.length / ADMIN_ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ADMIN_ITEMS_PER_PAGE;
+  const paginatedPatients = patients.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback
+      }
+    }
+  };
 
   const fetchPatients = useCallback(async (query?: string) => {
     const data = await listPatients(query);
@@ -49,6 +78,7 @@ export default function PatientAccountsTab() {
 
   const handleSearch = (text: string) => {
     setSearch(text);
+    setCurrentPage(1);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       fetchPatients(text);
@@ -58,6 +88,7 @@ export default function PatientAccountsTab() {
   const handleClearSearch = () => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setSearch("");
+    setCurrentPage(1);
     fetchPatients("");
   };
 
@@ -114,6 +145,7 @@ export default function PatientAccountsTab() {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
@@ -125,7 +157,18 @@ export default function PatientAccountsTab() {
             <Text style={styles.emptyTitle}>No Patients Found</Text>
           </View>
         ) : (
-          patients.map((patient, index) => (
+          <>
+            <AdminCountHeader
+              startIndex={startIndex}
+              endIndex={Math.min(startIndex + ADMIN_ITEMS_PER_PAGE, patients.length)}
+              totalItems={patients.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemLabel="patients"
+              filterNote={search.trim() ? `matching "${search.trim()}"` : undefined}
+            />
+
+            {paginatedPatients.map((patient, index) => (
             <Animated.View
               key={patient.id}
               entering={FadeInDown.duration(220).delay(Math.min(index, 8) * 35)}
@@ -180,7 +223,14 @@ export default function PatientAccountsTab() {
                 </View>
               </View>
             </Animated.View>
-          ))
+          ))}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </>
         )}
       </ScrollView>
 

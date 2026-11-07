@@ -1,26 +1,14 @@
-import React, { useRef, useCallback, useEffect } from "react";
-import { BackHandler, ToastAndroid, Platform, Alert } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { BackHandler } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from "@smileguard/supabase-client";
 import AuthModal from "../components/auth/AuthModal";
 
 export default function LandingPage() {
-  const lastBackPressRef = useRef<number>(0);
+  const [modalVisible, setModalVisible] = useState(true);
 
   const handleBackPress = useCallback(() => {
-    const now = Date.now();
-    if (now - lastBackPressRef.current < 2000) {
-      BackHandler.exitApp();
-      return true;
-    }
-    lastBackPressRef.current = now;
-    if (Platform.OS === "android") {
-      ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
-    } else {
-      Alert.alert("Exit App", "Are you sure you want to exit SmileGuard?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Exit", onPress: () => BackHandler.exitApp() },
-      ]);
-    }
+    BackHandler.exitApp();
     return true;
   }, []);
 
@@ -32,12 +20,32 @@ export default function LandingPage() {
     return () => backSubscription.remove();
   }, [handleBackPress]);
 
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && session?.user) {
+        setModalVisible(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted && session?.user) {
+        setModalVisible(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <AuthModal
-        visible={true}
+        visible={modalVisible}
         onClose={handleBackPress}
-        onSuccess={() => {}} // root layout handles redirect
+        onSuccess={() => setModalVisible(false)}
         showCloseButton={false}
       />
     </SafeAreaView>

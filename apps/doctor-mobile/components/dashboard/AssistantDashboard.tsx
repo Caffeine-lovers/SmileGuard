@@ -44,8 +44,8 @@ import { getPatientMedicalInfo } from "../../lib/profilesPatients";
 import * as dashboardService from "../../lib/dashboardService";
 import {
   getDoctorProfile,
-  isDoctorGuideCompleted,
-  markDoctorGuideCompleted,
+  isAssistantGuideCompleted,
+  markAssistantGuideCompleted,
 } from "../../lib/doctorService";
 import { supabase } from "@smileguard/supabase-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -85,6 +85,8 @@ import {
   HeartPulse,
   Settings as SettingsIcon,
   CreditCard,
+  Bell,
+  Activity,
 } from "lucide-react-native";
 import { getToday } from "../../data/dashboardData";
 
@@ -277,7 +279,6 @@ export default function AssistantDashboard({
   const [tabHistory, setTabHistory] = useState<
     ("dashboard" | "records" | "appointments" | "appointment-requests" | "billing" | "settings")[]
   >([]);
-  const lastBackPressRef = useRef<number>(0);
 
   // Dashboard shows the swipe deck of booking requests, or today's schedule
   const [dashboardView, setDashboardView] = useState<"requests" | "today">("requests");
@@ -373,14 +374,7 @@ export default function AssistantDashboard({
       return true;
     }
 
-    const now = Date.now();
-    if (now - lastBackPressRef.current < 2000) {
-      return false;
-    }
-    lastBackPressRef.current = now;
-    if (Platform.OS === "android") {
-      ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
-    }
+    // On root dashboard with no overlays: stay on dashboard
     return true;
   }, [
     sidebarOpen,
@@ -412,30 +406,42 @@ export default function AssistantDashboard({
   const tourSteps: TourStep[] = [
     {
       id: "welcome",
-      title: "Welcome to SmileGuard!",
+      title: "Welcome, Clinic Assistant!",
       description:
-        "Here is a quick look at how you can see arriving patients, check new booking requests, and help dentists get ready for appointments.",
-      icon: Stethoscope,
+        "Your front-desk dental command center. Let's take a quick 1-minute interactive tour of your daily queue, booking requests, and clinic tools.",
+      icon: Users,
       placement: "center",
       onEnter: () => setSidebarOpen(false),
     },
     {
       id: "menu-btn",
       target: "menu-btn",
-      title: "Menu",
+      title: "Assistant Navigation Rail",
       description:
-        "Use this bar on the left anytime to go to your Dashboard, Patient Records, Appointments, Booking Requests, Billing, or Settings.",
+        "Tap this navigation menu anytime to switch between your Assistant Dashboard, Patient Records, Appointments, Billing, and Settings.",
       icon: Menu,
       padding: 6,
       radius: 12,
       onEnter: () => setSidebarOpen(false),
     },
     {
+      id: "notifications-btn",
+      target: "notifications-btn",
+      title: "Clinic Alerts & Notifications",
+      description:
+        "Get live alerts whenever patients submit new appointment requests, reschedule inquiries, or completed health forms.",
+      icon: Bell,
+      padding: 4,
+      radius: 10,
+      onEnter: () => setSidebarOpen(false),
+      delay: 350,
+    },
+    {
       id: "request-deck",
       target: "request-deck",
-      title: "Booking Requests",
+      title: "Booking Requests Deck",
       description:
-        "New bookings show up here one patient at a time, oldest first. Swipe right to accept or left to decline.",
+        "Pending bookings appear here one at a time, oldest first. Swipe right to accept or left to decline with instant patient notification.",
       icon: Inbox,
       padding: 6,
       radius: 14,
@@ -450,37 +456,25 @@ export default function AssistantDashboard({
       target: "stats-panel",
       title: "Today at a Glance",
       description:
-        "Shows today's visits, new requests waiting for you, and finished appointments.",
-      icon: Calendar,
+        "Real-time metrics showing pending booking requests, reschedule requests, and patient visits completed today.",
+      icon: Activity,
       padding: 6,
       radius: 14,
       onEnter: () => {
         setSidebarOpen(false);
         setActiveTab("dashboard");
         setDashboardView("today");
-      },
-    },
-    {
-      id: "today-queue",
-      target: "today-queue",
-      title: "Today's Patients",
-      description:
-        "All patients scheduled to visit the clinic today. Tap any patient to view their info on the right.",
-      icon: Calendar,
-      padding: 6,
-      radius: 14,
-      onEnter: () => {
-        setSidebarOpen(false);
-        setActiveTab("dashboard");
-        setDashboardView("today");
+        try {
+          dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
       },
     },
     {
       id: "reschedule-requests",
       target: "reschedule-requests",
-      title: "Reschedule Requests",
+      title: "Priority Reschedule Queue",
       description:
-        "Patients requesting to change their appointment time appear right upfront. Review the requested time and confirm or update.",
+        "Patients requesting to change their appointment time appear right upfront so you can quickly review, verify chair availability, and confirm.",
       icon: CalendarDays,
       padding: 6,
       radius: 14,
@@ -488,17 +482,61 @@ export default function AssistantDashboard({
         setSidebarOpen(false);
         setActiveTab("dashboard");
         setDashboardView("today");
+        try {
+          const yOffset = (dashboardColumnsLayoutY.current || 200) - 12;
+          dashboardScrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset), animated: false });
+        } catch (e) {}
+      },
+      delay: 250,
+    },
+    {
+      id: "today-queue",
+      target: "today-queue",
+      title: "Today's Patient Schedule",
+      description:
+        "Your real-time queue of scheduled clinic visits. Filter by Scheduled or Done, and tap any patient to view their dental chart, allergies, and contact details.",
+      icon: Users,
+      padding: 6,
+      radius: 14,
+      onEnter: () => {
+        setSidebarOpen(false);
+        setActiveTab("dashboard");
+        setDashboardView("today");
+        try {
+          const yOffset = (dashboardColumnsLayoutY.current || 200) + 180;
+          dashboardScrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset), animated: false });
+        } catch (e) {}
+      },
+      delay: 250,
+    },
+    {
+      id: "assistant-guide-btn",
+      target: "assistant-guide-btn",
+      title: "Replay Guide Anytime",
+      description:
+        "Tap this Sparkles button anytime to replay this interactive walkthrough or reopen your front-desk guide.",
+      icon: Sparkles,
+      padding: 6,
+      radius: 12,
+      onEnter: () => {
+        setSidebarOpen(false);
+        try {
+          dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
       },
     },
     {
       id: "finish",
       title: "You're All Set!",
       description:
-        "You have everything you need to welcome patients, manage visits, and assist the clinic.",
+        "You have everything you need to welcome patients, manage visits, and assist dentists with daily clinic operations. Let's make every smile shine!",
       icon: ShieldCheck,
       placement: "center",
       onEnter: () => {
         setSidebarOpen(false);
+        try {
+          dashboardScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+        } catch (e) {}
       },
     },
   ];
@@ -510,12 +548,10 @@ export default function AssistantDashboard({
     let isMounted = true;
     const checkFirstTimeTour = async () => {
       try {
-        const alreadyDone = await isDoctorGuideCompleted(user?.id || "", "dashboard");
+        const alreadyDone = await isAssistantGuideCompleted(user?.id, "dashboard");
         if (alreadyDone) return;
 
-        const key = `@smileguard_assistant_tour_completed_${user.id}`;
-        const hasCompleted = await AsyncStorage.getItem(key);
-        if (!hasCompleted && isMounted) {
+        if (isMounted) {
           const timer = setTimeout(() => {
             if (isMounted) {
               setTourIndex(0);
@@ -539,7 +575,7 @@ export default function AssistantDashboard({
     setTourVisible(false);
     setSidebarOpen(false);
     if (user?.id) {
-      await markDoctorGuideCompleted(user.id, "dashboard");
+      await markAssistantGuideCompleted(user.id, "dashboard");
     }
   };
 
@@ -547,7 +583,7 @@ export default function AssistantDashboard({
     setTourVisible(false);
     setSidebarOpen(false);
     if (user?.id) {
-      await markDoctorGuideCompleted(user.id, "dashboard");
+      await markAssistantGuideCompleted(user.id, "dashboard");
     }
   };
 
@@ -1274,24 +1310,26 @@ export default function AssistantDashboard({
         </View>
 
         <View style={styles.topAppBarRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => {
-              if (activeTab === "records") {
-                setRecordsTourTrigger((prev) => prev + 1);
-              } else if (activeTab === "appointments") {
-                setAppointmentsTourTrigger((prev) => prev + 1);
-              } else if (activeTab === "billing") {
-                setBillingTourTrigger((prev) => prev + 1);
-              } else {
-                handleRestartTour();
-              }
-            }}
-            accessibilityLabel="App Guide & Walkthrough"
-            activeOpacity={0.7}
-          >
-            <Sparkles size={19} color="#047857" />
-          </TouchableOpacity>
+          <View ref={tour.register("assistant-guide-btn")} collapsable={false}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => {
+                if (activeTab === "records") {
+                  setRecordsTourTrigger((prev) => prev + 1);
+                } else if (activeTab === "appointments") {
+                  setAppointmentsTourTrigger((prev) => prev + 1);
+                } else if (activeTab === "billing") {
+                  setBillingTourTrigger((prev) => prev + 1);
+                } else {
+                  handleRestartTour();
+                }
+              }}
+              accessibilityLabel="App Guide & Walkthrough"
+              activeOpacity={0.7}
+            >
+              <Sparkles size={19} color="#047857" />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={styles.iconButton}
@@ -1309,10 +1347,12 @@ export default function AssistantDashboard({
             )}
           </TouchableOpacity>
 
-          <NotificationBell
-            unreadCount={totalUnreadCount}
-            onPress={() => setShowNotificationCenter(true)}
-          />
+          <View ref={tour.register("notifications-btn")} collapsable={false}>
+            <NotificationBell
+              unreadCount={totalUnreadCount}
+              onPress={() => setShowNotificationCenter(true)}
+            />
+          </View>
         </View>
       </View>
 

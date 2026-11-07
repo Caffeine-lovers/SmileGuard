@@ -345,8 +345,14 @@ export default function SettingsTab({
                 <Compass size={18} color="#047857" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={localStyles.cardTitle}>Doctor Dashboard Walkthrough</Text>
-                <Text style={localStyles.cardSubtitle}>Daily schedules, patient queue & quick actions</Text>
+                <Text style={localStyles.cardTitle}>
+                  {isAssistant ? "Assistant Dashboard Walkthrough" : "Doctor Dashboard Walkthrough"}
+                </Text>
+                <Text style={localStyles.cardSubtitle}>
+                  {isAssistant
+                    ? "Daily queue, booking requests & reschedule actions"
+                    : "Daily schedules, patient queue & quick actions"}
+                </Text>
               </View>
               <View style={localStyles.chevronBox}>
                 <ChevronRight size={16} color="#047857" />
@@ -403,7 +409,11 @@ export default function SettingsTab({
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={localStyles.cardTitle}>Billing Ledger Walkthrough</Text>
-                <Text style={localStyles.cardSubtitle}>Revenue tracking, invoices & PayMongo payouts</Text>
+                <Text style={localStyles.cardSubtitle}>
+                  {isAssistant
+                    ? "Payment verification, invoices & transaction tracking"
+                    : "Revenue tracking, invoices & PayMongo payouts"}
+                </Text>
               </View>
               <View style={localStyles.chevronBox}>
                 <ChevronRight size={16} color="#047857" />
@@ -421,8 +431,14 @@ export default function SettingsTab({
                 <Sparkles size={18} color="#0284C7" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={localStyles.cardTitle}>Clinic Onboarding Wizard</Text>
-                <Text style={localStyles.cardSubtitle}>Revisit the full setup: clinic hours, catalog & PayMongo</Text>
+                <Text style={localStyles.cardTitle}>
+                  {isAssistant ? "Assistant Walkthrough Guide" : "Clinic Onboarding Wizard"}
+                </Text>
+                <Text style={localStyles.cardSubtitle}>
+                  {isAssistant
+                    ? "Revisit front-desk workflows: queue, request deck & check-in"
+                    : "Revisit the full setup: clinic hours, catalog & PayMongo"}
+                </Text>
               </View>
               <View style={localStyles.chevronBox}>
                 <ChevronRight size={16} color="#0284C7" />

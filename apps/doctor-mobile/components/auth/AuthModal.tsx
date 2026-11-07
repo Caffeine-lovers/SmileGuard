@@ -13,7 +13,6 @@ import {
   Keyboard,
   Alert,
   BackHandler,
-  ToastAndroid,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
@@ -28,7 +27,7 @@ WebBrowser.maybeCompleteAuthSession();
 export interface AuthModalProps {
   visible: boolean;
   onClose?: () => void;
-  onSuccess: (user: CurrentUser) => void;
+  onSuccess?: (user?: CurrentUser) => void;
   showCloseButton?: boolean;
 }
 
@@ -43,23 +42,8 @@ export default function AuthModal({
   const [doctorAccessCode, setDoctorAccessCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
 
-  const lastBackPressRef = React.useRef<number>(0);
-
   const handleBackPress = React.useCallback(() => {
-    const now = Date.now();
-    if (now - lastBackPressRef.current < 2000) {
-      BackHandler.exitApp();
-      return true;
-    }
-    lastBackPressRef.current = now;
-    if (Platform.OS === "android") {
-      ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
-    } else {
-      Alert.alert("Exit App", "Are you sure you want to exit SmileGuard?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Exit", onPress: () => BackHandler.exitApp() },
-      ]);
-    }
+    BackHandler.exitApp();
     return true;
   }, []);
 
@@ -87,18 +71,33 @@ export default function AuthModal({
 
   // Listen for OAuth auth state changes (SIGNED_IN after deep link redirect)
   React.useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[AuthModal] Auth state changed:", event);
-      if (event === "SIGNED_IN" && session?.user) {
-        console.log("[AuthModal] SIGNED_IN detected for", session.user.email);
+    let isMounted = true;
+
+    // Check if session is already active (e.g. after returning from OAuth)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted && session?.user) {
+        console.log("[AuthModal] Active session detected on mount:", session.user.email);
         setLoading(false);
-        // Important: Close modal automatically when sign-in completes via deep link
+        onSuccess?.();
         onClose?.();
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [onClose]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[AuthModal] Auth state changed:", event);
+      if (isMounted && session?.user && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")) {
+        console.log("[AuthModal] Auth success detected for", session.user.email);
+        setLoading(false);
+        onSuccess?.();
+        onClose?.();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [onClose, onSuccess]);
 
   /**
    * Helper to verify doctor access code via Edge Function, database, or fallback
@@ -204,10 +203,22 @@ export default function AuthModal({
         }
 
         if (params.code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
-          if (exchangeError) throw exchangeError;
-          console.log("[GoogleOAuth] Code exchanged successfully");
-          onClose?.();
+          try {
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
+            if (exchangeError) {
+              console.warn("[GoogleOAuth] Code exchange note:", exchangeError.message);
+            }
+          } catch (e) {
+            console.warn("[GoogleOAuth] Code exchange exception:", e);
+          }
+          const { data: { session: confirmedSession } } = await supabase.auth.getSession();
+          if (confirmedSession?.user) {
+            console.log("[GoogleOAuth] Code exchanged or session active successfully");
+            onSuccess?.();
+            onClose?.();
+          } else {
+            throw new Error("Could not verify session after Google login.");
+          }
         } else if (params.access_token && params.refresh_token) {
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: params.access_token,
@@ -217,26 +228,33 @@ export default function AuthModal({
           if (sessionError) throw sessionError;
 
           console.log("[GoogleOAuth] Session set successfully");
-          // Close the modal - let the file-based routing handle directing to setup-profile or dashboard
+          onSuccess?.();
           onClose?.();
         } else {
           // If no parameters in result.url, check if session already exists
           const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
+          if (session?.user) {
+            onSuccess?.();
             onClose?.();
           } else {
             throw new Error("No tokens or auth code returned from Google");
           }
         }
-      } else {
-        setLoading(false);
       }
     } catch (err) {
-      let errorMessage = "Google sign-in failed.";
-      if (err instanceof Error) {
-        errorMessage = err.message;
+      // Check if session actually succeeded in the background before showing an alert
+      const { data: { session: checkSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      if (checkSession?.user) {
+        onSuccess?.();
+        onClose?.();
+      } else {
+        let errorMessage = "Google sign-in failed.";
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        }
+        Alert.alert("Sign-in Error", errorMessage);
       }
-      Alert.alert("Sign-in Error", errorMessage);
+    } finally {
       setLoading(false);
     }
   };

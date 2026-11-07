@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,11 +13,40 @@ import {
 import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
 import { Stethoscope, Trash2, BadgeCheck, Users, ShieldAlert } from "lucide-react-native";
 import { AdminDoctorRow, listDentists, setDoctorVerified, deleteDoctorAccount } from "../../lib/adminService";
+import {
+  AdminPagination,
+  AdminCountHeader,
+  ADMIN_ITEMS_PER_PAGE,
+} from "./AdminPagination";
 
 export default function DentistAccountsTab() {
   const [doctors, setDoctors] = useState<AdminDoctorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const totalPages = Math.max(1, Math.ceil(doctors.length / ADMIN_ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ADMIN_ITEMS_PER_PAGE;
+  const paginatedDoctors = doctors.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback
+      }
+    }
+  };
 
   const fetchDoctors = useCallback(async () => {
     const data = await listDentists();
@@ -85,6 +114,7 @@ export default function DentistAccountsTab() {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
@@ -95,7 +125,17 @@ export default function DentistAccountsTab() {
             <Text style={styles.emptyTitle}>No Staff Registered</Text>
           </View>
         ) : (
-          doctors.map((doctor, index) => {
+          <>
+            <AdminCountHeader
+              startIndex={startIndex}
+              endIndex={Math.min(startIndex + ADMIN_ITEMS_PER_PAGE, doctors.length)}
+              totalItems={doctors.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemLabel="staff members"
+            />
+
+            {paginatedDoctors.map((doctor, index) => {
             const fullName = [doctor.first_name, doctor.middle_name, doctor.last_name].filter(Boolean).join(" ") || "Unnamed Staff";
             const isAssistant = doctor.role === "assistant";
             return (
@@ -154,7 +194,14 @@ export default function DentistAccountsTab() {
                 </View>
               </Animated.View>
             );
-          })
+          })}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </>
         )}
       </ScrollView>
     </View>

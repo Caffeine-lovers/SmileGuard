@@ -25,6 +25,9 @@ import {
   ShieldCheck,
   Building2,
   Tag,
+  Inbox,
+  CalendarDays,
+  Phone,
 } from "lucide-react-native";
 import PayMongoDoctorGuideModal from "../components/billing/PayMongoDoctorGuideModal";
 
@@ -32,14 +35,37 @@ export default function DoctorOnboardingWizard() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<"doctor" | "assistant">("doctor");
   const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.id) {
-        setUserId(session.user.id);
+    (async () => {
+      try {
+        const [pendingRole, { data: { session } }] = await Promise.all([
+          AsyncStorage.getItem("@pending_user_role"),
+          supabase.auth.getSession(),
+        ]);
+
+        if (pendingRole === "assistant") {
+          setUserRole("assistant");
+        }
+
+        if (session?.user?.id) {
+          setUserId(session.user.id);
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+          if (profile?.role === "assistant") {
+            setUserRole("assistant");
+          }
+        }
+      } catch (err) {
+        console.warn("[Onboarding] Error resolving user role:", err);
       }
-    });
+    })();
   }, []);
 
   useEffect(() => {
@@ -67,7 +93,7 @@ export default function DoctorOnboardingWizard() {
     return () => subscription.remove();
   }, [showPayMongoGuide, currentStep]);
 
-  const steps = [
+  const doctorSteps = [
     {
       id: "welcome",
       badge: "Step 1 of 5 • Welcome",
@@ -205,21 +231,155 @@ export default function DoctorOnboardingWizard() {
     },
   ];
 
+  const assistantSteps = [
+    {
+      id: "assistant-welcome",
+      badge: "Step 1 of 5 • Welcome",
+      title: "Welcome to SmileGuard Assistant Suite",
+      subtitle: "Your Front-Desk & Clinic Coordination Hub",
+      description:
+        "SmileGuard Assistant connects your front desk with arriving patients and attending dentists. Streamline daily visits, confirm booking requests, manage queues, and prepare patient charts seamlessly.",
+      icon: Users,
+      accentColor: "#059669",
+      features: [
+        {
+          icon: Building2,
+          title: "Front-Desk Coordination Hub",
+          desc: "Full oversight of arriving patients, today's chair queue, and clinic schedules.",
+        },
+        {
+          icon: ShieldCheck,
+          title: "Instant Patient Charting",
+          desc: "Secure, immediate access to medical history, allergies, notes, and past dental procedures.",
+        },
+        {
+          icon: Sparkles,
+          title: "Real-Time Collaboration",
+          desc: "Patient check-ins and appointment status updates sync in real time with the dentists.",
+        },
+      ],
+    },
+    {
+      id: "assistant-queue",
+      badge: "Step 2 of 5 • Patient Queue & Check-In",
+      title: "Today's Patient Schedule & Queue",
+      subtitle: "Track arriving patients, check-ins, and chair progression in real time.",
+      description:
+        "Monitor every scheduled patient for the day. Filter by Scheduled, Completed, or All. Quick-tap any patient to inspect their visit reason, verify check-in, or prepare their chart for the doctor.",
+      icon: Clock,
+      accentColor: "#0d9488",
+      features: [
+        {
+          icon: Calendar,
+          title: "Real-Time Patient Roster",
+          desc: "See who is in the waiting room and who is scheduled next in the dental chair.",
+        },
+        {
+          icon: CheckCircle,
+          title: "One-Tap Status Updates",
+          desc: "Update patient progress effortlessly from scheduled to completed with real-time logging.",
+        },
+        {
+          icon: Phone,
+          title: "Direct Patient Contact",
+          desc: "One-tap phone calls and quick SMS to contact patients who are running late.",
+        },
+      ],
+    },
+    {
+      id: "assistant-requests",
+      badge: "Step 3 of 5 • Booking Requests Deck",
+      title: "Swipeable Booking Request Deck",
+      subtitle: "Fast, distraction-free appointment reviews and confirmations.",
+      description:
+        "Review incoming patient appointment requests one at a time with a dedicated swipe interface. Swipe right to accept or swipe left to decline. Requests arrive organized oldest-first so no patient is kept waiting.",
+      icon: Inbox,
+      accentColor: "#0891b2",
+      features: [
+        {
+          icon: Sparkles,
+          title: "Focused Quick Swiping",
+          desc: "Review requested chair times, patient contact numbers, and intake notes with zero clutter.",
+        },
+        {
+          icon: Users,
+          title: "Medical Intake Inspection",
+          desc: "Check patient chief complaints, requested dental procedures, and health alerts upfront.",
+        },
+        {
+          icon: ShieldCheck,
+          title: "Instant Patient Confirmation",
+          desc: "Patients receive instant confirmation alerts the moment you accept their requested slot.",
+        },
+      ],
+    },
+    {
+      id: "assistant-reschedules",
+      badge: "Step 4 of 5 • Reschedules & Dental Records",
+      title: "Reschedule Priority & Dental Records",
+      subtitle: "Priority reschedule inbox and complete patient directory.",
+      description:
+        "Patients requesting to change their appointment time appear right at the top of your dashboard for quick action. Access complete digital patient records with instant search and date sorting.",
+      icon: CalendarDays,
+      accentColor: "#059669",
+      features: [
+        {
+          icon: Clock,
+          title: "Priority Reschedule Queue",
+          desc: "Quickly review requested new dates/times and verify dentist availability before confirming.",
+        },
+        {
+          icon: Users,
+          title: "Searchable Patient Directory",
+          desc: "Instantly find patient records by full name, ID, or creation date.",
+        },
+        {
+          icon: CheckCircle,
+          title: "Allergies & Medical History",
+          desc: "Verify medical precautions and alert the attending dentist before treatment begins.",
+        },
+      ],
+    },
+    {
+      id: "assistant-billing",
+      badge: "Step 5 of 5 • Billing Assistance & Verification",
+      title: "Front-Desk Billing & Payment Verification",
+      subtitle: "Verify digital transactions and manage front-desk receipts.",
+      description:
+        "Track clinic invoices, verify PayMongo e-wallet payments (GCash, Maya, Cards), and record front-desk cash settlements to keep clinic ledgers perfectly balanced.",
+      icon: CreditCard,
+      accentColor: "#10b981",
+      features: [
+        {
+          icon: CreditCard,
+          title: "GCash, Maya & Card Verification",
+          desc: "Verify patient digital payments directly from your mobile ledger without POS hardware.",
+        },
+        {
+          icon: Building2,
+          title: "Transparent Invoicing",
+          desc: "Check procedure itemization, senior/PWD discounts, and payment status at a glance.",
+        },
+        {
+          icon: CheckCircle,
+          title: "Daily Clinic Settlement",
+          desc: "Ensure front-desk receipts match today's completed procedures for seamless reporting.",
+        },
+      ],
+    },
+  ];
+
+  const isAssistant = userRole === "assistant";
+  const steps = isAssistant ? assistantSteps : doctorSteps;
+
   const handleComplete = async (destination?: string) => {
     try {
-      if (userId) {
-        await AsyncStorage.setItem(
-          `@smileguard_doctor_onboarding_completed_${userId}`,
-          "true"
-        );
-      } else {
-        await AsyncStorage.setItem(
-          "@smileguard_doctor_onboarding_completed_default",
-          "true"
-        );
-      }
+      const storageKey = isAssistant
+        ? (userId ? `@smileguard_assistant_onboarding_completed_${userId}` : "@smileguard_assistant_onboarding_completed_default")
+        : (userId ? `@smileguard_doctor_onboarding_completed_${userId}` : "@smileguard_doctor_onboarding_completed_default");
+      await AsyncStorage.setItem(storageKey, "true");
     } catch (e) {
-      console.warn("Failed to persist doctor onboarding completion", e);
+      console.warn("Failed to persist onboarding completion", e);
     }
 
     if (destination) {
@@ -254,11 +414,17 @@ export default function DoctorOnboardingWizard() {
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
-            <Stethoscope size={18} color="#34d399" />
+            {isAssistant ? (
+              <Users size={18} color="#34d399" />
+            ) : (
+              <Stethoscope size={18} color="#34d399" />
+            )}
           </View>
           <View>
             <Text style={styles.brandTitle}>SmileGuard</Text>
-            <Text style={styles.brandSubtitle}>Doctor Clinic Suite</Text>
+            <Text style={styles.brandSubtitle}>
+              {isAssistant ? "Assistant Clinic Hub" : "Doctor Clinic Suite"}
+            </Text>
           </View>
         </View>
 
@@ -331,25 +497,42 @@ export default function DoctorOnboardingWizard() {
         {/* Final Step Actions */}
         {currentStep === steps.length - 1 && (
           <View style={styles.quickStartCard}>
-            <Text style={styles.quickStartTitle}>PayMongo Payout & Clinic Setup:</Text>
+            <Text style={styles.quickStartTitle}>
+              {isAssistant ? "Assistant Front-Desk Ready:" : "PayMongo Payout & Clinic Setup:"}
+            </Text>
             <View style={styles.quickActionButtons}>
-              <TouchableOpacity
-                onPress={() => setShowPayMongoGuide(true)}
-                style={styles.actionBtnPrimary}
-                activeOpacity={0.8}
-              >
-                <CreditCard size={16} color="#022c22" />
-                <Text style={styles.actionBtnPrimaryText}>PayMongo Checklist</Text>
-              </TouchableOpacity>
+              {isAssistant ? (
+                <TouchableOpacity
+                  onPress={() => handleComplete("/(doctor)/dashboard")}
+                  style={[styles.actionBtnPrimary, { backgroundColor: "#065f46", flex: 1 }]}
+                  activeOpacity={0.8}
+                >
+                  <Building2 size={16} color="#ffffff" />
+                  <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>
+                    Go to Assistant Dashboard
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={() => setShowPayMongoGuide(true)}
+                    style={styles.actionBtnPrimary}
+                    activeOpacity={0.8}
+                  >
+                    <CreditCard size={16} color="#022c22" />
+                    <Text style={styles.actionBtnPrimaryText}>PayMongo Checklist</Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => handleComplete("/(doctor)/dashboard")}
-                style={[styles.actionBtnPrimary, { backgroundColor: "#065f46" }]}
-                activeOpacity={0.8}
-              >
-                <Building2 size={16} color="#ffffff" />
-                <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>Go to Dashboard</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleComplete("/(doctor)/dashboard")}
+                    style={[styles.actionBtnPrimary, { backgroundColor: "#065f46" }]}
+                    activeOpacity={0.8}
+                  >
+                    <Building2 size={16} color="#ffffff" />
+                    <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>Go to Dashboard</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         )}
@@ -399,7 +582,9 @@ export default function DoctorOnboardingWizard() {
             activeOpacity={0.8}
           >
             <Text style={styles.continueBtnText}>
-              {currentStep === steps.length - 1 ? "Enter Clinic Hub" : "Continue"}
+              {currentStep === steps.length - 1
+                ? (isAssistant ? "Enter Assistant Hub" : "Enter Clinic Hub")
+                : "Continue"}
             </Text>
             <ChevronRight size={18} color="#022c22" />
           </TouchableOpacity>
@@ -453,23 +638,25 @@ const styles = StyleSheet.create({
     color: "#34d399",
     fontSize: 10,
     fontWeight: "700",
+    letterSpacing: 0.8,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   skipButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: "#0f2f27",
+    backgroundColor: "#064e3b",
+    borderWidth: 1,
+    borderColor: "#059669",
   },
   skipButtonText: {
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: "600",
+    color: "#a7f3d0",
+    fontSize: 11,
+    fontWeight: "700",
   },
   progressBarTrack: {
-    height: 4,
-    backgroundColor: "#0f2f27",
+    height: 3,
+    backgroundColor: "#064e3b",
     width: "100%",
   },
   progressBarFill: {
@@ -479,41 +666,40 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   stepBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "#064e3b",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 100,
+    backgroundColor: "rgba(5, 150, 105, 0.2)",
     borderWidth: 1,
     borderColor: "#059669",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
     marginBottom: 16,
   },
   stepBadgeText: {
-    color: "#6ee7b7",
+    color: "#34d399",
     fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   heroRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   iconCircle: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#10b981",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 4,
   },
   heroTextCol: {
@@ -522,157 +708,158 @@ const styles = StyleSheet.create({
   stepTitle: {
     color: "#ffffff",
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "900",
     letterSpacing: -0.5,
-    lineHeight: 26,
+    marginBottom: 4,
   },
   stepSubtitle: {
-    color: "#a7f3d0",
-    fontSize: 13,
+    color: "#94a3b8",
+    fontSize: 12,
     fontWeight: "600",
-    marginTop: 2,
+    lineHeight: 16,
   },
   stepDescription: {
-    color: "#94a3b8",
+    color: "#cbd5e1",
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 22,
     marginBottom: 20,
   },
   featureList: {
-    gap: 10,
+    gap: 12,
     marginBottom: 20,
   },
   featureCard: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    backgroundColor: "#0a221d",
+    backgroundColor: "#06231c",
     borderWidth: 1,
-    borderColor: "#113830",
-    borderRadius: 12,
+    borderColor: "#0f3e33",
     padding: 14,
+    borderRadius: 10,
   },
   featureIconContainer: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 8,
-    backgroundColor: "#064e3b",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
   },
   featureTextCol: {
     flex: 1,
   },
   featureTitle: {
-    color: "#f8fafc",
+    color: "#f1f5f9",
     fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 3,
+    fontWeight: "800",
+    marginBottom: 2,
   },
   featureDesc: {
     color: "#94a3b8",
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 16,
   },
   quickStartCard: {
-    backgroundColor: "#064e3b",
+    backgroundColor: "rgba(6, 78, 59, 0.3)",
     borderWidth: 1,
     borderColor: "#059669",
-    borderRadius: 14,
-    padding: 16,
-    marginTop: 10,
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 6,
+    marginBottom: 10,
   },
   quickStartTitle: {
     color: "#a7f3d0",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
+    marginBottom: 10,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    marginBottom: 10,
   },
   quickActionButtons: {
     flexDirection: "row",
     gap: 10,
   },
   actionBtnPrimary: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     backgroundColor: "#34d399",
-    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
   },
   actionBtnPrimaryText: {
     color: "#022c22",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
   footerControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: "#0f2f27",
-    backgroundColor: "#041b17",
+    backgroundColor: "#061512",
   },
   dotsRow: {
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
     gap: 6,
+    marginBottom: 14,
   },
   dot: {
-    height: 6,
-    borderRadius: 3,
+    height: 4,
+    borderRadius: 2,
   },
   dotActive: {
     width: 20,
-    backgroundColor: "#34d399",
+    backgroundColor: "#10b981",
   },
   dotInactive: {
     width: 6,
-    backgroundColor: "#164e43",
+    backgroundColor: "#064e3b",
   },
   btnRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
+    gap: 12,
   },
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#164e43",
+    paddingHorizontal: 14,
   },
   backBtnText: {
-    color: "#cbd5e1",
+    color: "#94a3b8",
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   continueBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     backgroundColor: "#10b981",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 8,
-    shadowColor: "#10b981",
+    shadowColor: "#059669",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   continueBtnText: {
     color: "#022c22",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "800",
   },
 });
