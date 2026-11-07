@@ -79,7 +79,6 @@ export default function AuthModal({
         console.log("[AuthModal] Active session detected on mount:", session.user.email);
         setLoading(false);
         onSuccess?.();
-        onClose?.();
       }
     });
 
@@ -89,7 +88,6 @@ export default function AuthModal({
         console.log("[AuthModal] Auth success detected for", session.user.email);
         setLoading(false);
         onSuccess?.();
-        onClose?.();
       }
     });
 
@@ -97,7 +95,7 @@ export default function AuthModal({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [onClose, onSuccess]);
+  }, [onSuccess]);
 
   /**
    * Helper to verify doctor access code via Edge Function, database, or fallback
@@ -215,7 +213,6 @@ export default function AuthModal({
           if (confirmedSession?.user) {
             console.log("[GoogleOAuth] Code exchanged or session active successfully");
             onSuccess?.();
-            onClose?.();
           } else {
             throw new Error("Could not verify session after Google login.");
           }
@@ -229,13 +226,11 @@ export default function AuthModal({
 
           console.log("[GoogleOAuth] Session set successfully");
           onSuccess?.();
-          onClose?.();
         } else {
           // If no parameters in result.url, check if session already exists
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             onSuccess?.();
-            onClose?.();
           } else {
             throw new Error("No tokens or auth code returned from Google");
           }
@@ -246,7 +241,6 @@ export default function AuthModal({
       const { data: { session: checkSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
       if (checkSession?.user) {
         onSuccess?.();
-        onClose?.();
       } else {
         let errorMessage = "Google sign-in failed.";
         if (err instanceof Error) {
