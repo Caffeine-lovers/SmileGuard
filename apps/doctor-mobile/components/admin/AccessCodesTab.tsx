@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,11 @@ import {
   regenerateAccessCode,
   deleteAccessCode,
 } from "../../lib/adminService";
+import {
+  AdminPagination,
+  AdminCountHeader,
+  ADMIN_ITEMS_PER_PAGE,
+} from "./AdminPagination";
 
 export default function AccessCodesTab() {
   const [codes, setCodes] = useState<DoctorAccessCode[]>([]);
@@ -30,12 +35,36 @@ export default function AccessCodesTab() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+
   const [newCode, setNewCode] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newTier, setNewTier] = useState<"doctor" | "assistant">("doctor");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [regeneratedCode, setRegeneratedCode] = useState<DoctorAccessCode | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(codes.length / ADMIN_ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ADMIN_ITEMS_PER_PAGE;
+  const paginatedCodes = codes.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback
+      }
+    }
+  };
 
   const fetchCodes = useCallback(async () => {
     try {
@@ -74,6 +103,7 @@ export default function AccessCodesTab() {
       setShowCreateModal(false);
       if (created) {
         setCodes((prev) => [created, ...prev]);
+        setCurrentPage(1);
       } else {
         await fetchCodes();
       }
@@ -149,12 +179,24 @@ export default function AccessCodesTab() {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
       >
         {/* Section Header Action Bar */}
-        <View style={[styles.headerBar, { justifyContent: "flex-end" }]}>
+        <View style={styles.headerBar}>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <AdminCountHeader
+              startIndex={startIndex}
+              endIndex={Math.min(startIndex + ADMIN_ITEMS_PER_PAGE, codes.length)}
+              totalItems={codes.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemLabel="access codes"
+              style={{ marginBottom: 0 }}
+            />
+          </View>
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => setShowCreateModal(true)}
@@ -177,7 +219,8 @@ export default function AccessCodesTab() {
             <Text style={styles.emptyTitle}>No Access Codes</Text>
           </View>
         ) : (
-          codes.map((item, index) => {
+          <>
+            {paginatedCodes.map((item, index) => {
             const isDoctor = item.tier === "doctor";
             const isAdmin = item.tier === "admin";
             return (
@@ -259,7 +302,14 @@ export default function AccessCodesTab() {
                 </View>
               </Animated.View>
             );
-          })
+          })}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </>
         )}
       </ScrollView>
 

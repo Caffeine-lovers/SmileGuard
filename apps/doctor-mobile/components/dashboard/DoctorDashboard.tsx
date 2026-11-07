@@ -14,7 +14,6 @@ import {
   ScrollView as RNScrollView,
   BackHandler,
   Platform,
-  ToastAndroid,
 } from "react-native";
 import AppointmentCard from "./AppointmentCard";
 import AppointmentEdit from "../appointments/appointmentEdit";
@@ -299,7 +298,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
   const [quickSearchQuery, setQuickSearchQuery] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings'>('dashboard');
   const [tabHistory, setTabHistory] = useState<('dashboard' | 'records' | 'appointments' | 'appointment-requests' | 'billing' | 'settings')[]>([]);
-  const lastBackPressRef = useRef<number>(0);
 
   // Appointment status edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -377,15 +375,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       return true;
     }
 
-    // 8. On root dashboard with no overlays: double press to exit
-    const now = Date.now();
-    if (now - lastBackPressRef.current < 2000) {
-      return false; // Exit app
-    }
-    lastBackPressRef.current = now;
-    if (Platform.OS === 'android') {
-      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
-    }
+    // 8. On root dashboard with no overlays: stay on dashboard
     return true;
   }, [
     sidebarOpen,

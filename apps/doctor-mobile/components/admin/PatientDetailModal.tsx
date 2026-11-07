@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronLeft, Mail, ShieldAlert } from "lucide-react-native";
 import { AdminPatientRow, PatientOverview, getPatientOverview } from "../../lib/adminService";
 import { formatAppointmentDate, formatAppointmentTime } from "../../lib/dateFormatters";
+import { AdminPagination, ADMIN_ITEMS_PER_PAGE } from "./AdminPagination";
 
 interface PatientDetailModalProps {
   patient: AdminPatientRow | null;
@@ -13,6 +14,7 @@ interface PatientDetailModalProps {
 export default function PatientDetailModal({ patient, onClose }: PatientDetailModalProps) {
   const [overview, setOverview] = useState<PatientOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackPage, setFeedbackPage] = useState(1);
   const patientId = patient?.id;
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function PatientDetailModal({ patient, onClose }: PatientDetailMo
     let cancelled = false;
     setOverview(null);
     setError(null);
+    setFeedbackPage(1);
     getPatientOverview(patientId)
       .then((data) => {
         if (!cancelled) setOverview(data);
@@ -103,17 +106,35 @@ export default function PatientDetailModal({ patient, onClose }: PatientDetailMo
               {overview.feedback.length === 0 ? (
                 <Text style={styles.emptyText}>None</Text>
               ) : (
-                overview.feedback.map((item) => (
-                  <View key={item.id} style={styles.row}>
-                    <View style={styles.rowInfo}>
-                      <Text style={styles.rowTitle}>{item.subject || "No Subject"}</Text>
-                      <Text style={styles.rowSub}>
-                        {new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </Text>
-                    </View>
-                    <Text style={styles.rowStatus}>{item.status.replace("_", " ").toUpperCase()}</Text>
-                  </View>
-                ))
+                (() => {
+                  const totalFeedbackPages = Math.max(1, Math.ceil(overview.feedback.length / ADMIN_ITEMS_PER_PAGE));
+                  const startIndex = (feedbackPage - 1) * ADMIN_ITEMS_PER_PAGE;
+                  const paginatedFeedback = overview.feedback.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE);
+
+                  return (
+                    <>
+                      {paginatedFeedback.map((item) => (
+                        <View key={item.id} style={styles.row}>
+                          <View style={styles.rowInfo}>
+                            <Text style={styles.rowTitle}>{item.subject || "No Subject"}</Text>
+                            <Text style={styles.rowSub}>
+                              {new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </Text>
+                          </View>
+                          <Text style={styles.rowStatus}>{item.status.replace("_", " ").toUpperCase()}</Text>
+                        </View>
+                      ))}
+
+                      {totalFeedbackPages > 1 && (
+                        <AdminPagination
+                          currentPage={feedbackPage}
+                          totalPages={totalFeedbackPages}
+                          onPageChange={setFeedbackPage}
+                        />
+                      )}
+                    </>
+                  );
+                })()
               )}
             </>
           )}

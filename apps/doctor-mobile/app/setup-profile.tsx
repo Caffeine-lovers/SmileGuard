@@ -76,39 +76,27 @@ export default function SetupProfilePage() {
     router.replace("/onboarding");
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (step === "clinic") {
       setStep("profile");
       return;
     }
 
-    Alert.alert(
-      "Cancel Registration?",
-      "Are you sure you want to go back to the welcome screen? Any unsaved registration details will be discarded.",
-      [
-        { text: "Stay", style: "cancel" },
-        {
-          text: "Exit to Welcome Screen",
-          style: "destructive",
-          onPress: async () => {
-            console.log("[SetupProfile] User exited registration, signing out...");
-            try {
-              await supabase.auth.signOut();
-              await AsyncStorage.multiRemove([
-                "supabase.auth.token",
-                "supabase.auth.refreshToken",
-                "supabase.auth.user",
-                "@pending_doctor_access_code",
-              ]);
-            } catch (err) {
-              console.warn("[SetupProfile] Error during signOut on cancel:", err);
-            } finally {
-              router.replace("/");
-            }
-          },
-        },
-      ]
-    );
+    console.log("[SetupProfile] User exited registration, signing out...");
+    try {
+      await supabase.auth.signOut();
+      await AsyncStorage.multiRemove([
+        "supabase.auth.token",
+        "supabase.auth.refreshToken",
+        "supabase.auth.user",
+        "@pending_doctor_access_code",
+        "@pending_user_role",
+      ]);
+    } catch (err) {
+      console.warn("[SetupProfile] Error during signOut on cancel:", err);
+    } finally {
+      router.replace("/");
+    }
   };
 
   // Intercept phone hardware back button on Android

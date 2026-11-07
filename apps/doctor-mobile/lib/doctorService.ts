@@ -1389,3 +1389,43 @@ export async function setDoctorGuideCompleted(userId: string): Promise<boolean> 
     return false;
   }
 }
+
+/**
+ * Check if the assistant has completed all walkthrough guides, or a specific guide step.
+ */
+export async function isAssistantGuideCompleted(
+  userId?: string | null,
+  guideId: string = "dashboard"
+): Promise<boolean> {
+  if (!userId) return true;
+  try {
+    const key = guideId === "dashboard"
+      ? `@smileguard_assistant_tour_completed_${userId}`
+      : `@smileguard_assistant_${guideId}_walkthrough_completed_${userId}`;
+    const local = await AsyncStorage.getItem(key);
+    return local === "true";
+  } catch (err) {
+    console.error("[DoctorService] Exception in isAssistantGuideCompleted:", err);
+    return false;
+  }
+}
+
+/**
+ * Mark an assistant walkthrough guide or tour as completed.
+ */
+export async function markAssistantGuideCompleted(
+  userId?: string | null,
+  guideId: string = "dashboard"
+): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const key = guideId === "dashboard"
+      ? `@smileguard_assistant_tour_completed_${userId}`
+      : `@smileguard_assistant_${guideId}_walkthrough_completed_${userId}`;
+    await AsyncStorage.setItem(key, "true");
+    return true;
+  } catch (err) {
+    console.error("[DoctorService] Exception in markAssistantGuideCompleted:", err);
+    return false;
+  }
+}

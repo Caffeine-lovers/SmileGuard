@@ -1,8 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ListChecks, CheckCircle2, XCircle, ShieldAlert, Clock, Key, RefreshCw, Trash2, Plus, LogIn, ShieldCheck, User, Globe } from "lucide-react-native";
 import { DoctorCodeAttempt, listCodeAttempts } from "../../lib/adminService";
+import {
+  AdminPagination,
+  AdminCountHeader,
+  ADMIN_ITEMS_PER_PAGE,
+} from "./AdminPagination";
 
 type FilterOption = "all" | "success" | "failure" | "admin";
 
@@ -32,6 +37,9 @@ export default function AttemptLogTab() {
   const [filter, setFilter] = useState<FilterOption>("all");
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+
   const fetchAttempts = useCallback(async () => {
     try {
       setAttempts(await listCodeAttempts());
@@ -55,12 +63,38 @@ export default function AttemptLogTab() {
     setRefreshing(false);
   };
 
+  const handleFilterChange = (newFilter: FilterOption) => {
+    setFilter(newFilter);
+    setCurrentPage(1);
+  };
+
   const filtered = attempts.filter((a) => {
     if (filter === "success") return a.is_successful;
     if (filter === "failure") return !a.is_successful;
     if (filter === "admin") return ADMIN_EVENTS.includes(a.event || "");
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ADMIN_ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ADMIN_ITEMS_PER_PAGE;
+  const paginatedAttempts = filtered.slice(startIndex, startIndex + ADMIN_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      try {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } catch (err) {
+        // safe fallback
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -80,7 +114,7 @@ export default function AttemptLogTab() {
               <TouchableOpacity
                 key={option.id}
                 style={[styles.filterPill, isActive && styles.filterPillActive]}
-                onPress={() => setFilter(option.id)}
+                onPress={() => handleFilterChange(option.id)}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
@@ -93,6 +127,7 @@ export default function AttemptLogTab() {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#047857"]} />}
         showsVerticalScrollIndicator={false}
@@ -109,7 +144,17 @@ export default function AttemptLogTab() {
             <Text style={styles.emptyTitle}>No Entries</Text>
           </View>
         ) : (
-          filtered.map((attempt, index) => {
+          <>
+            <AdminCountHeader
+              startIndex={startIndex}
+              endIndex={Math.min(startIndex + ADMIN_ITEMS_PER_PAGE, filtered.length)}
+              totalItems={filtered.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemLabel="audit log entries"
+            />
+
+            {paginatedAttempts.map((attempt, index) => {
             const isSuccess = attempt.is_successful;
             const meta = EVENT_META[attempt.event || ""] || { label: attempt.event || "Event", icon: Key };
             const EventIcon = meta.icon;
@@ -181,7 +226,14 @@ export default function AttemptLogTab() {
                 </View>
               </Animated.View>
             );
-          })
+          })}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </>
         )}
       </ScrollView>
     </View>

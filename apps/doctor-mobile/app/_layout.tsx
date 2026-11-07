@@ -137,13 +137,13 @@ export default function RootLayout() {
     const inDoctorGroup = segments[0] === "(doctor)";
     const inAdminGroup = segments[0] === "(admin)";
     const inSetupProfile = segments[0] === "setup-profile";
-    const inOAuthRedirect = segments[0] === "oauth-redirect";
+    const inOAuthRedirect = segments[0] === "oauth-redirect" || segments[0] === "redirect";
     const inOnboarding = segments[0] === "onboarding";
 
     console.log("[RootLayout] Routing logic - Ready:", ready, "User:", !!user, "Segments:", segments);
 
-    // Routing is paused during initial onboarding tour
-    if (inOnboarding) return;
+    // Routing is paused during OAuth redirect and initial onboarding tour
+    if (inOAuthRedirect || inOnboarding) return;
 
     if (!user) {
       if (inDoctorGroup || inAdminGroup || inSetupProfile) {
