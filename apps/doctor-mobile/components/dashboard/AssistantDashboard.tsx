@@ -34,6 +34,7 @@ import BillingTab from "../navigation/BillingTab";
 import SettingsTab from "../navigation/SettingsTab";
 import AppointmentEdit from "../appointments/appointmentEdit";
 import AppointmentRequestPromptModal from "../appointments/AppointmentRequestPromptModal";
+import { triggerManualUpdateCheck } from "../ui/AppUpdateManager";
 import {
   updateDoctorAppointmentStatus,
   getDoctorAppointments,
@@ -1012,6 +1013,7 @@ export default function AssistantDashboard({
       console.error("[AssistantDashboard] Refresh error:", err);
       setErrorMessage(err.message || "Failed to load dashboard");
     } finally {
+      triggerManualUpdateCheck(false).catch(() => {});
       setLoadingAppointments(false);
       setLoadingPatients(false);
       setIsRefreshing(false);

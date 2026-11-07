@@ -25,6 +25,8 @@ import {
   RefreshCw,
   XCircle,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { DEFAULT_CLINIC_NAME } from '@/lib/clinic';
 
@@ -91,6 +93,8 @@ export default function BillingPayment({
   const [billingHistory, setBillingHistory] = useState<Billing[]>([]);
   const [ledger, setLedger] = useState<AppointmentBillingRow[]>([]);
   const [ledgerFilter, setLedgerFilter] = useState<'ALL' | AppointmentBillingStatus>('ALL');
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const LEDGER_ITEMS_PER_PAGE = 6;
   const [loadingData, setLoadingData] = useState(true);
 
   // PayMongo-specific state
@@ -610,6 +614,20 @@ export default function BillingPayment({
     CANCELLED: ledger.filter((r) => r.billing_status === 'CANCELLED').length,
   };
   const filteredLedger = ledgerFilter === 'ALL' ? ledger : ledger.filter((r) => r.billing_status === ledgerFilter);
+  const totalLedgerPages = Math.max(1, Math.ceil(filteredLedger.length / LEDGER_ITEMS_PER_PAGE));
+  const ledgerStartIndex = (ledgerPage - 1) * LEDGER_ITEMS_PER_PAGE;
+  const paginatedLedger = filteredLedger.slice(ledgerStartIndex, ledgerStartIndex + LEDGER_ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (ledgerPage > totalLedgerPages) {
+      setLedgerPage(totalLedgerPages);
+    }
+  }, [ledgerPage, totalLedgerPages]);
+
+  const handleLedgerFilterChange = (f: 'ALL' | AppointmentBillingStatus) => {
+    setLedgerFilter(f);
+    setLedgerPage(1);
+  };
 
   return (
     <div className="w-full py-3 sm:py-5 space-y-4">
@@ -1172,7 +1190,7 @@ export default function BillingPayment({
                   <button
                     type="button"
                     key={f}
-                    onClick={() => setLedgerFilter(f)}
+                    onClick={() => handleLedgerFilterChange(f)}
                     aria-pressed={active}
                     className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm border text-xs font-bold transition cursor-pointer ${
                       active
@@ -1196,7 +1214,7 @@ export default function BillingPayment({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 w-full">
-              {filteredLedger.map((row) => {
+              {paginatedLedger.map((row) => {
                 const awaitingApproval = isPendingAppointment(row);
                 const style = BILLING_STATUS_STYLE[row.billing_status];
                 const StatusIcon = style.icon;
@@ -1261,6 +1279,59 @@ export default function BillingPayment({
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* Pagination Controls */}
+          {filteredLedger.length > 0 && (
+            <div className="mt-5 pt-4 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-slate-500">
+                Showing <span className="font-bold text-slate-800">{ledgerStartIndex + 1}</span> to{' '}
+                <span className="font-bold text-slate-800">
+                  {Math.min(ledgerStartIndex + LEDGER_ITEMS_PER_PAGE, filteredLedger.length)}
+                </span>{' '}
+                of <span className="font-bold text-slate-800">{filteredLedger.length}</span> {ledgerFilter === 'ALL' ? 'ledger' : BILLING_STATUS_STYLE[ledgerFilter].label.toLowerCase()} records
+              </p>
+
+              {totalLedgerPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setLedgerPage((p) => Math.max(1, p - 1))}
+                    disabled={ledgerPage === 1}
+                    className="skeuo-btn-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: totalLedgerPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setLedgerPage(page)}
+                        className={`w-7 h-7 text-xs font-bold rounded-xs transition flex items-center justify-center cursor-pointer ${
+                          ledgerPage === page
+                            ? 'bg-emerald-700 text-white shadow-xs'
+                            : 'text-slate-600 hover:bg-slate-200/80 bg-white/70 border border-slate-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setLedgerPage((p) => Math.min(totalLedgerPages, p + 1))}
+                    disabled={ledgerPage === totalLedgerPages}
+                    className="skeuo-btn-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

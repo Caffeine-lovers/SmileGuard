@@ -355,7 +355,7 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        {/* Global Notifications & Settings Modal */}
+        {/* Global Notifications Modal */}
         <NotificationSettingsModal
           isOpen={settingsModalOpen}
           onClose={() => setSettingsModalOpen(false)}
