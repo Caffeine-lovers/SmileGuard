@@ -1455,32 +1455,6 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           {activeTab === 'dashboard' ? (
             <ScrollView ref={dashboardScrollRef} contentContainerStyle={styles.scrollContent}>
               <View style={styles.container}>
-                {/* Signature Clinical Header Banner - Aligned with Patient Web */}
-                <View style={styles.clinicBanner}>
-                  {/* Subtle top bevel highlight */}
-                  <View style={styles.clinicBannerBevel} />
-
-                  <View style={styles.clinicBannerContent}>
-                    <View style={styles.clinicBannerIconBox}>
-                      <Stethoscope size={24} color="#A7F3D0" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.clinicBannerBadgeRow}>
-                        <View style={styles.clinicBannerBadge}>
-                          <ShieldCheck size={11} color="#022C22" style={{ marginRight: 4 }} />
-                          <Text style={styles.clinicBannerBadgeText}>SMILEGUARD DOCTOR PORTAL</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.clinicBannerDoctorName} numberOfLines={1}>
-                        {getDoctorTitleName(doctorProfile) || (doctorProfile as any)?.doctor_name || doctorProfile.name || 'Doctor'}
-                      </Text>
-                      <Text style={styles.clinicBannerSubtitle} numberOfLines={1}>
-                        {clinic?.clinic_name || 'SmileGuard Dental Clinic'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
                 {/* Doctor Clinical Productivity Stats Panel */}
                 <View ref={tour.register("stats-panel")} collapsable={false} style={styles.firstPanel}>
                   <StatCard
