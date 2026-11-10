@@ -1,5 +1,5 @@
-// Patient-side billing reads. Marking a bill as paid happens only on the server
-// (/api/paymongo/confirm-checkout and the PayMongo webhook) after PayMongo verifies it.
+// Patient-side billing reads. Patients never settle a bill themselves: the clinic
+// assistant records the payment (process_billing_payment, migration 054).
 
 import { supabase } from '@smileguard/supabase-client';
 import type { Billing } from './database';

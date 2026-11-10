@@ -303,12 +303,24 @@ export interface Billing {
   patient_id: string;
   appointment_id?: string;
   amount: number;
-  discount_type?: "none" | "pwd" | "senior" | "insurance";
+  discount_type?: "none" | "pwd" | "senior" | "insurance" | "custom";
   discount_amount?: number;
+  /** Bill total after discount (patient share + HMO share) */
   final_amount: number;
   payment_status: "not_paid" | "paid" | "overdue" | "cancelled";
-  payment_method?: "cash" | "card" | "gcash" | "bank-transfer" | "grab_pay" | "paymaya";
+  /** How the patient's own share was paid; "hmo" when the HMO covered everything */
+  payment_method?: "cash" | "card" | "gcash" | "bank-transfer" | "grab_pay" | "paymaya" | "hmo";
   payment_date?: string;
+  /** Reference number recorded by the clinic assistant */
+  payment_reference?: string | null;
+  payer_type?: "self" | "hmo";
+  hmo_provider?: string | null;
+  hmo_member_id?: string | null;
+  hmo_approval_code?: string | null;
+  /** Portion of final_amount covered by the HMO */
+  hmo_covered_amount?: number;
+  processed_by?: string | null;
+  processed_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

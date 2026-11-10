@@ -29,14 +29,12 @@ import {
   CalendarDays,
   Phone,
 } from "lucide-react-native";
-import PayMongoDoctorGuideModal from "../components/billing/PayMongoDoctorGuideModal";
 
 export default function DoctorOnboardingWizard() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<"doctor" | "assistant">("doctor");
-  const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,10 +70,6 @@ export default function DoctorOnboardingWizard() {
 
   useEffect(() => {
     const onBackPress = () => {
-      if (showPayMongoGuide) {
-        setShowPayMongoGuide(false);
-        return true;
-      }
       if (currentStep > 0) {
         handlePrev();
         return true;
@@ -93,7 +87,7 @@ export default function DoctorOnboardingWizard() {
       onBackPress
     );
     return () => subscription.remove();
-  }, [showPayMongoGuide, currentStep]);
+  }, [currentStep]);
 
   const doctorSteps = [
     {
@@ -205,29 +199,29 @@ export default function DoctorOnboardingWizard() {
       ],
     },
     {
-      id: "paymongo",
-      badge: "Step 5 of 5 • PayMongo Setup & Guidelines",
-      title: "PayMongo Payouts & Clinic Billing",
-      subtitle: "Set up GCash, Maya, and direct Philippine bank settlements.",
+      id: "billing",
+      badge: "Step 5 of 5 • Clinic Billing & Payments",
+      title: "Front-Desk Payments & HMO",
+      subtitle: "Your assistant collects and records every payment.",
       description:
-        "SmileGuard integrates directly with PayMongo (BSP-Licensed) so your patients can pay via GCash, Maya, and Cards. Follow these clinic guidelines to start receiving automated payouts:",
+        "Patients no longer pay inside the app. Payments are settled at the clinic and recorded by your assistant in the Billing Ledger:",
       icon: CreditCard,
       accentColor: "#10b981",
       features: [
         {
           icon: Building2,
-          title: "1. Register Merchant Account",
-          desc: "Create an account on dashboard.paymongo.com with your BIR Form 2303 / COR, DTI/SEC certificate, and valid ID.",
+          title: "1. Assistant Processes Payments",
+          desc: "Your assistant opens a bill, taps Process Payment, and records cash, GCash, Maya, card or bank transfer with its reference number.",
         },
         {
           icon: CreditCard,
-          title: "2. Activate GCash & Maya Channels",
-          desc: "Enable Philippine e-wallets, QR Ph, and Cards for 1-click patient checkout without expensive POS hardware.",
+          title: "2. HMO Patients",
+          desc: "For HMO patients the assistant records the provider, member number, LOA and covered amount. The patient pays only the remaining share.",
         },
         {
           icon: CheckCircle,
-          title: "3. Direct Bank Payouts & BIR 2307",
-          desc: "Collected patient revenues deposit into your clinic bank account with official BIR Form 2307 withholding certificates.",
+          title: "3. View-Only Ledger for Doctors",
+          desc: "You see every bill, discount, HMO coverage and payment in real time, while settlement stays with the front desk.",
         },
       ],
     },
@@ -344,18 +338,18 @@ export default function DoctorOnboardingWizard() {
     },
     {
       id: "assistant-billing",
-      badge: "Step 5 of 5 • Billing Assistance & Verification",
-      title: "Front-Desk Billing & Payment Verification",
-      subtitle: "Verify digital transactions and manage front-desk receipts.",
+      badge: "Step 5 of 5 • Billing & Payment Processing",
+      title: "Front-Desk Billing & Payments",
+      subtitle: "You process every patient payment, including HMO.",
       description:
-        "Track clinic invoices, verify PayMongo e-wallet payments (GCash, Maya, Cards), and record front-desk cash settlements to keep clinic ledgers perfectly balanced.",
+        "Patients pay at the clinic, not in the app. Open a bill in the Billing Ledger and tap Process Payment to record cash, GCash, Maya, card, bank transfer or HMO coverage.",
       icon: CreditCard,
       accentColor: "#10b981",
       features: [
         {
           icon: CreditCard,
-          title: "GCash, Maya & Card Verification",
-          desc: "Verify patient digital payments directly from your mobile ledger without POS hardware.",
+          title: "Process Payment",
+          desc: "Record how the patient paid and the reference number. For HMO patients, enter the provider, member no., LOA and covered amount.",
         },
         {
           icon: Building2,
@@ -500,41 +494,19 @@ export default function DoctorOnboardingWizard() {
         {currentStep === steps.length - 1 && (
           <View style={styles.quickStartCard}>
             <Text style={styles.quickStartTitle}>
-              {isAssistant ? "Assistant Front-Desk Ready:" : "PayMongo Payout & Clinic Setup:"}
+              {isAssistant ? "Assistant Front-Desk Ready:" : "You're all set:"}
             </Text>
             <View style={styles.quickActionButtons}>
-              {isAssistant ? (
-                <TouchableOpacity
-                  onPress={() => handleComplete("/(doctor)/dashboard")}
-                  style={[styles.actionBtnPrimary, { backgroundColor: "#065f46", flex: 1 }]}
-                  activeOpacity={0.8}
-                >
-                  <Building2 size={16} color="#ffffff" />
-                  <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>
-                    Go to Assistant Dashboard
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <TouchableOpacity
-                    onPress={() => setShowPayMongoGuide(true)}
-                    style={styles.actionBtnPrimary}
-                    activeOpacity={0.8}
-                  >
-                    <CreditCard size={16} color="#022c22" />
-                    <Text style={styles.actionBtnPrimaryText}>PayMongo Checklist</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleComplete("/(doctor)/dashboard")}
-                    style={[styles.actionBtnPrimary, { backgroundColor: "#065f46" }]}
-                    activeOpacity={0.8}
-                  >
-                    <Building2 size={16} color="#ffffff" />
-                    <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>Go to Dashboard</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+              <TouchableOpacity
+                onPress={() => handleComplete("/(doctor)/dashboard")}
+                style={[styles.actionBtnPrimary, { backgroundColor: "#065f46", flex: 1 }]}
+                activeOpacity={0.8}
+              >
+                <Building2 size={16} color="#ffffff" />
+                <Text style={[styles.actionBtnPrimaryText, { color: "#ffffff" }]}>
+                  {isAssistant ? "Go to Assistant Dashboard" : "Go to Dashboard"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -592,11 +564,6 @@ export default function DoctorOnboardingWizard() {
           </TouchableOpacity>
         </View>
       </View>
-      {/* PayMongo Doctor Onboarding & Guidelines Modal */}
-      <PayMongoDoctorGuideModal
-        visible={showPayMongoGuide}
-        onClose={() => setShowPayMongoGuide(false)}
-      />
     </SafeAreaView>
   );
 }

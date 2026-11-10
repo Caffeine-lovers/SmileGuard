@@ -42,7 +42,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
 import { isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
-import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
+import ProcessPaymentModal, { paymentMethodLabel } from '../billing/ProcessPaymentModal';
 import { AppColors } from '../../constants/theme';
 
 import {
@@ -102,18 +102,11 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [loadingAppointment, setLoadingAppointment] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
   const scrollViewRef = useRef<any>(null);
 
-  // Edit Dummy Billing State
-  const [editingBilling, setEditingBilling] = useState<BillingWithPatientName | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editAmount, setEditAmount] = useState('');
-  const [editDiscountType, setEditDiscountType] = useState<string>('none');
-  const [editDiscountAmount, setEditDiscountAmount] = useState('');
-  const [editPaymentStatus, setEditPaymentStatus] = useState<string>('not_paid');
-  const [editPaymentMethod, setEditPaymentMethod] = useState('cash');
-  const [savingEdit, setSavingEdit] = useState(false);
+  // Only the clinic assistant (or an admin) settles bills; the doctor's ledger is view-only
+  const canProcess = userRole === 'assistant' || userRole === 'admin';
+  const [processingBilling, setProcessingBilling] = useState<BillingWithPatientName | null>(null);
 
   // Create Dummy Billing State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -121,8 +114,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
   const [createAmount, setCreateAmount] = useState('');
   const [createDiscountType, setCreateDiscountType] = useState<string>('none');
   const [createDiscountAmount, setCreateDiscountAmount] = useState('');
-  const [createPaymentStatus, setCreatePaymentStatus] = useState<string>('not_paid');
-  const [createPaymentMethod, setCreatePaymentMethod] = useState('cash');
   const [savingCreate, setSavingCreate] = useState(false);
 
   // Fetch all patients and billings on screen focus
@@ -164,7 +155,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     {
       id: "billing-welcome",
       title: "Welcome to Billing Ledger!",
-      description: "Track your clinic's billing history, monitor paid versus pending invoices, review patient discounts, and configure digital payment gateways.",
+      description: "Track your clinic's billing history, monitor paid versus pending invoices, and review patient discounts and HMO coverage. Payments are recorded by the clinic assistant.",
       icon: Receipt,
       placement: "center",
       onEnter: () => {
@@ -181,21 +172,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
       icon: Sparkles,
       padding: 6,
       radius: 12,
-      placement: "bottom" as const,
-      onEnter: () => {
-        try {
-          scrollViewRef.current?.scrollTo?.({ y: 0, animated: false });
-        } catch (e) { }
-      },
-    },
-    {
-      id: "billing-paymongo",
-      target: "billing-paymongo",
-      title: "PayMongo Payout Gateway",
-      description: "Learn how to link your clinic's bank account, GCash, or Maya via PayMongo to receive direct payments.",
-      icon: CreditCard,
-      padding: 6,
-      radius: 14,
       placement: "bottom" as const,
       onEnter: () => {
         try {
@@ -238,8 +214,8 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
         {
           id: "billing-first-card",
           target: "billing-first-card",
-          title: "Invoice Details & Walk-in Editing",
-          description: "Inspect invoice items, settlement status, discounts, and edit billing details directly for walk-in patients.",
+          title: "Invoice Details & Payment",
+          description: "Inspect the bill, discount, HMO coverage and settlement status. The clinic assistant taps Process Payment to record cash, e-wallet, card, bank or HMO payments.",
           icon: Receipt,
           padding: 6,
           radius: 12,
@@ -612,51 +588,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     }
   };
 
-  // ─────────────────────────────────────────
-  // DUMMY BILLING EDITING LOGIC
-  // ─────────────────────────────────────────
-  const handleOpenEditModal = (item: BillingWithPatientName) => {
-    setEditingBilling(item);
-    setEditAmount(item.amount ? formatNumberWithCommas(item.amount) : '');
-    setEditDiscountType(item.discount_type || 'none');
-    setEditDiscountAmount(item.discount_amount ? formatNumberWithCommas(item.discount_amount) : '0.00');
-    setEditPaymentStatus(item.payment_status || 'not_paid');
-    setEditPaymentMethod(item.payment_method || 'cash');
-    setShowEditModal(true);
-  };
-
-  const handleEditDiscountTypeChange = (type: string) => {
-    setEditDiscountType(type);
-    const numAmount = parseCurrencyInput(editAmount);
-    if (type === 'pwd' || type === 'senior') {
-      const disc = (numAmount * 0.20).toFixed(2);
-      setEditDiscountAmount(formatNumberWithCommas(disc));
-    } else if (type === 'none') {
-      setEditDiscountAmount('0.00');
-    }
-  };
-
-  const handleEditAmountChange = (text: string) => {
-    setEditAmount(text);
-    const numAmount = parseCurrencyInput(text);
-    if (editDiscountType === 'pwd' || editDiscountType === 'senior') {
-      const disc = (numAmount * 0.20).toFixed(2);
-      setEditDiscountAmount(disc);
-    }
-  };
-
-  const handleEditAmountBlur = () => {
-    if (!editAmount) return;
-    const num = parseCurrencyInput(editAmount);
-    if (num > 0) setEditAmount(formatNumberWithCommas(num));
-  };
-
-  const handleEditDiscountBlur = () => {
-    if (!editDiscountAmount) return;
-    const num = parseCurrencyInput(editDiscountAmount);
-    setEditDiscountAmount(formatNumberWithCommas(num));
-  };
-
   const handleCreateAmountBlur = () => {
     if (!createAmount) return;
     const num = parseCurrencyInput(createAmount);
@@ -669,70 +600,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     setCreateDiscountAmount(formatNumberWithCommas(num));
   };
 
-  const handleSaveEditDummyBilling = async () => {
-    if (!editingBilling) return;
-    const parsedAmount = parseCurrencyInput(editAmount);
-    const parsedDiscount = parseCurrencyInput(editDiscountAmount);
-
-    if (parsedAmount <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid billing amount greater than 0.');
-      return;
-    }
-
-    const computedFinal = Math.max(0, parsedAmount - parsedDiscount);
-    const paymentDate = editPaymentStatus === 'paid'
-      ? (editingBilling.payment_date || new Date().toISOString())
-      : null;
-
-    try {
-      setSavingEdit(true);
-
-      // Attempt secure RPC first
-      const { error: rpcError } = await supabase.rpc('update_dummy_billing', {
-        p_billing_id: editingBilling.id,
-        p_amount: parsedAmount,
-        p_discount_type: editDiscountType,
-        p_discount_amount: parsedDiscount,
-        p_final_amount: computedFinal,
-        p_payment_status: editPaymentStatus,
-        p_payment_method: editPaymentMethod || null,
-        p_payment_date: paymentDate,
-      });
-
-      if (rpcError) {
-        console.warn('RPC update_dummy_billing failed, attempting direct table update:', rpcError);
-        // Fallback to direct update
-        const { error: directError } = await supabase
-          .from('billings')
-          .update({
-            amount: parsedAmount,
-            discount_type: editDiscountType,
-            discount_amount: parsedDiscount,
-            final_amount: computedFinal,
-            payment_status: editPaymentStatus,
-            payment_method: editPaymentMethod || null,
-            payment_date: paymentDate,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingBilling.id);
-
-        if (directError) {
-          throw directError;
-        }
-      }
-
-      Alert.alert('Success', 'Walk-in patient billing record updated successfully!');
-      setShowEditModal(false);
-      setEditingBilling(null);
-      await loadBillings();
-    } catch (err: any) {
-      console.error('Error saving dummy billing update:', err);
-      Alert.alert('Update Failed', err.message || 'Could not update walk-in billing record.');
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
   // ─────────────────────────────────────────
   // DUMMY INVOICE CREATION LOGIC
   // ─────────────────────────────────────────
@@ -742,8 +609,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     setCreateAmount('1,500.00');
     setCreateDiscountType('none');
     setCreateDiscountAmount('0.00');
-    setCreatePaymentStatus('not_paid');
-    setCreatePaymentMethod('cash');
     setShowCreateModal(true);
   };
 
@@ -781,45 +646,43 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     }
 
     const computedFinal = Math.max(0, parsedAmount - parsedDiscount);
-    const paymentDate = createPaymentStatus === 'paid' ? new Date().toISOString() : null;
 
     try {
       setSavingCreate(true);
 
-      const { error: rpcError } = await supabase.rpc('create_dummy_billing', {
-        p_patient_id: createPatientId,
-        p_amount: parsedAmount,
-        p_discount_type: createDiscountType,
-        p_discount_amount: parsedDiscount,
-        p_final_amount: computedFinal,
-        p_payment_status: createPaymentStatus,
-        p_payment_method: createPaymentMethod || null,
-        p_payment_date: paymentDate,
-      });
+      // Invoices start unpaid; the payment itself is recorded through Process Payment
+      const { data: created, error: insertError } = await supabase
+        .from('billings')
+        .insert({
+          patient_id: createPatientId,
+          amount: parsedAmount,
+          discount_type: createDiscountType,
+          discount_amount: parsedDiscount,
+          final_amount: computedFinal,
+          payment_status: 'not_paid',
+        })
+        .select('*')
+        .maybeSingle();
 
-      if (rpcError) {
-        console.warn('RPC create_dummy_billing failed, attempting direct table insert:', rpcError);
-        const { error: directError } = await supabase
-          .from('billings')
-          .insert({
-            patient_id: createPatientId,
-            amount: parsedAmount,
-            discount_type: createDiscountType,
-            discount_amount: parsedDiscount,
-            final_amount: computedFinal,
-            payment_status: createPaymentStatus,
-            payment_method: createPaymentMethod || null,
-            payment_date: paymentDate,
-          });
-
-        if (directError) {
-          throw directError;
-        }
+      if (insertError) {
+        throw insertError;
       }
 
-      Alert.alert('Invoice Created', 'New walk-in billing invoice created successfully!');
       setShowCreateModal(false);
       await loadBillings();
+
+      // Go straight to collecting the payment for the invoice just issued
+      if (created?.id) {
+        const walkIn = patients.find((p) => p.id === createPatientId);
+        setProcessingBilling({
+          ...created,
+          patient_name: walkIn?.name || 'Walk-in Patient',
+          patient_email: walkIn?.email || '',
+          is_dummy: true,
+        });
+      } else {
+        Alert.alert('Invoice Created', 'Walk-in invoice created. Tap Process Payment on the bill to collect.');
+      }
     } catch (err: any) {
       console.error('Error creating dummy billing:', err);
       Alert.alert('Creation Failed', err.message || 'Could not create walk-in billing record.');
@@ -881,7 +744,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           </View>
 
           <View style={localStyles.headerActionsRow}>
-            {dummyPatientsList.length > 0 && (
+            {canProcess && dummyPatientsList.length > 0 && (
               <TouchableOpacity
                 style={localStyles.createInvoiceBtn}
                 onPress={handleOpenCreateModal}
@@ -911,35 +774,14 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           showsVerticalScrollIndicator={false}
         >
 
-          {/* PayMongo Onboarding & Guidelines Card */}
-          <View ref={tour.register("billing-paymongo")} collapsable={false} style={{ marginBottom: 14 }}>
-            <TouchableOpacity
-              onPress={() => setShowPayMongoGuide(true)}
-              style={localStyles.paymongoCard}
-              activeOpacity={0.85}
-            >
-              <View style={localStyles.paymongoBevel} />
-              <View style={localStyles.paymongoContent}>
-                <View style={localStyles.paymongoIconBox}>
-                  <CreditCard size={22} color="#34D399" />
-                </View>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <Text style={localStyles.paymongoTitle}>PayMongo Payout Guide</Text>
-                    <View style={localStyles.paymongoBadge}>
-                      <Text style={localStyles.paymongoBadgeText}>GUIDELINES</Text>
-                    </View>
-                  </View>
-                  <Text style={localStyles.paymongoDesc}>
-                    Step-by-step setup: BIR Form 2303, GCash/Maya & bank settlements.
-                  </Text>
-                </View>
-                <View style={localStyles.paymongoActionBtn}>
-                  <Text style={localStyles.paymongoActionBtnText}>Open</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
+          {!canProcess && (
+            <View style={localStyles.readOnlyNotice}>
+              <ShieldCheck size={16} color="#047857" />
+              <Text style={localStyles.readOnlyNoticeText}>
+                Payments are processed by the clinic assistant. This ledger is view-only for you.
+              </Text>
+            </View>
+          )}
 
           {/* Patient Selection Filter Card */}
           <View
@@ -1178,26 +1020,67 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                             </View>
                           )}
 
+                          {item.payer_type === 'hmo' && (
+                            <>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={localStyles.detailLabel}>HMO</Text>
+                                <Text style={localStyles.detailValue}>
+                                  {item.hmo_provider || 'HMO'}
+                                  {item.hmo_approval_code ? ` • LOA ${item.hmo_approval_code}` : ''}
+                                </Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={localStyles.detailLabel}>HMO Covers</Text>
+                                <Text style={[localStyles.detailValue, { color: '#0284C7' }]}>
+                                  {formatCurrency(item.hmo_covered_amount || 0)}
+                                </Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={localStyles.detailLabel}>Patient Share</Text>
+                                <Text style={localStyles.detailValue}>
+                                  {formatCurrency(
+                                    Math.max(0, (item.final_amount ?? item.amount ?? 0) - (item.hmo_covered_amount || 0))
+                                  )}
+                                </Text>
+                              </View>
+                            </>
+                          )}
+
                           {item.payment_method && (
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                               <Text style={localStyles.detailLabel}>Method</Text>
                               <Text style={[localStyles.detailValue, { textTransform: 'uppercase' }]}>
-                                {item.payment_method}
+                                {paymentMethodLabel(item.payment_method)}
+                                {item.payment_reference ? ` • ${item.payment_reference}` : ''}
                               </Text>
                             </View>
                           )}
                         </View>
 
-                        {/* EDIT BUTTON (ONLY FOR DUMMY PATIENT BILLING) */}
-                        {item.is_dummy && (
+                        {/* Payments are processed by the clinic assistant */}
+                        {canProcess && item.payment_status !== 'cancelled' && (
                           <View style={localStyles.cardActionRow}>
                             <TouchableOpacity
-                              style={localStyles.editCardBtn}
-                              onPress={() => handleOpenEditModal(item)}
+                              style={[
+                                localStyles.editCardBtn,
+                                item.payment_status !== 'paid' && localStyles.processCardBtn,
+                              ]}
+                              onPress={() => setProcessingBilling(item)}
                               activeOpacity={0.8}
                             >
-                              <Pencil size={13} color="#047857" style={{ marginRight: 6 }} />
-                              <Text style={localStyles.editCardBtnText}>Edit Walk-in Billing</Text>
+                              {item.payment_status === 'paid' ? (
+                                <Pencil size={13} color="#047857" style={{ marginRight: 6 }} />
+                              ) : (
+                                <CreditCard size={13} color="#FFFFFF" style={{ marginRight: 6 }} />
+                              )}
+                              <Text
+                                style={[
+                                  localStyles.editCardBtnText,
+                                  item.payment_status !== 'paid' && { color: '#FFFFFF' },
+                                ]}
+                              >
+                                {item.payment_status === 'paid' ? 'Edit Payment' : 'Process Payment'}
+                              </Text>
                             </TouchableOpacity>
                           </View>
                         )}
@@ -1504,240 +1387,16 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           </View>
         </Modal>
 
-        {/* ─────────────────────────────────────────
-            EDIT DUMMY BILLING MODAL
-        ───────────────────────────────────────── */}
-        <Modal
-          visible={showEditModal}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => {
-            if (!savingEdit) {
-              setShowEditModal(false);
-              setEditingBilling(null);
-            }
+        {/* Assistant payment processing (self-pay + HMO) */}
+        <ProcessPaymentModal
+          visible={!!processingBilling}
+          billing={processingBilling}
+          onClose={() => setProcessingBilling(null)}
+          onSaved={async () => {
+            setProcessingBilling(null);
+            await loadBillings();
           }}
-        >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
-            <View style={localStyles.modalHeader}>
-              <View>
-                <Text style={localStyles.modalTitle}>EDIT WALK-IN BILLING</Text>
-                <Text style={localStyles.modalSubtitle}>
-                  {editingBilling ? `BILL #${editingBilling.id?.slice(0, 8).toUpperCase()} • ${editingBilling.patient_name}` : ''}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowEditModal(false);
-                  setEditingBilling(null);
-                }}
-                disabled={savingEdit}
-                style={localStyles.modalCloseBtn}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <X size={18} color="#047857" />
-              </TouchableOpacity>
-            </View>
-
-            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-              {/* Original Amount Input */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Original Amount (₱)</Text>
-                <View style={localStyles.inputWrapper}>
-                  <Text style={localStyles.inputPrefix}>₱</Text>
-                  <TextInput
-                    style={localStyles.formInputWithPrefix}
-                    keyboardType="numeric"
-                    value={editAmount}
-                    onChangeText={handleEditAmountChange}
-                    placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-                <Text style={localStyles.helperText}>
-                  Formatted: {formatCurrency(editAmount)}
-                </Text>
-              </View>
-
-              {/* Discount Type Selector */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Discount Type</Text>
-                <View style={localStyles.pillSelectorRow}>
-                  {[
-                    { id: 'none', label: 'None (0%)' },
-                    { id: 'pwd', label: 'PWD (20%)' },
-                    { id: 'senior', label: 'Senior (20%)' },
-                    { id: 'custom', label: 'Custom' },
-                  ].map((dt) => {
-                    const isSelected = editDiscountType === dt.id;
-                    return (
-                      <TouchableOpacity
-                        key={dt.id}
-                        style={[
-                          localStyles.pillOption,
-                          isSelected && localStyles.pillOptionActive,
-                        ]}
-                        onPress={() => handleEditDiscountTypeChange(dt.id)}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pillOptionText,
-                            isSelected && localStyles.pillOptionTextActive,
-                          ]}
-                        >
-                          {dt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Discount Amount Input */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Discount Amount (₱)</Text>
-                <View style={localStyles.inputWrapper}>
-                  <Text style={localStyles.inputPrefix}>₱</Text>
-                  <TextInput
-                    style={localStyles.formInputWithPrefix}
-                    keyboardType="numeric"
-                    value={editDiscountAmount}
-                    onChangeText={setEditDiscountAmount}
-                    editable={editDiscountType === 'custom' || editDiscountType === 'insurance'}
-                    placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-                <Text style={localStyles.helperText}>
-                  Discount: -{formatCurrency(editDiscountAmount)}
-                </Text>
-              </View>
-
-              {/* Live Calculation Preview Card */}
-              <View style={localStyles.calcPreviewCard}>
-                <Text style={localStyles.calcPreviewTitle}>SETTLEMENT BREAKDOWN</Text>
-                <View style={localStyles.calcRow}>
-                  <Text style={localStyles.calcLabel}>Subtotal</Text>
-                  <Text style={localStyles.calcValue}>{formatCurrency(editAmount)}</Text>
-                </View>
-                <View style={localStyles.calcRow}>
-                  <Text style={localStyles.calcLabel}>Discount ({editDiscountType.toUpperCase()})</Text>
-                  <Text style={[localStyles.calcValue, { color: '#DC2626' }]}>
-                    -{formatCurrency(editDiscountAmount)}
-                  </Text>
-                </View>
-                <View style={localStyles.calcDivider} />
-                <View style={localStyles.calcRow}>
-                  <Text style={[localStyles.calcLabel, { fontWeight: '800', color: '#0F172A' }]}>Final Settled Amount</Text>
-                  <Text style={[localStyles.calcValue, { fontWeight: '900', color: '#047857', fontSize: 16 }]}>
-                    {formatCurrency(
-                      Math.max(0, parseCurrencyInput(editAmount) - parseCurrencyInput(editDiscountAmount))
-                    )}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Payment Status Selector */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Payment Status</Text>
-                <View style={localStyles.pillSelectorRow}>
-                  {[
-                    { id: 'not_paid', label: 'Unpaid' },
-                    { id: 'paid', label: 'Paid' },
-                    { id: 'overdue', label: 'Overdue' },
-                    { id: 'cancelled', label: 'Cancelled' },
-                  ].map((st) => {
-                    const isSelected = editPaymentStatus === st.id;
-                    return (
-                      <TouchableOpacity
-                        key={st.id}
-                        style={[
-                          localStyles.pillOption,
-                          isSelected && localStyles.pillOptionActive,
-                        ]}
-                        onPress={() => setEditPaymentStatus(st.id)}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pillOptionText,
-                            isSelected && localStyles.pillOptionTextActive,
-                          ]}
-                        >
-                          {st.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Payment Method Selector */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Payment Method</Text>
-                <View style={localStyles.pillSelectorRow}>
-                  {[
-                    { id: 'cash', label: 'Cash' },
-                    { id: 'gcash', label: 'GCash' },
-                    { id: 'card', label: 'Card' },
-                    { id: 'paymaya', label: 'Maya' },
-                    { id: 'bank-transfer', label: 'Bank' },
-                  ].map((m) => {
-                    const isSelected = editPaymentMethod === m.id;
-                    return (
-                      <TouchableOpacity
-                        key={m.id}
-                        style={[
-                          localStyles.pillOption,
-                          isSelected && localStyles.pillOptionActive,
-                        ]}
-                        onPress={() => setEditPaymentMethod(m.id)}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pillOptionText,
-                            isSelected && localStyles.pillOptionTextActive,
-                          ]}
-                        >
-                          {m.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={{ marginTop: 24, gap: 10 }}>
-                <TouchableOpacity
-                  style={[localStyles.modalPrimaryBtn, savingEdit && { opacity: 0.7 }]}
-                  onPress={handleSaveEditDummyBilling}
-                  disabled={savingEdit}
-                  activeOpacity={0.8}
-                >
-                  {savingEdit ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={localStyles.modalPrimaryBtnText}>Save Billing Changes</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={localStyles.modalSecondaryBtn}
-                  onPress={() => {
-                    setShowEditModal(false);
-                    setEditingBilling(null);
-                  }}
-                  disabled={savingEdit}
-                  activeOpacity={0.8}
-                >
-                  <Text style={localStyles.modalSecondaryBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-</KeyboardAvoidingView>
-          </SafeAreaView>
-        </Modal>
+        />
 
         {/* ─────────────────────────────────────────
             CREATE DUMMY INVOICE MODAL
@@ -1898,72 +1557,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
                 </View>
               </View>
 
-              {/* Payment Status Selector */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Payment Status</Text>
-                <View style={localStyles.pillSelectorRow}>
-                  {[
-                    { id: 'not_paid', label: 'Unpaid' },
-                    { id: 'paid', label: 'Paid' },
-                  ].map((st) => {
-                    const isSelected = createPaymentStatus === st.id;
-                    return (
-                      <TouchableOpacity
-                        key={st.id}
-                        style={[
-                          localStyles.pillOption,
-                          isSelected && localStyles.pillOptionActive,
-                        ]}
-                        onPress={() => setCreatePaymentStatus(st.id)}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pillOptionText,
-                            isSelected && localStyles.pillOptionTextActive,
-                          ]}
-                        >
-                          {st.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Payment Method Selector */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Payment Method</Text>
-                <View style={localStyles.pillSelectorRow}>
-                  {[
-                    { id: 'cash', label: 'Cash' },
-                    { id: 'gcash', label: 'GCash' },
-                    { id: 'card', label: 'Card' },
-                    { id: 'paymaya', label: 'Maya' },
-                  ].map((m) => {
-                    const isSelected = createPaymentMethod === m.id;
-                    return (
-                      <TouchableOpacity
-                        key={m.id}
-                        style={[
-                          localStyles.pillOption,
-                          isSelected && localStyles.pillOptionActive,
-                        ]}
-                        onPress={() => setCreatePaymentMethod(m.id)}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pillOptionText,
-                            isSelected && localStyles.pillOptionTextActive,
-                          ]}
-                        >
-                          {m.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
               {/* Action Buttons */}
               <View style={{ marginTop: 24, gap: 10 }}>
                 <TouchableOpacity
@@ -1992,12 +1585,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
 </KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
-
-        {/* PayMongo Doctor Onboarding & Guidelines Modal */}
-        <PayMongoDoctorGuideModal
-          visible={showPayMongoGuide}
-          onClose={() => setShowPayMongoGuide(false)}
-        />
 
         {/* Interactive Walkthrough Tour */}
         <AppTour
@@ -2085,77 +1672,6 @@ const localStyles = StyleSheet.create({
     borderBottomColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  // PayMongo Card
-  paymongoCard: {
-    backgroundColor: '#042F2E',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#022C22',
-    padding: 14,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  paymongoBevel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-  },
-  paymongoContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  paymongoIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  paymongoTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  paymongoBadge: {
-    backgroundColor: '#059669',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 4,
-  },
-  paymongoBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  paymongoDesc: {
-    fontSize: 11,
-    color: '#99F6E4',
-    lineHeight: 15,
-    marginTop: 2,
-  },
-  paymongoActionBtn: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: '#047857',
-  },
-  paymongoActionBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#022C22',
-    textTransform: 'uppercase',
   },
 
   // Skeuomorphic Cards
@@ -2461,6 +1977,29 @@ const localStyles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#A7F3D0',
+  },
+  processCardBtn: {
+    backgroundColor: '#047857',
+    borderColor: '#047857',
+  },
+  readOnlyNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  readOnlyNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
+    lineHeight: 17,
   },
   editCardBtnText: {
     fontSize: 12,

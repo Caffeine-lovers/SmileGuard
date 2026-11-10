@@ -115,9 +115,18 @@ function receiptRows(r: NonNullable<DocItem['receipt']>): [string, string][] {
     ['Clinic', r.appointment?.clinic_name || '—'],
     ['Procedure fee', peso(b.amount)],
     ['Discount', b.discount_amount ? `${peso(b.discount_amount)} (${(b.discount_type || '').toUpperCase()})` : 'None'],
-    ['Amount paid', peso(b.final_amount)],
-    ['Payment method', (b.payment_method || '—').replace('_', ' ')],
-    ['PayMongo reference', b.gateway_transaction_id || '—'],
+    ['Bill total', peso(b.final_amount)],
+    ...(b.payer_type === 'hmo'
+      ? ([
+          ['HMO provider', b.hmo_provider || '—'],
+          ['HMO member no.', b.hmo_member_id || '—'],
+          ['HMO approval (LOA)', b.hmo_approval_code || '—'],
+          ['Covered by HMO', peso(b.hmo_covered_amount || 0)],
+        ] as [string, string][])
+      : []),
+    ['Amount paid by patient', peso(Math.max(0, b.final_amount - (b.hmo_covered_amount || 0)))],
+    ['Payment method', b.payment_method === 'hmo' ? 'HMO' : (b.payment_method || '—').replace(/[_-]/g, ' ')],
+    ['Reference', b.payment_reference || b.gateway_transaction_id || '—'],
     ['Payment date', b.payment_date ? new Date(b.payment_date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'],
   ];
 }
@@ -274,7 +283,7 @@ export default function DocumentsPage() {
           'Pre-diagnostic AI screening only. Please consult your dentist for a professional diagnosis.'
         );
       } else if (item.kind === 'receipt' && item.receipt) {
-        printRecord('Official Payment Receipt', receiptRows(item.receipt), 'Payment processed securely via PayMongo.');
+        printRecord('Official Payment Receipt', receiptRows(item.receipt), 'Payment recorded by the clinic.');
       } else if (item.kind === 'intake' && item.intake) {
         printRecord('Medical Intake Form', INTAKE_FIELDS.map(([k, label]) => [label, String(item.intake![k] ?? '')]));
       } else if (item.kind === 'id' && item.idCredential) {

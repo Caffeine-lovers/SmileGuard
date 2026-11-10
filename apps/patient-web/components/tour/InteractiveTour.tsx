@@ -57,7 +57,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     description: 'Keep track of your complete dental history in one place: total appointments registered, countdown to your next clinic visit, and real-time outstanding ledger balances.',
     features: [
       'Total appointment counter',
-      'Live balance tracking with PayMongo integration',
+      'Live balance tracking, updated when the clinic records a payment',
       'Next scheduled chair visit countdown'
     ]
   },
@@ -90,10 +90,10 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   {
     targetSelector: '[data-tour="quick-billing"]',
     badge: 'Step 6 of 7 • Payments & Statutory Discounts',
-    title: 'Digital Payments & PWD Verification',
-    description: 'Review itemized dental invoices and settle balances securely via GCash, Maya, or Cards. You can also upload your official PWD or Senior Citizen ID here to request your 20% discount.',
+    title: 'Billing & PWD Verification',
+    description: 'Review itemized dental invoices and see what is due. Payments are settled at the clinic and recorded by the clinic assistant. You can also upload your official PWD or Senior Citizen ID here to request your 20% discount.',
     features: [
-      'BSP-licensed PayMongo online payment processing',
+      'Pay at the clinic: cash, GCash, Maya, card, bank transfer or HMO',
       'Secure ID photo upload for doctor review',
       'Enforced statutory 20% deduction upon doctor approval'
     ],

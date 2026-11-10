@@ -79,10 +79,11 @@ export function TermsContent() {
       <Section title="5. Payments and discounts">
         <List
           items={[
-            'Online payments are processed by PayMongo, a BSP-licensed payment provider. SmileGuard does not see or store your card or e-wallet details.',
-            'A payment is marked paid only after PayMongo or the clinic confirms it.',
+            'Payments are settled at the clinic and recorded by clinic staff. SmileGuard does not collect or store your card or e-wallet details.',
+            'A bill is marked paid only after the clinic records your payment.',
+            'If you are an HMO member, the clinic records your HMO provider, member number and approval (LOA) details to apply your coverage. You pay any share your HMO does not cover.',
             'Senior Citizen (RA 9994) and PWD (RA 10754) discounts apply only after the clinic verifies a valid ID you submit. Submitting a false or someone else’s ID is prohibited and may be reported.',
-            'Refunds, if any, follow the clinic’s refund policy and PayMongo’s processing rules.',
+            'Refunds, if any, follow the clinic’s refund policy.',
           ]}
         />
       </Section>
@@ -143,7 +144,7 @@ export function PrivacyContent() {
             <><strong>Medical information (sensitive personal information):</strong> date of birth, allergies, medical conditions, medications, past surgeries, smoking and pregnancy status, and emergency contact.</>,
             <><strong>Dental records:</strong> appointments, treatments, documents and X-rays uploaded by you or the clinic.</>,
             <><strong>Oral photos and AI results:</strong> photos you take or upload for AI screening and the results produced.</>,
-            <><strong>Billing information:</strong> invoices, amounts, payment status and PayMongo reference IDs. Card and e-wallet details are handled only by PayMongo.</>,
+            <><strong>Billing information:</strong> invoices, amounts, payment status, payment method and reference numbers recorded by the clinic, and, for HMO members, your HMO provider, member number and approval (LOA) details.</>,
             <><strong>Discount verification:</strong> images of Senior Citizen or PWD IDs you submit.</>,
             <><strong>Technical data:</strong> device and browser type, and logs needed to keep the service secure.</>,
           ]}
@@ -171,7 +172,7 @@ export function PrivacyContent() {
         <List
           items={[
             'The dentist and authorized staff of the clinic you book with.',
-            'Service providers that run SmileGuard for us, under agreements that require them to protect your data: Supabase (database, login and file storage), PayMongo (payments), and our AI processing provider (oral photo screening), plus Vercel (website hosting).',
+            'Service providers that run SmileGuard for us, under agreements that require them to protect your data: Supabase (database, login and file storage) and our AI processing provider (oral photo screening), plus Vercel (website hosting).',
             'Government authorities, only when the law requires it.',
           ]}
         />

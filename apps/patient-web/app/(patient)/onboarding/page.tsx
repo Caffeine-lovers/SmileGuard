@@ -113,17 +113,17 @@ export default function PatientOnboardingWizard() {
     },
     {
       id: 'billing',
-      badge: 'Step 4 of 5 • Digital Payments',
-      title: 'Transparent Billing & Checkout',
-      subtitle: 'Itemized invoices and BSP-licensed online payments via PayMongo.',
-      description: 'Clear, predictable dental costs. Review itemized treatment fees set directly by your clinic, and settle balances seamlessly with your preferred Philippine payment method.',
+      badge: 'Step 4 of 5 • Billing',
+      title: 'Transparent Billing',
+      subtitle: 'Itemized invoices here, payment at the clinic front desk.',
+      description: 'Clear, predictable dental costs. Review itemized treatment fees set directly by your clinic, then settle your balance at the clinic, where the assistant records your payment.',
       icon: CreditCard,
       accentColor: 'cyan',
       features: [
         {
           icon: CreditCard,
-          title: 'GCash, Maya, Cards & GrabPay',
-          desc: 'Secure digital checkout powered by PayMongo with instant payment confirmation.'
+          title: 'Cash, GCash, Maya, Card or HMO',
+          desc: 'Pay at the clinic with any accepted method. HMO patients bring their card and LOA and pay only the remaining share.'
         },
         {
           icon: FileText,

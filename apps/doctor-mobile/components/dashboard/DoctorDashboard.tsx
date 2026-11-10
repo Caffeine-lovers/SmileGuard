@@ -498,7 +498,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
       id: "guide-btn",
       target: "guide-btn",
       title: "Replay Guide Anytime",
-      description: "You can tap this Sparkles button anytime to replay this interactive walkthrough or view the PayMongo setup checklist.",
+      description: "You can tap this Sparkles button anytime to replay this interactive walkthrough or reopen the clinic setup guide.",
       icon: Sparkles,
       padding: 6,
       radius: 12,
@@ -595,7 +595,7 @@ export default function DoctorDashboard({ user, onLogout, promptAppointmentId }:
           onPress: handleRestartTour,
         },
         {
-          text: "Clinic & PayMongo Guide",
+          text: "Clinic Setup Guide",
           onPress: () => router.push("/onboarding"),
         },
         {

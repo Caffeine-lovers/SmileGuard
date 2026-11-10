@@ -11,17 +11,13 @@ import { fetchBillingDataForDashboard, getServicePrice } from '@/lib/outstanding
 import { formatAppointmentTime } from '@/lib/scheduling';
 import { showAlert } from '@/components/ui/AppDialog';
 import {
-  CreditCard,
   Building2,
-  Smartphone,
   FileText,
   CheckCircle2,
   Clock,
-  AlertTriangle,
   AlertCircle,
   Receipt,
   ShieldCheck,
-  ExternalLink,
   RefreshCw,
   XCircle,
   CalendarDays,
@@ -37,7 +33,16 @@ interface BillingPaymentProps {
   onCancel?: () => void;
 }
 
-const PENDING_CHECKOUT_KEY = 'smileguard:pending-checkout';
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: 'Cash',
+  gcash: 'GCash',
+  paymaya: 'Maya',
+  card: 'Card',
+  'bank-transfer': 'Bank Transfer',
+  grab_pay: 'GrabPay',
+  hmo: 'HMO',
+  online: 'Online',
+};
 
 const BILLING_STATUS_STYLE: Record<
   AppointmentBillingStatus,
@@ -82,7 +87,6 @@ export default function BillingPayment({
   const [activeDiscountTab, setActiveDiscountTab] = useState<'none' | 'pwd' | 'senior'>('none');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [finalAmount, setFinalAmount] = useState<number>(amount);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedVerificationType, setSelectedVerificationType] = useState<'pwd' | 'senior'>('pwd');
   const [selectedIdFile, setSelectedIdFile] = useState<File | null>(null);
   const [idPreviewUrl, setIdPreviewUrl] = useState<string | null>(null);
@@ -96,219 +100,6 @@ export default function BillingPayment({
   const [ledgerPage, setLedgerPage] = useState(1);
   const LEDGER_ITEMS_PER_PAGE = 6;
   const [loadingData, setLoadingData] = useState(true);
-
-  // PayMongo-specific state
-  const [paymongoError, setPaymongoError] = useState<string | null>(null);
-  const [paymentStatusBanner, setPaymentStatusBanner] = useState<'success' | 'cancelled' | null>(null);
-  const [confirmedPaymentInfo, setConfirmedPaymentInfo] = useState<{
-    amount: number;
-    aptId?: string;
-    date: string;
-    referenceId?: string;
-    method?: string;
-  } | null>(null);
-
-  const [referenceInput, setReferenceInput] = useState('');
-  const [isVerifyingRef, setIsVerifyingRef] = useState(false);
-  const [refVerificationMsg, setRefVerificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const handleVerifyReference = async (refToVerify?: string) => {
-    const ref = (refToVerify || referenceInput).trim();
-    if (!ref) {
-      showAlert('Please enter a PayMongo Reference ID (e.g. pay_...)');
-      return;
-    }
-
-    setIsVerifyingRef(true);
-    setRefVerificationMsg(null);
-    try {
-      let authHeader: string | undefined = undefined;
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData?.session?.access_token) {
-          authHeader = `Bearer ${sessionData.session.access_token}`;
-        }
-      } catch {}
-
-      const res = await fetch('/api/paymongo/confirm-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-        },
-        body: JSON.stringify({
-          paymentRef: ref,
-          appointmentId: selectedAppointment?.id,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to verify reference ID');
-      }
-
-      const settledAmount = Number(data.amount ?? data.billing?.final_amount ?? 0);
-      const settledAptId = data.billing?.appointment_id || data.appointmentId;
-      const refId = data.referenceId || ref;
-      const method = data.paymentMethod || 'gcash';
-
-      setConfirmedPaymentInfo({
-        amount: settledAmount,
-        aptId: settledAptId,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        referenceId: refId,
-        method: method,
-      });
-
-      setPaymentStatusBanner('success');
-      setRefVerificationMsg({
-        type: 'success',
-        text: `Verified & Settled! Reference ID ${refId} credited (₱${settledAmount.toFixed(2)}).`,
-      });
-
-      // Update local state immediately
-      setLedger((prev) =>
-        prev.map((row) =>
-          row.id === settledAptId || (row as any).appointment_id === settledAptId
-            ? {
-                ...row,
-                billing_status: 'PAID' as AppointmentBillingStatus,
-                amount_due: 0,
-                billing: {
-                  ...(row.billing || ({} as any)),
-                  payment_status: 'paid',
-                  gateway_transaction_id: refId,
-                  final_amount: settledAmount,
-                },
-              }
-            : row
-        )
-      );
-      setUnpaidAppointments((prev) => prev.filter((row) => row.id !== settledAptId));
-      setOutstandingBalance((prev) => Math.max(0, prev - settledAmount));
-      setSelectedAppointment(null);
-
-      // The server already recorded the verified payment; just reload what the database says.
-      if (currentUser?.id) {
-        await refreshBillingData();
-      }
-    } catch (err: any) {
-      console.error('Error verifying reference ID:', err);
-      setRefVerificationMsg({
-        type: 'error',
-        text: err.message || 'Reference ID could not be verified with PayMongo.',
-      });
-    } finally {
-      setIsVerifyingRef(false);
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const status = params.get('status');
-    const aptId = params.get('apt');
-    // The checkout session we created before redirecting to PayMongo (see handlePayMongoCheckout)
-    let storedCheckoutId: string | undefined;
-    try {
-      const stored = JSON.parse(sessionStorage.getItem(PENDING_CHECKOUT_KEY) || 'null');
-      if (stored?.checkoutId && (!aptId || stored.appointmentId === aptId)) storedCheckoutId = stored.checkoutId;
-    } catch {}
-    const payRef = params.get('ref') || params.get('pay_id') || storedCheckoutId;
-
-    if (status === 'success' || payRef) {
-      setPaymentStatusBanner('success');
-
-      const processConfirmation = async () => {
-        try {
-          // Get auth token from supabase session if present
-          let authHeader: string | undefined = undefined;
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (sessionData?.session?.access_token) {
-              authHeader = `Bearer ${sessionData.session.access_token}`;
-            }
-          } catch {}
-
-          // Call server endpoint to verify PayMongo payment and update database
-          const res = await fetch('/api/paymongo/confirm-checkout', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(authHeader ? { Authorization: authHeader } : {}),
-            },
-            body: JSON.stringify({
-              appointmentId: aptId || undefined,
-              paymentRef: payRef || undefined,
-            }),
-          });
-
-          const data = await res.json();
-          if (data?.success && (data?.billing || data?.referenceId || data?.amount)) {
-            try { sessionStorage.removeItem(PENDING_CHECKOUT_KEY); } catch {}
-            const paidAmount = Number(data.amount ?? data.billing?.final_amount ?? 0);
-            const resolvedAptId = data.billing?.appointment_id || data.appointmentId || aptId;
-            const refId = data.referenceId || payRef || undefined;
-            const method = data.paymentMethod || 'gcash';
-
-            setConfirmedPaymentInfo({
-              amount: paidAmount,
-              aptId: resolvedAptId,
-              date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-              referenceId: refId,
-              method: method,
-            });
-
-            // Optimistically update local ledger, unpaid list, and balance immediately
-            setLedger((prev) =>
-              prev.map((row) =>
-                row.id === resolvedAptId || (row as any).appointment_id === resolvedAptId
-                  ? {
-                      ...row,
-                      billing_status: 'PAID' as AppointmentBillingStatus,
-                      amount_due: 0,
-                      billing: {
-                        ...(row.billing || ({} as any)),
-                        payment_status: 'paid',
-                        gateway_transaction_id: refId,
-                        final_amount: paidAmount,
-                      },
-                    }
-                  : row
-              )
-            );
-            if (resolvedAptId) {
-              setUnpaidAppointments((prev) => prev.filter((row) => row.id !== resolvedAptId));
-            }
-            setOutstandingBalance((prev) => Math.max(0, prev - paidAmount));
-            setSelectedAppointment((prev) => (prev?.id === resolvedAptId ? null : prev));
-          } else {
-            // PayMongo didn't confirm a completed payment — don't show a false "paid" banner
-            setPaymentStatusBanner(null);
-            setPaymongoError(
-              data?.error ||
-                'We could not confirm your payment yet. If you were charged, enter your PayMongo reference below.'
-            );
-          }
-
-          // Full sync with database
-          if (currentUser?.id) {
-            await refreshBillingData();
-          }
-        } catch (e) {
-          console.error('[BillingPayment] Error confirming checkout:', e);
-        } finally {
-          // Clean URL so back/refresh doesn't re-trigger
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-      };
-
-      processConfirmation();
-    } else if (status === 'cancelled') {
-      setPaymentStatusBanner('cancelled');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, [currentUser?.id]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -395,7 +186,6 @@ export default function BillingPayment({
     const newAmount = apt.price ?? getServicePrice(apt.service);
     setAmount(newAmount);
     applyDiscount(newAmount, discountType);
-    setPaymongoError(null);
   };
 
   const applyDiscount = (total: number, type: Billing['discount_type']) => {
@@ -417,7 +207,7 @@ export default function BillingPayment({
   const approvedDiscountType: 'pwd' | 'senior' = currentPwdType === 'senior' ? 'senior' : 'pwd';
 
   // Auto-apply the doctor-verified statutory discount once approval is known, so the
-  // amount sent to PayMongo matches the "20% deduction is applied" banner without the
+  // estimate shown here matches the "20% deduction is applied" banner without the
   // patient having to click the PWD/Senior tab. They can still switch to Standard Rate.
   const autoAppliedDiscount = useRef(false);
   useEffect(() => {
@@ -441,7 +231,6 @@ export default function BillingPayment({
       setDiscountType('none');
       applyDiscount(amount, 'none');
       setShowVerificationPanel(false);
-      setPaymongoError(null);
       return;
     }
 
@@ -462,7 +251,6 @@ export default function BillingPayment({
     setDiscountType(type);
     applyDiscount(amount, type);
     setShowVerificationPanel(false);
-    setPaymongoError(null);
   };
 
   const handleIdFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -518,95 +306,6 @@ export default function BillingPayment({
       setIsSubmittingId(false);
     }
   };
-
-  const refreshBillingData = async () => {
-    if (!currentUser?.id) return;
-    const userId = currentUser.id;
-
-    // Same derivation as initial load so the ledger always mirrors the appointments table
-    const { outstandingBalance, unpaidAppointments, billingHistory, ledger } =
-      await fetchBillingDataForDashboard(userId);
-
-    setOutstandingBalance(outstandingBalance);
-    setBillingHistory(billingHistory);
-    setUnpaidAppointments(unpaidAppointments);
-    setLedger(ledger);
-    setSelectedAppointment(null);
-    setAmount(0);
-    // Keep a verified discount selected for the next payment instead of silently dropping it
-    setDiscountType(isPwdApproved ? approvedDiscountType : 'none');
-    setActiveDiscountTab(isPwdApproved ? approvedDiscountType : 'none');
-    setPaymongoError(null);
-  };
-
-  // Initiate PayMongo Checkout Session (redirect flow)
-  const handlePayMongoCheckout = async () => {
-    if (!selectedAppointment || !currentUser?.id) {
-      showAlert('Please select an appointment to pay.');
-      return;
-    }
-
-    if ((discountType === 'pwd' || discountType === 'senior') && !isPwdApproved) {
-      showAlert('Statutory discount requires doctor verification. Please submit your PWD/Senior ID to the clinic first.');
-      return;
-    }
-
-    setIsProcessing(true);
-    setPaymongoError(null);
-
-    try {
-      // Retrieve the current user's session token for authenticated RLS evaluation
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const response = await fetch('/api/paymongo/create-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          appointmentId: selectedAppointment.id,
-          discountType,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create checkout session');
-      }
-
-      if (!data.checkoutUrl) {
-        throw new Error('Payment gateway did not provide a checkout URL.');
-      }
-
-      // Never send the patient to a full-price checkout when the UI promised a discount
-      if ((discountType === 'pwd' || discountType === 'senior') && !(Number(data.discountAmount) > 0)) {
-        throw new Error(
-          'Your PWD/Senior discount could not be confirmed by the server, so checkout was stopped to avoid charging the full price. Please refresh and try again, or contact the clinic.'
-        );
-      }
-
-      // Redirect to PayMongo hosted checkout page
-      // PayMongo handles Card, GCash, Maya, GrabPay, QR Ph on their PCI-compliant page
-      try {
-        sessionStorage.setItem(
-          PENDING_CHECKOUT_KEY,
-          JSON.stringify({ appointmentId: selectedAppointment.id, checkoutId: data.checkoutId })
-        );
-      } catch {}
-      window.location.href = data.checkoutUrl;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to initiate payment';
-      setPaymongoError(msg);
-      console.error('PayMongo checkout error:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handlePayment = handlePayMongoCheckout;
 
   const ledgerCounts: Record<AppointmentBillingStatus, number> = {
     PAID: ledger.filter((r) => r.billing_status === 'PAID').length,
@@ -693,85 +392,19 @@ export default function BillingPayment({
         </div>
       </div>
 
-      {/* PayMongo Checkout Redirect Banners */}
-      {paymentStatusBanner === 'success' && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-50 border-2 border-emerald-600 rounded-sm text-emerald-950 shadow-md animate-in fade-in duration-200">
-          <div className="flex items-start sm:items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
-            <div>
-              <p className="text-sm font-black uppercase tracking-wider text-emerald-950">Payment Confirmed!</p>
-              <p className="text-xs text-emerald-800 mt-0.5">
-                {confirmedPaymentInfo && (
-                  <span className="font-bold ml-1 text-emerald-950">
-                    Amount Paid: ₱{confirmedPaymentInfo.amount.toFixed(2)}.
-                  </span>
-                )}
-              </p>
-              {confirmedPaymentInfo?.referenceId && (
-                <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-emerald-200 text-xs">
-                  <span className="font-bold text-emerald-950 uppercase tracking-wider text-[10px]">Reference ID:</span>
-                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-400 font-bold text-emerald-950 text-xs selection:bg-emerald-200">
-                    {confirmedPaymentInfo.referenceId}
-                  </span>
-                  {confirmedPaymentInfo.method && (
-                    <span className="text-[10px] font-bold uppercase bg-emerald-200 text-emerald-950 px-1.5 py-0.5 rounded">
-                      {confirmedPaymentInfo.method}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setPaymentStatusBanner(null)}
-            className="text-xs font-bold text-emerald-900 hover:text-emerald-950 uppercase cursor-pointer shrink-0 py-1.5 px-3.5 border border-emerald-400 bg-white hover:bg-emerald-100 rounded-xs transition shadow-2xs self-end sm:self-center"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {paymentStatusBanner === 'cancelled' && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-amber-50 border-2 border-amber-500 rounded-sm text-amber-900 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <p className="text-xs font-black uppercase tracking-wider">Payment Cancelled</p>
-              <p className="text-xs text-amber-700">No charge was made.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <Link
-              href="/billing/cancelled"
-              className="text-xs font-bold text-amber-800 hover:text-amber-950 underline uppercase cursor-pointer"
-            >
-              Details
-            </Link>
-            <button
-              type="button"
-              onClick={() => setPaymentStatusBanner(null)}
-              className="text-xs font-bold text-slate-600 hover:text-slate-900 uppercase cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Payment workspace: choose on the left, review & pay on the right */}
+      {/* Payment workspace: unpaid bills on the left, estimate & how to pay on the right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         <section className="lg:col-span-7 skeuo-panel p-3.5 sm:p-5 border-2 border-slate-300 space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b-2 border-slate-200">
             <Receipt className="w-5 h-5 text-emerald-700" />
             <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
-              Process Invoice Payment
+              Your Bills
             </h2>
           </div>
             {/* Availed Services from Appointments */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                Select Procedure to Settle
+                Unpaid Procedures
               </label>
               {unpaidAppointments.length > 0 ? (
                 <div className="space-y-2">
@@ -1028,7 +661,7 @@ export default function BillingPayment({
             <div className="skeuo-card p-4 bg-white border-2 border-slate-300 rounded-sm">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
                 <Receipt className="w-3.5 h-3.5 text-slate-600" />
-                Payment Breakdown
+                Bill Estimate
               </h3>
               <div className="space-y-2 text-xs sm:text-sm">
                 {selectedAppointment?.clinic_name && (
@@ -1053,124 +686,56 @@ export default function BillingPayment({
                   </div>
                 )}
                 <div className="border-t-2 border-slate-200 pt-2 flex justify-between text-sm sm:text-base font-black text-slate-900">
-                  <span className="uppercase tracking-wide">Total:</span>
+                  <span className="uppercase tracking-wide">Estimated Total:</span>
                   <span className="font-mono text-emerald-800">₱{finalAmount.toFixed(2)}</span>
                 </div>
               </div>
             </div>
-            {/* PayMongo Error */}
-            {paymongoError && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-400 rounded-xs text-red-700">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <p className="text-xs font-bold">{paymongoError}</p>
+            {/* Payments are settled at the clinic by the assistant */}
+            <div className="skeuo-card p-3.5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-950">
+                  Pay at the Clinic
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 leading-relaxed">
+                Payments are settled at the clinic front desk. The clinic assistant records your payment and this page
+                updates on its own.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {['Cash', 'GCash', 'Maya', 'Card', 'Bank Transfer', 'HMO'].map((m) => (
+                  <span
+                    key={m}
+                    className="px-2 py-1 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 shadow-xs"
+                  >
+                    {m}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed flex items-start gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-bold text-slate-800">HMO patient?</span> Bring your HMO card and Letter of
+                  Authorization (LOA). The assistant applies your coverage and you pay only the remaining share.
+                </span>
+              </p>
+            </div>
+            {unpaidAppointments.length === 0 && (
+              <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>You are all paid up. No payments due.</span>
               </div>
             )}
-        {/* Action CTA Buttons */}
-        <div className="flex flex-col gap-2">
-          {unpaidAppointments.length === 0 ? (
-            <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-sm text-emerald-800 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>You are all paid up. No payments due.</span>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handlePayment}
-              disabled={isProcessing || !selectedAppointment}
-              className="skeuo-btn-primary py-2.5 px-5 text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full py-3"
-            >
-              {isProcessing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Clock className="w-3.5 h-3.5 animate-spin shrink-0" />
-                  <span>Processing...</span>
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                  <span>Pay ₱{finalAmount.toFixed(2)} via PayMongo</span>
-                </span>
-              )}
-            </button>
-          )}
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer w-full"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-            {/* Payment Gateway - PayMongo Unified Portal */}
-            <div className="skeuo-card p-3.5 border-2 border-emerald-400 bg-emerald-50/40 rounded-sm space-y-3">
-              <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1.5">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-950">
-                    Payment Gateway &bull; PayMongo
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1">
-                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                  <CreditCard className="w-3.5 h-3.5 text-blue-700" />
-                  Credit / Debit Card
-                </span>
-                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                  <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-                  GCash
-                </span>
-                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                  <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                  Maya
-                </span>
-                <span className="px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-slate-300 rounded-xs text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-1.5 shadow-xs">
-                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                  GrabPay / QR Ph
-                </span>
-              </div>
-            </div>
-            {/* PayMongo Reference ID Reconcile Box */}
-            <details className="group p-3.5 bg-slate-50 border-2 border-slate-300 rounded-sm space-y-2">
-              <summary className="list-none cursor-pointer flex items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                  <Receipt className="w-4 h-4 text-emerald-700 shrink-0" />
-                  Already paid? Enter your reference ID
-                </span>
-                <span className="text-slate-400 text-xs transition-transform group-open:rotate-180">▾</span>
-              </summary>
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                <input
-                  type="text"
-                  value={referenceInput}
-                  onChange={(e) => setReferenceInput(e.target.value)}
-                  placeholder="Enter PayMongo Reference ID (e.g. pay_...)"
-                  className="flex-1 p-2 bg-white border border-slate-300 rounded-xs text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleVerifyReference()}
-                  disabled={isVerifyingRef || !referenceInput.trim()}
-                  className="skeuo-btn-primary py-2 px-4 text-xs uppercase tracking-wider font-bold shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  {isVerifyingRef ? 'Verifying...' : 'Verify & Record ID'}
-                </button>
-              </div>
-              {refVerificationMsg && (
-                <div className={`p-2.5 rounded-xs text-xs font-bold flex items-center gap-2 mt-2 ${
-                  refVerificationMsg.type === 'success' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-red-100 text-red-900 border border-red-300'
-                }`}>
-                  {refVerificationMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />}
-                  <span>{refVerificationMsg.text}</span>
-                </div>
-              )}
-            </details>
-        {/* Security Badge */}
-        <p className="text-[10px] font-semibold text-slate-500 flex items-start gap-1.5 leading-snug">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          Secured by PayMongo.
-        </p>
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="skeuo-btn-secondary py-2.5 px-4 text-xs uppercase tracking-wider cursor-pointer w-full"
+              >
+                Back
+              </button>
+            )}
         </aside>
       </div>
 
@@ -1219,7 +784,8 @@ export default function BillingPayment({
                 const style = BILLING_STATUS_STYLE[row.billing_status];
                 const StatusIcon = style.icon;
                 const appointmentState = awaitingApproval ? 'Pending approval' : row.status === 'no-show' ? 'No show' : row.status;
-                const referenceId = row.billing?.gateway_transaction_id || confirmedPaymentInfo?.referenceId || 'pay_verified';
+                const referenceId = row.billing?.payment_reference || row.billing?.gateway_transaction_id || '';
+                const methodLabel = PAYMENT_METHOD_LABELS[row.billing?.payment_method || ''] || '';
                 const note =
                   row.billing_status === 'CANCELLED' && row.billing?.payment_status === 'paid'
                     ? 'Paid · refund due'
@@ -1264,12 +830,17 @@ export default function BillingPayment({
                     </div>
 
                     {row.billing_status === 'PAID' && (
-                      <p
-                        className="text-[10px] font-mono font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-sm px-2 py-1 truncate"
-                        title={referenceId}
-                      >
-                        Ref: {referenceId}
-                      </p>
+                      <div className="text-[10px] font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-sm px-2 py-1 space-y-0.5">
+                        <p className="truncate uppercase" title={referenceId || undefined}>
+                          Paid{methodLabel ? ` via ${methodLabel}` : ''}
+                          {referenceId ? ` · Ref ${referenceId}` : ''}
+                        </p>
+                        {row.billing?.payer_type === 'hmo' && (
+                          <p className="truncate text-sky-900">
+                            HMO {row.billing.hmo_provider || ''} covered ₱{Number(row.billing.hmo_covered_amount || 0).toFixed(2)}
+                          </p>
+                        )}
+                      </div>
                     )}
                     {note && (
                       <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-sm px-2 py-1">

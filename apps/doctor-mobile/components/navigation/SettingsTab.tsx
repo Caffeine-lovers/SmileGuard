@@ -37,7 +37,6 @@ import {
 import DoctorProfileView from '../settings/DoctorProfileViewing';
 import ClinicSetup from '../settings/ClinicSetup';
 import SupportFeedbackModal from '../settings/SupportFeedbackModal';
-import PayMongoDoctorGuideModal from '../billing/PayMongoDoctorGuideModal';
 import { triggerManualUpdateCheck } from '../ui/AppUpdateManager';
 import { useAuth } from '../../hooks/useAuth';
 import { getDoctorProfile, updateDoctorProfile } from '../../lib/doctorService';
@@ -79,7 +78,6 @@ export default function SettingsTab({
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingClinic, setEditingClinic] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
-  const [showPayMongoGuide, setShowPayMongoGuide] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(user);
   const [doctorData, setDoctorData] = useState<Doctor>(EMPTY_DOCTOR);
   const [loadingDoctor, setLoadingDoctor] = useState(false);
@@ -272,34 +270,6 @@ export default function SettingsTab({
 
         )}
 
-        {/* PayMongo Billing & Payout Section */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={localStyles.sectionLabel}>BILLING & PAYOUTS</Text>
-          <TouchableOpacity
-            style={localStyles.skeuoCard}
-            onPress={() => setShowPayMongoGuide(true)}
-            activeOpacity={0.75}
-          >
-            <View style={localStyles.cardContentRow}>
-              <View style={localStyles.iconBox}>
-                <CreditCard size={18} color="#047857" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <Text style={localStyles.cardTitle}>PayMongo Gateway Guide</Text>
-                  <View style={localStyles.miniBadge}>
-                    <Text style={localStyles.miniBadgeText}>GUIDELINES</Text>
-                  </View>
-                </View>
-                <Text style={localStyles.cardSubtitle}>Clinic merchant setup, GCash/Maya & bank payouts</Text>
-              </View>
-              <View style={localStyles.chevronBox}>
-                <ChevronRight size={16} color="#047857" />
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-
         {/* Text Size Selection */}
         <View style={{ marginBottom: 16 }}>
           <Text style={localStyles.sectionLabel}>DISPLAY TEXT SIZE</Text>
@@ -411,8 +381,8 @@ export default function SettingsTab({
                 <Text style={localStyles.cardTitle}>Billing Ledger Walkthrough</Text>
                 <Text style={localStyles.cardSubtitle}>
                   {isAssistant
-                    ? "Payment verification, invoices & transaction tracking"
-                    : "Revenue tracking, invoices & PayMongo payouts"}
+                    ? "Process payments, HMO coverage & invoices"
+                    : "Revenue tracking, invoices, HMO & payments"}
                 </Text>
               </View>
               <View style={localStyles.chevronBox}>
@@ -437,7 +407,7 @@ export default function SettingsTab({
                 <Text style={localStyles.cardSubtitle}>
                   {isAssistant
                     ? "Revisit front-desk workflows: queue, request deck & check-in"
-                    : "Revisit the full setup: clinic hours, catalog & PayMongo"}
+                    : "Revisit the full setup: clinic hours, catalog & billing"}
                 </Text>
               </View>
               <View style={localStyles.chevronBox}>
@@ -594,11 +564,6 @@ export default function SettingsTab({
         onClose={() => setShowSupport(false)}
       />
 
-      {/* PayMongo Doctor Onboarding & Guidelines Modal */}
-      <PayMongoDoctorGuideModal
-        visible={showPayMongoGuide}
-        onClose={() => setShowPayMongoGuide(false)}
-      />
     </View>
   );
 }
