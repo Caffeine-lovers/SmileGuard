@@ -1,13 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import BillingPayment from '@/components/billing/BillingPayment';
-
+// Payments are handled by the clinic assistant; patients no longer have a billing page.
 export default function BillingPage() {
-  return (
-    <div className="bg-bg-screen w-full">
-      <div className="w-full">
-        <BillingPayment />
-      </div>
-    </div>
-  );
+  redirect('/dashboard');
 }

@@ -26,7 +26,7 @@ export interface TourStep {
 export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   {
     targetSelector: '[data-tour="profile-card"]',
-    badge: 'Step 1 of 7 • Patient Profile',
+    badge: 'Step 1 of 6 • Patient Profile',
     title: 'Dental Chart & Statutory Status',
     description: 'Your patient identity and verification hub. Once the clinic approves your PWD or Snr. Cit. ID, a verified badge will appear here to activate your statutory 20% discount on clinic billings.',
     features: [
@@ -37,7 +37,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   },
   {
     targetSelector: '[data-tour="book-visit-btn"]',
-    badge: 'Step 2 of 7 • Online Scheduling',
+    badge: 'Step 2 of 6 • Online Scheduling',
     title: 'Conflict-Free Appointment Booking',
     description: 'Schedule cleanings, restorations, or general checkups directly. The appointment engine validates live clinic operating hours and automatically blocks out unavailable dates.',
     features: [
@@ -52,7 +52,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   },
   {
     targetSelector: '[data-tour="stats-grid"]',
-    badge: 'Step 3 of 7 • Clinical Ledger',
+    badge: 'Step 3 of 6 • Clinical Ledger',
     title: 'At-a-Glance Clinical & Billing KPIs',
     description: 'Keep track of your complete dental history in one place: total appointments registered, countdown to your next clinic visit, and real-time outstanding ledger balances.',
     features: [
@@ -63,7 +63,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   },
   {
     targetSelector: '[data-tour="appointments-panel"]',
-    badge: 'Step 4 of 7 • Appointment Hub',
+    badge: 'Step 4 of 6 • Appointment Hub',
     title: 'Manage Scheduled & Pending Visits',
     description: 'Monitor your appointments across 3 live states: Scheduled (confirmed by the doctor), Pending (awaiting clinic review), and Past/Cancelled records.',
     features: [
@@ -74,7 +74,7 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
   },
   {
     targetSelector: '[data-tour="quick-analysis"]',
-    badge: 'Step 5 of 7 • AI Vision Screening',
+    badge: 'Step 5 of 6 • AI Vision Screening',
     title: 'Computer Vision Oral Health Scan',
     description: 'Launch our real-time camera engine to detect signs of early gingivitis, redness, and plaque accumulation. Take an oral scan anytime before coming in to the clinic.',
     features: [
@@ -88,23 +88,8 @@ export const PATIENT_DASHBOARD_TOUR_STEPS: TourStep[] = [
     }
   },
   {
-    targetSelector: '[data-tour="quick-billing"]',
-    badge: 'Step 6 of 7 • Payments & Statutory Discounts',
-    title: 'Billing & PWD Verification',
-    description: 'Review itemized dental invoices and see what is due. Payments are settled at the clinic and recorded by the clinic assistant. You can also upload your official PWD or Senior Citizen ID here to request your 20% discount.',
-    features: [
-      'Pay at the clinic: cash, GCash, Maya, card, bank transfer or HMO',
-      'Secure ID photo upload for doctor review',
-      'Enforced statutory 20% deduction upon doctor approval'
-    ],
-    actionLink: {
-      href: '/billing',
-      label: 'Open Billing Hub'
-    }
-  },
-  {
     targetSelector: '[data-tour="guide-controls"]',
-    badge: 'Step 7 of 7 • Help & Resources',
+    badge: 'Step 6 of 6 • Help & Resources',
     title: 'Interactive Tours & Onboarding Guides',
     description: 'You\'re all set! You can replay this interactive spotlight tour anytime with "Tour UI", or click "Guide" to explore the full 5-step comprehensive onboarding wizard.',
     features: [
@@ -161,8 +146,6 @@ export default function InteractiveTour({
     if (!el || el.offsetParent === null) {
       if (currentStep.targetSelector === '[data-tour="quick-analysis"]') {
         el = document.querySelector('header a[href="/analysis"]');
-      } else if (currentStep.targetSelector === '[data-tour="quick-billing"]') {
-        el = document.querySelector('header a[href="/billing"]');
       } else if (currentStep.targetSelector === '[data-tour="profile-card"]') {
         el = document.querySelector('[data-tour="profile-header"]');
       }
@@ -194,8 +177,6 @@ export default function InteractiveTour({
     if (!el || el.offsetParent === null) {
       if (currentStep.targetSelector === '[data-tour="quick-analysis"]') {
         el = document.querySelector('header a[href="/analysis"]');
-      } else if (currentStep.targetSelector === '[data-tour="quick-billing"]') {
-        el = document.querySelector('header a[href="/billing"]');
       } else if (currentStep.targetSelector === '[data-tour="profile-card"]') {
         el = document.querySelector('[data-tour="profile-header"]');
       }

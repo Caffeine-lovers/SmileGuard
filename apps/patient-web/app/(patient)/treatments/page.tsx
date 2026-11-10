@@ -18,7 +18,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
-  Receipt,
 } from 'lucide-react';
 import { getServicePrice } from '@/lib/pricing';
 import { formatAppointmentTime, formatDuration, formatMinutes, getServiceDuration, toMinutes } from '@/lib/scheduling';
@@ -201,11 +200,6 @@ export default function TreatmentsPage() {
                           ))}
                         </ul>
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {appointment.status === 'completed' && (
-                            <Link href="/billing" className="skeuo-btn-secondary px-2.5 py-1 text-[11px] uppercase tracking-wider">
-                              <Receipt className="w-3 h-3" /> <span>Billing</span>
-                            </Link>
-                          )}
                           {['pending', 'PENDING', 'scheduled'].includes(appointment.status) && (
                             <Link href="/dashboard" className="skeuo-btn-secondary px-2.5 py-1 text-[11px] uppercase tracking-wider">
                               <Building2 className="w-3 h-3" /> <span>Reschedule / Cancel</span>

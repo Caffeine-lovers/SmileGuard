@@ -9,7 +9,7 @@ import AppointmentCard from '@/components/dashboard/AppointmentCard';
 import DoctorProfileModal from '@/components/dashboard/DoctorProfileModal';
 import { getPatientAppointments, getDoctorDetails, withTimeout } from '@/lib/appointmentService';
 import { formatAppointmentTime } from '@/lib/scheduling';
-import { calculateOutstandingBalance, fetchClinicLookup } from '@/lib/outstandingBalanceService';
+import { fetchClinicLookup } from '@/lib/outstandingBalanceService';
 import Link from 'next/link';
 import type { Appointment } from '@/lib/database';
 import { isPendingAppointment, isCancelledAppointment } from '@/lib/database';
@@ -18,7 +18,6 @@ import { showAlert, showConfirm } from '@/components/ui/AppDialog';
 import { 
   Calendar,
   Compass, 
-  CreditCard, 
   Clock, 
   Plus, 
   CheckCircle2, 
@@ -39,7 +38,6 @@ export default function PatientDashboard() {
   const { currentUser } = useAuth();
   const router = useRouter();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [outstandingBalance, setOutstandingBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'scheduled' | 'pending' | 'cancelled'>('scheduled');
   const ITEMS_PER_PAGE = 5;
@@ -207,9 +205,8 @@ export default function PatientDashboard() {
         if (!currentUser?.id) return;
         const userId = currentUser.id;
 
-        const [appts, balance, clinicLookup] = await Promise.all([
+        const [appts, clinicLookup] = await Promise.all([
           withTimeout(getPatientAppointments(userId), 5000, []),
-          withTimeout(calculateOutstandingBalance(userId), 5000, 0),
           withTimeout(fetchClinicLookup(), 5000, { clinicMap: new Map(), defaultClinic: null }),
         ]);
 
@@ -223,7 +220,6 @@ export default function PatientDashboard() {
         });
 
         setAppointments(enrichedAppts);
-        setOutstandingBalance(balance);
 
         // Default to scheduled visits as priority view
 
@@ -426,17 +422,11 @@ export default function PatientDashboard() {
       </div>
 
       {/* KPI Stats Grid */}
-      <div data-tour="stats-grid" className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div data-tour="stats-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <StatCard 
           icon={<Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />} 
           number={loading ? '...' : appointments.length} 
           label="Registered Appointments" 
-        />
-        <StatCard 
-          icon={<CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-700" />} 
-          number={loading ? '...' : `₱${outstandingBalance.toFixed(2)}`} 
-          label="Outstanding Balance" 
-          href="/billing" 
         />
         <StatCard 
           icon={<Clock className="w-6 h-6 text-emerald-700" />} 

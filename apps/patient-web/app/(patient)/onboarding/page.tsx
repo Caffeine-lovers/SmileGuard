@@ -6,7 +6,6 @@ import { useAuth } from '@smileguard/shared-hooks';
 import { 
   Sparkles, 
   Calendar, 
-  CreditCard, 
   ShieldCheck, 
   CheckCircle2, 
   ArrowRight, 
@@ -15,7 +14,6 @@ import {
   BrainCircuit, 
   Clock, 
   FileText,
-  Lock,
   Smile
 } from 'lucide-react';
 import Wordmark from '@/components/ui/Wordmark';
@@ -35,7 +33,7 @@ export default function PatientOnboardingWizard() {
   const steps = [
     {
       id: 'welcome',
-      badge: 'Step 1 of 5 • Welcome',
+      badge: 'Step 1 of 4 • Welcome',
       title: 'Welcome to SmileGuard',
       subtitle: 'Your modern, intelligent dental health and clinic companion.',
       description: 'SmileGuard connects you directly with certified dental clinics and your personal dentist. Everything from scheduling, AI oral screening, and payments is unified in one secure patient portal.',
@@ -61,7 +59,7 @@ export default function PatientOnboardingWizard() {
     },
     {
       id: 'ai-scan',
-      badge: 'Step 2 of 5 • AI Oral Screening',
+      badge: 'Step 2 of 4 • AI Oral Screening',
       title: 'Smart AI Dental Screening',
       subtitle: 'Detect early gum inflammation & plaque before your visit.',
       description: 'SmileGuard features an on-demand AI oral screening engine. Simply upload or take photos of your teeth and gums to receive an immediate preliminary health score.',
@@ -87,7 +85,7 @@ export default function PatientOnboardingWizard() {
     },
     {
       id: 'appointments',
-      badge: 'Step 3 of 5 • Online Scheduling',
+      badge: 'Step 3 of 4 • Online Scheduling',
       title: 'Conflict-Free Appointment Booking',
       subtitle: 'Pick dates, preferred dentists, and real-time open slots.',
       description: 'Say goodbye to phone tags. View your clinic’s live operating calendar, select available morning or afternoon chairs, and reserve your visit with conflict protection.',
@@ -112,34 +110,8 @@ export default function PatientOnboardingWizard() {
       ]
     },
     {
-      id: 'billing',
-      badge: 'Step 4 of 5 • Billing',
-      title: 'Transparent Billing',
-      subtitle: 'Itemized invoices here, payment at the clinic front desk.',
-      description: 'Clear, predictable dental costs. Review itemized treatment fees set directly by your clinic, then settle your balance at the clinic, where the assistant records your payment.',
-      icon: CreditCard,
-      accentColor: 'cyan',
-      features: [
-        {
-          icon: CreditCard,
-          title: 'Cash, GCash, Maya, Card or HMO',
-          desc: 'Pay at the clinic with any accepted method. HMO patients bring their card and LOA and pay only the remaining share.'
-        },
-        {
-          icon: FileText,
-          title: 'Transparent Itemized Invoices',
-          desc: 'Every procedure, dental cleaning, or filling is clearly itemized with clinic details.'
-        },
-        {
-          icon: Lock,
-          title: 'Zero Hidden Fees',
-          desc: 'Full visibility over outstanding balances and paid receipts saved in your treatment registry.'
-        }
-      ]
-    },
-    {
       id: 'ready',
-      badge: 'Step 5 of 5 • Ready to Smile',
+      badge: 'Step 4 of 4 • Ready to Smile',
       title: 'You Are All Set!',
       subtitle: 'Your SmileGuard Patient Portal is completely configured.',
       description: 'You can now book your initial checkup, explore the AI oral scan tool, or review your medical chart. Your health records are safe, synced, and always accessible.',

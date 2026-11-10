@@ -11,7 +11,6 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Sparkles, 
-  CreditCard, 
   User, 
   FileText, 
   Stethoscope,
@@ -128,7 +127,6 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/appointments', label: 'Appointments', icon: CalendarPlus },
-    { href: '/billing', label: 'Billing', icon: CreditCard },
     { href: '/analysis', label: 'Analysis', icon: Sparkles },
     { href: '/treatments', label: 'Treatments', icon: Stethoscope },
     { href: '/documents', label: 'Documents', icon: FileText },
@@ -140,7 +138,6 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
     { href: '/appointments', label: 'Book', icon: CalendarPlus },
     { href: '/analysis', label: 'AI Scan', icon: Sparkles },
-    { href: '/billing', label: 'Billing', icon: CreditCard },
     { href: '/profile', label: 'Profile', icon: User },
   ];
 
