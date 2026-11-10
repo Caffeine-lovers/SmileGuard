@@ -370,6 +370,27 @@ export async function bookSlot(
   insertedData = insertRes.data;
   insertError = insertRes.error;
 
+  // The clinic owner may have no profiles row (dentist_id FK targets profiles).
+  // Book as an unassigned pending request instead; the clinic assigns it on approval.
+  if (insertError?.code === '23503' && dentistId) {
+    console.warn('⚠️ dentist_id not found in profiles; retrying as an unassigned request');
+    dentistId = '';
+    const retryNoDentist = await supabase
+      .from('appointments')
+      .insert({
+        patient_id: patientId,
+        dentist_id: null,
+        service,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+        notes: trimmedNotes,
+        status: 'pending',
+      })
+      .select('id');
+    insertedData = retryNoDentist.data;
+    insertError = retryNoDentist.error;
+  }
+
   // Resilient fallback if DB check constraint does not yet allow lowercase 'pending'
   if (insertError && (insertError.message?.toLowerCase().includes('check') || insertError.code === '23514')) {
     console.warn('⚠️ Retrying insert with uppercase "PENDING"...');
