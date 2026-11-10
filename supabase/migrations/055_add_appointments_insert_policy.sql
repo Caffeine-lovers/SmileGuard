@@ -11,6 +11,7 @@
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 
 -- Add INSERT policy for appointments: patients can create appointments for themselves
+DROP POLICY IF EXISTS "appointments_insert_patient" ON public.appointments;
 CREATE POLICY "appointments_insert_patient" ON public.appointments
   FOR INSERT
   WITH CHECK (auth.uid() = patient_id);

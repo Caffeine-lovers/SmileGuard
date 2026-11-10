@@ -413,7 +413,10 @@ export async function bookSlot(
     console.error('Insert Error Detail:', insertError);
     if (insertError.code === '23505') return { success: false, message: 'Slot was just taken by someone else!' };
     console.error('Booking error:', insertError);
-    return { success: false, message: 'Booking failed. Please try again.' };
+    return {
+      success: false,
+      message: `Booking failed (${insertError.code ?? 'error'}): ${insertError.message ?? 'please try again.'}`,
+    };
   }
 
   const appointmentId = insertedData?.[0]?.id;
