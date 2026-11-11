@@ -133,7 +133,7 @@ export default function DoctorProfileSetup({
       if (user?.id) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role, name, phone_number")
+          .select("role, name")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -221,13 +221,7 @@ export default function DoctorProfileSetup({
             ...prev,
             first_name: parts[0] || "",
             last_name: parts.slice(1).join(" ") || "",
-            doctor_phone: profile.phone_number || "",
           }));
-          if (profile.phone_number) {
-            const cleaned = profile.phone_number.replace(/\D/g, "").slice(-10);
-            setPhoneDigits(cleaned);
-            setPhoneDisplay(formatPhoneChunks(cleaned));
-          }
         }
       }
     })();

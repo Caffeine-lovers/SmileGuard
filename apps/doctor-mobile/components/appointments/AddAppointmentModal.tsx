@@ -249,8 +249,16 @@ export default function AddAppointmentModal({
   const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
 
   // Clinic Context
-  const { clinic } = useClinic();
+  const { clinic, refetch: refetchClinic } = useClinic();
   const clinicSchedule = propClinicSchedule || clinic?.schedule;
+
+  // Clinic hours may not have been readable when the app first started
+  useEffect(() => {
+    if (visible && !clinicSchedule) {
+      refetchClinic();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   // Form Fields
   const [selectedPatient, setSelectedPatient] = useState<{
@@ -377,7 +385,7 @@ export default function AddAppointmentModal({
       // 1. Fetch registered patients from profiles table
       const { data: profilePatients, error: profError } = await supabase
         .from("profiles")
-        .select("id, name, email, phone_number, role, created_at, avatar_url")
+        .select("id, name, email, role, created_at, avatar_url")
         .eq("role", "patient")
         .order("name", { ascending: true });
 
@@ -417,7 +425,7 @@ export default function AddAppointmentModal({
           id: p.id,
           name: p.name || "Patient",
           email: p.email || "",
-          contact: p.phone_number || med.phone || "",
+          contact: med.phone || "",
           allergies: med.allergies || "None",
           dummy: false,
           avatar_url: p.avatar_url,
@@ -454,7 +462,7 @@ export default function AddAppointmentModal({
     try {
       const { data } = await supabase
         .from("doctors")
-        .select("id, user_id, first_name, last_name, doctor_name")
+        .select("id, user_id, first_name, last_name")
         .limit(20);
       setDoctorsList(data || []);
       // dentist_id must be a doctor's account id. The assistant's own id (passed in as the
@@ -943,7 +951,7 @@ export default function AddAppointmentModal({
         (d: any) => d.id === selectedDoctorId || d.user_id === selectedDoctorId
       );
       const doctorDisplayName = assignedDoc
-        ? assignedDoc.doctor_name || `${assignedDoc.first_name || ""} ${assignedDoc.last_name || ""}`.trim()
+        ? `Dr. ${assignedDoc.first_name || ""} ${assignedDoc.last_name || ""}`.trim()
         : undefined;
 
       setSuccessCreatedAppointment({
@@ -1273,7 +1281,11 @@ export default function AddAppointmentModal({
                 </View>
               ) : availableTimeSlots.length === 0 ? (
                 <View style={styles.noSlotsBox}>
-                  <Text style={styles.noSlotsText}>No time slots available for this day.</Text>
+                  <Text style={styles.noSlotsText}>
+                    {clinicSchedule
+                      ? "No time slots available for this day."
+                      : "Clinic hours are not set up yet. Save them in Settings > Clinic Setup, then reopen this screen."}
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.pillGroup}>
@@ -1349,7 +1361,7 @@ export default function AddAppointmentModal({
                   {doctorsList.map((doc) => {
                     const docId = doc.user_id || doc.id;
                     const docName =
-                      doc.doctor_name || `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim();
+                      `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim();
                     const isSelected = selectedDoctorId === docId;
                     return (
                       <TouchableOpacity

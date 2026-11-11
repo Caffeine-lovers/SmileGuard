@@ -800,15 +800,15 @@ export default function AssistantDashboard({
     try {
       const { data: doctorsData } = await supabase
         .from("doctors")
-        .select("id, doctor_name, first_name, last_name, role");
+        .select("id, user_id, first_name, last_name, role");
 
       if (doctorsData && doctorsData.length > 0) {
         const map: Record<string, string> = {};
         doctorsData.forEach((d: any) => {
           const docName =
-            d.doctor_name ||
             (d.first_name ? `Dr. ${d.first_name} ${d.last_name || ""}`.trim() : "Dentist");
           map[d.id] = docName;
+          if (d.user_id) map[d.user_id] = docName;
         });
         setDoctorsMap(map);
       }

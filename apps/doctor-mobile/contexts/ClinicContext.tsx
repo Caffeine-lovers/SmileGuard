@@ -78,8 +78,17 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
       )
       .subscribe();
 
+    // The first load runs before login, when the clinic row may not be readable yet.
+    // Deferred with setTimeout: supabase calls made inside this callback can deadlock.
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        setTimeout(loadClinicData, 0);
+      }
+    });
+
     return () => {
       supabase.removeChannel(channel);
+      authListener.subscription.unsubscribe();
     };
   }, []);
 
