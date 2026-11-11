@@ -1119,6 +1119,17 @@ export interface CreateDirectAppointmentInput {
   status?: 'scheduled' | 'pending';
 }
 
+// appointment_time is stored as 24-hour "HH:MM", the same format the patient website writes
+function toStoredTime(time: string): string {
+  const m = (time || '').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!m) return time;
+  let h = parseInt(m[1], 10);
+  const period = m[3]?.toUpperCase();
+  if (period === 'PM' && h < 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}
+
 export async function createDirectAppointment(
   input: CreateDirectAppointmentInput
 ): Promise<{ success: boolean; data?: any; error?: string }> {
@@ -1128,7 +1139,7 @@ export async function createDirectAppointment(
       dentist_id: input.dentist_id || null,
       service: input.service || 'General',
       appointment_date: input.appointment_date,
-      appointment_time: input.appointment_time,
+      appointment_time: toStoredTime(input.appointment_time),
       status: input.status || 'scheduled',
       notes: noteContent || null,
       created_at: new Date().toISOString(),

@@ -43,6 +43,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppTour, { useTourTargets, TourStep } from '../tour/AppTour';
 import { isDoctorGuideCompleted, markDoctorGuideCompleted, setDoctorGuideCompleted } from '../../lib/doctorService';
 import ProcessPaymentModal, { paymentMethodLabel } from '../billing/ProcessPaymentModal';
+import WalkInBillModal from '../billing/WalkInBillModal';
 import { AppColors } from '../../constants/theme';
 
 import {
@@ -108,13 +109,7 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
   const canProcess = userRole === 'assistant' || userRole === 'admin';
   const [processingBilling, setProcessingBilling] = useState<BillingWithPatientName | null>(null);
 
-  // Create Dummy Billing State
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createPatientId, setCreatePatientId] = useState('');
-  const [createAmount, setCreateAmount] = useState('');
-  const [createDiscountType, setCreateDiscountType] = useState<string>('none');
-  const [createDiscountAmount, setCreateDiscountAmount] = useState('');
-  const [savingCreate, setSavingCreate] = useState(false);
+  const [showWalkInBill, setShowWalkInBill] = useState(false);
 
   // Fetch all patients and billings on screen focus
   useFocusEffect(
@@ -588,109 +583,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     }
   };
 
-  const handleCreateAmountBlur = () => {
-    if (!createAmount) return;
-    const num = parseCurrencyInput(createAmount);
-    if (num > 0) setCreateAmount(formatNumberWithCommas(num));
-  };
-
-  const handleCreateDiscountBlur = () => {
-    if (!createDiscountAmount) return;
-    const num = parseCurrencyInput(createDiscountAmount);
-    setCreateDiscountAmount(formatNumberWithCommas(num));
-  };
-
-  // ─────────────────────────────────────────
-  // DUMMY INVOICE CREATION LOGIC
-  // ─────────────────────────────────────────
-  const handleOpenCreateModal = () => {
-    const dummyList = patients.filter((p) => p.is_dummy);
-    setCreatePatientId(dummyList.length > 0 ? dummyList[0].id : '');
-    setCreateAmount('1,500.00');
-    setCreateDiscountType('none');
-    setCreateDiscountAmount('0.00');
-    setShowCreateModal(true);
-  };
-
-  const handleCreateDiscountTypeChange = (type: string) => {
-    setCreateDiscountType(type);
-    const numAmount = parseCurrencyInput(createAmount);
-    if (type === 'pwd' || type === 'senior') {
-      const disc = (numAmount * 0.20).toFixed(2);
-      setCreateDiscountAmount(formatNumberWithCommas(disc));
-    } else if (type === 'none') {
-      setCreateDiscountAmount('0.00');
-    }
-  };
-
-  const handleCreateAmountChange = (text: string) => {
-    setCreateAmount(text);
-    const numAmount = parseCurrencyInput(text);
-    if (createDiscountType === 'pwd' || createDiscountType === 'senior') {
-      const disc = (numAmount * 0.20).toFixed(2);
-      setCreateDiscountAmount(disc);
-    }
-  };
-
-  const handleSaveCreateDummyBilling = async () => {
-    if (!createPatientId) {
-      Alert.alert('Selection Error', 'Please select a walk-in patient.');
-      return;
-    }
-    const parsedAmount = parseCurrencyInput(createAmount);
-    const parsedDiscount = parseCurrencyInput(createDiscountAmount);
-
-    if (parsedAmount <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid billing amount greater than 0.');
-      return;
-    }
-
-    const computedFinal = Math.max(0, parsedAmount - parsedDiscount);
-
-    try {
-      setSavingCreate(true);
-
-      // Invoices start unpaid; the payment itself is recorded through Process Payment
-      const { data: created, error: insertError } = await supabase
-        .from('billings')
-        .insert({
-          patient_id: createPatientId,
-          amount: parsedAmount,
-          discount_type: createDiscountType,
-          discount_amount: parsedDiscount,
-          final_amount: computedFinal,
-          payment_status: 'not_paid',
-        })
-        .select('*')
-        .maybeSingle();
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      setShowCreateModal(false);
-      await loadBillings();
-
-      // Go straight to collecting the payment for the invoice just issued
-      if (created?.id) {
-        const walkIn = patients.find((p) => p.id === createPatientId);
-        setProcessingBilling({
-          ...created,
-          patient_name: walkIn?.name || 'Walk-in Patient',
-          patient_email: walkIn?.email || '',
-          is_dummy: true,
-        });
-      } else {
-        Alert.alert('Invoice Created', 'Walk-in invoice created. Tap Process Payment on the bill to collect.');
-      }
-    } catch (err: any) {
-      console.error('Error creating dummy billing:', err);
-      Alert.alert('Creation Failed', err.message || 'Could not create walk-in billing record.');
-    } finally {
-      setSavingCreate(false);
-    }
-  };
-
   // Keep currentPage valid if totalPages shrinks
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -729,8 +621,6 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
     p.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
-  const dummyPatientsList = patients.filter((p) => p.is_dummy);
-
   return (
     <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
       <View ref={tour.setContainer} collapsable={false} style={{ flex: 1 }}>
@@ -744,10 +634,10 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           </View>
 
           <View style={localStyles.headerActionsRow}>
-            {canProcess && dummyPatientsList.length > 0 && (
+            {canProcess && (
               <TouchableOpacity
                 style={localStyles.createInvoiceBtn}
-                onPress={handleOpenCreateModal}
+                onPress={() => setShowWalkInBill(true)}
                 activeOpacity={0.8}
               >
                 <Plus size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
@@ -1398,193 +1288,17 @@ export default function BillingTab({ doctorId, styles, startTourTrigger, userRol
           }}
         />
 
-        {/* ─────────────────────────────────────────
-            CREATE DUMMY INVOICE MODAL
-        ───────────────────────────────────────── */}
-        <Modal
-          visible={showCreateModal}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => {
-            if (!savingCreate) {
-              setShowCreateModal(false);
-            }
+        <WalkInBillModal
+          visible={showWalkInBill}
+          onClose={() => setShowWalkInBill(false)}
+          onCreated={async (created) => {
+            setShowWalkInBill(false);
+            const refreshedPatients = await loadPatients();
+            await loadBillings(undefined, refreshedPatients);
+            // Go straight to collecting the payment for the bill just issued
+            setProcessingBilling(created);
           }}
-        >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
-            <View style={localStyles.modalHeader}>
-              <View>
-                <Text style={localStyles.modalTitle}>CREATE WALK-IN INVOICE</Text>
-                <Text style={localStyles.modalSubtitle}>Issue a ledger invoice for a walk-in patient</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowCreateModal(false)}
-                disabled={savingCreate}
-                style={localStyles.modalCloseBtn}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <X size={18} color="#047857" />
-              </TouchableOpacity>
-            </View>
-
-            <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-              {/* Patient Selection */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Select Walk-in Patient</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {dummyPatientsList.map((dp) => {
-                      const isSelected = createPatientId === dp.id;
-                      return (
-                        <TouchableOpacity
-                          key={dp.id}
-                          style={[
-                            localStyles.patientPill,
-                            isSelected && localStyles.patientPillActive,
-                          ]}
-                          onPress={() => setCreatePatientId(dp.id)}
-                        >
-                          <Text
-                            style={[
-                              localStyles.patientPillText,
-                              isSelected && localStyles.patientPillTextActive,
-                            ]}
-                          >
-                            {dp.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </View>
-
-              {/* Original Amount Input */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Original Amount (₱)</Text>
-                <View style={localStyles.inputWrapper}>
-                  <Text style={localStyles.inputPrefix}>₱</Text>
-                  <TextInput
-                    style={localStyles.formInputWithPrefix}
-                    keyboardType="numeric"
-                    value={createAmount}
-                    onChangeText={handleCreateAmountChange}
-                    placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-                <Text style={localStyles.helperText}>
-                  Formatted: {formatCurrency(createAmount)}
-                </Text>
-              </View>
-
-              {/* Discount Type Selector */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Discount Type</Text>
-                <View style={localStyles.pillSelectorRow}>
-                  {[
-                    { id: 'none', label: 'None (0%)' },
-                    { id: 'pwd', label: 'PWD (20%)' },
-                    { id: 'senior', label: 'Senior (20%)' },
-                    { id: 'custom', label: 'Custom' },
-                  ].map((dt) => {
-                    const isSelected = createDiscountType === dt.id;
-                    return (
-                      <TouchableOpacity
-                        key={dt.id}
-                        style={[
-                          localStyles.pillOption,
-                          isSelected && localStyles.pillOptionActive,
-                        ]}
-                        onPress={() => handleCreateDiscountTypeChange(dt.id)}
-                      >
-                        <Text
-                          style={[
-                            localStyles.pillOptionText,
-                            isSelected && localStyles.pillOptionTextActive,
-                          ]}
-                        >
-                          {dt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Discount Amount Input */}
-              <View style={localStyles.formGroup}>
-                <Text style={localStyles.formLabel}>Discount Amount (₱)</Text>
-                <View style={localStyles.inputWrapper}>
-                  <Text style={localStyles.inputPrefix}>₱</Text>
-                  <TextInput
-                    style={localStyles.formInputWithPrefix}
-                    keyboardType="numeric"
-                    value={createDiscountAmount}
-                    onChangeText={setCreateDiscountAmount}
-                    editable={createDiscountType === 'custom' || createDiscountType === 'insurance'}
-                    placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-                <Text style={localStyles.helperText}>
-                  Discount: -{formatCurrency(createDiscountAmount)}
-                </Text>
-              </View>
-
-              {/* Live Preview Card */}
-              <View style={localStyles.calcPreviewCard}>
-                <Text style={localStyles.calcPreviewTitle}>SETTLEMENT BREAKDOWN</Text>
-                <View style={localStyles.calcRow}>
-                  <Text style={localStyles.calcLabel}>Subtotal</Text>
-                  <Text style={localStyles.calcValue}>{formatCurrency(createAmount)}</Text>
-                </View>
-                <View style={localStyles.calcRow}>
-                  <Text style={localStyles.calcLabel}>Discount ({createDiscountType.toUpperCase()})</Text>
-                  <Text style={[localStyles.calcValue, { color: '#DC2626' }]}>
-                    -{formatCurrency(createDiscountAmount)}
-                  </Text>
-                </View>
-                <View style={localStyles.calcDivider} />
-                <View style={localStyles.calcRow}>
-                  <Text style={[localStyles.calcLabel, { fontWeight: '800', color: '#0F172A' }]}>Final Settled Amount</Text>
-                  <Text style={[localStyles.calcValue, { fontWeight: '900', color: '#047857', fontSize: 16 }]}>
-                    {formatCurrency(
-                      Math.max(0, parseCurrencyInput(createAmount) - parseCurrencyInput(createDiscountAmount))
-                    )}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={{ marginTop: 24, gap: 10 }}>
-                <TouchableOpacity
-                  style={[localStyles.modalPrimaryBtn, savingCreate && { opacity: 0.7 }]}
-                  onPress={handleSaveCreateDummyBilling}
-                  disabled={savingCreate}
-                  activeOpacity={0.8}
-                >
-                  {savingCreate ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={localStyles.modalPrimaryBtnText}>Generate Invoice</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={localStyles.modalSecondaryBtn}
-                  onPress={() => setShowCreateModal(false)}
-                  disabled={savingCreate}
-                  activeOpacity={0.8}
-                >
-                  <Text style={localStyles.modalSecondaryBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-</KeyboardAvoidingView>
-          </SafeAreaView>
-        </Modal>
+        />
 
         {/* Interactive Walkthrough Tour */}
         <AppTour

@@ -244,7 +244,6 @@ export default function AddAppointmentModal({
   defaultDoctorId,
   clinicSchedule: propClinicSchedule,
   blockoutDates: propBlockoutDates,
-  existingAppointments,
 }: AddAppointmentModalProps) {
   const insets = useSafeAreaInsets();
   const statusBarHeight = insets.top || (Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0);
@@ -291,13 +290,6 @@ export default function AddAppointmentModal({
 
   // Appointments on selected date
   const [dayAppointments, setDayAppointments] = useState<any[]>([]);
-  // Sync day appointments from parent if provided
-  useEffect(() => {
-    if (visible && existingAppointments && existingAppointments.length >= 0) {
-      setDayAppointments(existingAppointments);
-    }
-  }, [visible, existingAppointments]);
-
 
   const [loadingDayAppointments, setLoadingDayAppointments] = useState(false);
 
@@ -465,45 +457,44 @@ export default function AddAppointmentModal({
         .select("id, user_id, first_name, last_name, doctor_name")
         .limit(20);
       setDoctorsList(data || []);
-      if (!selectedDoctorId && data && data.length > 0) {
-        setSelectedDoctorId(data[0].id || data[0].user_id);
-      }
+      // dentist_id must be a doctor's account id. The assistant's own id (passed in as the
+      // default) is not a dentist, so fall back to the clinic's doctor.
+      const doctorUserIds = (data || []).map((d: any) => d.user_id).filter(Boolean);
+      setSelectedDoctorId((prev) => (prev && doctorUserIds.includes(prev) ? prev : doctorUserIds[0] || null));
     } catch (err) {
       console.error("[AddAppointmentModal] Error fetching doctors:", err);
     }
-  }, [selectedDoctorId]);
+  }, []);
 
   // Fetch Appointments on appointmentDate
+  // Every booking on the date blocks time, whichever dentist it is assigned to
+  // (including unassigned patient requests) — same rule as the patient website.
+  const loadAppointmentsForDate = useCallback(async (targetDate: string): Promise<any[] | null> => {
+    const { data, error } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("appointment_date", targetDate);
+    if (!error && data) return data;
+
+    try {
+      return await getDoctorAppointmentsByDate(null, targetDate);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const fetchDayAppointments = useCallback(async (targetDate: string) => {
     if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return;
     setLoadingDayAppointments(true);
     try {
-      // 1. Try getDoctorAppointmentsByDate (uses SECURITY DEFINER RPC to bypass RLS)
-      try {
-        const docApts = await getDoctorAppointmentsByDate(selectedDoctorId || defaultDoctorId || null, targetDate);
-        if (docApts && Array.isArray(docApts) && docApts.length > 0) {
-          setDayAppointments(docApts);
-          return;
-        }
-      } catch (rpcErr) {
-        // Fall back to direct query
-      }
-
-      // 2. Direct query with select("*") to avoid column mismatch errors
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*")
-        .eq("appointment_date", targetDate);
-
-      if (!error && data) {
-        setDayAppointments(data);
-      }
+      const rows = await loadAppointmentsForDate(targetDate);
+      if (rows) setDayAppointments(rows);
     } catch (err) {
       console.error("[AddAppointmentModal] Error fetching day appointments:", err);
     } finally {
       setLoadingDayAppointments(false);
     }
-  }, [selectedDoctorId, defaultDoctorId]);
+  }, [loadAppointmentsForDate]);
 
   // Fetch Month Appointments for the Calendar Date Picker
   const fetchMonthAppointments = useCallback(async (calendarMonth: Date) => {
@@ -725,6 +716,14 @@ export default function AddAppointmentModal({
       if (isNaN(slotMin)) return false;
       const endMin = slotMin + currentDuration;
 
+      // Same-day bookings cannot start at a time that has already passed
+      if (appointmentDate === getTodayStr()) {
+        const now = new Date();
+        if (slotMin <= now.getHours() * 60 + now.getMinutes()) {
+          return false;
+        }
+      }
+
       // Cannot start inside an existing booking
       for (const b of busyIntervals) {
         if (slotMin >= b.start && slotMin < b.end) {
@@ -746,7 +745,7 @@ export default function AddAppointmentModal({
 
       return true;
     },
-    [busyIntervals, currentDuration, closingMinutes]
+    [busyIntervals, currentDuration, closingMinutes, appointmentDate]
   );
 
   // 3. Is slot covered by the currently selected appointment start time & estimated duration?
@@ -837,7 +836,7 @@ export default function AddAppointmentModal({
   const resetForm = () => {
     setSelectedPatient(null);
     setService(availableServices[0] || DEFAULT_SERVICES[0]);
-    setAppointmentDate(initialDate || new Date().toISOString().split("T")[0]);
+    setAppointmentDate(initialDate && initialDate >= getTodayStr() ? initialDate : getTodayStr());
     setAppointmentTime("");
     setNotes("");
     setErrorMessage(null);
@@ -905,6 +904,26 @@ export default function AddAppointmentModal({
     setErrorMessage(null);
 
     try {
+      // Re-check against the database right before saving, in case a patient or another
+      // staff member booked the same time while this form was open
+      const fresh = await loadAppointmentsForDate(finalDate);
+      if (fresh) {
+        setDayAppointments(fresh);
+        const startMin = toMinutes(appointmentTime);
+        const endMin = startMin + currentDuration;
+        const clash = fresh.some((a: any) => {
+          if (isCancelledOrDeclined(a.status)) return false;
+          const s = toMinutes(a.appointment_time || a.time || "");
+          if (isNaN(s)) return false;
+          return startMin < s + getServiceDuration(a.service) && s < endMin;
+        });
+        if (clash) {
+          setAppointmentTime("");
+          setErrorMessage("That time was just booked by someone else. Please pick another time.");
+          return;
+        }
+      }
+
       const result = await createDirectAppointment({
         patient_id: selectedPatient.id,
         is_dummy: !!selectedPatient.dummy,
@@ -1328,7 +1347,7 @@ export default function AddAppointmentModal({
 
                 <View style={styles.pillGroup}>
                   {doctorsList.map((doc) => {
-                    const docId = doc.id || doc.user_id;
+                    const docId = doc.user_id || doc.id;
                     const docName =
                       doc.doctor_name || `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim();
                     const isSelected = selectedDoctorId === docId;

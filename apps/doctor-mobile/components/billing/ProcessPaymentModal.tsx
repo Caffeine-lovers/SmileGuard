@@ -264,7 +264,7 @@ export default function ProcessPaymentModal({ visible, billing, onClose, onSaved
             {/* Bill amount */}
             <View style={s.group}>
               <Text style={s.label}>Bill Amount (₱)</Text>
-              {billing?.is_dummy ? (
+              {!billing?.appointment_id ? (
                 <View style={s.inputWrap}>
                   <Text style={s.prefix}>₱</Text>
                   <TextInput
