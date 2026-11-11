@@ -964,7 +964,10 @@ export default function ClinicSetup({
     JSON.stringify(clinicData.schedule || {}) !==
     JSON.stringify(originalClinicData.schedule || {});
 
+  // Nothing saved yet means there is nothing to compare against: creating the clinic
+  // record must always be allowed (required fields are validated in handleSave)
   const hasAnyChanges =
+    originalClinicData === null ||
     isNameChanged ||
     isAddressChanged ||
     isLogoChanged ||
