@@ -863,12 +863,19 @@ export default function ClinicSetup({
         const result = await supabase
           .from('clinic_setup')
           .update(dataToSave)
-          .eq('id', clinicSetupId);
+          .eq('id', clinicSetupId)
+          .select('id');
         error = result.error;
+        // A blocked update returns no error and no rows; do not report it as saved
+        if (!error && (!result.data || result.data.length === 0)) {
+          throw new Error('Your account is not allowed to change the clinic setup. Ask an admin to run the latest database update (migration 055).');
+        }
       } else {
+        const { data: { user: saver } } = await supabase.auth.getUser();
+        if (!saver?.id) throw new Error('You are signed out. Please sign in again.');
         const result = await supabase
           .from('clinic_setup')
-          .insert(dataToSave)
+          .insert({ ...dataToSave, user_id: saver.id })
           .select('id')
           .single();
         error = result.error;
