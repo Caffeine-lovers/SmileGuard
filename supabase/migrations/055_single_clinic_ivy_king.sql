@@ -65,6 +65,12 @@ BEGIN
   WHERE id = v_keep;
 END $$;
 
+-- Assistant profiles carry a copy of the clinic name; rename the old default
+ALTER TABLE public.assistants ALTER COLUMN clinic_name SET DEFAULT 'Ivy King Dental Clinic';
+UPDATE public.assistants
+SET clinic_name = 'Ivy King Dental Clinic'
+WHERE clinic_name IS DISTINCT FROM 'Ivy King Dental Clinic';
+
 -- ====================================================================
 -- 2. ONLY ONE CLINIC, ALWAYS NAMED IVY KING DENTAL CLINIC
 -- ====================================================================

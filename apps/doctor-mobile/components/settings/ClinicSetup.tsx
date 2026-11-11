@@ -1657,7 +1657,7 @@ export default function ClinicSetup({
                 </View>
                 <TextInput
                   style={[styles.inputField, isNameChanged && styles.inputGlow]}
-                  placeholder="e.g. SmileGuard Dental Clinic"
+                  placeholder="Ivy King Dental Clinic"
                   placeholderTextColor="#94A3B8"
                   value={CLINIC_NAME}
                   editable={false}

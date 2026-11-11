@@ -1306,7 +1306,7 @@ export default function AssistantDashboard({
               </View>
             </View>
             <Text style={styles.appBarSubTitle} numberOfLines={1}>
-              {clinic?.clinic_name || "SmileGuard Dental Clinic"}
+              {clinic?.clinic_name || "Ivy King Dental Clinic"}
             </Text>
           </View>
         </View>

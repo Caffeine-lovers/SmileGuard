@@ -342,7 +342,7 @@ export async function createAssistantProfile(
             phone: assistant.phone || null,
             gender: assistant.gender || null,
             profile_picture_url: assistant.profile_picture_url || null,
-            clinic_name: assistant.clinic_name || "SmileGuard Dental Clinic",
+            clinic_name: assistant.clinic_name || "Ivy King Dental Clinic",
             is_active: true,
             updated_at: new Date().toISOString(),
           },
