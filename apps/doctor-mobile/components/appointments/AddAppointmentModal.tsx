@@ -1284,7 +1284,7 @@ export default function AddAppointmentModal({
                   <Text style={styles.noSlotsText}>
                     {clinicSchedule
                       ? "No time slots available for this day."
-                      : "Clinic hours are not set up yet. Save them in Settings > Clinic Setup, then reopen this screen."}
+                      : "Couldn't load the clinic hours. Check your connection and reopen this screen. If it keeps happening, ask your dentist to confirm the hours are saved in Settings > Clinic Setup."}
                   </Text>
                 </View>
               ) : (
