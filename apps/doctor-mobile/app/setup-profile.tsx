@@ -69,6 +69,14 @@ export default function SetupProfilePage() {
       return;
     }
 
+    // There is one clinic (Ivy King Dental Clinic). If it already exists, a new doctor
+    // joins it instead of creating another one.
+    const { data: existingClinic } = await supabase.from("clinic_setup").select("id").limit(1);
+    if (existingClinic && existingClinic.length > 0) {
+      router.replace("/onboarding");
+      return;
+    }
+
     setStep("clinic");
   };
 
