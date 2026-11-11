@@ -61,7 +61,6 @@ function parse12HourTime(timeString: string): { hour: number; minute: number } {
 }
 
 export { DEFAULT_CLINIC_NAME };
-export const DEFAULT_DOCTOR_ID = "7c9b5331-3f19-4560-8256-44c7742e11ad";
 
 export interface ClinicServiceItem {
   id: string;
@@ -81,7 +80,8 @@ export interface ClinicDetails {
 
 const FALLBACK_CLINIC: ClinicDetails = {
   id: "6572586e-f38b-4d1e-894c-52f038228282",
-  user_id: DEFAULT_DOCTOR_ID,
+  // No dentist: a booking made on the fallback is an unassigned request the clinic assigns
+  user_id: "",
   clinic_name: DEFAULT_CLINIC_NAME,
   address: "Malabon",
   services: [

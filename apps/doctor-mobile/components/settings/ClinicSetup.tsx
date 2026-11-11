@@ -161,6 +161,9 @@ const DEFAULT_SERVICES: Service[] = PREDEFINED_SERVICES.map((name, index) => ({
 
 type ActiveClinicTab = 'overview' | 'schedule' | 'services';
 
+// The system serves one clinic only; the database enforces this name too (migration 055)
+const CLINIC_NAME = 'Ivy King Dental Clinic';
+
 export default function ClinicSetup({
   onClose,
   onBack,
@@ -182,7 +185,7 @@ export default function ClinicSetup({
   const [clinicSetupId, setClinicSetupId] = useState<string | null>(null);
 
   const [clinicData, setClinicData] = useState<ClinicData>({
-    clinic_name: '',
+    clinic_name: CLINIC_NAME,
     address: '',
     gallery_images: [],
     services: DEFAULT_SERVICES,
@@ -316,7 +319,7 @@ export default function ClinicSetup({
           }
 
           const loadedData: ClinicData = {
-            clinic_name: data.clinic_name || '',
+            clinic_name: CLINIC_NAME,
             address: data.address || '',
             logo_url: data.logo_url || undefined,
             gallery_images: galleryImages,
@@ -846,7 +849,7 @@ export default function ClinicSetup({
     setSaving(true);
     try {
       const dataToSave = {
-        clinic_name: clinicData.clinic_name.trim(),
+        clinic_name: CLINIC_NAME,
         address: clinicData.address.trim(),
         logo_url: clinicData.logo_url || null,
         gallery_images: clinicData.gallery_images || [],
@@ -1656,8 +1659,8 @@ export default function ClinicSetup({
                   style={[styles.inputField, isNameChanged && styles.inputGlow]}
                   placeholder="e.g. SmileGuard Dental Clinic"
                   placeholderTextColor="#94A3B8"
-                  value={clinicData.clinic_name}
-                  onChangeText={(text) => setClinicData((prev) => ({ ...prev, clinic_name: text }))}
+                  value={CLINIC_NAME}
+                  editable={false}
                 />
               </View>
 

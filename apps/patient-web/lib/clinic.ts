@@ -1,1 +1,1 @@
-export const DEFAULT_CLINIC_NAME = 'Dra. Ivy King Clinic';
+export const DEFAULT_CLINIC_NAME = 'Ivy King Dental Clinic';
